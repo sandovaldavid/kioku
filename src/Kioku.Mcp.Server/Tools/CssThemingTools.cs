@@ -120,7 +120,105 @@ public sealed class CssThemingTools(KiokuConfiguration config)
         return sb.ToString();
     }
 
+    // remove_css_snippet
+
+    [McpServerTool, Description(
+        "Removes a CSS snippet file from the Obsidian vault's .obsidian/snippets/ folder. " +
+        "Also removes it from the enabledCssSnippets list in app.json.")]
+    public async Task<string> remove_css_snippet(
+        [Description("Snippet name without .css extension (e.g. 'sepia-editor').")] string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "[error] Snippet name cannot be empty.";
+        }
+
+        var safeName = Path.GetFileNameWithoutExtension(name)
+            .Replace("..", string.Empty)
+            .Replace("/", string.Empty)
+            .Replace("\\", string.Empty);
+
+        if (string.IsNullOrWhiteSpace(safeName))
+        {
+            return "[error] Invalid snippet name.";
+        }
+
+        var filePath = Path.Combine(SnippetsFolder, safeName + ".css");
+
+        if (!File.Exists(filePath))
+        {
+            return $"[error] CSS snippet not found: .obsidian/snippets/{safeName}.css";
+        }
+
+        try
+        {
+            File.Delete(filePath);
+
+            var removalResult = await RemoveSnippetFromAppJson(safeName);
+
+            var result = $"[ok] CSS snippet '{safeName}' deleted: .obsidian/snippets/{safeName}.css";
+            if (!string.IsNullOrEmpty(removalResult))
+            {
+                result += "\n" + removalResult;
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return $"[error] Failed to delete snippet: {ex.Message}";
+        }
+    }
+
     // Private helpers
+
+    private async Task<string> RemoveSnippetFromAppJson(string snippetName)
+    {
+        try
+        {
+            if (!File.Exists(AppJsonPath))
+            {
+                return string.Empty;
+            }
+
+            var jsonContent = await File.ReadAllTextAsync(AppJsonPath, Encoding.UTF8);
+            var appJson = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(jsonContent);
+
+            if (appJson is null)
+            {
+                return string.Empty;
+            }
+
+            List<string> enabledSnippets = [];
+
+            if (appJson.TryGetValue("enabledCssSnippets", out var snippetsElement) &&
+                snippetsElement.ValueKind == JsonValueKind.Array)
+            {
+                enabledSnippets = snippetsElement
+                    .EnumerateArray()
+                    .Select(e => e.GetString() ?? string.Empty)
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .ToList();
+            }
+
+            if (enabledSnippets.RemoveAll(s => s.Equals(snippetName, StringComparison.OrdinalIgnoreCase)) > 0)
+            {
+                var dict = appJson.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+                dict["enabledCssSnippets"] = enabledSnippets;
+
+                var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(AppJsonPath, updatedJson, Encoding.UTF8);
+
+                return $"   Snippet removed from enabledCssSnippets in app.json.";
+            }
+
+            return string.Empty;
+        }
+        catch (Exception ex)
+        {
+            return $"   Warning: could not update app.json — {ex.Message}";
+        }
+    }
 
     private async Task<string> EnableSnippetInAppJson(string snippetName)
     {
