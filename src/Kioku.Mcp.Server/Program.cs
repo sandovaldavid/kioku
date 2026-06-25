@@ -44,6 +44,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     webBuilder.Services.AddSingleton<VaultIndexService>();
     webBuilder.Services.AddSingleton<ObsidianBridgeService>();
     webBuilder.Services.AddSingleton<HybridSearchService>();
+    webBuilder.Services.AddSingleton<TaskService>();
 
     // CORS: allow localhost and the Obsidian app origin
     webBuilder.Services.AddCors(options =>
@@ -60,6 +61,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
         .WithTools<NoteQueryTools>()
         .WithTools<NoteCommandTools>()
         .WithTools<ObsidianBridgeTools>()
+        .WithTools<TaskManagementTools>()
         .WithTools<UtilityTools>();
 
     var webApp = webBuilder.Build();
@@ -119,6 +121,7 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
     builder.Services.AddSingleton<VaultIndexService>();
     builder.Services.AddSingleton<ObsidianBridgeService>();
     builder.Services.AddSingleton<HybridSearchService>();
+    builder.Services.AddSingleton<TaskService>();
 
     // MCP over stdio
     builder.Services
@@ -127,6 +130,7 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
         .WithTools<NoteQueryTools>()
         .WithTools<NoteCommandTools>()
         .WithTools<ObsidianBridgeTools>()
+        .WithTools<TaskManagementTools>()
         .WithTools<UtilityTools>();
 
     var host = builder.Build();
