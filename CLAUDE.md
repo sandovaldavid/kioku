@@ -1,0 +1,69 @@
+# Kioku
+
+Monorepo: MCP server (C# .NET 10) + Obsidian plugin (TypeScript 6).
+The server exposes vault tools via stdio MCP; the plugin bridges via WebSocket on port 7765.
+
+## Structure
+
+```
+src/Kioku.Mcp.Server/       C# MCP server (stdio transport)
+  Tools/                    MCP tools: NoteQueryTools, NoteCommandTools,
+                              ObsidianBridgeTools, UtilityTools
+  Services/                 VaultIndexService, ObsidianBridgeService,
+                              FrontmatterParser, MarkdownTextExtractor
+  Domain/                   Note, NoteMetadata, SearchResult
+  Logging/                  KiokuLogger (ILogger<T> extension methods)
+src/obsidian-kioku-mcp/     TypeScript Obsidian plugin (WebSocket server)
+  src/main.ts               Plugin entry point (KiokuPlugin class)
+  src/logger.ts             Logger class — use log.info/warn/error/debug
+```
+
+## Commands
+
+| Task | Command |
+|------|---------|
+| Build server | `dotnet build src/Kioku.Mcp.Server/` |
+| Format C# | `dotnet format src/Kioku.Mcp.Server/` |
+| Build plugin | `pnpm build:plugin` |
+| Lint plugin | `pnpm lint:plugin` |
+| Format plugin | `pnpm format:plugin` |
+| Type-check plugin | `pnpm --filter obsidian-kioku-mcp exec tsc --noEmit` |
+
+## Commit conventions
+
+Scope is **required**. Valid scopes: `server | plugin | docs | ci | config | deps | release`
+
+Format: `type(scope): imperative description` — lowercase, no period, max 100 chars
+
+```
+feat(server): add search_by_alias tool
+fix(plugin): handle null vault path on startup
+docs(docs): add WebSocket protocol reference
+```
+
+## Code style rules
+
+- No separator comments (`// ── Name ──────────`). Use plain `// Name` instead.
+- No emojis in strings. Use `[error]`, `[ok]`, `[loading]`, `[info]`, `[online]` prefixes.
+- TypeScript logging: `import { log } from "./logger"` → `log.info/warn/error/debug`
+- C# logging: inject `ILogger<T>` and use `.Info()/.Warn()/.Error()/.Debug()` from `Kioku.Mcp.Server.Logging`
+
+## Branch workflow
+
+All changes branch from `origin/develop`. PRs target `develop` (squash-only).
+Never commit directly to `main` or `develop`.
+Release Please handles `develop` → `main` via automated PRs.
+
+```bash
+git checkout -b feat/my-feature origin/develop
+# ... work ...
+gh pr create --base develop
+```
+
+## Environment variables (server)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `KIOKU_VAULT_PATH` | yes | — | Absolute path to the Obsidian vault |
+| `KIOKU_MAX_RESULTS` | no | 20 | Max search results |
+| `KIOKU_OBSIDIAN_PORT` | no | 7765 | WebSocket port of the plugin |
