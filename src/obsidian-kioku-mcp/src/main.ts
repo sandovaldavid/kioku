@@ -1,7 +1,8 @@
 import { App, Plugin, PluginSettingTab, Setting, Notice } from "obsidian";
 import WebSocket, { WebSocketServer } from "ws";
+import { log } from "./logger";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// Types
 
 interface KiokuSettings {
   /** Port where the plugin's WebSocket server listens. */
@@ -28,7 +29,7 @@ interface BridgeResponse {
   error?: string;
 }
 
-// ── Main Plugin ──────────────────────────────────────────────────────────
+// Main Plugin
 
 export default class KiokuPlugin extends Plugin {
   declare settings: KiokuSettings;
@@ -38,13 +39,10 @@ export default class KiokuPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-    // Add settings tab
     this.addSettingTab(new KiokuSettingTab(this.app, this));
 
-    // Start WebSocket server
     this.startBridgeServer();
 
-    // Palette command: restart bridge
     this.addCommand({
       id: "kioku-restart-bridge",
       name: "Restart Kioku MCP Bridge",
@@ -55,15 +53,15 @@ export default class KiokuPlugin extends Plugin {
       },
     });
 
-    console.log(`[Kioku] Plugin loaded. Bridge on port ${this.settings.bridgePort}`);
+    log.info(`Plugin loaded. Bridge on port ${this.settings.bridgePort}`);
   }
 
   onunload() {
     this.stopBridgeServer();
-    console.log("[Kioku] Plugin unloaded.");
+    log.info("Plugin unloaded.");
   }
 
-  // ── WebSocket Bridge ────────────────────────────────────────────────────────
+  // WebSocket Bridge
 
   private startBridgeServer() {
     try {
@@ -74,7 +72,7 @@ export default class KiokuPlugin extends Plugin {
 
       this.wss.on("connection", (ws) => {
         this.clients.add(ws);
-        console.log(`[Kioku] Kioku MCP Server connected. Clients: ${this.clients.size}`);
+        log.info(`Kioku MCP Server connected. Clients: ${this.clients.size}`);
 
         ws.on("message", async (data) => {
           try {
@@ -93,24 +91,24 @@ export default class KiokuPlugin extends Plugin {
 
         ws.on("close", () => {
           this.clients.delete(ws);
-          console.log(`[Kioku] Client disconnected. Clients: ${this.clients.size}`);
+          log.info(`Client disconnected. Clients: ${this.clients.size}`);
         });
 
         ws.on("error", (err) => {
-          console.error("[Kioku] WebSocket error:", err.message);
+          log.error(`WebSocket error: ${err.message}`);
         });
       });
 
       this.wss.on("error", (err) => {
-        console.error(`[Kioku] Could not start the bridge: ${err.message}`);
+        log.error(`Could not start the bridge: ${err.message}`);
         if (this.settings.showNotifications) {
-          new Notice(`❌ Kioku MCP Bridge error: ${err.message}`);
+          new Notice(`[error] Kioku MCP Bridge: ${err.message}`);
         }
       });
 
-      console.log(`[Kioku] Bridge listening on 127.0.0.1:${this.settings.bridgePort}`);
+      log.info(`Bridge listening on 127.0.0.1:${this.settings.bridgePort}`);
     } catch (err) {
-      console.error("[Kioku] Error starting bridge:", err);
+      log.error("Error starting bridge:", err);
     }
   }
 
@@ -126,7 +124,7 @@ export default class KiokuPlugin extends Plugin {
     }
   }
 
-  // ── Command Handler ─────────────────────────────────────────────────────────
+  // Command Handler
 
   private async handleCommand(msg: BridgeMessage): Promise<BridgeResponse> {
     const { command, payload, requestId } = msg;
@@ -169,7 +167,7 @@ export default class KiokuPlugin extends Plugin {
     }
   }
 
-  // ── Command Implementation ─────────────────────────────────────────────
+  // Command implementations
 
   private async cmdOpenFile(
     payload: { path: string },
@@ -185,7 +183,7 @@ export default class KiokuPlugin extends Plugin {
     await this.app.workspace.openLinkText(path, "", false);
 
     if (this.settings.showNotifications) {
-      new Notice(`📝 Kioku opened: ${file.basename}`);
+      new Notice(`Kioku opened: ${file.basename}`);
     }
 
     return { requestId, success: true, data: { path, name: file.basename } };
@@ -257,7 +255,7 @@ export default class KiokuPlugin extends Plugin {
     return { requestId, success: true, data: { commandId } };
   }
 
-  // ── Configuration ───────────────────────────────────────────────────────────
+  // Configuration
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -268,7 +266,7 @@ export default class KiokuPlugin extends Plugin {
   }
 }
 
-// ── Configuration Settings Tab ────────────────────────────────────────────────
+// Configuration Settings Tab
 
 class KiokuSettingTab extends PluginSettingTab {
   plugin: KiokuPlugin;
