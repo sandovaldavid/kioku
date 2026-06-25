@@ -15,7 +15,15 @@ namespace Kioku.Mcp.Server.Services;
 public sealed class EmbeddingService(KiokuConfiguration config, ILogger<EmbeddingService> logger)
     : IDisposable
 {
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private static readonly HttpClient _http = new(new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        MaxConnectionsPerServer = 4,
+    })
+    {
+        Timeout = TimeSpan.FromSeconds(30),
+    };
     private readonly Dictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
     private int _pendingFlushes;
     private const int FlushEvery = 50;

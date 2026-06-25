@@ -173,9 +173,17 @@ public sealed class ObsidianBridgeService : IDisposable
                 }
             }
         }
-        catch (Exception ex) when (ex is OperationCanceledException or WebSocketException)
+        catch (OperationCanceledException)
         {
-            _logger.Debug("Receive loop terminated: {Message}", ex.Message);
+            _logger.Debug("Receive loop cancelled.");
+        }
+        catch (WebSocketException ex)
+        {
+            _logger.Debug("WebSocket error in receive loop: {Message}", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn("Unexpected error in receive loop: {Type}: {Message}", ex.GetType().Name, ex.Message);
         }
         finally
         {
