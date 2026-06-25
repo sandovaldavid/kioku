@@ -28,7 +28,9 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
         [Description("Folder to scan (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
     {
         if (!vault.IsReady)
+        {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
 
         var notes = string.IsNullOrWhiteSpace(folder)
             ? vault.GetAllNotes()
@@ -115,7 +117,9 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
         [Description("Folder to scan for literature notes (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
     {
         if (!vault.IsReady)
+        {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
 
         var allNotes = string.IsNullOrWhiteSpace(folder)
             ? vault.GetAllNotes().ToList()
@@ -145,7 +149,10 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
             {
                 var citekey = match.Groups["key"].Value;
                 if (!referencedCitekeys.ContainsKey(citekey))
+                {
                     referencedCitekeys[citekey] = [];
+                }
+
                 referencedCitekeys[citekey].Add(note.Name);
             }
         }
@@ -170,7 +177,10 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
         {
             var sourceList = string.Join(", ", sources.Distinct().Take(5));
             if (sources.Distinct().Count() > 5)
+            {
                 sourceList += $" (+{sources.Distinct().Count() - 5} more)";
+            }
+
             sb.AppendLine($"| `@{citekey}` | {sourceList} |");
         }
 
@@ -193,14 +203,20 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
         [Description("Output format: only 'html' is supported.")] string format = "html")
     {
         if (!vault.IsReady)
+        {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
 
         if (!format.Equals("html", StringComparison.OrdinalIgnoreCase))
+        {
             return "[error] Only 'html' format is currently supported. PDF export requires Obsidian to be open.";
+        }
 
         var resolved = ResolveNote(note);
         if (resolved is null)
+        {
             return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
+        }
 
         // Re-read from disk for freshest content
         var rawContent = await File.ReadAllTextAsync(resolved.FilePath);
@@ -273,7 +289,9 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
         [Description("Whether the Gist should be public (default: true).")] bool @public = true)
     {
         if (!vault.IsReady)
+        {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
 
         var token = config.GitHubToken;
         if (string.IsNullOrWhiteSpace(token))
@@ -284,7 +302,9 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
 
         var resolved = ResolveNote(note);
         if (resolved is null)
+        {
             return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
+        }
 
         var rawContent = await File.ReadAllTextAsync(resolved.FilePath);
         var gistDesc = string.IsNullOrWhiteSpace(description)
@@ -351,13 +371,19 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
 
         var byName = all.FirstOrDefault(n =>
             n.Name.Equals(input, StringComparison.OrdinalIgnoreCase));
-        if (byName is not null) return byName;
+        if (byName is not null)
+        {
+            return byName;
+        }
 
         var normalized = input.TrimStart('/').Replace('\\', '/');
         var byPath = all.FirstOrDefault(n =>
             n.VaultRelativePath.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
             n.VaultRelativePath.Equals(normalized + ".md", StringComparison.OrdinalIgnoreCase));
-        if (byPath is not null) return byPath;
+        if (byPath is not null)
+        {
+            return byPath;
+        }
 
         return all.FirstOrDefault(n =>
             n.FilePath.Equals(input, StringComparison.OrdinalIgnoreCase));
@@ -366,10 +392,15 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
     private static string StripFrontmatter(string content)
     {
         if (!content.StartsWith("---", StringComparison.Ordinal))
+        {
             return content;
+        }
 
         var end = content.IndexOf("\n---", 3, StringComparison.Ordinal);
-        if (end < 0) return content;
+        if (end < 0)
+        {
+            return content;
+        }
 
         var afterFm = content[(end + 4)..];
         return afterFm.TrimStart('\n', '\r');
