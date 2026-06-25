@@ -236,6 +236,214 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
         return $"[ok] Moved {movedCount} orphan(s) to .trash/.kioku-orphans/.";
     }
 
+    [McpServerTool, Description("Rename attachment files with a consistent pattern (note-slug-N.ext) and update all references in notes.")]
+    public async Task<string> normalize_attachment_names(
+        [Description("Asset folder path containing attachments to normalize (e.g., 'Attachments', 'Assets').")] string asset_folder,
+        [Description("If true, returns a preview without renaming files.")] bool dry_run = false)
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        if (string.IsNullOrWhiteSpace(asset_folder))
+        {
+            return "[error] The 'asset_folder' parameter cannot be empty.";
+        }
+
+        var assetPath = Path.Combine(config.VaultPath, asset_folder);
+        if (!Directory.Exists(assetPath))
+        {
+            return $"[error] Folder not found: '{asset_folder}'";
+        }
+
+        var assetFiles = Directory.EnumerateFiles(assetPath)
+            .Where(p => !IsHiddenPath(p))
+            .OrderBy(p => Path.GetFileName(p))
+            .ToList();
+
+        if (assetFiles.Count == 0)
+        {
+            return "[info] No asset files found in folder.";
+        }
+
+        var renames = new List<(string OldName, string NewName, string OldPath, string NewPath)>();
+
+        foreach (var (file, index) in assetFiles.Select((f, i) => (f, i)))
+        {
+            var extension = Path.GetExtension(file);
+            var newName = $"attachment-{index + 1:D3}{extension}";
+            var oldName = Path.GetFileName(file);
+
+            if (oldName != newName)
+            {
+                var newPath = Path.Combine(assetPath, newName);
+                renames.Add((oldName, newName, file, newPath));
+            }
+        }
+
+        if (renames.Count == 0)
+        {
+            return "[info] All attachments are already normalized.";
+        }
+
+        if (dry_run)
+        {
+            var sb = new StringBuilder($"[info] dry_run=true — {renames.Count} rename(s) would be made:\n\n");
+            foreach (var (oldName, newName, _, _) in renames)
+            {
+                sb.AppendLine($"  {oldName} → {newName}");
+            }
+            return sb.ToString();
+        }
+
+        // Apply renames and update references
+        var renameMap = renames.ToDictionary(r => r.OldName, r => r.NewName, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (_, _, oldPath, newPath) in renames)
+        {
+            File.Move(oldPath, newPath);
+        }
+
+        var allNotes = vault.GetAllNotes().ToList();
+        var updatedCount = 0;
+
+        foreach (var note in allNotes)
+        {
+            var newContent = note.RawContent;
+
+            foreach (var (oldName, newName) in renameMap)
+            {
+                newContent = Regex.Replace(newContent, $@"!?\[\[{Regex.Escape(oldName)}\]\]", $"[[{newName}]]", RegexOptions.IgnoreCase);
+                newContent = Regex.Replace(newContent, $@"\({Regex.Escape(oldName)}\)", $"({newName})", RegexOptions.IgnoreCase);
+            }
+
+            if (newContent != note.RawContent)
+            {
+                File.WriteAllText(note.FilePath, newContent);
+                updatedCount++;
+            }
+        }
+
+        await vault.RebuildIndexAsync();
+        return $"[ok] Normalized {renames.Count} attachment(s) and updated {updatedCount} note(s).";
+    }
+
+    [McpServerTool, Description("Move scattered attachment files to a centralized folder and update all references in notes.")]
+    public async Task<string> move_attachments_to_folder(
+        [Description("Target folder path where attachments will be moved (e.g., 'Attachments').")] string target_folder,
+        [Description("If true, returns a preview without moving files.")] bool dry_run = false)
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        if (string.IsNullOrWhiteSpace(target_folder))
+        {
+            return "[error] The 'target_folder' parameter cannot be empty.";
+        }
+
+        var targetPath = Path.Combine(config.VaultPath, target_folder);
+        var targetExtensions = new[] { ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".pdf", ".excalidraw", ".canvas" };
+
+        // Find all asset files outside the target folder
+        var assetFiles = Directory.EnumerateFiles(config.VaultPath, "*", SearchOption.AllDirectories)
+            .Where(p => !IsHiddenPath(p) && targetExtensions.Contains(Path.GetExtension(p).ToLowerInvariant()))
+            .Where(p => !p.StartsWith(targetPath, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (assetFiles.Count == 0)
+        {
+            return "[info] No scattered attachments found.";
+        }
+
+        var moves = new List<(string FileName, string OldPath, string NewPath)>();
+        var existingNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (Directory.Exists(targetPath))
+        {
+            foreach (var file in Directory.EnumerateFiles(targetPath))
+            {
+                existingNames.Add(Path.GetFileName(file));
+            }
+        }
+
+        foreach (var file in assetFiles)
+        {
+            var fileName = Path.GetFileName(file);
+            var newPath = Path.Combine(targetPath, fileName);
+
+            // Handle naming conflicts
+            if (existingNames.Contains(fileName))
+            {
+                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                var ext = Path.GetExtension(fileName);
+                var counter = 1;
+                while (existingNames.Contains($"{nameWithoutExt}_{counter}{ext}"))
+                {
+                    counter++;
+                }
+                fileName = $"{nameWithoutExt}_{counter}{ext}";
+                newPath = Path.Combine(targetPath, fileName);
+            }
+
+            moves.Add((fileName, file, newPath));
+            existingNames.Add(fileName);
+        }
+
+        if (moves.Count == 0)
+        {
+            return "[info] All attachments are already in the target folder.";
+        }
+
+        if (dry_run)
+        {
+            var sb = new StringBuilder($"[info] dry_run=true — {moves.Count} move(s) would be made:\n\n");
+            foreach (var (fileName, oldPath, _) in moves)
+            {
+                var relOldPath = Path.GetRelativePath(config.VaultPath, oldPath);
+                sb.AppendLine($"  {relOldPath} → {target_folder}/{fileName}");
+            }
+            return sb.ToString();
+        }
+
+        // Create target folder
+        Directory.CreateDirectory(targetPath);
+
+        // Apply moves
+        foreach (var (_, oldPath, newPath) in moves)
+        {
+            File.Move(oldPath, newPath, overwrite: true);
+        }
+
+        // Update references in notes
+        var moveMap = moves.ToDictionary(m => Path.GetFileName(m.OldPath), m => m.FileName, StringComparer.OrdinalIgnoreCase);
+        var allNotes = vault.GetAllNotes().ToList();
+        var updatedCount = 0;
+
+        foreach (var note in allNotes)
+        {
+            var newContent = note.RawContent;
+
+            foreach (var (oldFileName, newFileName) in moveMap)
+            {
+                var newRelPath = $"{target_folder}/{newFileName}";
+                newContent = Regex.Replace(newContent, $@"!?\[\[([^/]+/)*{Regex.Escape(oldFileName)}\]\]", $"[[{newRelPath}]]", RegexOptions.IgnoreCase);
+                newContent = Regex.Replace(newContent, $@"\(([^/]+/)*{Regex.Escape(oldFileName)}\)", $"({newRelPath})", RegexOptions.IgnoreCase);
+            }
+
+            if (newContent != note.RawContent)
+            {
+                File.WriteAllText(note.FilePath, newContent);
+                updatedCount++;
+            }
+        }
+
+        await vault.RebuildIndexAsync();
+        return $"[ok] Moved {moves.Count} attachment(s) to '{target_folder}' and updated {updatedCount} note(s).";
+    }
+
     private static bool IsHiddenPath(string path)
     {
         var segments = Path.GetRelativePath(".", path).Split(Path.DirectorySeparatorChar);
