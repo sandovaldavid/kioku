@@ -3,8 +3,6 @@ using Kioku.Mcp.Server.Logging;
 using Kioku.Mcp.Server.Middleware;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 // Configuration from environment variables
@@ -29,7 +27,7 @@ if (useHttp)
 
 return await RunStdioAsync(config);
 
-// ── v2: HTTP-SSE Transport (Streamable HTTP) ──────────────────────────────────
+// v2: HTTP-SSE Transport (Streamable HTTP)
 
 static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
 {
@@ -103,7 +101,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     return 0;
 }
 
-// ── v1: stdio Transport (default — backwards compatible) ──────────────────────
+// v1: stdio Transport (default — backwards compatible)
 
 static async Task<int> RunStdioAsync(KiokuConfiguration config)
 {
