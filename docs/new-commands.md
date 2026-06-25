@@ -1,3 +1,5 @@
+> **📜 Archivo histórico (Junio 2026).** Este documento fue generado por una IA externa (Perplexity) como propuesta. La mayoría de estas tools ya están implementadas en `develop`. Ver [`commands-reference.md`](./commands-reference.md) para el inventario actualizado.
+
 Analicé la estructura del repo [sandovaldavid/kioku](https://github.com/sandovaldavid/kioku/tree/develop) y tu documento de planning. Aquí tienes un análisis profundo con **ideas de tools nuevas** organizadas por valor real que aportarían al flujo de trabajo, más allá de las 7 ramas que ya tienes propuestas.
 
 ***
