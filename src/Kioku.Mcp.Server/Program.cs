@@ -43,6 +43,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     webBuilder.Services.AddSingleton<EmbeddingService>();
     webBuilder.Services.AddSingleton<VaultIndexService>();
     webBuilder.Services.AddSingleton<ObsidianBridgeService>();
+    webBuilder.Services.AddSingleton<HybridSearchService>();
 
     // CORS: allow localhost and the Obsidian app origin
     webBuilder.Services.AddCors(options =>
@@ -117,6 +118,7 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
     builder.Services.AddSingleton<EmbeddingService>();
     builder.Services.AddSingleton<VaultIndexService>();
     builder.Services.AddSingleton<ObsidianBridgeService>();
+    builder.Services.AddSingleton<HybridSearchService>();
 
     // MCP over stdio
     builder.Services
