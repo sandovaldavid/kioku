@@ -39,10 +39,13 @@ public sealed class VaultIndexService : IDisposable
     private DateTimeOffset _lastIndexed;
     private bool _isReady;
 
-    public VaultIndexService(ILogger<VaultIndexService> logger, KiokuConfiguration config)
+    private readonly EmbeddingService? _embedding;
+
+    public VaultIndexService(ILogger<VaultIndexService> logger, KiokuConfiguration config, EmbeddingService? embedding = null)
     {
         _logger = logger;
         _vaultPath = config.VaultPath;
+        _embedding = embedding;
     }
 
     /// <summary>Total number of indexed notes.</summary>
@@ -72,6 +75,9 @@ public sealed class VaultIndexService : IDisposable
 
         await IndexVaultAsync(cancellationToken);
         StartWatcher();
+
+        if (_embedding is not null)
+            await _embedding.InitializeAsync(_notesByPath.Values, cancellationToken);
 
         _isReady = true;
         _logger.Info("Index ready. {Count} notes indexed.", _indexedCount);
@@ -251,6 +257,8 @@ public sealed class VaultIndexService : IDisposable
         _isReady = false;
 
         await IndexVaultAsync(cancellationToken);
+        if (_embedding is not null)
+            await _embedding.SaveAsync();
         _isReady = true;
         _logger.Info("Full re-indexing complete. {Count} notes.", _indexedCount);
     }
@@ -286,6 +294,9 @@ public sealed class VaultIndexService : IDisposable
             {
                 AddToBacklinkIndex(note.Name, link);
             }
+
+            if (_embedding is not null)
+                await _embedding.IndexNoteAsync(note);
 
             Interlocked.Increment(ref _indexedCount);
         }
@@ -413,6 +424,7 @@ public sealed class VaultIndexService : IDisposable
             }
         }
 
+        _embedding?.Remove(filePath);
         Interlocked.Decrement(ref _indexedCount);
         _logger.Debug("Removed from index: {File}", Path.GetFileName(filePath));
     }

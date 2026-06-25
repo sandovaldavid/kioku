@@ -28,6 +28,7 @@ builder.Logging.SetMinimumLevel(LogLevel.Information);
 
 // Kioku Services
 builder.Services.AddSingleton(config);
+builder.Services.AddSingleton<EmbeddingService>();
 builder.Services.AddSingleton<VaultIndexService>();
 builder.Services.AddSingleton<ObsidianBridgeService>();
 
