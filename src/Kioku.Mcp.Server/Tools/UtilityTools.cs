@@ -13,11 +13,11 @@ public sealed class UtilityTools(VaultIndexService vault, KiokuConfiguration con
     [McpServerTool, Description("Verifies that the Kioku MCP server is active and responding.")]
     public string ping()
     {
-        return $"🟢 Kioku MCP Server v0.1.0 — Online\n" +
-               $"📁 Vault: {config.VaultPath}\n" +
-               $"📝 Indexed notes: {vault.IndexedCount}\n" +
-               $"✅ Index ready: {(vault.IsReady ? "Yes" : "No (loading...)")}\n" +
-               $"🕐 UTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
+        return $"[online] Kioku MCP Server\n" +
+               $"Vault: {config.VaultPath}\n" +
+               $"Indexed notes: {vault.IndexedCount}\n" +
+               $"Index ready: {(vault.IsReady ? "Yes" : "No (loading...)")}\n" +
+               $"UTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
     }
 
     [McpServerTool, Description(
@@ -25,10 +25,10 @@ public sealed class UtilityTools(VaultIndexService vault, KiokuConfiguration con
         "number of notes, last update time, and whether the index is ready.")]
     public string get_index_status()
     {
-        return $"📊 Kioku Index Status\n" +
+        return $"Kioku Index Status\n" +
                $"   Indexed notes: {vault.IndexedCount}\n" +
                $"   Last indexed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n" +
-               $"   Status: {(vault.IsReady ? "✅ Ready" : "⏳ Loading...")}\n" +
+               $"   Status: {(vault.IsReady ? "[ok] Ready" : "[loading] Loading...")}\n" +
                $"   Vault: {config.VaultPath}";
     }
 
@@ -38,7 +38,7 @@ public sealed class UtilityTools(VaultIndexService vault, KiokuConfiguration con
     public async Task<string> rebuild_index()
     {
         await vault.RebuildIndexAsync();
-        return $"✅ Re-indexing completed. {vault.IndexedCount} notes indexed.\n" +
-               $"🕐 Completed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+        return $"[ok] Re-indexing completed. {vault.IndexedCount} notes indexed.\n" +
+               $"Completed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
     }
 }

@@ -20,7 +20,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found on local disk: '{note}'";
+            return $"[error] Note not found on local disk: '{note}'";
         }
 
         var payload = new JsonObject
@@ -31,10 +31,10 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("open-file", payload);
         if (!response.Success)
         {
-            return $"❌ Obsidian plugin error: {response.Error}";
+            return $"[error] Obsidian plugin error: {response.Error}";
         }
 
-        return $"✅ Note opened in Obsidian: '{found.Name}' ({found.VaultRelativePath})";
+        return $"[ok] Note opened in Obsidian: '{found.Name}' ({found.VaultRelativePath})";
     }
 
     [McpServerTool, Description(
@@ -44,13 +44,13 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("get-active-note");
         if (!response.Success)
         {
-            return $"❌ Obsidian plugin error: {response.Error}";
+            return $"[error] Obsidian plugin error: {response.Error}";
         }
 
         var data = response.Data;
         if (data is null || data.GetValueKind() == System.Text.Json.JsonValueKind.Null)
         {
-            return "ℹ️ No active note open in Obsidian at this moment.";
+            return "[info] No active note open in Obsidian at this moment.";
         }
 
         var path = data["path"]?.ToString();
@@ -72,9 +72,9 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var tagsStr = tagsList.Count > 0 ? $" [#{string.Join(", #", tagsList)}]" : "";
         var statusStr = status is not null ? $" (status: {status})" : "";
 
-        return $"📝 Active note in Obsidian:\n" +
-               $"   • Name: {name}\n" +
-               $"   • Path: {path}{tagsStr}{statusStr}";
+        return $"Active note in Obsidian:\n" +
+               $"   Name: {name}\n" +
+               $"   Path: {path}{tagsStr}{statusStr}";
     }
 
     [McpServerTool, Description(
@@ -84,13 +84,13 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("get-open-notes");
         if (!response.Success)
         {
-            return $"❌ Obsidian plugin error: {response.Error}";
+            return $"[error] Obsidian plugin error: {response.Error}";
         }
 
         var data = response.Data;
         if (data is not JsonArray array || array.Count == 0)
         {
-            return "ℹ️ No notes open in Obsidian.";
+            return "[info] No notes open in Obsidian.";
         }
 
         var lines = new List<string>();
@@ -106,7 +106,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
             lines.Add($"- {name} ({path})");
         }
 
-        return $"📚 {lines.Count} note(s) open in Obsidian:\n" + string.Join("\n", lines);
+        return $"{lines.Count} note(s) open in Obsidian:\n" + string.Join("\n", lines);
     }
 
     [McpServerTool, Description(
@@ -122,13 +122,13 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("trigger-command", payload);
         if (!response.Success)
         {
-            return $"❌ Obsidian plugin error: {response.Error}";
+            return $"[error] Obsidian plugin error: {response.Error}";
         }
 
-        return $"✅ Command '{command_id}' executed successfully in Obsidian.";
+        return $"[ok] Command '{command_id}' executed successfully in Obsidian.";
     }
 
-    // ── Private helper ────────────────────────────────────────────────────────
+    // Private helper
 
     private Note? ResolveNote(string nameOrPath)
     {

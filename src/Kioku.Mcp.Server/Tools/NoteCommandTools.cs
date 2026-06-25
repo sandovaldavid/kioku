@@ -13,7 +13,7 @@ namespace Kioku.Mcp.Server.Tools;
 [McpServerToolType]
 public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration config)
 {
-    // ── create_note ────────────────────────────────────────────────────────────
+    // create_note
 
     [McpServerTool, Description(
         "Creates a new note in the Obsidian vault with frontmatter and content. " +
@@ -29,7 +29,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
         if (File.Exists(filePath))
         {
-            return $"❌ Note '{name}' already exists at: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
+            return $"[error] Note '{name}' already exists at: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
                    "Use update_note_content to modify an existing note.";
         }
 
@@ -40,11 +40,11 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var noteContent = BuildNoteContent(content, tags, type, status);
         await File.WriteAllTextAsync(filePath, noteContent, Encoding.UTF8);
 
-        return $"✅ Note created: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
-               $"📁 Path: {filePath}";
+        return $"[ok] Note created: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
+               $"Path: {filePath}";
     }
 
-    // ── update_note_content ────────────────────────────────────────────────────
+    // update_note_content
 
     [McpServerTool, Description(
         "Replaces the body of an existing note keeping its YAML frontmatter intact.")]
@@ -55,7 +55,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -65,10 +65,10 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var newContent = frontmatter + content;
         await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
 
-        return $"✅ Content updated in '{found.Name}'";
+        return $"[ok] Content updated in '{found.Name}'";
     }
 
-    // ── prepend_to_note ────────────────────────────────────────────────────────
+    // prepend_to_note
 
     [McpServerTool, Description(
         "Prepends text to the beginning of a note body (just after the YAML frontmatter).")]
@@ -79,7 +79,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -90,10 +90,10 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var newContent = frontmatter + content + "\n" + body;
         await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
 
-        return $"✅ Content prepended to the start of '{found.Name}'";
+        return $"[ok] Content prepended to the start of '{found.Name}'";
     }
 
-    // ── append_to_note ─────────────────────────────────────────────────────────
+    // append_to_note
 
     [McpServerTool, Description(
         "Appends text to the end of an existing note. " +
@@ -106,7 +106,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var toAppend = new StringBuilder("\n");
@@ -118,10 +118,10 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         toAppend.AppendLine(content);
 
         await File.AppendAllTextAsync(found.FilePath, toAppend.ToString(), Encoding.UTF8);
-        return $"✅ Content appended to '{found.Name}' ({content.Length} characters)";
+        return $"[ok] Content appended to '{found.Name}' ({content.Length} characters)";
     }
 
-    // ── update_frontmatter ─────────────────────────────────────────────────────
+    // update_frontmatter
 
     [McpServerTool, Description(
         "Updates or adds fields in the YAML frontmatter of an existing note. " +
@@ -135,7 +135,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -155,10 +155,10 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var newContent = frontmatter + body;
 
         await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
-        return $"✅ Frontmatter updated in '{found.Name}'";
+        return $"[ok] Frontmatter updated in '{found.Name}'";
     }
 
-    // ── add_tag ────────────────────────────────────────────────────────────────
+    // add_tag
 
     [McpServerTool, Description("Adds one or more tags to an existing note.")]
     public async Task<string> add_tag(
@@ -168,7 +168,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var newTags = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -185,13 +185,13 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
         if (added.Count == 0)
         {
-            return $"ℹ️ Tags already exist in '{found.Name}': #{string.Join(", #", newTags)}";
+            return $"[info] Tags already exist in '{found.Name}': #{string.Join(", #", newTags)}";
         }
 
         return await update_frontmatter(note, string.Join(", ", existingTags));
     }
 
-    // ── remove_tag ─────────────────────────────────────────────────────────────
+    // remove_tag
 
     [McpServerTool, Description("Removes one or more tags from an existing note.")]
     public async Task<string> remove_tag(
@@ -201,7 +201,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var toRemove = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -214,7 +214,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         return await update_frontmatter(note, string.Join(", ", remaining));
     }
 
-    // ── move_note ──────────────────────────────────────────────────────────────
+    // move_note
 
     [McpServerTool, Description(
         "Moves a note to another folder in the vault. " +
@@ -226,7 +226,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var destDir = Path.Combine(config.VaultPath, destination_folder);
@@ -235,16 +235,16 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));
         if (File.Exists(destPath))
         {
-            return $"❌ A note with that name already exists in '{destination_folder}'";
+            return $"[error] A note with that name already exists in '{destination_folder}'";
         }
 
         File.Move(found.FilePath, destPath);
         var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
 
-        return $"✅ Note moved:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
+        return $"[ok] Note moved:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
     }
 
-    // ── rename_note ────────────────────────────────────────────────────────────
+    // rename_note
 
     [McpServerTool, Description(
         "Renames a note in the vault. The new name can include subfolders.")]
@@ -255,13 +255,13 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var destPath = BuildFilePath(new_name);
         if (File.Exists(destPath))
         {
-            return $"❌ A note already exists at the destination path: {Path.GetRelativePath(config.VaultPath, destPath)}";
+            return $"[error] A note already exists at the destination path: {Path.GetRelativePath(config.VaultPath, destPath)}";
         }
 
         var destDir = Path.GetDirectoryName(destPath)!;
@@ -270,10 +270,10 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         File.Move(found.FilePath, destPath);
         var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
 
-        return $"✅ Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
+        return $"[ok] Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────
+    // Private helpers
 
     private string BuildFilePath(string name)
     {
