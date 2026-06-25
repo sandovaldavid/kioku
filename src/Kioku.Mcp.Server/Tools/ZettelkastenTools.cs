@@ -323,82 +323,19 @@ public sealed class ZettelkastenTools(
 
     // Private helpers
 
-    private Note? ResolveNote(string nameOrPath)
-    {
-        var byPath = vault.GetNote(nameOrPath);
-        if (byPath is not null)
-        {
-            return byPath;
-        }
+    private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
 
-        return vault.GetNoteByName(nameOrPath);
-    }
+    private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
 
-    private string BuildFilePath(string name)
-    {
-        var normalized = name.Replace('/', Path.DirectorySeparatorChar)
-                             .Replace('\\', Path.DirectorySeparatorChar);
-        if (!normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
-        {
-            normalized += ".md";
-        }
-
-        return Path.Combine(config.VaultPath, normalized);
-    }
-
-    private static List<string> ParseTags(string tags)
-    {
-        if (string.IsNullOrWhiteSpace(tags))
-        {
-            return [];
-        }
-
-        return tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                   .ToList();
-    }
+    private static List<string> ParseTags(string tags) => NoteHelpers.ParseTags(tags);
 
     private static string BuildFrontmatter(
         IEnumerable<string> tags,
         string type,
         string status,
         DateOnly? date = null,
-        string? zettelId = null)
-    {
-        var sb = new StringBuilder("---\n");
-
-        var tagList = tags.ToList();
-        if (tagList.Count > 0)
-        {
-            sb.AppendLine("tags:");
-            foreach (var tag in tagList)
-            {
-                sb.AppendLine($"  - {tag}");
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(type))
-        {
-            sb.AppendLine($"type: {type}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            sb.AppendLine($"status: {status}");
-        }
-
-        if (date.HasValue)
-        {
-            sb.AppendLine($"date: {date:yyyy-MM-dd}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(zettelId))
-        {
-            sb.AppendLine($"zettel_id: \"{zettelId}\"");
-        }
-
-        sb.AppendLine("---");
-        return sb.ToString();
-    }
+        string? zettelId = null) =>
+        NoteHelpers.BuildFrontmatter(tags, type, status, date, zettelId);
 
     private static string BuildZettelBody(string title, string content, IReadOnlyList<string> relatedLinks)
     {
@@ -480,12 +417,5 @@ public sealed class ZettelkastenTools(
         return sb.ToString();
     }
 
-    private static string SanitizeFileName(string name)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        return string.Concat(name
-            .Replace(' ', '-')
-            .Where(c => !invalid.Contains(c)))
-            .Trim('-');
-    }
+    private static string SanitizeFileName(string name) => NoteHelpers.SanitizeFileName(name);
 }

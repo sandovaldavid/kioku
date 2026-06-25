@@ -396,33 +396,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
     // Helpers
     // -------------------------------------------------------------------------
 
-    private Note? ResolveNote(string input)
-    {
-        var all = vault.GetAllNotes();
-
-        // Exact name match (without extension)
-        var byName = all.FirstOrDefault(n =>
-            n.Name.Equals(input, StringComparison.OrdinalIgnoreCase));
-        if (byName is not null)
-        {
-            return byName;
-        }
-
-        // Vault-relative path match
-        var normalized = input.TrimStart('/').Replace('\\', '/');
-        var byPath = all.FirstOrDefault(n =>
-            n.VaultRelativePath.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
-            n.VaultRelativePath.Equals(normalized + ".md", StringComparison.OrdinalIgnoreCase));
-        if (byPath is not null)
-        {
-            return byPath;
-        }
-
-        // Absolute path match
-        var byAbsolute = all.FirstOrDefault(n =>
-            n.FilePath.Equals(input, StringComparison.OrdinalIgnoreCase));
-        return byAbsolute;
-    }
+    private Note? ResolveNote(string input) => NoteHelpers.ResolveNote(input, vault);
 
     private static int Pct(int value, int total) =>
         total == 0 ? 0 : (int)Math.Round(value * 100.0 / total);

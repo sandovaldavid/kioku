@@ -437,29 +437,7 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
     // Helpers
     // -------------------------------------------------------------------------
 
-    private Note? ResolveNote(string input)
-    {
-        var all = vault.GetAllNotes();
-
-        var byName = all.FirstOrDefault(n =>
-            n.Name.Equals(input, StringComparison.OrdinalIgnoreCase));
-        if (byName is not null)
-        {
-            return byName;
-        }
-
-        var normalized = input.TrimStart('/').Replace('\\', '/');
-        var byPath = all.FirstOrDefault(n =>
-            n.VaultRelativePath.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
-            n.VaultRelativePath.Equals(normalized + ".md", StringComparison.OrdinalIgnoreCase));
-        if (byPath is not null)
-        {
-            return byPath;
-        }
-
-        return all.FirstOrDefault(n =>
-            n.FilePath.Equals(input, StringComparison.OrdinalIgnoreCase));
-    }
+    private Note? ResolveNote(string input) => NoteHelpers.ResolveNote(input, vault);
 
     private static string StripFrontmatter(string content)
     {

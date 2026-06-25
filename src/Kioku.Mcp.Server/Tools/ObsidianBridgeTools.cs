@@ -246,14 +246,5 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
 
     // Private helper
 
-    private Note? ResolveNote(string nameOrPath)
-    {
-        var byPath = vault.GetNote(nameOrPath);
-        if (byPath is not null)
-        {
-            return byPath;
-        }
-
-        return vault.GetNoteByName(nameOrPath);
-    }
+    private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
 }

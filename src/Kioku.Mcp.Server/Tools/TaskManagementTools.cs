@@ -200,19 +200,7 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
 
     // Private helpers
 
-    private Note? ResolveNote(string noteInput)
-    {
-        // Try exact vault-relative path first
-        var byPath = vault.GetNote(noteInput);
-        if (byPath is not null)
-        {
-            return byPath;
-        }
-
-        // Try by name (without extension)
-        var name = Path.GetFileNameWithoutExtension(noteInput);
-        return vault.GetNoteByName(name);
-    }
+    private Note? ResolveNote(string noteInput) => NoteHelpers.ResolveNote(noteInput, vault);
 
     private static string FormatTaskList(
         IReadOnlyList<TaskItem> taskList,
