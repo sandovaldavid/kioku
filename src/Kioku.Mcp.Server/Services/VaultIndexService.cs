@@ -77,7 +77,9 @@ public sealed class VaultIndexService : IDisposable
         StartWatcher();
 
         if (_embedding is not null)
+        {
             await _embedding.InitializeAsync(_notesByPath.Values, cancellationToken);
+        }
 
         _isReady = true;
         _logger.Info("Index ready. {Count} notes indexed.", _indexedCount);
@@ -258,7 +260,10 @@ public sealed class VaultIndexService : IDisposable
 
         await IndexVaultAsync(cancellationToken);
         if (_embedding is not null)
+        {
             await _embedding.SaveAsync();
+        }
+
         _isReady = true;
         _logger.Info("Full re-indexing complete. {Count} notes.", _indexedCount);
     }
@@ -296,7 +301,9 @@ public sealed class VaultIndexService : IDisposable
             }
 
             if (_embedding is not null)
+            {
                 await _embedding.IndexNoteAsync(note);
+            }
 
             Interlocked.Increment(ref _indexedCount);
         }

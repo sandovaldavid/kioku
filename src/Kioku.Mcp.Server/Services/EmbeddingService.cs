@@ -189,19 +189,39 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
         var m = note.Metadata;
         if (m.Tags.Count > 0)
+        {
             sb.AppendLine($"Tags: {string.Join(", ", m.Tags)}");
+        }
+
         if (m.Aliases.Count > 0)
+        {
             sb.AppendLine($"Aliases: {string.Join(", ", m.Aliases)}");
+        }
+
         if (m.Status is not null)
+        {
             sb.AppendLine($"Status: {m.Status}");
+        }
+
         if (m.NoteType is not null)
+        {
             sb.AppendLine($"Type: {m.NoteType}");
+        }
+
         if (m.Date.HasValue)
+        {
             sb.AppendLine($"Date: {m.Date:yyyy-MM-dd}");
+        }
+
         if (m.Updated.HasValue)
+        {
             sb.AppendLine($"Updated: {m.Updated:yyyy-MM-dd}");
+        }
+
         foreach (var (k, v) in m.ExtraFields)
+        {
             sb.AppendLine($"{k}: {v}");
+        }
 
         if (!string.IsNullOrWhiteSpace(note.PlainText))
         {

@@ -361,17 +361,25 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         [Description("Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches.")] float min_score = 0f)
     {
         if (!embedding.IsAvailable)
+        {
             return $"[info] Semantic search unavailable — Ollama is not running at {config.OllamaUrl}";
+        }
 
         if (!vault.IsReady)
+        {
             return "[loading] The index is still loading.";
+        }
 
         if (string.IsNullOrWhiteSpace(query))
+        {
             return "[error] The 'query' parameter cannot be empty.";
+        }
 
         var queryVector = await embedding.EmbedAsync(query);
         if (queryVector is null)
+        {
             return "[error] Could not generate embedding for query.";
+        }
 
         var notesByPath = vault.GetAllNotes()
             .ToDictionary(n => n.FilePath, StringComparer.OrdinalIgnoreCase);
@@ -402,7 +410,11 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
 
     private static string? BuildSemanticSnippet(string plainText)
     {
-        if (string.IsNullOrWhiteSpace(plainText)) return null;
+        if (string.IsNullOrWhiteSpace(plainText))
+        {
+            return null;
+        }
+
         var trimmed = plainText.Trim();
         return trimmed.Length > 200 ? trimmed[..200].Trim() + "…" : trimmed;
     }
