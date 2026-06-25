@@ -1,0 +1,129 @@
+name: release-please
+
+on:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+
+    steps:
+      - name: Set config files per branch
+        id: cfg
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "config=release-please-config.json" >> $GITHUB_OUTPUT
+            echo "manifest=.release-please-manifest.json" >> $GITHUB_OUTPUT
+          else
+            echo "config=release-please-config.beta.json" >> $GITHUB_OUTPUT
+            echo "manifest=.release-please-manifest.beta.json" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: ${{ steps.cfg.outputs.config }}
+          manifest-file: ${{ steps.cfg.outputs.manifest }}
+
+  build-server:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            artifact-name: kioku-server-win-x64.exe
+            binary: Kioku.Mcp.Server.exe
+          - rid: linux-x64
+            artifact-name: kioku-server-linux-x64
+            binary: Kioku.Mcp.Server
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Publish (${{ matrix.rid }})
+        run: |
+          dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --runtime ${{ matrix.rid }} \
+            --configuration Release \
+            --self-contained \
+            --output publish/${{ matrix.rid }}
+
+      - name: Rename artifact
+        run: mv publish/${{ matrix.rid }}/${{ matrix.binary }} ${{ matrix.artifact-name }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-name }}
+
+  build-plugin:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build plugin
+        run: pnpm --filter obsidian-kioku-mcp run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obsidian-plugin
+          path: |
+            src/obsidian-kioku-mcp/main.js
+            src/obsidian-kioku-mcp/manifest.json
+            src/obsidian-kioku-mcp/styles.css
+
+  attach-artifacts:
+    needs: [release-please, build-server, build-plugin]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Upload artifacts to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe \
+            artifacts/kioku-server-linux-x64/kioku-server-linux-x64 \
+            artifacts/obsidian-plugin/main.js \
+            artifacts/obsidian-plugin/manifest.json \
+            artifacts/obsidian-plugin/styles.css
