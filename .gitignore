@@ -1,0 +1,35 @@
+# Binarios .NET
+bin/
+obj/
+
+# Publicaciones
+publish/
+
+# VS / Rider
+.vs/
+.idea/
+*.user
+
+# Node.js (plugin Obsidian)
+node_modules/
+dist/
+
+# Build del plugin
+main.js
+*.js.map
+
+# Kioku runtime
+kioku.db
+kioku.db-shm
+kioku.db-wal
+
+# Logs
+*.log
+
+# Env local (puede contener KIOKU_VAULT_PATH)
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
