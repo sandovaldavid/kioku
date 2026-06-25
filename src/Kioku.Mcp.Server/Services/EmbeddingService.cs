@@ -103,13 +103,15 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         _store.Remove(relative);
     }
 
-    public IEnumerable<SemanticResult> Search(
+    public IEnumerable<SemanticResult> SearchByVector(
         float[] queryVector,
         int maxResults,
+        string excludeVaultRelativePath,
         IReadOnlyDictionary<string, Note> notesByPath,
         float minScore = 0f)
     {
         return _store.Values
+            .Where(e => !e.VaultRelativePath.Equals(excludeVaultRelativePath, StringComparison.OrdinalIgnoreCase))
             .Select(entry =>
             {
                 var absPath = Path.Combine(config.VaultPath, entry.VaultRelativePath);
@@ -125,6 +127,13 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
             .OrderByDescending(r => r.Score)
             .Take(maxResults);
     }
+
+    /// <summary>
+    /// Returns the raw embedding vector for a note by its vault-relative path.
+    /// Returns null if not available or if Ollama is disabled.
+    /// </summary>
+    public float[]? GetVector(string vaultRelativePath) =>
+        _store.TryGetValue(vaultRelativePath, out var entry) ? entry.Vector : null;
 
     public async Task<float[]?> EmbedAsync(string text)
     {
