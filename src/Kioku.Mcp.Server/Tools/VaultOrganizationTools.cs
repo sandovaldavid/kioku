@@ -12,7 +12,11 @@ namespace Kioku.Mcp.Server.Tools;
 /// Bulk operations include a dry_run parameter that previews changes without modifying the vault.
 /// </summary>
 [McpServerToolType]
-public sealed class VaultOrganizationTools(VaultIndexService vault)
+public sealed class VaultOrganizationTools(
+    VaultIndexService vault,
+    KiokuConfiguration config,
+    HybridSearchService hybrid,
+    EmbeddingService embedding)
 {
     // normalize_tags
 
@@ -490,6 +494,180 @@ public sealed class VaultOrganizationTools(VaultIndexService vault)
         }
         return shingles;
     }
+
+    [McpServerTool, Description("Suggest the most appropriate vault folder(s) for a note based on content similarity to existing notes.")]
+    public string suggest_folder(
+        [Description("Name or path of the note to suggest a folder for.")] string note,
+        [Description("Maximum number of folder suggestions to return.")] int max_suggestions = 5)
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        if (string.IsNullOrWhiteSpace(note))
+        {
+            return "[error] The 'note' parameter cannot be empty.";
+        }
+
+        var found = vault.GetNote(note) ?? vault.GetNoteByName(note);
+        if (found is null)
+        {
+            return $"[error] Note not found: '{note}'";
+        }
+
+        var capped = Math.Min(max_suggestions, config.MaxSearchResults);
+        var ranked = RankFolders(found, capped);
+
+        if (ranked.Count == 0)
+        {
+            return "[info] Could not determine a suitable folder. The vault may have too few notes or embeddings may not be loaded yet.";
+        }
+
+        var sb = new StringBuilder($"[ok] Suggested folder(s) for '{found.Name}':\n\n");
+        foreach (var (folder, score) in ranked)
+        {
+            sb.AppendLine($"  {folder}  (score: {score:F2})");
+        }
+
+        if (!embedding.IsAvailable)
+        {
+            sb.AppendLine("\n[info] Semantic embeddings are unavailable — results are keyword-only.");
+        }
+
+        return sb.ToString();
+    }
+
+    [McpServerTool, Description("Move a note to the most appropriate folder based on its content. Uses the same scoring as suggest_folder.")]
+    public string reclassify_note(
+        [Description("Name or path of the note to reclassify.")] string note,
+        [Description("If true, returns the suggested destination without moving the file.")] bool dry_run = false)
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        if (string.IsNullOrWhiteSpace(note))
+        {
+            return "[error] The 'note' parameter cannot be empty.";
+        }
+
+        var found = vault.GetNote(note) ?? vault.GetNoteByName(note);
+        if (found is null)
+        {
+            return $"[error] Note not found: '{note}'";
+        }
+
+        var ranked = RankFolders(found, 1);
+
+        if (ranked.Count == 0)
+        {
+            return "[info] Could not determine a suitable folder. The vault may have too few notes or embeddings may not be loaded yet.";
+        }
+
+        var (bestFolder, bestScore) = ranked[0];
+        var currentFolder = Path.GetDirectoryName(found.VaultRelativePath) ?? "";
+
+        if (bestFolder.Equals(currentFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"[info] Note is already in the best-matching folder: '{currentFolder}'.";
+        }
+
+        if (dry_run)
+        {
+            return $"[info] dry_run=true — would move '{found.Name}':\n  From: {currentFolder}\n  To:   {bestFolder}  (score: {bestScore:F2})";
+        }
+
+        var destDir = Path.Combine(config.VaultPath, bestFolder);
+        Directory.CreateDirectory(destDir);
+        var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));
+
+        if (File.Exists(destPath))
+        {
+            return $"[error] A note named '{found.Name}' already exists in '{bestFolder}'.";
+        }
+
+        File.Move(found.FilePath, destPath);
+        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
+
+        return $"[ok] Note reclassified:\n   Before: {found.VaultRelativePath}\n   After:  {newRelativePath}";
+    }
+
+    private List<(string Folder, double Score)> RankFolders(Note source, int topN)
+    {
+        var allFolders = vault.GetAllNotes()
+            .Select(n => Path.GetDirectoryName(n.VaultRelativePath) ?? "")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(f => !string.IsNullOrEmpty(f))
+            .ToList();
+
+        if (allFolders.Count == 0)
+        {
+            return [];
+        }
+
+        var sourceFolder = Path.GetDirectoryName(source.VaultRelativePath) ?? "";
+        allFolders = allFolders.Where(f => !f.Equals(sourceFolder, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (allFolders.Count == 0)
+        {
+            return [];
+        }
+
+        var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+        if (embedding.IsAvailable)
+        {
+            var similar = hybrid.FindSimilar(source, topN * 3, 0.3f);
+            foreach (var result in similar)
+            {
+                var folder = Path.GetDirectoryName(result.Note.VaultRelativePath) ?? "";
+                if (string.IsNullOrEmpty(folder) || folder.Equals(sourceFolder, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                if (!scores.TryGetValue(folder, out var existing))
+                {
+                    scores[folder] = 0;
+                }
+                scores[folder] = existing + result.Score;
+            }
+        }
+
+        var sourceTokens = Tokenize(source.PlainText + " " + source.Name);
+
+        foreach (var folder in allFolders)
+        {
+            var notesInFolder = vault.GetNotesInFolder(folder).ToList();
+            if (notesInFolder.Count == 0)
+            {
+                continue;
+            }
+
+            var folderText = string.Join(" ", notesInFolder.Select(n => n.PlainText + " " + n.Name));
+            var folderTokens = Tokenize(folderText);
+            var overlap = sourceTokens.Count(t => folderTokens.Contains(t));
+            var keywordScore = notesInFolder.Count > 0 ? (double)overlap / notesInFolder.Count : 0;
+
+            if (!scores.TryGetValue(folder, out var existing))
+            {
+                scores[folder] = 0;
+            }
+            scores[folder] = existing + keywordScore;
+        }
+
+        return [.. scores
+            .Where(kv => kv.Value > 0)
+            .OrderByDescending(kv => kv.Value)
+            .Take(topN)
+            .Select(kv => (kv.Key, kv.Value))];
+    }
+
+    private static HashSet<string> Tokenize(string text) =>
+        [.. text.ToLowerInvariant()
+            .Split([' ', '\n', '\r', '\t', '.', ',', ':', ';', '!', '?', '(', ')', '[', ']', '#'], StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => t.Length > 2)];
 
     private static void AppendSection(StringBuilder sb, string title, IEnumerable<string> items)
     {
