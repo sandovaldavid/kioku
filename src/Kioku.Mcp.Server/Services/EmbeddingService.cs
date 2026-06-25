@@ -1,0 +1,242 @@
+using System.Net.Http.Json;
+using System.Text.Json.Serialization;
+using Kioku.Mcp.Server.Domain;
+using Kioku.Mcp.Server.Logging;
+using Microsoft.Extensions.Logging;
+
+namespace Kioku.Mcp.Server.Services;
+
+/// <summary>
+/// Generates and stores semantic embeddings for vault notes using Ollama.
+/// Embeddings are cached in {vault}/.kioku/embeddings.bin to survive restarts.
+/// If Ollama is unavailable, the service degrades gracefully: IsAvailable = false.
+/// </summary>
+public sealed class EmbeddingService(KiokuConfiguration config, ILogger<EmbeddingService> logger)
+    : IDisposable
+{
+    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private readonly Dictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
+    private int _pendingFlushes;
+    private const int FlushEvery = 50;
+
+    public bool IsAvailable { get; private set; }
+
+    private string CachePath => Path.Combine(config.VaultPath, ".kioku", "embeddings.bin");
+
+    // Initialization
+
+    public async Task InitializeAsync(IEnumerable<Note> existingNotes, CancellationToken cancellationToken = default)
+    {
+        IsAvailable = await PingOllamaAsync();
+        if (!IsAvailable)
+        {
+            logger.Warn("Ollama not reachable at {Url} — semantic search disabled.", config.OllamaUrl);
+            return;
+        }
+
+        logger.Info("Ollama reachable. Model: {Model}", config.EmbeddingModel);
+
+        var loaded = await EmbeddingPersistence.LoadAsync(CachePath);
+        foreach (var (k, v) in loaded)
+        {
+            _store[k] = v;
+        }
+
+        logger.Info("Loaded {Count} cached embeddings from disk.", _store.Count);
+
+        // Re-embed notes whose content changed since last run
+        var stale = existingNotes
+            .Where(n => !_store.TryGetValue(n.VaultRelativePath, out var e) || e.Hash != n.ContentHash)
+            .ToList();
+
+        if (stale.Count > 0)
+        {
+            logger.Info("Embedding {Count} new/changed notes...", stale.Count);
+            foreach (var note in stale)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                await EmbedAndStoreAsync(note);
+            }
+
+            await SaveAsync();
+        }
+
+        logger.Info("Embedding index ready. {Count} notes indexed.", _store.Count);
+    }
+
+    // Public API
+
+    public async Task IndexNoteAsync(Note note)
+    {
+        if (!IsAvailable)
+        {
+            return;
+        }
+
+        if (_store.TryGetValue(note.VaultRelativePath, out var existing) && existing.Hash == note.ContentHash)
+        {
+            return;
+        }
+
+        await EmbedAndStoreAsync(note);
+
+        if (Interlocked.Increment(ref _pendingFlushes) % FlushEvery == 0)
+        {
+            await SaveAsync();
+        }
+    }
+
+    public void Remove(string filePath)
+    {
+        if (!IsAvailable)
+        {
+            return;
+        }
+
+        // filePath is absolute; store uses vault-relative paths
+        var relative = Path.GetRelativePath(config.VaultPath, filePath);
+        _store.Remove(relative);
+    }
+
+    public IEnumerable<SemanticResult> Search(float[] queryVector, int maxResults, IReadOnlyDictionary<string, Note> notesByPath)
+    {
+        return _store.Values
+            .Select(entry =>
+            {
+                // Look up the Note by absolute path to enrich results
+                var absPath = Path.Combine(config.VaultPath, entry.VaultRelativePath);
+                if (!notesByPath.TryGetValue(absPath, out var note))
+                {
+                    return null;
+                }
+
+                return new SemanticResult(note, CosineSimilarity(queryVector, entry.Vector));
+            })
+            .Where(r => r is not null)
+            .Select(r => r!)
+            .OrderByDescending(r => r.Score)
+            .Take(maxResults);
+    }
+
+    public async Task<float[]?> EmbedAsync(string text)
+    {
+        if (!IsAvailable)
+        {
+            return null;
+        }
+
+        try
+        {
+            var response = await _http.PostAsJsonAsync(
+                $"{config.OllamaUrl}/api/embeddings",
+                new OllamaEmbedRequest { Model = config.EmbeddingModel, Prompt = text });
+
+            response.EnsureSuccessStatusCode();
+
+            var result = await response.Content.ReadFromJsonAsync(OllamaJsonContext.Default.OllamaEmbedResponse);
+            return result?.Embedding;
+        }
+        catch (Exception ex)
+        {
+            logger.Warn("Embedding request failed: {Message}", ex.Message);
+            return null;
+        }
+    }
+
+    public async Task SaveAsync()
+    {
+        if (!IsAvailable || _store.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await EmbeddingPersistence.SaveAsync(CachePath, _store);
+            _pendingFlushes = 0;
+            logger.Debug("Embedding cache saved. {Count} entries.", _store.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.Warn("Could not save embedding cache: {Message}", ex.Message);
+        }
+    }
+
+    // Private helpers
+
+    private async Task EmbedAndStoreAsync(Note note)
+    {
+        // Embed title + plain text for richer semantic representation
+        var text = string.IsNullOrWhiteSpace(note.PlainText)
+            ? note.Name
+            : $"{note.Name}\n{note.PlainText}";
+
+        var vector = await EmbedAsync(text);
+        if (vector is not null)
+        {
+            _store[note.VaultRelativePath] = new EmbeddingEntry(note.VaultRelativePath, note.ContentHash, vector);
+        }
+    }
+
+    private async Task<bool> PingOllamaAsync()
+    {
+        try
+        {
+            var response = await _http.GetAsync($"{config.OllamaUrl}/api/tags");
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static float CosineSimilarity(float[] a, float[] b)
+    {
+        float dot = 0f, normA = 0f, normB = 0f;
+        var len = Math.Min(a.Length, b.Length);
+        for (int i = 0; i < len; i++)
+        {
+            dot += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+
+        return dot / (MathF.Sqrt(normA) * MathF.Sqrt(normB) + 1e-8f);
+    }
+
+    public void Dispose() => _http.Dispose();
+}
+
+// Domain types
+
+internal record EmbeddingEntry(string VaultRelativePath, string Hash, float[] Vector);
+
+public record SemanticResult(Note Note, float Score);
+
+// Ollama HTTP types (AOT-safe)
+
+internal sealed class OllamaEmbedRequest
+{
+    [System.Text.Json.Serialization.JsonPropertyName("model")]
+    public required string Model { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("prompt")]
+    public required string Prompt { get; init; }
+}
+
+internal sealed class OllamaEmbedResponse
+{
+    [System.Text.Json.Serialization.JsonPropertyName("embedding")]
+    public float[]? Embedding { get; init; }
+}
+
+[JsonSerializable(typeof(OllamaEmbedRequest))]
+[JsonSerializable(typeof(OllamaEmbedResponse))]
+internal partial class OllamaJsonContext : JsonSerializerContext
+{
+}
