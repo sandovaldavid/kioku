@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/sandovaldavid/kioku/compare/v1.2.0...v1.3.0) (2026-06-25)
+
+
+### Features
+
+* **server:** register PluginIntegrationTools and remove RandomNumberTools scaffolding ([63e053e](https://github.com/sandovaldavid/kioku/commit/63e053e5a57335e8a661f979db25a20f3a82db53))
+
 ## [1.2.0](https://github.com/sandovaldavid/kioku/compare/v1.1.0...v1.2.0) (2026-06-25)
 
 
