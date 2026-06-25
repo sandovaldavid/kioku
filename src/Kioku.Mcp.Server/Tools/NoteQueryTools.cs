@@ -353,10 +353,12 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     [McpServerTool, Description(
         "Searches notes by semantic meaning using Ollama embeddings. " +
         "Finds notes conceptually related to the query even without exact keyword matches. " +
+        "Frontmatter fields (tags, status, type, date, extra fields) are included in the index. " +
         "Requires Ollama running with the configured embedding model.")]
     public async Task<string> search_notes_semantic(
         [Description("Natural language query. E.g. 'notes about stress and burnout'.")] string query,
-        [Description("Maximum number of results to return (default: 10).")] int max_results = 10)
+        [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
+        [Description("Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches.")] float min_score = 0f)
     {
         if (!embedding.IsAvailable)
             return $"[info] Semantic search unavailable — Ollama is not running at {config.OllamaUrl}";
@@ -374,11 +376,15 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var notesByPath = vault.GetAllNotes()
             .ToDictionary(n => n.FilePath, StringComparer.OrdinalIgnoreCase);
 
-        var results = embedding.Search(queryVector, Math.Min(max_results, config.MaxSearchResults), notesByPath)
+        var results = embedding
+            .Search(queryVector, Math.Min(max_results, config.MaxSearchResults), notesByPath, min_score)
             .ToList();
 
         if (results.Count == 0)
-            return $"No semantically similar notes found for: '{query}'";
+        {
+            var threshold = min_score > 0f ? $" above {min_score:P0} similarity" : "";
+            return $"No semantically similar notes found for: '{query}'{threshold}";
+        }
 
         var lines = results.Select((r, i) =>
         {
@@ -386,10 +392,19 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
             var tags = r.Note.Metadata.Tags.Count > 0
                 ? $" [#{string.Join(", #", r.Note.Metadata.Tags)}]"
                 : "";
-            return $"{i + 1}. [semantic] **{r.Note.Name}**{tags} ({score}% similarity)\n   {r.Note.VaultRelativePath}";
+            var snippet = BuildSemanticSnippet(r.Note.PlainText);
+            var snippetStr = snippet is not null ? $"\n   > {snippet}" : "";
+            return $"{i + 1}. [semantic] **{r.Note.Name}**{tags} ({score}% similarity)\n   {r.Note.VaultRelativePath}{snippetStr}";
         });
 
         return $"{results.Count} result(s) for '{query}':\n\n" + string.Join("\n\n", lines);
+    }
+
+    private static string? BuildSemanticSnippet(string plainText)
+    {
+        if (string.IsNullOrWhiteSpace(plainText)) return null;
+        var trimmed = plainText.Trim();
+        return trimmed.Length > 200 ? trimmed[..200].Trim() + "…" : trimmed;
     }
 
     // Private helper

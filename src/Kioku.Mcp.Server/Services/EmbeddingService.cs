@@ -103,12 +103,15 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         _store.Remove(relative);
     }
 
-    public IEnumerable<SemanticResult> Search(float[] queryVector, int maxResults, IReadOnlyDictionary<string, Note> notesByPath)
+    public IEnumerable<SemanticResult> Search(
+        float[] queryVector,
+        int maxResults,
+        IReadOnlyDictionary<string, Note> notesByPath,
+        float minScore = 0f)
     {
         return _store.Values
             .Select(entry =>
             {
-                // Look up the Note by absolute path to enrich results
                 var absPath = Path.Combine(config.VaultPath, entry.VaultRelativePath);
                 if (!notesByPath.TryGetValue(absPath, out var note))
                 {
@@ -117,7 +120,7 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
                 return new SemanticResult(note, CosineSimilarity(queryVector, entry.Vector));
             })
-            .Where(r => r is not null)
+            .Where(r => r is not null && r.Score >= minScore)
             .Select(r => r!)
             .OrderByDescending(r => r.Score)
             .Take(maxResults);
