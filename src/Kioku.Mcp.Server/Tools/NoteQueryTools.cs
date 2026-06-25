@@ -10,7 +10,7 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations here are read-only — they do not modify files.
 /// </summary>
 [McpServerToolType]
-public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config, EmbeddingService embedding)
+public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config, EmbeddingService embedding, HybridSearchService hybrid)
 {
     // read_note
 
@@ -385,7 +385,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
             .ToDictionary(n => n.FilePath, StringComparer.OrdinalIgnoreCase);
 
         var results = embedding
-            .Search(queryVector, Math.Min(max_results, config.MaxSearchResults), notesByPath, min_score)
+            .SearchByVector(queryVector, Math.Min(max_results, config.MaxSearchResults), string.Empty, notesByPath, min_score)
             .ToList();
 
         if (results.Count == 0)
@@ -408,6 +408,165 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         return $"{results.Count} result(s) for '{query}':\n\n" + string.Join("\n\n", lines);
     }
 
+    // search_notes_hybrid
+
+    [McpServerTool, Description(
+        "Searches notes combining keyword and semantic search using Reciprocal Rank Fusion (RRF). " +
+        "Finds notes that match by exact terms AND by conceptual meaning. " +
+        "Best general-purpose search when you are unsure whether to use keyword or semantic search. " +
+        "Requires Ollama for the semantic leg — degrades to keyword-only if Ollama is unavailable.")]
+    public async Task<string> search_notes_hybrid(
+        [Description("Search query in natural language or keywords.")] string query,
+        [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
+        [Description("Minimum RRF score 0.0–1.0 to include a result (default: 0.0 = no filter).")] float min_score = 0f,
+        [Description("Weight for keyword search leg (default: 1.0).")] float keyword_weight = 1f,
+        [Description("Weight for semantic search leg (default: 1.0). Set to 0 to disable semantic.")] float semantic_weight = 1f)
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading.";
+        }
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return "[error] The 'query' parameter cannot be empty.";
+        }
+
+        float[]? queryVector = null;
+        if (embedding.IsAvailable && semantic_weight > 0f)
+        {
+            queryVector = await embedding.EmbedAsync(query);
+        }
+
+        var capped = Math.Min(max_results, config.MaxSearchResults);
+        var results = hybrid
+            .Search(query, capped, min_score, keyword_weight, semantic_weight, queryVector)
+            .ToList();
+
+        if (results.Count == 0)
+        {
+            var threshold = min_score > 0f ? $" above {min_score:P0} score" : "";
+            return $"No hybrid results found for: '{query}'{threshold}";
+        }
+
+        var semanticAvailable = embedding.IsAvailable && semantic_weight > 0f;
+        var lines = results.Select((r, i) =>
+        {
+            var matchType = r.MatchType switch
+            {
+                NoteMatchType.TitleMatch => "title",
+                NoteMatchType.TagMatch => "tag",
+                NoteMatchType.ContentMatch => "content",
+                _ => "match",
+            };
+            var score = (r.Score * 100).ToString("F0");
+            var tags = r.Note.Metadata.Tags.Count > 0
+                ? $" [#{string.Join(", #", r.Note.Metadata.Tags)}]"
+                : "";
+            var snippet = r.Snippet is not null ? $"\n   > {r.Snippet}" : "";
+            var legs = (r.FromKeyword, r.FromSemantic) switch
+            {
+                (true, true) => "keyword+semantic",
+                (true, false) => "keyword",
+                (false, true) => "semantic",
+                _ => "hybrid",
+            };
+
+            return $"{i + 1}. [{legs}] **{r.Note.Name}**{tags} ({score}% relevance)\n   {r.Note.VaultRelativePath}{snippet}";
+        });
+
+        var mode = semanticAvailable ? "keyword + semantic (RRF)" : "keyword only (Ollama unavailable)";
+        return $"{results.Count} result(s) for '{query}' [{mode}]:\n\n" + string.Join("\n\n", lines);
+    }
+
+    // find_similar_notes
+
+    [McpServerTool, Description(
+        "Finds notes conceptually similar to a given note using semantic embeddings. " +
+        "Unlike search_notes_semantic (which takes a text query), this tool takes a note name and finds " +
+        "notes similar to it — useful for discovering hidden connections in the vault. " +
+        "Requires Ollama.")]
+    public string find_similar_notes(
+        [Description("Name or path of the source note.")] string note,
+        [Description("Maximum number of similar notes to return (default: 10).")] int max_results = 10,
+        [Description("Minimum similarity score 0.0–1.0 (default: 0.5).")] float min_score = 0.5f)
+    {
+        if (!embedding.IsAvailable)
+        {
+            return $"[info] Semantic search unavailable — Ollama is not running at {config.OllamaUrl}";
+        }
+
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading.";
+        }
+
+        var source = ResolveNote(note);
+        if (source is null)
+        {
+            return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
+        }
+
+        var capped = Math.Min(max_results, config.MaxSearchResults);
+        var results = hybrid.FindSimilar(source, capped, min_score).ToList();
+
+        if (results.Count == 0)
+        {
+            return $"No notes similar to '{source.Name}' found above {min_score:P0} similarity.";
+        }
+
+        var lines = results.Select((r, i) =>
+        {
+            var score = (r.Score * 100).ToString("F0");
+            var tags = r.Note.Metadata.Tags.Count > 0
+                ? $" [#{string.Join(", #", r.Note.Metadata.Tags)}]"
+                : "";
+            var snippet = BuildSemanticSnippet(r.Note.PlainText);
+            var snippetStr = snippet is not null ? $"\n   > {snippet}" : "";
+            return $"{i + 1}. [similar] **{r.Note.Name}**{tags} ({score}% similarity)\n   {r.Note.VaultRelativePath}{snippetStr}";
+        });
+
+        return $"{results.Count} note(s) similar to '{source.Name}':\n\n" + string.Join("\n\n", lines);
+    }
+
+    // get_note_embedding
+
+    [McpServerTool, Description(
+        "Returns diagnostic information about the embedding vector of a note. " +
+        "Shows the vector dimensions and a preview of the first values. " +
+        "Use to verify that a note has been indexed for semantic search.")]
+    public string get_note_embedding(
+        [Description("Name or path of the note.")] string note)
+    {
+        if (!embedding.IsAvailable)
+        {
+            return $"[info] Embeddings unavailable — Ollama is not running at {config.OllamaUrl}";
+        }
+
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"[error] Note not found: '{note}'";
+        }
+
+        var vector = hybrid.GetEmbedding(found.VaultRelativePath);
+        if (vector is null)
+        {
+            return $"[info] Note '{found.Name}' has no embedding yet — it may still be indexing.";
+        }
+
+        var preview = string.Join(", ", vector.Take(8).Select(v => v.ToString("F4")));
+        return $"""
+               **{found.Name}** — embedding info
+
+               Dimensions:  {vector.Length}
+               Path:        {found.VaultRelativePath}
+               Preview:     [{preview}, ...]
+               """;
+    }
+
+    // Private helpers
+
     private static string? BuildSemanticSnippet(string plainText)
     {
         if (string.IsNullOrWhiteSpace(plainText))
@@ -416,10 +575,8 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         }
 
         var trimmed = plainText.Trim();
-        return trimmed.Length > 200 ? trimmed[..200].Trim() + "…" : trimmed;
+        return trimmed.Length > 200 ? trimmed[..200].Trim() + "\u2026" : trimmed;
     }
-
-    // Private helper
 
     private Note? ResolveNote(string nameOrPath)
     {
