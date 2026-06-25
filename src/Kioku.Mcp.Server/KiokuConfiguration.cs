@@ -37,6 +37,30 @@ public sealed class KiokuConfiguration
     public string EmbeddingModel { get; init; } = "nomic-embed-text";
 
     /// <summary>
+    /// Transport mode: "stdio" (default, v1) or "http" (v2 HTTP-SSE).
+    /// Environment variable: KIOKU_TRANSPORT
+    /// </summary>
+    public string Transport { get; init; } = "stdio";
+
+    /// <summary>
+    /// HTTP port for the HTTP-SSE transport (v2 only).
+    /// Default: 5173. Environment variable: KIOKU_HTTP_PORT
+    /// </summary>
+    public int HttpPort { get; init; } = 5173;
+
+    /// <summary>
+    /// Bearer token for API key authentication (v2 HTTP only).
+    /// If null or empty, the endpoint is unprotected — use only in trusted local networks.
+    /// Environment variable: KIOKU_API_KEY
+    /// </summary>
+    public string? ApiKey { get; init; }
+
+    /// <summary>
+    /// Returns true when the server is running in HTTP-SSE transport mode.
+    /// </summary>
+    public bool IsHttpTransport => Transport.Equals("http", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Loads the configuration from environment variables.
     /// </summary>
     public static KiokuConfiguration FromEnvironment()
@@ -59,6 +83,14 @@ public sealed class KiokuConfiguration
         var embeddingModel = Environment.GetEnvironmentVariable("KIOKU_EMBEDDING_MODEL")
             ?? "nomic-embed-text";
 
+        var transport = Environment.GetEnvironmentVariable("KIOKU_TRANSPORT")
+            ?? "stdio";
+
+        var httpPort = int.TryParse(
+            Environment.GetEnvironmentVariable("KIOKU_HTTP_PORT"), out var hp) ? hp : 5173;
+
+        var apiKey = Environment.GetEnvironmentVariable("KIOKU_API_KEY");
+
         return new KiokuConfiguration
         {
             VaultPath = Path.GetFullPath(vaultPath),
@@ -66,6 +98,9 @@ public sealed class KiokuConfiguration
             ObsidianBridgePort = port,
             OllamaUrl = ollamaUrl,
             EmbeddingModel = embeddingModel,
+            Transport = transport,
+            HttpPort = httpPort,
+            ApiKey = apiKey,
         };
     }
 }
