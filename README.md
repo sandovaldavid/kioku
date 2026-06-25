@@ -110,6 +110,39 @@ Agrega la configuración en tu archivo de configuración de Claude Desktop (ubic
 }
 ```
 
+### 3. Instalación del Plugin de Obsidian (Opcional)
+
+> [!NOTE]
+> El plugin de Obsidian **solo es necesario si deseas usar las herramientas del Bridge de la interfaz de usuario** (como abrir notas automáticamente en el editor, ver qué nota está activa o ejecutar comandos de Obsidian). Todas las demás funciones de lectura, escritura y búsqueda semántica funcionan directamente sobre los archivos, incluso con Obsidian cerrado.
+
+Para instalar el plugin localmente en tu Obsidian:
+
+1. **Instalar dependencias y compilar el plugin:**
+   En la raíz del proyecto, ejecuta:
+   ```bash
+   pnpm install
+   pnpm build:plugin
+   ```
+   Esto generará los archivos `main.js`, `manifest.json` y `styles.css` en la carpeta `src/obsidian-kioku-mcp/`.
+
+2. **Copiar los archivos a tu bóveda:**
+   Crea una carpeta llamada `kioku` dentro de la carpeta oculta de complementos de tu bóveda de Obsidian (`.obsidian/plugins/`):
+   ```bash
+   # Crear directorio del plugin
+   mkdir -p /ruta/a/tu/boveda/.obsidian/plugins/kioku
+   
+   # Copiar archivos compilados
+   cp src/obsidian-kioku-mcp/{main.js,manifest.json,styles.css} /ruta/a/tu/boveda/.obsidian/plugins/kioku/
+   ```
+
+3. **Habilitar el plugin en Obsidian:**
+   * Abre Obsidian.
+   * Ve a **Ajustes** -> **Complementos de la comunidad** (Community Plugins).
+   * Haz clic en **Recargar** (Reload icon) para detectar el nuevo plugin.
+   * Activa el interruptor junto a **Kioku MCP Bridge**.
+
+---
+
 ### Variables de entorno
 
 | Variable | Requerida | Descripción | Default |
