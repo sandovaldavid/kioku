@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.2](https://github.com/sandovaldavid/kioku/compare/v1.6.1...v1.6.2) (2026-06-25)
+
+
+### Bug Fixes
+
+* **plugin:** replace as any casts with typed KiokuApp interface, fix deprecated activeLeaf ([#31](https://github.com/sandovaldavid/kioku/issues/31)) ([ea14f85](https://github.com/sandovaldavid/kioku/commit/ea14f854a902f4d3653f896ad1c1a4ebfb6c6fdb))
+* **server:** add missing TrimmerRoots.xml, fill .mcp/server.json placeholders, remove unused import ([#28](https://github.com/sandovaldavid/kioku/issues/28)) ([6454ab6](https://github.com/sandovaldavid/kioku/commit/6454ab643d48ddcfba551a2dc66e416514660710))
+* **server:** improve HttpClient config and WebSocket exception handling ([#30](https://github.com/sandovaldavid/kioku/issues/30)) ([debc5c3](https://github.com/sandovaldavid/kioku/commit/debc5c3e5ee6ee0de18c8e4d12323ec4cf6751c8))
+
 ## [1.6.1](https://github.com/sandovaldavid/kioku/compare/v1.6.0...v1.6.1) (2026-06-25)
 
 
