@@ -56,6 +56,13 @@ public sealed class KiokuConfiguration
     public string? ApiKey { get; init; }
 
     /// <summary>
+    /// GitHub personal access token for Gist sharing.
+    /// Requires the 'gist' scope. Optional.
+    /// Environment variable: KIOKU_GITHUB_TOKEN
+    /// </summary>
+    public string? GitHubToken { get; init; }
+
+    /// <summary>
     /// Returns true when the server is running in HTTP-SSE transport mode.
     /// </summary>
     public bool IsHttpTransport => Transport.Equals("http", StringComparison.OrdinalIgnoreCase);
@@ -90,6 +97,7 @@ public sealed class KiokuConfiguration
             Environment.GetEnvironmentVariable("KIOKU_HTTP_PORT"), out var hp) ? hp : 5173;
 
         var apiKey = Environment.GetEnvironmentVariable("KIOKU_API_KEY");
+        var githubToken = Environment.GetEnvironmentVariable("KIOKU_GITHUB_TOKEN");
 
         return new KiokuConfiguration
         {
@@ -101,6 +109,7 @@ public sealed class KiokuConfiguration
             Transport = transport,
             HttpPort = httpPort,
             ApiKey = apiKey,
+            GitHubToken = githubToken,
         };
     }
 }
