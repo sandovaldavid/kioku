@@ -71,6 +71,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
         .WithTools<ResearchTools>()
         .WithTools<PluginIntegrationTools>()
         .WithTools<GraphAnalysisTools>()
+        .WithTools<GitTools>()
         .WithTools<AssetTools>()
         .WithTools<UtilityTools>();
 
@@ -150,6 +151,7 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
         .WithTools<ResearchTools>()
         .WithTools<PluginIntegrationTools>()
         .WithTools<GraphAnalysisTools>()
+        .WithTools<GitTools>()
         .WithTools<AssetTools>()
         .WithTools<UtilityTools>();
 
