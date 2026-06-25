@@ -1,8 +1,23 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice } from "obsidian";
+import { App, Plugin, PluginSettingTab, Setting, Notice, MarkdownView } from "obsidian";
 import WebSocket, { WebSocketServer } from "ws";
 import { log } from "./logger";
 
 // Types
+
+interface KiokuApp extends App {
+  version: string;
+  commands: {
+    executeCommandById(commandId: string): boolean;
+  };
+}
+
+interface KiokuDataAdapter {
+  basePath: string;
+}
+
+function asKiokuApp(app: App): KiokuApp {
+  return app as unknown as KiokuApp;
+}
 
 interface KiokuSettings {
   /** Port where the plugin's WebSocket server listens. */
@@ -148,7 +163,7 @@ export default class KiokuPlugin extends Plugin {
             requestId,
             success: true,
             data: {
-              obsidianVersion: (this.app as any).version ?? "unknown",
+              obsidianVersion: asKiokuApp(this.app).version,
               kiokuVersion: this.manifest.version,
             },
           };
@@ -240,8 +255,7 @@ export default class KiokuPlugin extends Plugin {
   }
 
   private cmdGetVaultPath(requestId?: string): BridgeResponse {
-    const adapter = this.app.vault.adapter;
-    const vaultPath = (adapter as any).basePath ?? this.app.vault.getName();
+    const vaultPath = (this.app.vault.adapter as unknown as KiokuDataAdapter).basePath;
 
     return {
       requestId,
@@ -254,8 +268,8 @@ export default class KiokuPlugin extends Plugin {
     const openFiles: Array<{ path: string; name: string }> = [];
 
     this.app.workspace.iterateAllLeaves((leaf) => {
-      if (leaf.view.getViewType() === "markdown") {
-        const file = (leaf.view as any).file;
+      if (leaf.view instanceof MarkdownView) {
+        const file = leaf.view.file;
         if (file) {
           openFiles.push({ path: file.path, name: file.basename });
         }
@@ -267,13 +281,7 @@ export default class KiokuPlugin extends Plugin {
 
   private cmdTriggerCommand(payload: { commandId: string }, requestId?: string): BridgeResponse {
     const { commandId } = payload;
-    const commands = (this.app as any).commands;
-
-    if (!commands || !commands.executeCommandById) {
-      return { requestId, success: false, error: "The Obsidian command API is not available." };
-    }
-
-    const executed = commands.executeCommandById(commandId);
+    const executed = asKiokuApp(this.app).commands.executeCommandById(commandId);
     if (!executed) {
       return {
         requestId,
@@ -286,7 +294,7 @@ export default class KiokuPlugin extends Plugin {
   }
 
   private cmdToggleReadingMode(requestId?: string): BridgeResponse {
-    const executed = (this.app as any).commands?.executeCommandById("markdown:toggle-preview");
+    const executed = asKiokuApp(this.app).commands.executeCommandById("markdown:toggle-preview");
     if (!executed) {
       return {
         requestId,
@@ -298,28 +306,12 @@ export default class KiokuPlugin extends Plugin {
   }
 
   private cmdGetSelection(requestId?: string): BridgeResponse {
-    const activeLeaf = this.app.workspace.activeLeaf;
-    if (!activeLeaf) {
+    const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!markdownView) {
       return { requestId, success: true, data: { selection: null } };
     }
 
-    const view = activeLeaf.view;
-    const viewType = view.getViewType();
-    if (viewType !== "markdown") {
-      return {
-        requestId,
-        success: false,
-        error: `Active view is '${viewType}', not a Markdown editor.`,
-      };
-    }
-
-    // Access the CodeMirror editor via the public MarkdownView.editor API
-    const editor = (view as any).editor;
-    if (!editor) {
-      return { requestId, success: false, error: "No editor found in active view." };
-    }
-
-    const selection = editor.getSelection() as string;
+    const selection = markdownView.editor.getSelection();
     return {
       requestId,
       success: true,
@@ -332,7 +324,7 @@ export default class KiokuPlugin extends Plugin {
   }
 
   private cmdFoldAll(requestId?: string): BridgeResponse {
-    const executed = (this.app as any).commands?.executeCommandById("editor:fold-all");
+    const executed = asKiokuApp(this.app).commands.executeCommandById("editor:fold-all");
     if (!executed) {
       return {
         requestId,
@@ -344,7 +336,7 @@ export default class KiokuPlugin extends Plugin {
   }
 
   private cmdUnfoldAll(requestId?: string): BridgeResponse {
-    const executed = (this.app as any).commands?.executeCommandById("editor:unfold-all");
+    const executed = asKiokuApp(this.app).commands.executeCommandById("editor:unfold-all");
     if (!executed) {
       return {
         requestId,
@@ -357,7 +349,7 @@ export default class KiokuPlugin extends Plugin {
 
   private cmdReloadSnippets(requestId?: string): BridgeResponse {
     // Uses the public Obsidian command — does not touch app.customCss
-    const executed = (this.app as any).commands?.executeCommandById("app:reload-css-snippets");
+    const executed = asKiokuApp(this.app).commands.executeCommandById("app:reload-css-snippets");
     if (!executed) {
       return {
         requestId,
@@ -371,37 +363,21 @@ export default class KiokuPlugin extends Plugin {
 
   private cmdInsertAtCursor(payload: { text: string }, requestId?: string): BridgeResponse {
     const { text } = payload;
-    const leaf = this.app.workspace.activeLeaf;
-    if (!leaf) {
-      return { requestId, success: false, error: "No active leaf" };
+    const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!markdownView) {
+      return { requestId, success: false, error: "No active Markdown note" };
     }
-    const view = leaf.view;
-    if (view.getViewType() !== "markdown") {
-      return { requestId, success: false, error: "Active view is not a Markdown note" };
-    }
-    const editor = (view as any).editor;
-    if (!editor) {
-      return { requestId, success: false, error: "No editor available" };
-    }
-    editor.replaceRange(text, editor.getCursor());
+    markdownView.editor.replaceRange(text, markdownView.editor.getCursor());
     return { requestId, success: true, data: { action: "insert-at-cursor" } };
   }
 
   private cmdReplaceSelection(payload: { text: string }, requestId?: string): BridgeResponse {
     const { text } = payload;
-    const leaf = this.app.workspace.activeLeaf;
-    if (!leaf) {
-      return { requestId, success: false, error: "No active leaf" };
+    const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!markdownView) {
+      return { requestId, success: false, error: "No active Markdown note" };
     }
-    const view = leaf.view;
-    if (view.getViewType() !== "markdown") {
-      return { requestId, success: false, error: "Active view is not a Markdown note" };
-    }
-    const editor = (view as any).editor;
-    if (!editor) {
-      return { requestId, success: false, error: "No editor available" };
-    }
-    editor.replaceSelection(text);
+    markdownView.editor.replaceSelection(text);
     return { requestId, success: true, data: { action: "replace-selection" } };
   }
 
@@ -423,21 +399,14 @@ export default class KiokuPlugin extends Plugin {
 
   private cmdScrollToBlock(payload: { blockId: string }, requestId?: string): BridgeResponse {
     const { blockId } = payload;
-    const leaf = this.app.workspace.activeLeaf;
-    if (!leaf) {
-      return { requestId, success: false, error: "No active leaf" };
+    const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!markdownView) {
+      return { requestId, success: false, error: "No active Markdown note" };
     }
-    const view = leaf.view;
-    if (view.getViewType() !== "markdown") {
-      return { requestId, success: false, error: "Active view is not a Markdown note" };
-    }
-    const editor = (view as any).editor;
-    if (!editor) {
-      return { requestId, success: false, error: "No editor available" };
-    }
-    const lineCount = editor.lineCount() as number;
+    const editor = markdownView.editor;
+    const lineCount = editor.lineCount();
     for (let i = 0; i < lineCount; i++) {
-      const line = editor.getLine(i) as string;
+      const line = editor.getLine(i);
       if (line.includes(`^${blockId}`)) {
         editor.scrollIntoView({ from: { line: i, ch: 0 }, to: { line: i, ch: line.length } }, true);
         editor.setCursor({ line: i, ch: 0 });
