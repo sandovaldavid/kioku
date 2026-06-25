@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.5.0](https://github.com/sandovaldavid/kioku/compare/v1.4.0...v1.5.0) (2026-06-25)
+
+
+### Features
+
+* **server:** add git integration tools (Rama J) ([#19](https://github.com/sandovaldavid/kioku/issues/19)) ([4b536cc](https://github.com/sandovaldavid/kioku/commit/4b536cc57fc3e2807f5a775a51a0b14b6679e144))
+* **server:** add graph analysis tools (Rama I) ([#18](https://github.com/sandovaldavid/kioku/issues/18)) ([e17f45f](https://github.com/sandovaldavid/kioku/commit/e17f45fa7c8b4cf2c963cec9bbdf5649803ecb2d))
+* **server:** extend asset tools with normalization (Rama K) ([#20](https://github.com/sandovaldavid/kioku/issues/20)) ([f70fba0](https://github.com/sandovaldavid/kioku/commit/f70fba0bc60fe29fd629a458287155cfe0be7cc1))
+* **server:** extend session context tools (Rama L) ([#21](https://github.com/sandovaldavid/kioku/issues/21)) ([58d3ae8](https://github.com/sandovaldavid/kioku/commit/58d3ae87b66a3474acc6ba5f4de8a95ce7cb135c))
+
 ## [1.4.0](https://github.com/sandovaldavid/kioku/compare/v1.3.0...v1.4.0) (2026-06-25)
 
 
