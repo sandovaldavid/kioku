@@ -32,7 +32,9 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
         [Description("Maximum number of notes to return (default: 50, max: 200).")] int max_results = 50)
     {
         if (!vault.IsReady)
+        {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
 
         max_results = Math.Clamp(max_results, 1, 200);
 
@@ -42,11 +44,15 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
         if (!string.IsNullOrWhiteSpace(date_from) &&
             DateTimeOffset.TryParse(date_from, out var parsedFrom))
+        {
             fromDate = parsedFrom;
+        }
 
         if (!string.IsNullOrWhiteSpace(date_to) &&
             DateTimeOffset.TryParse(date_to, out var parsedTo))
+        {
             toDate = parsedTo.AddDays(1).AddTicks(-1); // inclusive end
+        }
 
         var notes = vault.GetAllNotes().AsEnumerable();
 
@@ -90,7 +96,9 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             .ToList();
 
         if (sorted.Count == 0)
+        {
             return "[ok] No notes found matching the specified criteria.";
+        }
 
         var sb = new StringBuilder();
         sb.AppendLine($"[ok] Knowledge timeline — {sorted.Count} notes:");
@@ -132,14 +140,18 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
         [Description("Maximum number of nodes to include (default: 50, max: 150).")] int max_nodes = 50)
     {
         if (!vault.IsReady)
+        {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
 
         depth = Math.Clamp(depth, 1, 3);
         max_nodes = Math.Clamp(max_nodes, 5, 150);
 
         var center = ResolveNote(note);
         if (center is null)
+        {
             return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
+        }
 
         // BFS traversal
         var visited = new Dictionary<string, Note>(StringComparer.OrdinalIgnoreCase);
@@ -184,7 +196,9 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             foreach (var backlinkNote in backlinks)
             {
                 if (!edges.Any(e => e.Source == backlinkNote.Name && e.Target == current.Name && e.Type == "link"))
+                {
                     edges.Add(new GraphEdge(backlinkNote.Name, current.Name, "backlink"));
+                }
 
                 if (!visited.ContainsKey(backlinkNote.Name) && currentDepth < depth && visited.Count < max_nodes)
                 {
@@ -241,12 +255,16 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
     public string get_vault_snapshot()
     {
         if (!vault.IsReady)
+        {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
 
         var allNotes = vault.GetAllNotes().ToList();
 
         if (allNotes.Count == 0)
+        {
             return "[ok] The vault has no Markdown notes.";
+        }
 
         var sb = new StringBuilder();
         sb.AppendLine($"[ok] Vault snapshot — {allNotes.Count} notes");
@@ -280,7 +298,9 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             }
 
             if (subfolders.Count > 10)
+            {
                 sb.AppendLine($"  - ... and {subfolders.Count - 10} more subfolders");
+            }
         }
 
         sb.AppendLine();
@@ -338,7 +358,9 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             sb.AppendLine();
             sb.AppendLine("### Status breakdown");
             foreach (var s in statusGroups)
+            {
                 sb.AppendLine($"- `{s.Key}`: {s.Count()}");
+            }
         }
 
         sb.AppendLine();
@@ -381,14 +403,20 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
         // Exact name match (without extension)
         var byName = all.FirstOrDefault(n =>
             n.Name.Equals(input, StringComparison.OrdinalIgnoreCase));
-        if (byName is not null) return byName;
+        if (byName is not null)
+        {
+            return byName;
+        }
 
         // Vault-relative path match
         var normalized = input.TrimStart('/').Replace('\\', '/');
         var byPath = all.FirstOrDefault(n =>
             n.VaultRelativePath.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
             n.VaultRelativePath.Equals(normalized + ".md", StringComparison.OrdinalIgnoreCase));
-        if (byPath is not null) return byPath;
+        if (byPath is not null)
+        {
+            return byPath;
+        }
 
         // Absolute path match
         var byAbsolute = all.FirstOrDefault(n =>
