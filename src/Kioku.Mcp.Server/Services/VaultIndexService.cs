@@ -259,7 +259,8 @@ public sealed class VaultIndexService : IDisposable
 
     private async Task IndexVaultAsync(CancellationToken cancellationToken)
     {
-        var mdFiles = Directory.EnumerateFiles(_vaultPath, "*.md", SearchOption.AllDirectories);
+        var mdFiles = Directory.EnumerateFiles(_vaultPath, "*.md", SearchOption.AllDirectories)
+            .Where(p => !IsExcludedPath(p));
         var tasks = mdFiles.Select(path => IndexFileAsync(path, cancellationToken));
         await Task.WhenAll(tasks);
         _lastIndexed = DateTimeOffset.UtcNow;
@@ -346,6 +347,11 @@ public sealed class VaultIndexService : IDisposable
 
     private void ScheduleReindex(string filePath)
     {
+        if (IsExcludedPath(filePath))
+        {
+            return;
+        }
+
         // Cancel previous debouncer for this file (if any)
         if (_debouncers.TryRemove(filePath, out var existing))
         {
@@ -493,6 +499,13 @@ public sealed class VaultIndexService : IDisposable
     {
         var bytes = Encoding.UTF8.GetBytes(content);
         return Convert.ToHexString(MD5.HashData(bytes));
+    }
+
+    private bool IsExcludedPath(string filePath)
+    {
+        var relative = Path.GetRelativePath(_vaultPath, filePath);
+        return relative.Split(Path.DirectorySeparatorChar)
+            .Any(segment => segment.StartsWith('.'));
     }
 
     public void Dispose()
