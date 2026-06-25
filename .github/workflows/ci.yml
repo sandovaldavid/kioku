@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-server:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+
+      - name: Build
+        run: |
+          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-restore \
+            --runtime linux-x64
+
+      - name: Format check
+        run: |
+          dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --verify-no-changes \
+            --verbosity diagnostic
+
+  build-plugin:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check
+        run: pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json
+
+      - name: Lint
+        run: pnpm --filter obsidian-kioku-mcp run lint
+
+      - name: Format check
+        run: pnpm --filter obsidian-kioku-mcp run format:check
+
+      - name: Build
+        run: pnpm --filter obsidian-kioku-mcp run build
