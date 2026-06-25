@@ -10,7 +10,7 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations here are read-only — they do not modify files.
 /// </summary>
 [McpServerToolType]
-public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config)
+public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config, EmbeddingService embedding)
 {
     // read_note
 
@@ -346,6 +346,50 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
                 Most recent note:  {lastModified?.Name ?? "N/A"} ({lastModified?.LastModified.ToLocalTime():yyyy-MM-dd HH:mm})
                 Vault path:        {config.VaultPath}
                 """;
+    }
+
+    // search_notes_semantic
+
+    [McpServerTool, Description(
+        "Searches notes by semantic meaning using Ollama embeddings. " +
+        "Finds notes conceptually related to the query even without exact keyword matches. " +
+        "Requires Ollama running with the configured embedding model.")]
+    public async Task<string> search_notes_semantic(
+        [Description("Natural language query. E.g. 'notes about stress and burnout'.")] string query,
+        [Description("Maximum number of results to return (default: 10).")] int max_results = 10)
+    {
+        if (!embedding.IsAvailable)
+            return $"[info] Semantic search unavailable — Ollama is not running at {config.OllamaUrl}";
+
+        if (!vault.IsReady)
+            return "[loading] The index is still loading.";
+
+        if (string.IsNullOrWhiteSpace(query))
+            return "[error] The 'query' parameter cannot be empty.";
+
+        var queryVector = await embedding.EmbedAsync(query);
+        if (queryVector is null)
+            return "[error] Could not generate embedding for query.";
+
+        var notesByPath = vault.GetAllNotes()
+            .ToDictionary(n => n.FilePath, StringComparer.OrdinalIgnoreCase);
+
+        var results = embedding.Search(queryVector, Math.Min(max_results, config.MaxSearchResults), notesByPath)
+            .ToList();
+
+        if (results.Count == 0)
+            return $"No semantically similar notes found for: '{query}'";
+
+        var lines = results.Select((r, i) =>
+        {
+            var score = (r.Score * 100).ToString("F0");
+            var tags = r.Note.Metadata.Tags.Count > 0
+                ? $" [#{string.Join(", #", r.Note.Metadata.Tags)}]"
+                : "";
+            return $"{i + 1}. [semantic] **{r.Note.Name}**{tags} ({score}% similarity)\n   {r.Note.VaultRelativePath}";
+        });
+
+        return $"{results.Count} result(s) for '{query}':\n\n" + string.Join("\n\n", lines);
     }
 
     // Private helper
