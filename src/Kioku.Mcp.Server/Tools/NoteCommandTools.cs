@@ -1,0 +1,357 @@
+using System.ComponentModel;
+using System.Text;
+using Kioku.Mcp.Server.Domain;
+using Kioku.Mcp.Server.Services;
+using ModelContextProtocol.Server;
+
+namespace Kioku.Mcp.Server.Tools;
+
+/// <summary>
+/// MCP write tools for the Obsidian vault.
+/// All operations here modify files on disk.
+/// </summary>
+[McpServerToolType]
+public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration config)
+{
+    // ── create_note ────────────────────────────────────────────────────────────
+
+    [McpServerTool, Description(
+        "Creates a new note in the Obsidian vault with frontmatter and content. " +
+        "If the note already exists, returns an error — use update_note_content to modify it.")]
+    public async Task<string> create_note(
+        [Description("Name of the note (without .md extension). Can include subfolders: 'Projects/My Note'.")] string name,
+        [Description("Content of the note body (in Markdown).")] string content,
+        [Description("Tags to add in the frontmatter (comma-separated). E.g. 'ai, project, draft'.")] string tags = "",
+        [Description("Note type for frontmatter (e.g. 'note', 'project', 'area', 'resource').")] string type = "",
+        [Description("Status of the note (e.g. 'draft', 'published').")] string status = "draft")
+    {
+        var filePath = BuildFilePath(name);
+
+        if (File.Exists(filePath))
+        {
+            return $"❌ Note '{name}' already exists at: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
+                   "Use update_note_content to modify an existing note.";
+        }
+
+        // Ensure directory exists
+        var dir = Path.GetDirectoryName(filePath)!;
+        Directory.CreateDirectory(dir);
+
+        var noteContent = BuildNoteContent(content, tags, type, status);
+        await File.WriteAllTextAsync(filePath, noteContent, Encoding.UTF8);
+
+        return $"✅ Note created: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
+               $"📁 Path: {filePath}";
+    }
+
+    // ── update_note_content ────────────────────────────────────────────────────
+
+    [McpServerTool, Description(
+        "Replaces the body of an existing note keeping its YAML frontmatter intact.")]
+    public async Task<string> update_note_content(
+        [Description("Name or path of the note.")] string note,
+        [Description("New content of the body of the note.")] string content)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"❌ Note not found: '{note}'";
+        }
+
+        var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+        var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
+        var frontmatter = rawContent[..bodyStart];
+
+        var newContent = frontmatter + content;
+        await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
+
+        return $"✅ Content updated in '{found.Name}'";
+    }
+
+    // ── prepend_to_note ────────────────────────────────────────────────────────
+
+    [McpServerTool, Description(
+        "Prepends text to the beginning of a note body (just after the YAML frontmatter).")]
+    public async Task<string> prepend_to_note(
+        [Description("Name or path of the note.")] string note,
+        [Description("Text to prepend (in Markdown).")] string content)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"❌ Note not found: '{note}'";
+        }
+
+        var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+        var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
+        var frontmatter = rawContent[..bodyStart];
+        var body = rawContent[bodyStart..];
+
+        var newContent = frontmatter + content + "\n" + body;
+        await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
+
+        return $"✅ Content prepended to the start of '{found.Name}'";
+    }
+
+    // ── append_to_note ─────────────────────────────────────────────────────────
+
+    [McpServerTool, Description(
+        "Appends text to the end of an existing note. " +
+        "Ideal for log notes or journals where the agent records entries.")]
+    public async Task<string> append_to_note(
+        [Description("Name or path of the note.")] string note,
+        [Description("Text to append to the end of the note (in Markdown).")] string content,
+        [Description("If true, appends a horizontal separator (---) before the new content.")] bool add_separator = false)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"❌ Note not found: '{note}'";
+        }
+
+        var toAppend = new StringBuilder("\n");
+        if (add_separator)
+        {
+            toAppend.AppendLine("\n---");
+        }
+
+        toAppend.AppendLine(content);
+
+        await File.AppendAllTextAsync(found.FilePath, toAppend.ToString(), Encoding.UTF8);
+        return $"✅ Content appended to '{found.Name}' ({content.Length} characters)";
+    }
+
+    // ── update_frontmatter ─────────────────────────────────────────────────────
+
+    [McpServerTool, Description(
+        "Updates or adds fields in the YAML frontmatter of an existing note. " +
+        "Only modifies specified fields, the rest remains intact.")]
+    public async Task<string> update_frontmatter(
+        [Description("Name or path of the note.")] string note,
+        [Description("New tags (replaces existing ones, comma-separated). Leave empty to not modify.")] string tags = "",
+        [Description("New status (e.g. 'published', 'draft', 'archived'). Leave empty to not modify.")] string status = "",
+        [Description("New note type. Leave empty to not modify.")] string type = "")
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"❌ Note not found: '{note}'";
+        }
+
+        var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+        var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
+        var body = rawContent[bodyStart..];
+
+        // Rebuild frontmatter with changes
+        var existingMeta = found.Metadata;
+        var newTags = !string.IsNullOrWhiteSpace(tags)
+            ? tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
+            : existingMeta.Tags.ToList();
+
+        var newStatus = !string.IsNullOrWhiteSpace(status) ? status : existingMeta.Status;
+        var newType = !string.IsNullOrWhiteSpace(type) ? type : existingMeta.NoteType;
+
+        var frontmatter = BuildFrontmatter(newTags, newType ?? "", newStatus ?? "", existingMeta.Date, existingMeta.ExtraFields);
+        var newContent = frontmatter + body;
+
+        await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
+        return $"✅ Frontmatter updated in '{found.Name}'";
+    }
+
+    // ── add_tag ────────────────────────────────────────────────────────────────
+
+    [McpServerTool, Description("Adds one or more tags to an existing note.")]
+    public async Task<string> add_tag(
+        [Description("Name or path of the note.")] string note,
+        [Description("Tag(s) to add (comma-separated).")] string tags)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"❌ Note not found: '{note}'";
+        }
+
+        var newTags = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var existingTags = found.Metadata.Tags.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var added = new List<string>();
+
+        foreach (var tag in newTags)
+        {
+            if (existingTags.Add(tag))
+            {
+                added.Add(tag);
+            }
+        }
+
+        if (added.Count == 0)
+        {
+            return $"ℹ️ Tags already exist in '{found.Name}': #{string.Join(", #", newTags)}";
+        }
+
+        return await update_frontmatter(note, string.Join(", ", existingTags));
+    }
+
+    // ── remove_tag ─────────────────────────────────────────────────────────────
+
+    [McpServerTool, Description("Removes one or more tags from an existing note.")]
+    public async Task<string> remove_tag(
+        [Description("Name or path of the note.")] string note,
+        [Description("Tag(s) to remove (comma-separated).")] string tags)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"❌ Note not found: '{note}'";
+        }
+
+        var toRemove = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var remaining = found.Metadata.Tags
+            .Where(t => !toRemove.Contains(t))
+            .ToList();
+
+        return await update_frontmatter(note, string.Join(", ", remaining));
+    }
+
+    // ── move_note ──────────────────────────────────────────────────────────────
+
+    [McpServerTool, Description(
+        "Moves a note to another folder in the vault. " +
+        "Note: wikilinks pointing to this note are not updated automatically in v1.")]
+    public async Task<string> move_note(
+        [Description("Name or path of the note to move.")] string note,
+        [Description("Destination folder (relative to the vault). E.g. 'Archive/2024'")] string destination_folder)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"❌ Note not found: '{note}'";
+        }
+
+        var destDir = Path.Combine(config.VaultPath, destination_folder);
+        Directory.CreateDirectory(destDir);
+
+        var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));
+        if (File.Exists(destPath))
+        {
+            return $"❌ A note with that name already exists in '{destination_folder}'";
+        }
+
+        File.Move(found.FilePath, destPath);
+        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
+
+        return $"✅ Note moved:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
+    }
+
+    // ── rename_note ────────────────────────────────────────────────────────────
+
+    [McpServerTool, Description(
+        "Renames a note in the vault. The new name can include subfolders.")]
+    public async Task<string> rename_note(
+        [Description("Name or path of the note to rename.")] string note,
+        [Description("New name of the note (without .md extension, e.g. 'New Folder/New Name').")] string new_name)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"❌ Note not found: '{note}'";
+        }
+
+        var destPath = BuildFilePath(new_name);
+        if (File.Exists(destPath))
+        {
+            return $"❌ A note already exists at the destination path: {Path.GetRelativePath(config.VaultPath, destPath)}";
+        }
+
+        var destDir = Path.GetDirectoryName(destPath)!;
+        Directory.CreateDirectory(destDir);
+
+        File.Move(found.FilePath, destPath);
+        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
+
+        return $"✅ Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
+    }
+
+    // ── Private helpers ──────────────────────────────────────────────────────
+
+    private string BuildFilePath(string name)
+    {
+        var normalized = name.Replace('/', Path.DirectorySeparatorChar)
+                             .Replace('\\', Path.DirectorySeparatorChar);
+        if (!normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized += ".md";
+        }
+
+        return Path.Combine(config.VaultPath, normalized);
+    }
+
+    private static string BuildNoteContent(string body, string tags, string type, string status)
+    {
+        var tagList = string.IsNullOrWhiteSpace(tags)
+            ? []
+            : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+        var frontmatter = BuildFrontmatter(tagList, type, status, DateOnly.FromDateTime(DateTime.Today));
+        return frontmatter + "\n" + body;
+    }
+
+    private static string BuildFrontmatter(
+        IEnumerable<string> tags,
+        string type,
+        string status,
+        DateOnly? date = null,
+        IReadOnlyDictionary<string, string>? extraFields = null)
+    {
+        var sb = new StringBuilder("---\n");
+
+        var tagList = tags.ToList();
+        if (tagList.Count > 0)
+        {
+            sb.AppendLine("tags:");
+            foreach (var tag in tagList)
+            {
+                sb.AppendLine($"  - {tag}");
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            sb.AppendLine($"type: {type}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            sb.AppendLine($"status: {status}");
+        }
+
+        if (date.HasValue)
+        {
+            sb.AppendLine($"date: {date:yyyy-MM-dd}");
+        }
+
+        // Preserve extra fields from the original frontmatter
+        if (extraFields is not null)
+        {
+            foreach (var (k, v) in extraFields)
+            {
+                sb.AppendLine($"{k}: {v}");
+            }
+        }
+
+        sb.AppendLine("---");
+        return sb.ToString();
+    }
+
+    private Domain.Note? ResolveNote(string nameOrPath)
+    {
+        var byPath = vault.GetNote(nameOrPath);
+        if (byPath is not null)
+        {
+            return byPath;
+        }
+
+        return vault.GetNoteByName(nameOrPath);
+    }
+}

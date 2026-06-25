@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Self-Contained: binario portable, no requiere .NET instalado -->
+    <SelfContained>true</SelfContained>
+    <PublishSelfContained>true</PublishSelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+
+    <!-- Metadatos del paquete Kioku -->
+    <PackAsTool>true</PackAsTool>
+    <PackageType>McpServer</PackageType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>kioku-mcp-server</PackageId>
+    <PackageVersion>1.0.0</PackageVersion>
+    <PackageTags>AI; MCP; obsidian; notes; server; stdio</PackageTags>
+    <Description>Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read and write notes via the Model Context Protocol.</Description>
+    <Authors>sandovaldavid</Authors>
+    <Copyright>Copyright © 2026 sandovaldavid</Copyright>
+
+    <!-- Análisis de trimming para preparar v3 (Native AOT) -->
+    <TrimmerRootDescriptor>TrimmerRoots.xml</TrimmerRootDescriptor>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SDK MCP oficial de Microsoft -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
+  </ItemGroup>
+
+</Project>
