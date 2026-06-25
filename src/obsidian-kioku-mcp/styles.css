@@ -1,0 +1,7 @@
+/* Kioku MCP Plugin — Estilos mínimos */
+
+.kioku-description {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin-bottom: 1rem;
+}
