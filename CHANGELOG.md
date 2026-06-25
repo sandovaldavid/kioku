@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/sandovaldavid/kioku/compare/v1.6.0...v1.6.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* **release:** add checkout step to attach-artifacts job ([#26](https://github.com/sandovaldavid/kioku/issues/26)) ([b4ca7b4](https://github.com/sandovaldavid/kioku/commit/b4ca7b4642f1f3717bf6cf68e52fcfb8681e4f17))
+
 ## [1.6.0](https://github.com/sandovaldavid/kioku/compare/v1.5.0...v1.6.0) (2026-06-25)
 
 
