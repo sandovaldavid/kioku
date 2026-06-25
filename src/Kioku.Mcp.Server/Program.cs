@@ -63,6 +63,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
         .WithTools<ObsidianBridgeTools>()
         .WithTools<TaskManagementTools>()
         .WithTools<ZettelkastenTools>()
+        .WithTools<VaultOrganizationTools>()
         .WithTools<UtilityTools>();
 
     var webApp = webBuilder.Build();
@@ -133,6 +134,7 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
         .WithTools<ObsidianBridgeTools>()
         .WithTools<TaskManagementTools>()
         .WithTools<ZettelkastenTools>()
+        .WithTools<VaultOrganizationTools>()
         .WithTools<UtilityTools>();
 
     var host = builder.Build();
