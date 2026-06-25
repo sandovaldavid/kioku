@@ -157,15 +157,18 @@ Herramientas para mantener la bóveda ordenada y bien clasificada.
 
 | # | Tool Name | Versión | Estado | Patrón | Descripción |
 |---|---|---|---|---|---|
-| 41 | `reorder_notes_in_folder` | v3 | 📋 | dry_run | Renombra notas con prefijo numérico para definir orden |
+| 41 | `reorder_notes_in_folder` | v3 | ✅ | dry_run | Renombra notas con prefijo numérico para definir orden |
 | 42 | `normalize_tags` | v3 | ✅ | dry_run | Estandariza capitalización y formato de tags en toda la bóveda |
 | 43 | `rename_tag_globally` | v3 | ✅ | dry_run | Renombra un tag en todas las notas de la bóveda |
 | 44 | `merge_tags` | v3 | ✅ | dry_run | Fusiona dos tags en uno |
-| 45 | `reclassify_note` | v3 | 📋 | — | Mueve una nota a la carpeta más apropiada según su contenido |
+| 45 | `reclassify_note` | v3 | ✅ | — | Mueve una nota a la carpeta más apropiada según su contenido |
 | 46 | `suggest_tags` | v3 | ✅ | — | Sugiere tags relevantes para una nota basándose en el contenido |
-| 47 | `suggest_folder` | v3 | 💡 | — | Sugiere la carpeta más adecuada para una nota nueva |
+| 47 | `suggest_folder` | v3 | ✅ | — | Sugiere la carpeta más adecuada para una nota |
 | 48 | `find_duplicate_notes` | v3 | ✅ | dry_run | Detecta notas con contenido similar (posibles duplicados) |
 | 49 | `audit_vault` | v3 | ✅ | — | Reporte de salud: notas sin tags, sin fecha, wikilinks rotos |
+| 68 | `find_unlinked_notes` | v3 | 📋 | — | Notas sin backlinks NI outgoing links (islas del grafo) |
+| 69 | `find_graph_islands` | v3 | 📋 | — | Componentes conexos pequeños (< N notas) no conectados al principal |
+| 70 | `measure_vault_density` | v3 | 📋 | — | Métricas globales: avg backlinks, ratio de notas con tags/frontmatter |
 
 > **Patrón `dry_run`:** Los tools marcados aceptan `dry_run: bool = false`. Con `true` devuelven un preview de qué cambiaría sin ejecutar nada.
 
@@ -186,14 +189,17 @@ Herramientas para trabajar con activos visuales, bases de datos y personalizaci�
 
 | # | Tool Name | Versión | Estado | Descripción |
 |---|---|---|---|---|
-| 50 | `list_excalidraw_files` | v3 | 📋 | Lista todos los diagramas Excalidraw de la bóveda |
-| 51 | `get_asset_metadata` | v3 | 📋 | Metadatos de un asset (nombre, ubicación, tamaño, fecha) |
-| 52 | `find_orphan_assets` | v3 | 📋 | Assets no referenciados por ninguna nota |
+| 50 | `list_excalidraw_files` | v3 | ✅ | Lista todos los diagramas Excalidraw de la bóveda |
+| 51 | `get_asset_metadata` | v3 | ✅ | Metadatos de un asset (nombre, ubicación, tamaño, fecha) |
+| 52 | `find_orphan_assets` | v3 | ✅ | Assets no referenciados por ninguna nota |
 | 53 | `find_broken_links` | v3 | ✅ | Wikilinks rotos en toda la bóveda |
 | 54 | `list_database_tables` | v3 | 💡 | Lista las bases de datos de DB Folder / Dataview |
 | 55 | `query_database_table` | v3 | 💡 | Consulta filas de una base de datos nativa de Obsidian |
 | 56 | `apply_css_snippet` | v3 | ✅ | Crea/actualiza un snippet CSS en `.obsidian/snippets/` |
 | 57 | `list_css_snippets` | v3 | ✅ | Lista snippets CSS con estado enabled/disabled |
+| 71 | `normalize_attachment_names` | v3 | 📋 | Renombra attachments con patrón consistente + actualiza referencias (dry_run) |
+| 72 | `move_attachments_to_folder` | v3 | 📋 | Centraliza attachments dispersos en carpeta estándar + actualiza refs |
+| 77 | `remove_css_snippet` | v3 | 📋 | Elimina un snippet CSS de .obsidian/snippets/ y lo quita de app.json |
 
 #### Justificaciones
 
@@ -214,6 +220,7 @@ Herramientas para gestión de conocimiento académico y exportación de referenc
 | 58 | `export_citations` | v3 | ✅ | Exporta notas con `citekey` en formato `.bib` o Markdown |
 | 59 | `get_literature_gap` | v3 | ✅ | Citekeys referenciados en el texto sin nota propia |
 | 60 | `import_zotero_item` | v3 | 💡 | Crea nota de literatura desde Zotero API local |
+| 73 | `validate_research_notes` | v3 | 📋 | Valida que notas type:literature/research tengan citekey, year, authors, status |
 
 #### Justificaciones
 
@@ -231,6 +238,8 @@ Herramientas para gestionar el estado y continuidad entre sesiones de trabajo.
 |---|---|---|---|---|
 | 61 | `start_work_session` | v3 | ✅ | Crea nota de sesión con timestamp y notas abiertas actuales |
 | 62 | `end_work_session` | v3 | ✅ | Cierra sesión: agrega resumen de notas creadas/modificadas |
+| 75 | `list_work_sessions` | v3 | 📋 | Lista notas de sesión con fecha, duración y estado abierta/cerrada |
+| 76 | `get_session_activity` | v3 | 📋 | Notas creadas/modificadas durante una sesión específica |
 
 #### Justificaciones
 
@@ -252,6 +261,18 @@ Herramientas de diagnóstico e información del servidor.
 
 ---
 
+### 🔗 Grupo 10: Ecosystem e Integración Git
+
+Herramientas para interactuar con el entorno externo (git, configuración) que rodea la bóveda.
+
+| # | Tool Name | Versión | Estado | Descripción |
+|---|---|---|---|---|
+| 78 | `get_git_status` | v3 | 📋 | `git status --short` sobre el vault (archivos modificados/añadidos/borrados) |
+| 79 | `list_git_commits` | v3 | 📋 | Últimos N commits con hash, mensaje y fecha |
+| 80 | `create_git_commit` | v3 | 💡 | Stagea y crea commit con dry_run (destructivo — exige confirmación explícita) |
+
+---
+
 ## Parte 2: Plugin Commands (Obsidian ↔ Motor C#)
 
 Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El plugin actúa como un **servidor WebSocket local** y el motor C# como cliente.
@@ -267,8 +288,8 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 | A1 | `open-file` | v1 | ✅ | Abre y enfoca una nota específica en Obsidian |
 | A2 | `get-active-note` | v1 | ✅ | Devuelve la nota que actualmente tiene el foco |
 | A3 | `get-open-notes` | v1 | ✅ | Lista todas las notas actualmente abiertas en pestañas |
-| A4 | `scroll-to-block` | v1 | 📋 | Desplaza la vista hasta un bloque específico (por ID de bloque) |
-| A5 | `open-in-split` | v1 | 📋 | Abre una nota en un panel dividido sin cerrar la vista actual |
+| A4 | `scroll-to-block` | v1 | ✅ | Desplaza la vista hasta un bloque específico (por ID de bloque) |
+| A5 | `open-in-split` | v1 | ✅ | Abre una nota en un panel dividido sin cerrar la vista actual |
 | A6 | `close-note` | v1 | 💡 | Cierra la pestaña de una nota específica |
 
 #### Justificaciones
@@ -310,7 +331,7 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 |---|---|---|---|---|
 | C1 | `get-vault-path` | v1 | ✅ | Ruta raíz de la bóveda activa |
 | C2 | `is-obsidian-ready` | v1 | ✅ | Indica si Obsidian está completamente cargado y listo |
-| C3 | `get-app-version` | v1 | 📋 | Versión de Obsidian y del plugin Kioku |
+| C3 | `get-app-version` | v1 | ✅ | Versión de Obsidian y del plugin Kioku |
 | C4 | `get-installed-plugins` | v1 | 💡 | Lista de plugins de comunidad instalados |
 
 #### Justificaciones
@@ -324,9 +345,9 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 
 | # | Comando | Versión | Estado | Descripción |
 |---|---|---|---|---|
-| D1 | `create-note-ui` | v2 | 📋 | Crea una nueva nota y la abre en Obsidian inmediatamente |
-| D2 | `insert-at-cursor` | v2 | 💡 | Inserta texto en la posición del cursor del editor activo |
-| D3 | `replace-selection` | v2 | 💡 | Reemplaza el texto seleccionado en el editor activo |
+| D1 | `create-note-ui` | v2 | ✅ | Crea una nueva nota y la abre en Obsidian inmediatamente |
+| D2 | `insert-at-cursor` | v2 | ✅ | Inserta texto en la posición del cursor del editor activo |
+| D3 | `replace-selection` | v2 | ✅ | Reemplaza el texto seleccionado en el editor activo |
 | D4 | `highlight-block` | v2 | 💡 | Resalta visualmente un bloque de texto en el editor |
 
 #### Justificaciones
@@ -354,9 +375,9 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 
 **Criterio:** El agente puede buscar por significado, no solo por texto literal. Embeddings via Ollama.
 
-### v3 — Ecosystem Tools 🔨 EN PROGRESO (84% completo en develop)
+### v3 — Ecosystem Tools ✅ EN PROGRESO (Ramas F/G/H completas, I–N planificadas)
 
-**Implementado en `develop` (post PRs #13, #14, #5):** 55+ MCP Tools + 11 Plugin Commands
+**Implementado en `develop` (post Ramas F, G, H):** 66+ MCP Tools + 16 Plugin Commands
 
 #### MCP Tools Completados
 - Session Context (12–13, 61–62): `get_recent_activity`, `get_work_context`, `start/end_work_session`
@@ -376,19 +397,25 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 - Vault Info (C1–C3): `get-vault-path`, `is-obsidian-ready`, `get-app-version`
 - Integration (via PluginIntegrationTools): `run-dataview-query`, `run-templater`, `run-linter`, `run-linter-vault`, `get-installed-plugins`
 
-**Pendiente (Rama F):**
+**Implementado (Ramas F, G, H):**
 - Assets (50–52): `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`
 - Organization (41, 45, 47): `reorder_notes_in_folder`, `reclassify_note`, `suggest_folder`
+- Editor Commands (A4, A5, C3, D1–D3): `scroll-to-block`, `open-in-split`, `get-app-version`, `create-note-ui`, `insert-at-cursor`, `replace-selection`
 
-**Pendiente (Rama G):**
-- Editor Commands: `insert-at-cursor`, `replace-selection`, `create-note-ui`, `scroll-to-block`, `open-in-split`
+**Pendiente (Ramas I–N):**
+- Graph Analysis (68–70): `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density`
+- Git Integration (78–80): `get_git_status`, `list_git_commits`, `create_git_commit` (💡)
+- Assets Extended (71–72): `normalize_attachment_names`, `move_attachments_to_folder`
+- Sessions Extended (75–76): `list_work_sessions`, `get_session_activity`
+- Research Quality (73): `validate_research_notes`
+- CSS Theming (77): `remove_css_snippet`
 
 **Resumen de conteos (actualizado):**
 | Categoría | Implementadas | Pendiente | Propuestas |
 |-----------|:---:|:---:|:---:|
-| MCP Tools | 55+ | 5 | 3 |
-| Plugin Commands | 11 | 5 | 2 |
-| **Total** | **66+** | **10** | **5** |
+| MCP Tools | 66 | 11 | 2 |
+| Plugin Commands | 16 | 0 | 1 |
+| **Total** | **82** | **11** | **3** |
 
 ---
 
