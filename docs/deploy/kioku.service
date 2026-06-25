@@ -1,0 +1,42 @@
+[Unit]
+Description=Kioku MCP Server (HTTP-SSE)
+Documentation=https://github.com/sandovaldavid/kioku
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=kioku
+Group=kioku
+WorkingDirectory=/opt/kioku
+
+# Binary published with `dotnet publish --self-contained`
+ExecStart=/opt/kioku/Kioku.Mcp.Server --http
+
+# Required environment variables
+Environment=KIOKU_VAULT_PATH=/vault/cortex
+Environment=KIOKU_TRANSPORT=http
+Environment=KIOKU_HTTP_PORT=5173
+
+# Optional — comment out if running without Ollama
+Environment=KIOKU_OLLAMA_URL=http://localhost:11434
+Environment=KIOKU_EMBEDDING_MODEL=nomic-embed-text
+
+# Security — generate with: openssl rand -hex 32
+# Environment=KIOKU_API_KEY=<token-from-openssl>
+
+# Limits
+LimitNOFILE=65536
+TimeoutStopSec=10
+
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/vault/cortex/.kioku
+
+[Install]
+WantedBy=multi-user.target
