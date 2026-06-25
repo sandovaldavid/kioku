@@ -174,6 +174,21 @@ export default class KiokuPlugin extends Plugin {
         case "reload-snippets":
           return this.cmdReloadSnippets(requestId);
 
+        case "insert-at-cursor":
+          return this.cmdInsertAtCursor(payload as { text: string }, requestId);
+
+        case "replace-selection":
+          return this.cmdReplaceSelection(payload as { text: string }, requestId);
+
+        case "create-note-ui":
+          return await this.cmdCreateNoteUi(payload as { path: string }, requestId);
+
+        case "scroll-to-block":
+          return this.cmdScrollToBlock(payload as { blockId: string }, requestId);
+
+        case "open-in-split":
+          return await this.cmdOpenInSplit(payload as { path: string }, requestId);
+
         default:
           return { requestId, success: false, error: `Unknown command: ${command}` };
       }
@@ -352,6 +367,102 @@ export default class KiokuPlugin extends Plugin {
       };
     }
     return { requestId, success: true, data: { action: "reload-snippets" } };
+  }
+
+  private cmdInsertAtCursor(payload: { text: string }, requestId?: string): BridgeResponse {
+    const { text } = payload;
+    const leaf = this.app.workspace.activeLeaf;
+    if (!leaf) {
+      return { requestId, success: false, error: "No active leaf" };
+    }
+    const view = leaf.view;
+    if (view.getViewType() !== "markdown") {
+      return { requestId, success: false, error: "Active view is not a Markdown note" };
+    }
+    const editor = (view as any).editor;
+    if (!editor) {
+      return { requestId, success: false, error: "No editor available" };
+    }
+    editor.replaceRange(text, editor.getCursor());
+    return { requestId, success: true, data: { action: "insert-at-cursor" } };
+  }
+
+  private cmdReplaceSelection(payload: { text: string }, requestId?: string): BridgeResponse {
+    const { text } = payload;
+    const leaf = this.app.workspace.activeLeaf;
+    if (!leaf) {
+      return { requestId, success: false, error: "No active leaf" };
+    }
+    const view = leaf.view;
+    if (view.getViewType() !== "markdown") {
+      return { requestId, success: false, error: "Active view is not a Markdown note" };
+    }
+    const editor = (view as any).editor;
+    if (!editor) {
+      return { requestId, success: false, error: "No editor available" };
+    }
+    editor.replaceSelection(text);
+    return { requestId, success: true, data: { action: "replace-selection" } };
+  }
+
+  private async cmdCreateNoteUi(
+    payload: { path: string },
+    requestId?: string
+  ): Promise<BridgeResponse> {
+    const { path } = payload;
+    try {
+      const existing = this.app.vault.getFileByPath(path);
+      const file = existing ?? (await this.app.vault.create(path, ""));
+      const leaf = this.app.workspace.getLeaf(false);
+      await leaf.openFile(file);
+      return { requestId, success: true, data: { path } };
+    } catch (err) {
+      return { requestId, success: false, error: String(err) };
+    }
+  }
+
+  private cmdScrollToBlock(payload: { blockId: string }, requestId?: string): BridgeResponse {
+    const { blockId } = payload;
+    const leaf = this.app.workspace.activeLeaf;
+    if (!leaf) {
+      return { requestId, success: false, error: "No active leaf" };
+    }
+    const view = leaf.view;
+    if (view.getViewType() !== "markdown") {
+      return { requestId, success: false, error: "Active view is not a Markdown note" };
+    }
+    const editor = (view as any).editor;
+    if (!editor) {
+      return { requestId, success: false, error: "No editor available" };
+    }
+    const lineCount = editor.lineCount() as number;
+    for (let i = 0; i < lineCount; i++) {
+      const line = editor.getLine(i) as string;
+      if (line.includes(`^${blockId}`)) {
+        editor.scrollIntoView({ from: { line: i, ch: 0 }, to: { line: i, ch: line.length } }, true);
+        editor.setCursor({ line: i, ch: 0 });
+        return { requestId, success: true, data: { blockId, line: i } };
+      }
+    }
+    return {
+      requestId,
+      success: false,
+      error: `Block ID '^${blockId}' not found in the active note`,
+    };
+  }
+
+  private async cmdOpenInSplit(
+    payload: { path: string },
+    requestId?: string
+  ): Promise<BridgeResponse> {
+    const { path } = payload;
+    const file = this.app.vault.getFileByPath(path);
+    if (!file) {
+      return { requestId, success: false, error: `File not found: ${path}` };
+    }
+    const leaf = this.app.workspace.getLeaf("split");
+    await leaf.openFile(file);
+    return { requestId, success: true, data: { path } };
   }
 
   // Configuration

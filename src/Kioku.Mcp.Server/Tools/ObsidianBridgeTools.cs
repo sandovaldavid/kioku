@@ -128,6 +128,122 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         return $"[ok] Command '{command_id}' executed successfully in Obsidian.";
     }
 
+    [McpServerTool, Description("Insert text at the cursor position in the active Obsidian note.")]
+    public async Task<string> insert_at_cursor(
+        [Description("Text to insert at the current cursor position.")] string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return "[error] The 'text' parameter cannot be empty.";
+        }
+
+        var payload = new JsonObject
+        {
+            ["text"] = text
+        };
+
+        var response = await bridge.SendRequestAsync("insert-at-cursor", payload);
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return "[ok] Text inserted at cursor.";
+    }
+
+    [McpServerTool, Description("Replace the current text selection in the active Obsidian note.")]
+    public async Task<string> replace_selection(
+        [Description("Text to replace the selection with.")] string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return "[error] The 'text' parameter cannot be empty.";
+        }
+
+        var payload = new JsonObject
+        {
+            ["text"] = text
+        };
+
+        var response = await bridge.SendRequestAsync("replace-selection", payload);
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return "[ok] Selection replaced.";
+    }
+
+    [McpServerTool, Description("Create a note and open it in Obsidian. Creates the file if it does not exist.")]
+    public async Task<string> create_note_ui(
+        [Description("Vault-relative path of the note to create and open (e.g. 'Projects/NewNote.md').")] string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "[error] The 'path' parameter cannot be empty.";
+        }
+
+        var payload = new JsonObject
+        {
+            ["path"] = path
+        };
+
+        var response = await bridge.SendRequestAsync("create-note-ui", payload);
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return $"[ok] Note created and opened in Obsidian: '{path}'.";
+    }
+
+    [McpServerTool, Description("Scroll the active Obsidian note to a specific block ID (e.g. '^blockid').")]
+    public async Task<string> scroll_to_block(
+        [Description("Block ID to scroll to (without the ^ prefix, e.g. 'abc123').")] string block_id)
+    {
+        if (string.IsNullOrWhiteSpace(block_id))
+        {
+            return "[error] The 'block_id' parameter cannot be empty.";
+        }
+
+        var payload = new JsonObject
+        {
+            ["blockId"] = block_id
+        };
+
+        var response = await bridge.SendRequestAsync("scroll-to-block", payload);
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return $"[ok] Scrolled to block '^{block_id}'.";
+    }
+
+    [McpServerTool, Description("Open a note in a new split pane in Obsidian.")]
+    public async Task<string> open_in_split(
+        [Description("Name or path of the note to open in a split pane.")] string note)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"[error] Note not found on local disk: '{note}'";
+        }
+
+        var payload = new JsonObject
+        {
+            ["path"] = found.VaultRelativePath
+        };
+
+        var response = await bridge.SendRequestAsync("open-in-split", payload);
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return $"[ok] Note opened in split pane: '{found.Name}'.";
+    }
+
     // Private helper
 
     private Note? ResolveNote(string nameOrPath)
