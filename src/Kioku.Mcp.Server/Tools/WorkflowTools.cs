@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
@@ -299,17 +300,7 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
         return null;
     }
 
-    private string BuildFilePath(string name)
-    {
-        var normalized = name.Replace('/', Path.DirectorySeparatorChar)
-                             .Replace('\\', Path.DirectorySeparatorChar);
-        if (!normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
-        {
-            normalized += ".md";
-        }
-
-        return Path.Combine(config.VaultPath, normalized);
-    }
+    private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
 
     private static Dictionary<string, string> ParseVariables(string json)
     {
@@ -322,12 +313,13 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
 
         try
         {
-            // Lightweight JSON key-value parsing (no System.Text.Json dependency on tool layer)
-            // Matches "key": "value" pairs in a flat JSON object
-            var pairPattern = new Regex(@"""(?<key>[^""]+)""\s*:\s*""(?<value>[^""]*)""");
-            foreach (Match m in pairPattern.Matches(json))
+            using var doc = JsonDocument.Parse(json);
+            foreach (var prop in doc.RootElement.EnumerateObject())
             {
-                result[m.Groups["key"].Value] = m.Groups["value"].Value;
+                if (prop.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    result[prop.Name] = prop.Value.GetString() ?? "";
+                }
             }
         }
         catch

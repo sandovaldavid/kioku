@@ -275,83 +275,22 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
     // Private helpers
 
-    private string BuildFilePath(string name)
-    {
-        var normalized = name.Replace('/', Path.DirectorySeparatorChar)
-                             .Replace('\\', Path.DirectorySeparatorChar);
-        if (!normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
-        {
-            normalized += ".md";
-        }
-
-        return Path.Combine(config.VaultPath, normalized);
-    }
-
     private static string BuildNoteContent(string body, string tags, string type, string status)
     {
-        var tagList = string.IsNullOrWhiteSpace(tags)
-            ? []
-            : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-
-        var frontmatter = BuildFrontmatter(tagList, type, status, DateOnly.FromDateTime(DateTime.Today));
+        var tagList = NoteHelpers.ParseTags(tags);
+        var frontmatter = NoteHelpers.BuildFrontmatter(tagList, type, status, DateOnly.FromDateTime(DateTime.Today));
         return frontmatter + "\n" + body;
     }
 
+    private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
+
+    private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
+
     private static string BuildFrontmatter(
         IEnumerable<string> tags,
-        string type,
-        string status,
+        string? type,
+        string? status,
         DateOnly? date = null,
-        IReadOnlyDictionary<string, string>? extraFields = null)
-    {
-        var sb = new StringBuilder("---\n");
-
-        var tagList = tags.ToList();
-        if (tagList.Count > 0)
-        {
-            sb.AppendLine("tags:");
-            foreach (var tag in tagList)
-            {
-                sb.AppendLine($"  - {tag}");
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(type))
-        {
-            sb.AppendLine($"type: {type}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            sb.AppendLine($"status: {status}");
-        }
-
-        if (date.HasValue)
-        {
-            sb.AppendLine($"date: {date:yyyy-MM-dd}");
-        }
-
-        // Preserve extra fields from the original frontmatter
-        if (extraFields is not null)
-        {
-            foreach (var (k, v) in extraFields)
-            {
-                sb.AppendLine($"{k}: {v}");
-            }
-        }
-
-        sb.AppendLine("---");
-        return sb.ToString();
-    }
-
-    private Domain.Note? ResolveNote(string nameOrPath)
-    {
-        var byPath = vault.GetNote(nameOrPath);
-        if (byPath is not null)
-        {
-            return byPath;
-        }
-
-        return vault.GetNoteByName(nameOrPath);
-    }
+        IReadOnlyDictionary<string, string>? extraFields = null) =>
+        NoteHelpers.BuildFrontmatter(tags, type, status, date, extraFields: extraFields);
 }

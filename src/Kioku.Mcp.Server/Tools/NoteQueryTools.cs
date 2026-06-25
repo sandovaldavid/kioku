@@ -578,16 +578,5 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         return trimmed.Length > 200 ? trimmed[..200].Trim() + "\u2026" : trimmed;
     }
 
-    private Note? ResolveNote(string nameOrPath)
-    {
-        // First try by exact path
-        var byPath = vault.GetNote(nameOrPath);
-        if (byPath is not null)
-        {
-            return byPath;
-        }
-
-        // Then by name (without extension)
-        return vault.GetNoteByName(nameOrPath);
-    }
+    private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
 }

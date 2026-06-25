@@ -4,6 +4,7 @@ using Kioku.Mcp.Server.Middleware;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Server;
 
 // Configuration from environment variables
 KiokuConfiguration config;
@@ -27,37 +28,19 @@ if (useHttp)
 
 return await RunStdioAsync(config);
 
-// v2: HTTP-SSE Transport (Streamable HTTP)
-
-static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
+static void ConfigureKiokuServices(IServiceCollection services, KiokuConfiguration config)
 {
-    var webBuilder = WebApplication.CreateBuilder(args);
+    services.AddSingleton(config);
+    services.AddSingleton<EmbeddingService>();
+    services.AddSingleton<VaultIndexService>();
+    services.AddSingleton<ObsidianBridgeService>();
+    services.AddSingleton<HybridSearchService>();
+    services.AddSingleton<TaskService>();
+}
 
-    // Logs to stderr — stdout not used in HTTP mode but kept consistent
-    webBuilder.Logging.ClearProviders();
-    webBuilder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
-    webBuilder.Logging.SetMinimumLevel(LogLevel.Information);
-
-    // Kioku services
-    webBuilder.Services.AddSingleton(config);
-    webBuilder.Services.AddSingleton<EmbeddingService>();
-    webBuilder.Services.AddSingleton<VaultIndexService>();
-    webBuilder.Services.AddSingleton<ObsidianBridgeService>();
-    webBuilder.Services.AddSingleton<HybridSearchService>();
-    webBuilder.Services.AddSingleton<TaskService>();
-
-    // CORS: allow localhost and the Obsidian app origin
-    webBuilder.Services.AddCors(options =>
-        options.AddDefaultPolicy(policy =>
-            policy
-                .WithOrigins("http://localhost", "app://obsidian.md")
-                .AllowAnyHeader()
-                .AllowAnyMethod()));
-
-    // MCP over HTTP-SSE
-    webBuilder.Services
-        .AddMcpServer()
-        .WithHttpTransport()
+static void ConfigureKiokuTools(IMcpServerBuilder builder)
+{
+    builder
         .WithTools<NoteQueryTools>()
         .WithTools<NoteCommandTools>()
         .WithTools<ObsidianBridgeTools>()
@@ -74,6 +57,35 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
         .WithTools<GitTools>()
         .WithTools<AssetTools>()
         .WithTools<UtilityTools>();
+}
+
+static void ConfigureLogging(ILoggingBuilder logging)
+{
+    logging.ClearProviders();
+    logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
+    logging.SetMinimumLevel(LogLevel.Information);
+}
+
+// v2: HTTP-SSE Transport (Streamable HTTP)
+
+static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
+{
+    var webBuilder = WebApplication.CreateBuilder(args);
+    ConfigureLogging(webBuilder.Logging);
+    ConfigureKiokuServices(webBuilder.Services, config);
+
+    // CORS: allow localhost and the Obsidian app origin
+    webBuilder.Services.AddCors(options =>
+        options.AddDefaultPolicy(policy =>
+            policy
+                .WithOrigins("http://localhost", "app://obsidian.md")
+                .AllowAnyHeader()
+                .AllowAnyMethod()));
+
+    // MCP over HTTP-SSE
+    ConfigureKiokuTools(webBuilder.Services
+        .AddMcpServer()
+        .WithHttpTransport());
 
     var webApp = webBuilder.Build();
 
@@ -106,8 +118,6 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     }
     catch (DirectoryNotFoundException)
     {
-        Console.Error.WriteLine($"[error] Vault not found: {config.VaultPath}");
-        Console.Error.WriteLine("[error] Verify that KIOKU_VAULT_PATH points to a valid Obsidian vault.");
         return 2;
     }
 
@@ -120,40 +130,13 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
 static async Task<int> RunStdioAsync(KiokuConfiguration config)
 {
     var builder = Host.CreateApplicationBuilder();
-
-    // Logs to stderr only — stdout is reserved for the MCP protocol (stdio)
-    builder.Logging.ClearProviders();
-    builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
-    builder.Logging.SetMinimumLevel(LogLevel.Information);
-
-    // Kioku services
-    builder.Services.AddSingleton(config);
-    builder.Services.AddSingleton<EmbeddingService>();
-    builder.Services.AddSingleton<VaultIndexService>();
-    builder.Services.AddSingleton<ObsidianBridgeService>();
-    builder.Services.AddSingleton<HybridSearchService>();
-    builder.Services.AddSingleton<TaskService>();
+    ConfigureLogging(builder.Logging);
+    ConfigureKiokuServices(builder.Services, config);
 
     // MCP over stdio
-    builder.Services
+    ConfigureKiokuTools(builder.Services
         .AddMcpServer()
-        .WithStdioServerTransport()
-        .WithTools<NoteQueryTools>()
-        .WithTools<NoteCommandTools>()
-        .WithTools<ObsidianBridgeTools>()
-        .WithTools<TaskManagementTools>()
-        .WithTools<ZettelkastenTools>()
-        .WithTools<VaultOrganizationTools>()
-        .WithTools<SessionContextTools>()
-        .WithTools<WorkflowTools>()
-        .WithTools<CssThemingTools>()
-        .WithTools<KnowledgeGraphTools>()
-        .WithTools<ResearchTools>()
-        .WithTools<PluginIntegrationTools>()
-        .WithTools<GraphAnalysisTools>()
-        .WithTools<GitTools>()
-        .WithTools<AssetTools>()
-        .WithTools<UtilityTools>();
+        .WithStdioServerTransport());
 
     var host = builder.Build();
 
@@ -169,8 +152,6 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
     }
     catch (DirectoryNotFoundException)
     {
-        Console.Error.WriteLine($"[error] Vault not found: {config.VaultPath}");
-        Console.Error.WriteLine("[error] Verify that KIOKU_VAULT_PATH points to a valid Obsidian vault.");
         return 2;
     }
 
