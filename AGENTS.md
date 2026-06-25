@@ -5,7 +5,7 @@
 Kioku is an MCP (Model Context Protocol) server that gives AI agents direct access to an
 Obsidian vault. It pairs with an Obsidian plugin that bridges UI actions over WebSocket.
 
-- **Server** (C# .NET 10): reads/writes `.md` files, exposes 17 MCP tools via stdio
+- **Server** (C# .NET 10): reads/writes `.md` files, exposes 18 MCP tools via stdio
 - **Plugin** (TypeScript 6): WebSocket server running inside Obsidian; receives commands from the server
 
 ## Architecture
@@ -29,6 +29,8 @@ Obsidian vault. It pairs with an Obsidian plugin that bridges UI actions over We
 | `KIOKU_VAULT_PATH` | yes | — | Absolute path to the root of the Obsidian vault |
 | `KIOKU_MAX_RESULTS` | no | 20 | Maximum number of search results |
 | `KIOKU_OBSIDIAN_PORT` | no | 7765 | WebSocket port of the Obsidian plugin |
+| `KIOKU_OLLAMA_URL` | no | `http://localhost:11434` | Ollama base URL for embeddings |
+| `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Ollama embedding model name |
 
 ## MCP Tools
 
@@ -39,6 +41,7 @@ Obsidian vault. It pairs with an Obsidian plugin that bridges UI actions over We
 | `read_note` | `note` | Full content of a note by name or path |
 | `list_notes` | `folder?` | List notes, optionally scoped to a subfolder |
 | `search_notes` | `query`, `max_results?` | Full-text search with relevance score and snippet |
+| `search_notes_semantic` | `query`, `max_results?` | Semantic search via Ollama embeddings — finds related notes by meaning |
 | `filter_notes` | `tag?`, `status?`, `type?`, `date_from?`, `date_to?` | Filter by frontmatter metadata (AND) |
 | `get_note_metadata` | `note` | Frontmatter only — more efficient than read_note |
 | `get_backlinks` | `note_name` | Notes that link to this note via `[[wikilinks]]` |
@@ -143,7 +146,8 @@ C# logs go to **stderr** only — stdout is reserved for the MCP protocol.
       KiokuConfiguration.cs      Environment variable loading
       Logging/KiokuLogger.cs     ILogger<T> extension methods
       Domain/                    Note, NoteMetadata, SearchResult
-      Services/                  VaultIndexService, ObsidianBridgeService
+      Services/                  VaultIndexService, EmbeddingService, EmbeddingPersistence,
+                               ObsidianBridgeService
       Tools/                     MCP tool classes
     obsidian-kioku-mcp/          Obsidian plugin (TypeScript)
       src/main.ts                KiokuPlugin — WebSocket bridge
@@ -151,6 +155,23 @@ C# logs go to **stderr** only — stdout is reserved for the MCP protocol.
       manifest.json              Obsidian plugin manifest
       esbuild.config.mjs         Build config (bundles to main.js)
 ```
+
+## Semantic search (Ollama)
+
+`search_notes_semantic` uses `EmbeddingService` to embed queries and notes with `nomic-embed-text`
+(768-dim vectors, ~500MB VRAM). Requires Ollama running locally.
+
+```bash
+ollama pull nomic-embed-text   # one-time setup
+```
+
+**Cache file:** `{vault}/.kioku/embeddings.bin` — binary format, ~15MB for 5000 notes.
+Loaded on startup. Updated incrementally as notes change via `FileSystemWatcher`.
+
+**Graceful degradation:** if Ollama is unreachable at startup, `EmbeddingService.IsAvailable = false`
+and `search_notes_semantic` returns an `[info]` message. All other tools remain fully functional.
+
+**Cosine similarity** is used to rank results. Scores are returned as `NN%` in the tool output.
 
 ## Versioning
 

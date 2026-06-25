@@ -9,8 +9,8 @@ The server exposes vault tools via stdio MCP; the plugin bridges via WebSocket o
 src/Kioku.Mcp.Server/       C# MCP server (stdio transport)
   Tools/                    MCP tools: NoteQueryTools, NoteCommandTools,
                               ObsidianBridgeTools, UtilityTools
-  Services/                 VaultIndexService, ObsidianBridgeService,
-                              FrontmatterParser, MarkdownTextExtractor
+  Services/                 VaultIndexService, EmbeddingService, EmbeddingPersistence,
+                              ObsidianBridgeService, FrontmatterParser, MarkdownTextExtractor
   Domain/                   Note, NoteMetadata, SearchResult
   Logging/                  KiokuLogger (ILogger<T> extension methods)
 src/obsidian-kioku-mcp/     TypeScript Obsidian plugin (WebSocket server)
@@ -67,3 +67,18 @@ gh pr create --base develop
 | `KIOKU_VAULT_PATH` | yes | — | Absolute path to the Obsidian vault |
 | `KIOKU_MAX_RESULTS` | no | 20 | Max search results |
 | `KIOKU_OBSIDIAN_PORT` | no | 7765 | WebSocket port of the plugin |
+| `KIOKU_OLLAMA_URL` | no | `http://localhost:11434` | Ollama base URL |
+| `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Ollama embedding model |
+
+## Semantic search
+
+The server uses Ollama to generate embeddings for semantic (`search_notes_semantic`) queries.
+If Ollama is unavailable at startup, the service degrades gracefully: keyword search still works.
+
+```bash
+# Pull the embedding model once
+ollama pull nomic-embed-text
+
+# Embeddings are cached at:
+{KIOKU_VAULT_PATH}/.kioku/embeddings.bin   (~15MB for 5000 notes)
+```
