@@ -60,7 +60,10 @@ public sealed class VaultOrganizationTools(VaultIndexService vault)
         foreach (var group in byNote)
         {
             var note = vault.GetNote(group.Key) ?? vault.GetNoteByName(Path.GetFileNameWithoutExtension(group.Key));
-            if (note is null) continue;
+            if (note is null)
+            {
+                continue;
+            }
 
             var rawContent = await File.ReadAllTextAsync(note.FilePath, Encoding.UTF8);
             var newContent = rawContent;
@@ -437,8 +440,15 @@ public sealed class VaultOrganizationTools(VaultIndexService vault)
         var wordsA = TokenizeText(a).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var wordsB = TokenizeText(b).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (wordsA.Count == 0 && wordsB.Count == 0) return 1.0f;
-        if (wordsA.Count == 0 || wordsB.Count == 0) return 0.0f;
+        if (wordsA.Count == 0 && wordsB.Count == 0)
+        {
+            return 1.0f;
+        }
+
+        if (wordsA.Count == 0 || wordsB.Count == 0)
+        {
+            return 0.0f;
+        }
 
         var intersection = wordsA.Count(w => wordsB.Contains(w));
         var union = wordsA.Count + wordsB.Count - intersection;
@@ -447,7 +457,10 @@ public sealed class VaultOrganizationTools(VaultIndexService vault)
 
     private static float ContentJaccard(string textA, string textB)
     {
-        if (string.IsNullOrWhiteSpace(textA) || string.IsNullOrWhiteSpace(textB)) return 0;
+        if (string.IsNullOrWhiteSpace(textA) || string.IsNullOrWhiteSpace(textB))
+        {
+            return 0;
+        }
 
         // Use 3-character shingles on first 2000 chars for performance
         const int limit = 2000;
@@ -457,7 +470,10 @@ public sealed class VaultOrganizationTools(VaultIndexService vault)
         var shinglesA = GetShingles(a);
         var shinglesB = GetShingles(b);
 
-        if (shinglesA.Count == 0 || shinglesB.Count == 0) return 0;
+        if (shinglesA.Count == 0 || shinglesB.Count == 0)
+        {
+            return 0;
+        }
 
         var intersection = shinglesA.Count(s => shinglesB.Contains(s));
         var union = shinglesA.Count + shinglesB.Count - intersection;
