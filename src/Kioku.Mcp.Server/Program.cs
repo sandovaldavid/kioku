@@ -69,6 +69,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
         .WithTools<CssThemingTools>()
         .WithTools<KnowledgeGraphTools>()
         .WithTools<ResearchTools>()
+        .WithTools<PluginIntegrationTools>()
         .WithTools<UtilityTools>();
 
     var webApp = webBuilder.Build();
@@ -145,6 +146,7 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
         .WithTools<CssThemingTools>()
         .WithTools<KnowledgeGraphTools>()
         .WithTools<ResearchTools>()
+        .WithTools<PluginIntegrationTools>()
         .WithTools<UtilityTools>();
 
     var host = builder.Build();
