@@ -46,11 +46,11 @@ Estas herramientas son de **solo lectura** — no modifican la bóveda.
 | 9 | `search_notes_hybrid` | v2 | ✅ | Búsqueda combinada: texto + semántica (RRF) |
 | 10 | `find_similar_notes` | v2 | ✅ | Notas conceptualmente similares a una nota dada |
 | 11 | `get_note_embedding` | v2 | ✅ | Devuelve el embedding de una nota (debug/diagnóstico) |
-| 12 | `get_recent_activity` | v3 | 📋 | N notas modificadas más recientemente (por `mtime`) |
-| 13 | `get_work_context` | v3 | 📋 | Snapshot de la bóveda: inbox, drafts, sesión activa |
-| 14 | `get_knowledge_timeline` | v3 | 📋 | Notas ordenadas por `date` en un rango de fechas |
-| 15 | `get_concept_map` | v3 | 📋 | Grafo de notas relacionadas como JSON (nodos + aristas) |
-| 16 | `get_vault_snapshot` | v3 | 📋 | Árbol de carpetas + top tags + stats en un solo llamado |
+| 12 | `get_recent_activity` | v3 | ✅ | N notas modificadas más recientemente (por `mtime`) |
+| 13 | `get_work_context` | v3 | ✅ | Snapshot de la bóveda: inbox, drafts, sesión activa |
+| 14 | `get_knowledge_timeline` | v3 | ✅ | Notas ordenadas por `date` en un rango de fechas |
+| 15 | `get_concept_map` | v3 | ✅ | Grafo de notas relacionadas como JSON (nodos + aristas) |
+| 16 | `get_vault_snapshot` | v3 | ✅ | Árbol de carpetas + top tags + stats en un solo llamado |
 
 #### Justificaciones
 
@@ -112,7 +112,7 @@ Herramientas para gestión de tareas nativas de Obsidian (compatible con el plug
 | 29 | `reopen_task` | v3 | ✅ | Reabre una tarea completada (`[ ]`) |
 | 30 | `list_tasks_by_tag` | v3 | ✅ | Filtra tareas por tag o contexto |
 | 31 | `list_overdue_tasks` | v3 | ✅ | Lista tareas con fecha de vencimiento pasada |
-| 32 | `extract_action_items` | v3 | 📋 | Consolida checkboxes de una nota en una nota de tareas |
+| 32 | `extract_action_items` | v3 | ✅ | Consolida checkboxes de una nota en una nota de tareas |
 
 #### Justificaciones
 
@@ -135,9 +135,9 @@ Herramientas para construir y navegar la red de conocimiento Zettelkasten.
 | 35 | `create_folder_readme` | v3 | ✅ | Genera un README.md para una carpeta de la bóveda |
 | 36 | `link_related_notes` | v3 | ✅ | Encuentra notas relacionadas y agrega wikilinks |
 | 37 | `create_literature_note` | v3 | ✅ | Crea nota de literatura con frontmatter estándar |
-| 38 | `create_note_from_template` | v3 | 📋 | Crea nota desde template con variables `{{ var }}` |
-| 39 | `list_templates` | v3 | 📋 | Lista templates disponibles en la carpeta configurada |
-| 40 | `create_template` | v3 | 📋 | Guarda un nuevo template en la carpeta de templates |
+| 38 | `create_note_from_template` | v3 | ✅ | Crea nota desde template con variables `{{ var }}` |
+| 39 | `list_templates` | v3 | ✅ | Lista templates disponibles en la carpeta configurada |
+| 40 | `create_template` | v3 | ✅ | Guarda un nuevo template en la carpeta de templates |
 
 #### Justificaciones
 
@@ -158,14 +158,14 @@ Herramientas para mantener la bóveda ordenada y bien clasificada.
 | # | Tool Name | Versión | Estado | Patrón | Descripción |
 |---|---|---|---|---|---|
 | 41 | `reorder_notes_in_folder` | v3 | 📋 | dry_run | Renombra notas con prefijo numérico para definir orden |
-| 42 | `normalize_tags` | v3 | 📋 | dry_run | Estandariza capitalización y formato de tags en toda la bóveda |
-| 43 | `rename_tag_globally` | v3 | 📋 | dry_run | Renombra un tag en todas las notas de la bóveda |
-| 44 | `merge_tags` | v3 | 📋 | dry_run | Fusiona dos tags en uno |
+| 42 | `normalize_tags` | v3 | ✅ | dry_run | Estandariza capitalización y formato de tags en toda la bóveda |
+| 43 | `rename_tag_globally` | v3 | ✅ | dry_run | Renombra un tag en todas las notas de la bóveda |
+| 44 | `merge_tags` | v3 | ✅ | dry_run | Fusiona dos tags en uno |
 | 45 | `reclassify_note` | v3 | 📋 | — | Mueve una nota a la carpeta más apropiada según su contenido |
-| 46 | `suggest_tags` | v3 | 📋 | — | Sugiere tags relevantes para una nota basándose en el contenido |
+| 46 | `suggest_tags` | v3 | ✅ | — | Sugiere tags relevantes para una nota basándose en el contenido |
 | 47 | `suggest_folder` | v3 | 💡 | — | Sugiere la carpeta más adecuada para una nota nueva |
-| 48 | `find_duplicate_notes` | v3 | 📋 | dry_run | Detecta notas con contenido similar (posibles duplicados) |
-| 49 | `audit_vault` | v3 | 📋 | — | Reporte de salud: notas sin tags, sin fecha, wikilinks rotos |
+| 48 | `find_duplicate_notes` | v3 | ✅ | dry_run | Detecta notas con contenido similar (posibles duplicados) |
+| 49 | `audit_vault` | v3 | ✅ | — | Reporte de salud: notas sin tags, sin fecha, wikilinks rotos |
 
 > **Patrón `dry_run`:** Los tools marcados aceptan `dry_run: bool = false`. Con `true` devuelven un preview de qué cambiaría sin ejecutar nada.
 
@@ -189,11 +189,11 @@ Herramientas para trabajar con activos visuales, bases de datos y personalizaci�
 | 50 | `list_excalidraw_files` | v3 | 📋 | Lista todos los diagramas Excalidraw de la bóveda |
 | 51 | `get_asset_metadata` | v3 | 📋 | Metadatos de un asset (nombre, ubicación, tamaño, fecha) |
 | 52 | `find_orphan_assets` | v3 | 📋 | Assets no referenciados por ninguna nota |
-| 53 | `find_broken_links` | v3 | 📋 | Wikilinks rotos en toda la bóveda |
+| 53 | `find_broken_links` | v3 | ✅ | Wikilinks rotos en toda la bóveda |
 | 54 | `list_database_tables` | v3 | 💡 | Lista las bases de datos de DB Folder / Dataview |
 | 55 | `query_database_table` | v3 | 💡 | Consulta filas de una base de datos nativa de Obsidian |
-| 56 | `apply_css_snippet` | v3 | 📋 | Crea/actualiza un snippet CSS en `.obsidian/snippets/` |
-| 57 | `list_css_snippets` | v3 | 📋 | Lista snippets CSS con estado enabled/disabled |
+| 56 | `apply_css_snippet` | v3 | ✅ | Crea/actualiza un snippet CSS en `.obsidian/snippets/` |
+| 57 | `list_css_snippets` | v3 | ✅ | Lista snippets CSS con estado enabled/disabled |
 
 #### Justificaciones
 
@@ -211,8 +211,8 @@ Herramientas para gestión de conocimiento académico y exportación de referenc
 
 | # | Tool Name | Versión | Estado | Descripción |
 |---|---|---|---|---|
-| 58 | `export_citations` | v3 | 📋 | Exporta notas con `citekey` en formato `.bib` o Markdown |
-| 59 | `get_literature_gap` | v3 | 📋 | Citekeys referenciados en el texto sin nota propia |
+| 58 | `export_citations` | v3 | ✅ | Exporta notas con `citekey` en formato `.bib` o Markdown |
+| 59 | `get_literature_gap` | v3 | ✅ | Citekeys referenciados en el texto sin nota propia |
 | 60 | `import_zotero_item` | v3 | 💡 | Crea nota de literatura desde Zotero API local |
 
 #### Justificaciones
@@ -229,8 +229,8 @@ Herramientas para gestionar el estado y continuidad entre sesiones de trabajo.
 
 | # | Tool Name | Versión | Estado | Descripción |
 |---|---|---|---|---|
-| 61 | `start_work_session` | v3 | 📋 | Crea nota de sesión con timestamp y notas abiertas actuales |
-| 62 | `end_work_session` | v3 | 📋 | Cierra sesión: agrega resumen de notas creadas/modificadas |
+| 61 | `start_work_session` | v3 | ✅ | Crea nota de sesión con timestamp y notas abiertas actuales |
+| 62 | `end_work_session` | v3 | ✅ | Cierra sesión: agrega resumen de notas creadas/modificadas |
 
 #### Justificaciones
 
@@ -286,11 +286,11 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 | # | Comando | Versión | Estado | API | Descripción |
 |---|---|---|---|---|---|
 | B1 | `trigger-command` | v1 | ✅ | pública | Ejecuta un comando nativo de Obsidian por su ID |
-| B2 | `toggle-reading-mode` | v3 | 📋 | pública | Alterna modo edición/lectura en la nota activa |
-| B3 | `get-selection` | v3 | 📋 | pública | Devuelve el texto seleccionado en el editor activo |
-| B4 | `fold-all-headings` | v3 | 📋 | pública | Colapsa todos los headings (`editor:fold-all`) |
-| B5 | `unfold-all-headings` | v3 | 📋 | pública | Expande todos los headings (`editor:unfold-all`) |
-| B6 | `reload-snippets` | v3 | 📋 | pública | Recarga snippets CSS (`app:reload-css-snippets`) |
+| B2 | `toggle-reading-mode` | v3 | ✅ | pública | Alterna modo edición/lectura en la nota activa |
+| B3 | `get-selection` | v3 | ✅ | pública | Devuelve el texto seleccionado en el editor activo |
+| B4 | `fold-all-headings` | v3 | ✅ | pública | Colapsa todos los headings (`editor:fold-all`) |
+| B5 | `unfold-all-headings` | v3 | ✅ | pública | Expande todos los headings (`editor:unfold-all`) |
+| B6 | `reload-snippets` | v3 | ✅ | pública | Recarga snippets CSS (`app:reload-css-snippets`) |
 | B7 | `trigger-plugin-command` | v1 | 📋 | pública | Ejecuta un comando de otro plugin instalado |
 | B8 | `open-command-palette` | v1 | 💡 | pública | Abre la paleta de comandos de Obsidian |
 
@@ -354,27 +354,41 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 
 **Criterio:** El agente puede buscar por significado, no solo por texto literal. Embeddings via Ollama.
 
-### v3 — Ecosystem Tools 🔨 EN PROGRESO
+### v3 — Ecosystem Tools 🔨 EN PROGRESO (84% completo en develop)
 
-**Implementado en `develop`:** +17 MCP Tools  
+**Implementado en `develop` (post PRs #13, #14, #5):** 55+ MCP Tools + 11 Plugin Commands
+
+#### MCP Tools Completados
+- Session Context (12–13, 61–62): `get_recent_activity`, `get_work_context`, `start/end_work_session`
 - Task Management (27–31): `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks`
+- Task Extraction (32): `extract_action_items`
 - Zettelkasten (33–37): `create_zettel`, `create_moc`, `create_folder_readme`, `link_related_notes`, `create_literature_note`
-
-**Planificado (ramas pendientes):**
-- Vault Organization B (41–49): `normalize_tags`, `rename_tag_globally`, `audit_vault`...
-- Session Context I (12–13, 61–62): `get_recent_activity`, `get_work_context`, `start/end_work_session`
-- Workflow Chains H (38–40, 32): `create_note_from_template`, `list_templates`, `extract_action_items`
-- Plugin UI Commands B2–B6: `toggle-reading-mode`, `get-selection`, `fold/unfold-headings`, `reload-snippets`
+- Templates (38–40): `create_note_from_template`, `list_templates`, `create_template`
+- Tag & Org (42–44, 46, 48–49, 53): `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `find_duplicate_notes`, `audit_vault`, `find_broken_links`
 - CSS Theming (56–57): `apply_css_snippet`, `list_css_snippets`
-- Knowledge Graph K (14–16): `get_knowledge_timeline`, `get_concept_map`, `get_vault_snapshot`
-- Research J (58–59): `export_citations`, `get_literature_gap`
+- Knowledge Graph (14–16): `get_knowledge_timeline`, `get_concept_map`, `get_vault_snapshot`
+- Research (58–59): `export_citations`, `get_literature_gap`
+- Plugin Integrations (via `PluginIntegrationTools.cs`): `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts`, `resolve_merge_conflict`
 
-**Resumen de conteos:**
-| Categoría | Implementadas | Planificadas | Propuestas |
+#### Plugin Commands Completados
+- Navigation (A1–A3): `open-file`, `get-active-note`, `get-open-notes`
+- Execution (B1–B6): `trigger-command`, `toggle-reading-mode`, `get-selection`, `fold-all`, `unfold-all`, `reload-snippets`
+- Vault Info (C1–C3): `get-vault-path`, `is-obsidian-ready`, `get-app-version`
+- Integration (via PluginIntegrationTools): `run-dataview-query`, `run-templater`, `run-linter`, `run-linter-vault`, `get-installed-plugins`
+
+**Pendiente (Rama F):**
+- Assets (50–52): `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`
+- Organization (41, 45, 47): `reorder_notes_in_folder`, `reclassify_note`, `suggest_folder`
+
+**Pendiente (Rama G):**
+- Editor Commands: `insert-at-cursor`, `replace-selection`, `create-note-ui`, `scroll-to-block`, `open-in-split`
+
+**Resumen de conteos (actualizado):**
+| Categoría | Implementadas | Pendiente | Propuestas |
 |-----------|:---:|:---:|:---:|
-| MCP Tools | 15 | 40 | 11 |
-| Plugin Commands | 6 | 10 | 4 |
-| **Total** | **21** | **50** | **15** |
+| MCP Tools | 55+ | 5 | 3 |
+| Plugin Commands | 11 | 5 | 2 |
+| **Total** | **66+** | **10** | **5** |
 
 ---
 
