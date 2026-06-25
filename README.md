@@ -36,42 +36,74 @@ Plugin Obsidian (TypeScript)
 Obsidian App
 ```
 
-## Inicio Rápido
+## Inicio Rápido (Uso Local)
 
-### Pre-requisitos
+### Requisitos
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Obsidian](https://obsidian.md) con tu bóveda de notas
+- [Obsidian](https://obsidian.md) instalado con tu bóveda de notas
+- [Ollama](https://ollama.com) (opcional, necesario para búsqueda semántica con `nomic-embed-text`)
 
-### Configuración
+### 1. Compilación del Servidor
 
-```bash
-# 1. Clonar el repositorio
-git clone https://github.com/sandovaldavid/kioku
-cd kioku
+Para el mejor rendimiento, se recomienda compilar Kioku como un **único archivo ejecutable autónomo (Self-Contained)**. Así no dependerás de la ejecución mediante el SDK de dotnet.
 
-# 2. Configurar la ruta de tu bóveda
-export KIOKU_VAULT_PATH="/ruta/a/tu/boveda"
+Ejecuta el comando correspondiente a tu sistema operativo desde la raíz del proyecto:
 
-# 3. Verificar que compila
-dotnet build src/Kioku.Mcp.Server/
+* **Linux:**
+  ```bash
+  dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
+  ```
+* **Windows (PowerShell):**
+  ```powershell
+  dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+  ```
+* **macOS (Intel):**
+  ```bash
+  dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj -c Release -r osx-x64 --self-contained -p:PublishSingleFile=true
+  ```
+* **macOS (Apple Silicon):**
+  ```bash
+  dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true
+  ```
 
-# 4. Registrar en tu agente de IA (añadir al .mcp.json del agente)
-```
+Esto generará el binario ejecutable `Kioku.Mcp.Server` (o `Kioku.Mcp.Server.exe` en Windows) en el directorio:
+`src/Kioku.Mcp.Server/bin/Release/net10.0/<runtime>/publish/`
 
-### Registro en Claude Code / agy
+### 2. Registro en Clientes MCP (Claude Code, Cursor, VS Code, etc.)
 
-Añade al `.mcp.json` del directorio raíz donde trabaja tu agente:
+Los clientes MCP ejecutarán este binario en segundo plano utilizando el protocolo `stdio`.
+
+#### Para Claude Code (`.mcp.json`)
+Añade lo siguiente al archivo `.mcp.json` en la raíz de tu espacio de trabajo o directorio raíz del agente:
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "kioku": {
-      "type": "stdio",
-      "command": "dotnet",
-      "args": ["run", "--project", "/ruta/a/kioku/src/Kioku.Mcp.Server/"],
+      "command": "/ruta/absoluta/a/kioku/src/Kioku.Mcp.Server/bin/Release/net10.0/<runtime>/publish/Kioku.Mcp.Server",
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/ruta/absoluta/a/tu/boveda",
+        "KIOKU_OLLAMA_URL": "http://localhost:11434",
+        "KIOKU_EMBEDDING_MODEL": "nomic-embed-text"
+      }
+    }
+  }
+}
+```
+
+#### Para Claude Desktop (`claude_desktop_config.json`)
+Agrega la configuración en tu archivo de configuración de Claude Desktop (ubicado típicamente en `%APPDATA%/Claude/claude_desktop_config.json` en Windows o `~/Library/Application Support/Claude/claude_desktop_config.json` en macOS):
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "/ruta/absoluta/a/kioku/src/Kioku.Mcp.Server/bin/Release/net10.0/<runtime>/publish/Kioku.Mcp.Server",
+      "env": {
+        "KIOKU_VAULT_PATH": "/ruta/absoluta/a/tu/boveda",
+        "KIOKU_OLLAMA_URL": "http://localhost:11434",
+        "KIOKU_EMBEDDING_MODEL": "nomic-embed-text"
       }
     }
   }
@@ -83,33 +115,51 @@ Añade al `.mcp.json` del directorio raíz donde trabaja tu agente:
 | Variable | Requerida | Descripción | Default |
 |---|---|---|---|
 | `KIOKU_VAULT_PATH` | ✅ | Ruta absoluta a la bóveda de Obsidian | — |
+| `KIOKU_OLLAMA_URL` | ❌ | URL base del cliente Ollama local | `http://localhost:11434` |
+| `KIOKU_EMBEDDING_MODEL` | ❌ | Modelo de Ollama utilizado para embeddings | `nomic-embed-text` |
 | `KIOKU_MAX_RESULTS` | ❌ | Máximo de resultados de búsqueda | `20` |
 | `KIOKU_OBSIDIAN_PORT` | ❌ | Puerto del WebSocket bridge con Obsidian | `7765` |
 
-## MCP Tools Disponibles (v1)
+## MCP Tools Disponibles (v2)
 
 ### Consulta (Read-Only)
-| Tool | Descripción |
-|---|---|
-| `ping` | Health check del servidor |
-| `read_note` | Lee el contenido completo de una nota |
-| `list_notes` | Lista todas las notas (o de una carpeta) |
-| `search_notes` | Búsqueda full-text en toda la bóveda |
-| `filter_notes` | Filtra notas por tags, status, tipo, fecha |
-| `get_note_metadata` | Lee solo el frontmatter YAML |
-| `get_backlinks` | Notas que enlazan a una nota dada |
-| `get_vault_stats` | Estadísticas de la bóveda |
-| `get_index_status` | Estado del índice en memoria |
-| `rebuild_index` | Re-indexar toda la bóveda |
+| Tool | Parámetros | Descripción |
+|---|---|---|
+| `ping` | — | Health check del servidor |
+| `read_note` | `note` | Lee el contenido completo de una nota |
+| `list_notes` | `folder?` | Lista todas las notas (o de una carpeta específica) |
+| `search_notes` | `query`, `max_results?` | Búsqueda full-text en toda la bóveda |
+| `search_notes_semantic` | `query`, `max_results?`, `min_score?` | Búsqueda semántica usando Ollama embeddings (requiere GPU local/Ollama) |
+| `filter_notes` | `tag?`, `status?`, `type?`, `date_from?`, `date_to?` | Filtra notas por tags, status, tipo, fecha |
+| `get_note_metadata` | `note` | Lee solo el frontmatter YAML de la nota |
+| `get_backlinks` | `note_name` | Notas que enlazan a una nota dada |
+| `get_outgoing_links` | `note` | Enlaces salientes de una nota dada |
+| `get_vault_stats` | — | Estadísticas de la bóveda (conteo de notas, tags, carpetas) |
+| `get_index_status` | — | Estado del índice en memoria y tiempos de indexación |
+| `rebuild_index` | — | Re-indexar toda la bóveda y regenerar caché de embeddings |
 
 ### Escritura
-| Tool | Descripción |
-|---|---|
-| `create_note` | Crea una nota nueva con frontmatter |
-| `append_to_note` | Añade texto al final de una nota |
-| `update_frontmatter` | Actualiza campos del frontmatter YAML |
-| `add_tag` / `remove_tag` | Gestiona tags de una nota |
-| `move_note` | Mueve una nota a otra carpeta |
+| Tool | Parámetros | Descripción |
+|---|---|---|
+| `create_note` | `name`, `content`, `tags?`, `type?`, `status?` | Crea una nota nueva con frontmatter estructurado |
+| `update_note_content` | `note`, `content` | Reemplaza el cuerpo de la nota manteniendo frontmatter |
+| `prepend_to_note` | `note`, `content` | Inserta texto al inicio de la nota después del frontmatter |
+| `append_to_note` | `note`, `content`, `add_separator?` | Añade texto al final de una nota |
+| `update_frontmatter` | `note`, `tags?`, `status?`, `type?` | Actualiza o añade campos al frontmatter YAML |
+| `add_tag` | `note`, `tags` | Añade tags (separados por coma) |
+| `remove_tag` | `note`, `tags` | Remueve tags (separados por coma) |
+| `move_note` | `note`, `destination_folder` | Mueve una nota a otra carpeta |
+| `rename_note` | `note`, `new_name` | Cambia el nombre o ruta de la nota |
+
+### Obsidian UI Bridge
+*(Requiere la aplicación de Obsidian abierta y el plugin Kioku activado)*
+
+| Tool | Parámetros | Descripción |
+|---|---|---|
+| `open_note_in_obsidian` | `note` | Abre y enfoca una nota en el editor de Obsidian |
+| `get_active_note_in_obsidian` | — | Obtiene metadatos de la nota actualmente activa en el editor |
+| `get_open_notes_in_obsidian` | — | Obtiene las notas en todas las pestañas actualmente abiertas |
+| `trigger_obsidian_command` | `command_id` | Ejecuta cualquier comando registrado en la paleta de Obsidian |
 
 ## Hoja de Ruta
 
