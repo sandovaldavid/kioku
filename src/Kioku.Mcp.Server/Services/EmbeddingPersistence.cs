@@ -15,7 +15,7 @@ namespace Kioku.Mcp.Server.Services;
 internal static class EmbeddingPersistence
 {
     private static readonly byte[] Magic = "KIOKU_EMB\n"u8.ToArray();
-    private const uint FormatVersion = 1;
+    private const uint FormatVersion = 2;
 
     public static async Task SaveAsync(string filePath, IReadOnlyDictionary<string, EmbeddingEntry> store)
     {
