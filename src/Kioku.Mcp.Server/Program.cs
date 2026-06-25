@@ -66,6 +66,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
         .WithTools<VaultOrganizationTools>()
         .WithTools<SessionContextTools>()
         .WithTools<WorkflowTools>()
+        .WithTools<CssThemingTools>()
         .WithTools<UtilityTools>();
 
     var webApp = webBuilder.Build();
@@ -139,6 +140,7 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
         .WithTools<VaultOrganizationTools>()
         .WithTools<SessionContextTools>()
         .WithTools<WorkflowTools>()
+        .WithTools<CssThemingTools>()
         .WithTools<UtilityTools>();
 
     var host = builder.Build();

@@ -159,6 +159,21 @@ export default class KiokuPlugin extends Plugin {
         case "trigger-command":
           return this.cmdTriggerCommand(payload as { commandId: string }, requestId);
 
+        case "toggle-reading-mode":
+          return this.cmdToggleReadingMode(requestId);
+
+        case "get-selection":
+          return this.cmdGetSelection(requestId);
+
+        case "fold-all-headings":
+          return this.cmdFoldAll(requestId);
+
+        case "unfold-all-headings":
+          return this.cmdUnfoldAll(requestId);
+
+        case "reload-snippets":
+          return this.cmdReloadSnippets(requestId);
+
         default:
           return { requestId, success: false, error: `Unknown command: ${command}` };
       }
@@ -253,6 +268,90 @@ export default class KiokuPlugin extends Plugin {
     }
 
     return { requestId, success: true, data: { commandId } };
+  }
+
+  private cmdToggleReadingMode(requestId?: string): BridgeResponse {
+    const executed = (this.app as any).commands?.executeCommandById("markdown:toggle-preview");
+    if (!executed) {
+      return {
+        requestId,
+        success: false,
+        error: "Could not toggle reading mode. Make sure a Markdown note is active.",
+      };
+    }
+    return { requestId, success: true, data: { mode: "toggled" } };
+  }
+
+  private cmdGetSelection(requestId?: string): BridgeResponse {
+    const activeLeaf = this.app.workspace.activeLeaf;
+    if (!activeLeaf) {
+      return { requestId, success: true, data: { selection: null } };
+    }
+
+    const view = activeLeaf.view;
+    const viewType = view.getViewType();
+    if (viewType !== "markdown") {
+      return {
+        requestId,
+        success: false,
+        error: `Active view is '${viewType}', not a Markdown editor.`,
+      };
+    }
+
+    // Access the CodeMirror editor via the public MarkdownView.editor API
+    const editor = (view as any).editor;
+    if (!editor) {
+      return { requestId, success: false, error: "No editor found in active view." };
+    }
+
+    const selection = editor.getSelection() as string;
+    return {
+      requestId,
+      success: true,
+      data: {
+        selection: selection || null,
+        hasSelection: selection.length > 0,
+        length: selection.length,
+      },
+    };
+  }
+
+  private cmdFoldAll(requestId?: string): BridgeResponse {
+    const executed = (this.app as any).commands?.executeCommandById("editor:fold-all");
+    if (!executed) {
+      return {
+        requestId,
+        success: false,
+        error: "Could not fold headings. Make sure a Markdown note is open in editing mode.",
+      };
+    }
+    return { requestId, success: true, data: { action: "fold-all" } };
+  }
+
+  private cmdUnfoldAll(requestId?: string): BridgeResponse {
+    const executed = (this.app as any).commands?.executeCommandById("editor:unfold-all");
+    if (!executed) {
+      return {
+        requestId,
+        success: false,
+        error: "Could not unfold headings. Make sure a Markdown note is open in editing mode.",
+      };
+    }
+    return { requestId, success: true, data: { action: "unfold-all" } };
+  }
+
+  private cmdReloadSnippets(requestId?: string): BridgeResponse {
+    // Uses the public Obsidian command — does not touch app.customCss
+    const executed = (this.app as any).commands?.executeCommandById("app:reload-css-snippets");
+    if (!executed) {
+      return {
+        requestId,
+        success: false,
+        error:
+          "Could not reload CSS snippets. The command 'app:reload-css-snippets' was not available.",
+      };
+    }
+    return { requestId, success: true, data: { action: "reload-snippets" } };
   }
 
   // Configuration
