@@ -288,7 +288,127 @@ public sealed class SessionContextTools(VaultIndexService vault, KiokuConfigurat
                $"   Notes touched: {modifiedNotes.Count}";
     }
 
+    [McpServerTool, Description(
+        "Lists all work session notes with their dates, status (active/done), and duration if closed.")]
+    public Task<string> list_work_sessions(
+        [Description("Folder where session notes are stored (relative to vault root). Auto-detects if empty.")] string sessions_folder = "")
+    {
+        var targetFolder = string.IsNullOrWhiteSpace(sessions_folder)
+            ? FindSessionsFolder()
+            : sessions_folder;
+
+        if (string.IsNullOrEmpty(targetFolder))
+        {
+            return Task.FromResult("[info] No sessions folder found. Create a 'Sessions' folder or specify sessions_folder parameter.");
+        }
+
+        var sessionNotes = vault.GetNotesInFolder(targetFolder)
+            .Where(n => n.Metadata.ExtraFields.TryGetValue("type", out var t) &&
+                        t.Equals("session", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(n => n.Metadata.Date)
+            .ToList();
+
+        if (sessionNotes.Count == 0)
+        {
+            return Task.FromResult($"[info] No work sessions found in '{targetFolder}'.");
+        }
+
+        var sb = new StringBuilder($"[ok] {sessionNotes.Count} work session(s) in '{targetFolder}':\n\n");
+
+        foreach (var session in sessionNotes)
+        {
+            var dateStr = session.Metadata.Date?.ToString("yyyy-MM-dd") ?? "undated";
+            var status = session.Metadata.Status ?? "unknown";
+
+            sb.Append($"- {session.Name} ({dateStr}) — status: {status}");
+
+            if (status.Equals("done", StringComparison.OrdinalIgnoreCase))
+            {
+                var durationMatch = System.Text.RegularExpressions.Regex.Match(session.RawContent, @"\*\*Duration:\*\*\s+(.+?)(?:\n|$)");
+                if (durationMatch.Success)
+                {
+                    sb.Append($" — duration: {durationMatch.Groups[1].Value}");
+                }
+            }
+
+            sb.AppendLine();
+        }
+
+        return Task.FromResult(sb.ToString());
+    }
+
+    [McpServerTool, Description(
+        "Returns all notes created or modified during a specific work session.")]
+    public Task<string> get_session_activity(
+        [Description("Name or path of the session note (e.g., '2025-06-25' or 'Sessions/2025-06-25').")] string session_note)
+    {
+        if (string.IsNullOrWhiteSpace(session_note))
+        {
+            return Task.FromResult("[error] The 'session_note' parameter cannot be empty.");
+        }
+
+        var note = vault.GetNote(session_note) ?? vault.GetNoteByName(session_note);
+        if (note is null)
+        {
+            return Task.FromResult($"[error] Session note not found: '{session_note}'");
+        }
+
+        var isSession = note.Metadata.ExtraFields.TryGetValue("type", out var type) &&
+                        type.Equals("session", StringComparison.OrdinalIgnoreCase);
+        if (!isSession)
+        {
+            return Task.FromResult($"[error] '{session_note}' is not a session note (type: session required).");
+        }
+
+        var sessionStart = note.LastModified;
+        var allNotes = vault.GetAllNotes().ToList();
+
+        // Extract the session end time from the note if it's closed
+        var sessionEnd = DateTimeOffset.MaxValue;
+        var endMatch = System.Text.RegularExpressions.Regex.Match(note.RawContent, @"## Session ended — (\d{2}:\d{2}) UTC");
+        if (endMatch.Success && note.Metadata.Status?.Equals("done", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            sessionEnd = note.LastModified;
+        }
+
+        var activityNotes = allNotes
+            .Where(n => n.LastModified >= sessionStart &&
+                        n.LastModified <= sessionEnd &&
+                        !n.FilePath.Equals(note.FilePath, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(n => n.LastModified)
+            .ToList();
+
+        if (activityNotes.Count == 0)
+        {
+            return Task.FromResult($"[info] No notes were modified during this session.");
+        }
+
+        var sb = new StringBuilder($"[ok] {activityNotes.Count} note(s) modified during session '{note.Name}':\n\n");
+
+        foreach (var n in activityNotes)
+        {
+            var ageAtSession = sessionStart - n.LastModified;
+            var ageStr = FormatDuration(ageAtSession);
+            sb.AppendLine($"- {n.VaultRelativePath} (modified {ageStr} after session start)");
+        }
+
+        return Task.FromResult(sb.ToString());
+    }
+
     // Private helpers
+
+    private string? FindSessionsFolder()
+    {
+        foreach (var folder in SessionsFolderCandidates)
+        {
+            var folderPath = Path.Combine(config.VaultPath, folder);
+            if (Directory.Exists(folderPath))
+            {
+                return folder;
+            }
+        }
+        return null;
+    }
 
     private Note? FindActiveSessionNote()
     {
