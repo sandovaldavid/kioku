@@ -361,6 +361,78 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
                $"ID:  {gistId}";
     }
 
+    [McpServerTool, Description(
+        "Validates that research and literature notes have required metadata fields (citekey, year, authors, status, updated). " +
+        "Returns a report of notes with missing fields for quality assurance.")]
+    public string validate_research_notes(
+        [Description("Folder to scan for research notes (vault-relative). Leave empty for entire vault.")] string folder = "")
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        var allNotes = string.IsNullOrWhiteSpace(folder)
+            ? vault.GetAllNotes().ToList()
+            : vault.GetNotesInFolder(folder).ToList();
+
+        var requiredFields = new[] { "citekey", "year", "authors", "status", "updated" };
+        var researchNotes = new List<(Note Note, List<string> MissingFields)>();
+
+        foreach (var note in allNotes)
+        {
+            var noteType = note.Metadata.ExtraFields.TryGetValue("type", out var t) ? t : null;
+            var isResearch = noteType is not null &&
+                             (noteType.Equals("literature", StringComparison.OrdinalIgnoreCase) ||
+                              noteType.Equals("research", StringComparison.OrdinalIgnoreCase));
+
+            if (!isResearch)
+            {
+                continue;
+            }
+
+            var missing = new List<string>();
+            foreach (var field in requiredFields)
+            {
+                if (!note.Metadata.ExtraFields.ContainsKey(field))
+                {
+                    missing.Add(field);
+                }
+            }
+
+            researchNotes.Add((note, missing));
+        }
+
+        if (researchNotes.Count == 0)
+        {
+            return "[info] No research or literature notes found in the vault.";
+        }
+
+        var problematic = researchNotes.Where(x => x.MissingFields.Count > 0).ToList();
+
+        if (problematic.Count == 0)
+        {
+            return $"[ok] All {researchNotes.Count} research/literature note(s) are complete.";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"[info] Validation report — {problematic.Count}/{researchNotes.Count} research note(s) missing fields:");
+        sb.AppendLine();
+        sb.AppendLine("| Note | Missing Fields |");
+        sb.AppendLine("|------|---|");
+
+        foreach (var (note, missing) in problematic.OrderBy(x => x.Note.Name))
+        {
+            var missingStr = string.Join(", ", missing);
+            sb.AppendLine($"| {note.Name} | {missingStr} |");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"**Summary:** {researchNotes.Count} total · {researchNotes.Count - problematic.Count} complete · {problematic.Count} incomplete");
+
+        return sb.ToString();
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
