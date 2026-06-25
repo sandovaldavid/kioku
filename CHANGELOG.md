@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/sandovaldavid/kioku/compare/v1.5.0...v1.6.0) (2026-06-25)
+
+
+### Features
+
+* **server:** add css snippet removal tool (Rama N) ([#24](https://github.com/sandovaldavid/kioku/issues/24)) ([52a0493](https://github.com/sandovaldavid/kioku/commit/52a0493181214b810a0f4cf1c299650f5702d706))
+* **server:** add research validation tool (Rama M) ([#23](https://github.com/sandovaldavid/kioku/issues/23)) ([57c16bc](https://github.com/sandovaldavid/kioku/commit/57c16bcfd94694df73eb9037c8a1379596e32990))
+
 ## [1.5.0](https://github.com/sandovaldavid/kioku/compare/v1.4.0...v1.5.0) (2026-06-25)
 
 
