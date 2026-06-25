@@ -1,0 +1,6 @@
+<linker>
+  <assembly fullname="Kioku.Mcp.Server" />
+  <assembly fullname="ModelContextProtocol" />
+  <assembly fullname="ModelContextProtocol.AspNetCore" />
+  <assembly fullname="Markdig" />
+</linker>
