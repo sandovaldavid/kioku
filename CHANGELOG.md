@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.0](https://github.com/sandovaldavid/kioku/compare/v1.3.0...v1.4.0) (2026-06-25)
+
+
+### Features
+
+* **plugin,server:** add 5 editor command tools across server and plugin ([f586290](https://github.com/sandovaldavid/kioku/commit/f5862903d739d8770bdd5feb0f4c7f29b5d51b6c))
+* **server:** add asset tools for vault file management ([2530079](https://github.com/sandovaldavid/kioku/commit/25300793f4e92ca03d82491fb11254254ebd3920))
+* **server:** add vault routing tools for intelligent note organization ([dade9c7](https://github.com/sandovaldavid/kioku/commit/dade9c786be302351aeaca23d4c9012bab48e1d4))
+
 ## [1.3.0](https://github.com/sandovaldavid/kioku/compare/v1.2.0...v1.3.0) (2026-06-25)
 
 
