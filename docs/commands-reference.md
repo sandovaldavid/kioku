@@ -1,7 +1,7 @@
 # Kioku — Referencia de Comandos
 
-> **Versiones:** v1 (stdio) · v2 (HTTP-SSE + Semántica) · v3 (Ecosystem Tools — en progreso)  
-> **Referencia:** [planning.md](./planning.md) · [v2-http-sse-spec.md](./v2-http-sse-spec.md) · [new-commands.md](./new-commands.md)
+> **Versiones:** v1 (stdio) · v2 (HTTP-SSE + Semántica) · v3 (Ecosystem Tools — completado)  
+> **Referencia:** [planning.md](./planning.md) · [v2-http-sse-spec.md](./v2-http-sse-spec.md)
 
 Este documento es el inventario oficial de todos los comandos del ecosistema Kioku:
 - **MCP Tools** → expuestos al agente de IA a través del protocolo MCP.
@@ -375,9 +375,9 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 
 **Criterio:** El agente puede buscar por significado, no solo por texto literal. Embeddings via Ollama.
 
-### v3 — Ecosystem Tools ✅ EN PROGRESO (Ramas F/G/H completas, I–N planificadas)
+### v3 — Ecosystem Tools ✅ COMPLETADO
 
-**Implementado en `develop` (post Ramas F, G, H):** 66+ MCP Tools + 16 Plugin Commands
+**Estado actual:** ~85 MCP Tools + 16 Plugin Commands — todas las ramas (F–N) implementadas
 
 #### MCP Tools Completados
 - Session Context (12–13, 61–62): `get_recent_activity`, `get_work_context`, `start/end_work_session`
@@ -402,20 +402,12 @@ Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El p
 - Organization (41, 45, 47): `reorder_notes_in_folder`, `reclassify_note`, `suggest_folder`
 - Editor Commands (A4, A5, C3, D1–D3): `scroll-to-block`, `open-in-split`, `get-app-version`, `create-note-ui`, `insert-at-cursor`, `replace-selection`
 
-**Pendiente (Ramas I–N):**
-- Graph Analysis (68–70): `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density`
-- Git Integration (78–80): `get_git_status`, `list_git_commits`, `create_git_commit` (💡)
-- Assets Extended (71–72): `normalize_attachment_names`, `move_attachments_to_folder`
-- Sessions Extended (75–76): `list_work_sessions`, `get_session_activity`
-- Research Quality (73): `validate_research_notes`
-- CSS Theming (77): `remove_css_snippet`
-
-**Resumen de conteos (actualizado):**
-| Categoría | Implementadas | Pendiente | Propuestas |
-|-----------|:---:|:---:|:---:|
-| MCP Tools | 66 | 11 | 2 |
-| Plugin Commands | 16 | 0 | 1 |
-| **Total** | **82** | **11** | **3** |
+**Resumen de conteos:**
+| Categoría | Implementadas | Propuestas |
+|-----------|:---:|:---:|
+| MCP Tools | ~85 | 2 |
+| Plugin Commands | 16 | 1 |
+| **Total** | **~101** | **3** |
 
 ---
 
