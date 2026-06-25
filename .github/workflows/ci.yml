@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   build-server:
+    name: build-server (ubuntu-latest)
     runs-on: ubuntu-latest
 
     steps:
@@ -39,6 +40,7 @@ jobs:
             --verbosity diagnostic
 
   build-plugin:
+    name: build-plugin (ubuntu-latest)
     runs-on: ubuntu-latest
 
     steps:

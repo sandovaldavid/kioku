@@ -94,7 +94,7 @@ public static class MarkdownTextExtractor
         return links;
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────
+    // Private helpers
 
     private static void ProcessLine(ReadOnlySpan<char> line, System.Text.StringBuilder sb)
     {

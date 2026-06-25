@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Kioku.Mcp.Server.Domain;
+using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
@@ -38,10 +39,13 @@ public sealed class VaultIndexService : IDisposable
     private DateTimeOffset _lastIndexed;
     private bool _isReady;
 
-    public VaultIndexService(ILogger<VaultIndexService> logger, KiokuConfiguration config)
+    private readonly EmbeddingService? _embedding;
+
+    public VaultIndexService(ILogger<VaultIndexService> logger, KiokuConfiguration config, EmbeddingService? embedding = null)
     {
         _logger = logger;
         _vaultPath = config.VaultPath;
+        _embedding = embedding;
     }
 
     /// <summary>Total number of indexed notes.</summary>
@@ -53,7 +57,7 @@ public sealed class VaultIndexService : IDisposable
     /// <summary>Indicates if the index has completed its initial load.</summary>
     public bool IsReady => _isReady;
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    // Public API
 
     /// <summary>
     /// Initial load of all notes in the vault and starts the watcher.
@@ -61,19 +65,24 @@ public sealed class VaultIndexService : IDisposable
     /// </summary>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Starting vault indexing: {Path}", _vaultPath);
+        _logger.Info("Starting vault indexing: {Path}", _vaultPath);
 
         if (!Directory.Exists(_vaultPath))
         {
-            _logger.LogError("Vault path does not exist: {Path}", _vaultPath);
+            _logger.Error("Vault path does not exist: {Path}", _vaultPath);
             throw new DirectoryNotFoundException($"Vault path not found: {_vaultPath}");
         }
 
         await IndexVaultAsync(cancellationToken);
         StartWatcher();
 
+        if (_embedding is not null)
+        {
+            await _embedding.InitializeAsync(_notesByPath.Values, cancellationToken);
+        }
+
         _isReady = true;
-        _logger.LogInformation("Index ready. {Count} notes indexed.", _indexedCount);
+        _logger.Info("Index ready. {Count} notes indexed.", _indexedCount);
     }
 
     /// <summary>Gets a note by its absolute path or vault-relative path.</summary>
@@ -241,7 +250,7 @@ public sealed class VaultIndexService : IDisposable
     /// <summary>Forces a full re-indexing of the vault.</summary>
     public async Task RebuildIndexAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Full re-indexing requested.");
+        _logger.Info("Full re-indexing requested.");
         _notesByPath.Clear();
         _wordIndex.Clear();
         _tagIndex.Clear();
@@ -250,15 +259,21 @@ public sealed class VaultIndexService : IDisposable
         _isReady = false;
 
         await IndexVaultAsync(cancellationToken);
+        if (_embedding is not null)
+        {
+            await _embedding.SaveAsync();
+        }
+
         _isReady = true;
-        _logger.LogInformation("Full re-indexing complete. {Count} notes.", _indexedCount);
+        _logger.Info("Full re-indexing complete. {Count} notes.", _indexedCount);
     }
 
-    // ── Indexing ────────────────────────────────────────────────────────────
+    // Indexing
 
     private async Task IndexVaultAsync(CancellationToken cancellationToken)
     {
-        var mdFiles = Directory.EnumerateFiles(_vaultPath, "*.md", SearchOption.AllDirectories);
+        var mdFiles = Directory.EnumerateFiles(_vaultPath, "*.md", SearchOption.AllDirectories)
+            .Where(p => !IsExcludedPath(p));
         var tasks = mdFiles.Select(path => IndexFileAsync(path, cancellationToken));
         await Task.WhenAll(tasks);
         _lastIndexed = DateTimeOffset.UtcNow;
@@ -285,11 +300,16 @@ public sealed class VaultIndexService : IDisposable
                 AddToBacklinkIndex(note.Name, link);
             }
 
+            if (_embedding is not null)
+            {
+                await _embedding.IndexNoteAsync(note);
+            }
+
             Interlocked.Increment(ref _indexedCount);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _logger.LogWarning("Could not index {File}: {Error}", filePath, ex.Message);
+            _logger.Warn("Could not index {File}: {Error}", filePath, ex.Message);
         }
     }
 
@@ -316,7 +336,7 @@ public sealed class VaultIndexService : IDisposable
         };
     }
 
-    // ── FileSystemWatcher ─────────────────────────────────────────────────────
+    // FileSystemWatcher
 
     private void StartWatcher()
     {
@@ -338,13 +358,18 @@ public sealed class VaultIndexService : IDisposable
             ScheduleReindex(e.FullPath);
         };
         _watcher.Error += (_, e) =>
-            _logger.LogWarning("FileSystemWatcher error: {Error}", e.GetException().Message);
+            _logger.Warn("FileSystemWatcher error: {Error}", e.GetException().Message);
 
-        _logger.LogInformation("FileSystemWatcher active on: {Path}", _vaultPath);
+        _logger.Info("FileSystemWatcher active on: {Path}", _vaultPath);
     }
 
     private void ScheduleReindex(string filePath)
     {
+        if (IsExcludedPath(filePath))
+        {
+            return;
+        }
+
         // Cancel previous debouncer for this file (if any)
         if (_debouncers.TryRemove(filePath, out var existing))
         {
@@ -365,7 +390,7 @@ public sealed class VaultIndexService : IDisposable
 
                 _debouncers.TryRemove(filePath, out _);
                 await IndexFileAsync(filePath);
-                _logger.LogDebug("Re-indexed: {File}", Path.GetFileName(filePath));
+                _logger.Debug("Re-indexed: {File}", Path.GetFileName(filePath));
             }, TaskScheduler.Default);
     }
 
@@ -406,11 +431,12 @@ public sealed class VaultIndexService : IDisposable
             }
         }
 
+        _embedding?.Remove(filePath);
         Interlocked.Decrement(ref _indexedCount);
-        _logger.LogDebug("Removed from index: {File}", Path.GetFileName(filePath));
+        _logger.Debug("Removed from index: {File}", Path.GetFileName(filePath));
     }
 
-    // ── Indexes ───────────────────────────────────────────────────────────────
+    // Indexes
 
     private void AddToWordIndex(string filePath, string text)
     {
@@ -443,7 +469,7 @@ public sealed class VaultIndexService : IDisposable
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // Helpers
 
     private string ResolveAbsolutePath(string path)
     {
@@ -492,6 +518,13 @@ public sealed class VaultIndexService : IDisposable
     {
         var bytes = Encoding.UTF8.GetBytes(content);
         return Convert.ToHexString(MD5.HashData(bytes));
+    }
+
+    private bool IsExcludedPath(string filePath)
+    {
+        var relative = Path.GetRelativePath(_vaultPath, filePath);
+        return relative.Split(Path.DirectorySeparatorChar)
+            .Any(segment => segment.StartsWith('.'));
     }
 
     public void Dispose()

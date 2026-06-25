@@ -10,9 +10,9 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations here are read-only — they do not modify files.
 /// </summary>
 [McpServerToolType]
-public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config)
+public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config, EmbeddingService embedding)
 {
-    // ── read_note ──────────────────────────────────────────────────────────────
+    // read_note
 
     [McpServerTool, Description(
         "Reads the full content of an Obsidian note. " +
@@ -23,7 +23,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'. Use list_notes to see available notes.";
+            return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
         }
 
         // Re-read from disk to have the most up-to-date content
@@ -31,7 +31,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         return content;
     }
 
-    // ── list_notes ─────────────────────────────────────────────────────────────
+    // list_notes
 
     [McpServerTool, Description(
         "Lists all notes in the vault or a specific folder. " +
@@ -41,7 +41,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     {
         if (!vault.IsReady)
         {
-            return "⏳ The index is still loading. Wait a moment and try again.";
+            return "[loading] The index is still loading. Wait a moment and try again.";
         }
 
         var notes = string.IsNullOrWhiteSpace(folder)
@@ -66,11 +66,11 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
             return $"- {n.VaultRelativePath}{tags} (modified: {modified})";
         });
 
-        return $"📚 {sorted.Count} note(s){(string.IsNullOrWhiteSpace(folder) ? "" : $" in '{folder}'")}:\n" +
+        return $"{sorted.Count} note(s){(string.IsNullOrWhiteSpace(folder) ? "" : $" in '{folder}'")}:\n" +
                string.Join("\n", lines);
     }
 
-    // ── search_notes ───────────────────────────────────────────────────────────
+    // search_notes
 
     [McpServerTool, Description(
         "Searches notes in the vault by text in title, content, and tags. " +
@@ -81,12 +81,12 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     {
         if (!vault.IsReady)
         {
-            return "⏳ The index is still loading.";
+            return "[loading] The index is still loading.";
         }
 
         if (string.IsNullOrWhiteSpace(query))
         {
-            return "❌ The 'query' parameter cannot be empty.";
+            return "[error] The 'query' parameter cannot be empty.";
         }
 
         var results = vault.Search(query, Math.Min(max_results, config.MaxSearchResults)).ToList();
@@ -98,12 +98,12 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
 
         var lines = results.Select((r, i) =>
         {
-            var matchIcon = r.MatchType switch
+            var matchType = r.MatchType switch
             {
-                NoteMatchType.TitleMatch => "📝",
-                NoteMatchType.TagMatch => "🏷️",
-                NoteMatchType.ContentMatch => "📄",
-                _ => "🔍",
+                NoteMatchType.TitleMatch => "title",
+                NoteMatchType.TagMatch => "tag",
+                NoteMatchType.ContentMatch => "content",
+                _ => "match",
             };
             var score = (r.Score * 100).ToString("F0");
             var snippet = r.Snippet is not null ? $"\n  > {r.Snippet}" : "";
@@ -111,13 +111,13 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
                 ? $" [#{string.Join(", #", r.Note.Metadata.Tags)}]"
                 : "";
 
-            return $"{i + 1}. {matchIcon} **{r.Note.Name}**{tags} ({score}% relevance)\n   📁 {r.Note.VaultRelativePath}{snippet}";
+            return $"{i + 1}. [{matchType}] **{r.Note.Name}**{tags} ({score}% relevance)\n   {r.Note.VaultRelativePath}{snippet}";
         });
 
-        return $"🔍 {results.Count} result(s) for '{query}':\n\n" + string.Join("\n\n", lines);
+        return $"{results.Count} result(s) for '{query}':\n\n" + string.Join("\n\n", lines);
     }
 
-    // ── filter_notes ───────────────────────────────────────────────────────────
+    // filter_notes
 
     [McpServerTool, Description(
         "Filters notes by YAML frontmatter metadata. " +
@@ -131,7 +131,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     {
         if (!vault.IsReady)
         {
-            return "⏳ The index is still loading.";
+            return "[loading] The index is still loading.";
         }
 
         DateOnly? from = DateOnly.TryParse(date_from, out var df) ? df : null;
@@ -195,10 +195,10 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
             return $"- {n.VaultRelativePath}{tags}{metaStr}";
         });
 
-        return $"🔎 {notes.Count} note(s) found:\n" + string.Join("\n", lines);
+        return $"{notes.Count} note(s) found:\n" + string.Join("\n", lines);
     }
 
-    // ── get_note_metadata ──────────────────────────────────────────────────────
+    // get_note_metadata
 
     [McpServerTool, Description(
         "Reads only the YAML frontmatter metadata of a note, without loading its full content. " +
@@ -209,50 +209,50 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         var m = found.Metadata;
         var lines = new List<string>
         {
-            $"📝 **{found.Name}**",
-            $"📁 Path: {found.VaultRelativePath}",
-            $"🕐 Modified: {found.LastModified.ToLocalTime():yyyy-MM-dd HH:mm}",
+            $"**{found.Name}**",
+            $"Path: {found.VaultRelativePath}",
+            $"Modified: {found.LastModified.ToLocalTime():yyyy-MM-dd HH:mm}",
         };
 
         if (m.Tags.Count > 0)
         {
-            lines.Add($"🏷️  Tags: #{string.Join(", #", m.Tags)}");
+            lines.Add($"Tags: #{string.Join(", #", m.Tags)}");
         }
 
         if (m.Aliases.Count > 0)
         {
-            lines.Add($"🔗 Aliases: {string.Join(", ", m.Aliases)}");
+            lines.Add($"Aliases: {string.Join(", ", m.Aliases)}");
         }
 
         if (m.Status is not null)
         {
-            lines.Add($"📊 Status: {m.Status}");
+            lines.Add($"Status: {m.Status}");
         }
 
         if (m.NoteType is not null)
         {
-            lines.Add($"📂 Type: {m.NoteType}");
+            lines.Add($"Type: {m.NoteType}");
         }
 
         if (m.Date.HasValue)
         {
-            lines.Add($"📅 Date: {m.Date}");
+            lines.Add($"Date: {m.Date}");
         }
 
         if (m.Updated.HasValue)
         {
-            lines.Add($"🔄 Updated: {m.Updated}");
+            lines.Add($"Updated: {m.Updated}");
         }
 
         if (m.ExtraFields.Count > 0)
         {
-            lines.Add("⚙️  Extra fields:");
+            lines.Add("Extra fields:");
             foreach (var (k, v) in m.ExtraFields)
             {
                 lines.Add($"   {k}: {v}");
@@ -262,13 +262,13 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var linkCount = found.OutgoingLinks.Count;
         if (linkCount > 0)
         {
-            lines.Add($"🔗 Outgoing wikilinks: {linkCount}");
+            lines.Add($"Outgoing wikilinks: {linkCount}");
         }
 
         return string.Join("\n", lines);
     }
 
-    // ── get_backlinks ──────────────────────────────────────────────────────────
+    // get_backlinks
 
     [McpServerTool, Description(
         "Returns all notes linking to the specified note via [[wikilinks]].")]
@@ -277,7 +277,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     {
         if (!vault.IsReady)
         {
-            return "⏳ The index is still loading.";
+            return "[loading] The index is still loading.";
         }
 
         var backlinks = vault.GetBacklinks(note_name).OrderBy(n => n.Name).ToList();
@@ -288,10 +288,10 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         }
 
         var lines = backlinks.Select(n => $"- [[{n.Name}]] → {n.VaultRelativePath}");
-        return $"🔗 {backlinks.Count} note(s) link to '[[{note_name}]]':\n" + string.Join("\n", lines);
+        return $"{backlinks.Count} note(s) link to '[[{note_name}]]':\n" + string.Join("\n", lines);
     }
 
-    // ── get_outgoing_links ─────────────────────────────────────────────────────
+    // get_outgoing_links
 
     [McpServerTool, Description(
         "Returns all wikilinks outgoing from the specified note.")]
@@ -301,7 +301,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return $"[error] Note not found: '{note}'";
         }
 
         if (found.OutgoingLinks.Count == 0)
@@ -310,10 +310,10 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         }
 
         var lines = found.OutgoingLinks.OrderBy(l => l).Select(l => $"- [[{l}]]");
-        return $"🔗 {found.OutgoingLinks.Count} outgoing link(s) in '{found.Name}':\n" + string.Join("\n", lines);
+        return $"{found.OutgoingLinks.Count} outgoing link(s) in '{found.Name}':\n" + string.Join("\n", lines);
     }
 
-    // ── get_vault_stats ────────────────────────────────────────────────────────
+    // get_vault_stats
 
     [McpServerTool, Description(
         "Returns general statistics of the vault: total notes, unique tags, " +
@@ -322,7 +322,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     {
         if (!vault.IsReady)
         {
-            return "⏳ The index is still loading.";
+            return "[loading] The index is still loading.";
         }
 
         var allNotes = vault.GetAllNotes().ToList();
@@ -335,20 +335,91 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var lastModified = allNotes.OrderByDescending(n => n.LastModified).FirstOrDefault();
 
         return $"""
-                📊 **Kioku Vault Statistics**
-                
-                📝 Total notes:       {allNotes.Count}
-                🏷️  Unique tags:       {allTags.Count}
-                📁 Folders:           {folders.Count}
-                🕐 Last indexed:      {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}
-                ✅ Index status:      {(vault.IsReady ? "Ready" : "Loading...")}
-                
-                📅 Most recent note:  {lastModified?.Name ?? "N/A"} ({lastModified?.LastModified.ToLocalTime():yyyy-MM-dd HH:mm})
-                📁 Vault path:         {config.VaultPath}
+                **Kioku Vault Statistics**
+
+                Total notes:       {allNotes.Count}
+                Unique tags:       {allTags.Count}
+                Folders:           {folders.Count}
+                Last indexed:      {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}
+                Index status:      {(vault.IsReady ? "[ok] Ready" : "[loading] Loading...")}
+
+                Most recent note:  {lastModified?.Name ?? "N/A"} ({lastModified?.LastModified.ToLocalTime():yyyy-MM-dd HH:mm})
+                Vault path:        {config.VaultPath}
                 """;
     }
 
-    // ── Private helper ────────────────────────────────────────────────────────
+    // search_notes_semantic
+
+    [McpServerTool, Description(
+        "Searches notes by semantic meaning using Ollama embeddings. " +
+        "Finds notes conceptually related to the query even without exact keyword matches. " +
+        "Frontmatter fields (tags, status, type, date, extra fields) are included in the index. " +
+        "Requires Ollama running with the configured embedding model.")]
+    public async Task<string> search_notes_semantic(
+        [Description("Natural language query. E.g. 'notes about stress and burnout'.")] string query,
+        [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
+        [Description("Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches.")] float min_score = 0f)
+    {
+        if (!embedding.IsAvailable)
+        {
+            return $"[info] Semantic search unavailable — Ollama is not running at {config.OllamaUrl}";
+        }
+
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading.";
+        }
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return "[error] The 'query' parameter cannot be empty.";
+        }
+
+        var queryVector = await embedding.EmbedAsync(query);
+        if (queryVector is null)
+        {
+            return "[error] Could not generate embedding for query.";
+        }
+
+        var notesByPath = vault.GetAllNotes()
+            .ToDictionary(n => n.FilePath, StringComparer.OrdinalIgnoreCase);
+
+        var results = embedding
+            .Search(queryVector, Math.Min(max_results, config.MaxSearchResults), notesByPath, min_score)
+            .ToList();
+
+        if (results.Count == 0)
+        {
+            var threshold = min_score > 0f ? $" above {min_score:P0} similarity" : "";
+            return $"No semantically similar notes found for: '{query}'{threshold}";
+        }
+
+        var lines = results.Select((r, i) =>
+        {
+            var score = (r.Score * 100).ToString("F0");
+            var tags = r.Note.Metadata.Tags.Count > 0
+                ? $" [#{string.Join(", #", r.Note.Metadata.Tags)}]"
+                : "";
+            var snippet = BuildSemanticSnippet(r.Note.PlainText);
+            var snippetStr = snippet is not null ? $"\n   > {snippet}" : "";
+            return $"{i + 1}. [semantic] **{r.Note.Name}**{tags} ({score}% similarity)\n   {r.Note.VaultRelativePath}{snippetStr}";
+        });
+
+        return $"{results.Count} result(s) for '{query}':\n\n" + string.Join("\n\n", lines);
+    }
+
+    private static string? BuildSemanticSnippet(string plainText)
+    {
+        if (string.IsNullOrWhiteSpace(plainText))
+        {
+            return null;
+        }
+
+        var trimmed = plainText.Trim();
+        return trimmed.Length > 200 ? trimmed[..200].Trim() + "…" : trimmed;
+    }
+
+    // Private helper
 
     private Note? ResolveNote(string nameOrPath)
     {

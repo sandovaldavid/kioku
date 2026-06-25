@@ -95,7 +95,7 @@ public static class FrontmatterParser
         return bodyStart;
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────
+    // Private helpers
 
     private static int FindClosingDelimiter(ReadOnlySpan<char> span, int searchFrom)
     {

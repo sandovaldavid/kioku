@@ -25,6 +25,18 @@ public sealed class KiokuConfiguration
     public int ObsidianBridgePort { get; init; } = 7765;
 
     /// <summary>
+    /// Base URL of the Ollama server for embedding generation.
+    /// Default: http://localhost:11434. Environment variable: KIOKU_OLLAMA_URL
+    /// </summary>
+    public string OllamaUrl { get; init; } = "http://localhost:11434";
+
+    /// <summary>
+    /// Ollama embedding model to use.
+    /// Default: nomic-embed-text. Environment variable: KIOKU_EMBEDDING_MODEL
+    /// </summary>
+    public string EmbeddingModel { get; init; } = "nomic-embed-text";
+
+    /// <summary>
     /// Loads the configuration from environment variables.
     /// </summary>
     public static KiokuConfiguration FromEnvironment()
@@ -41,11 +53,19 @@ public sealed class KiokuConfiguration
         var port = int.TryParse(
             Environment.GetEnvironmentVariable("KIOKU_OBSIDIAN_PORT"), out var p) ? p : 7765;
 
+        var ollamaUrl = Environment.GetEnvironmentVariable("KIOKU_OLLAMA_URL")
+            ?? "http://localhost:11434";
+
+        var embeddingModel = Environment.GetEnvironmentVariable("KIOKU_EMBEDDING_MODEL")
+            ?? "nomic-embed-text";
+
         return new KiokuConfiguration
         {
             VaultPath = Path.GetFullPath(vaultPath),
             MaxSearchResults = maxResults,
             ObsidianBridgePort = port,
+            OllamaUrl = ollamaUrl,
+            EmbeddingModel = embeddingModel,
         };
     }
 }
