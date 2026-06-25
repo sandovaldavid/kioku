@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
@@ -32,7 +33,7 @@ public sealed class ObsidianBridgeService : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Could not establish connection to Obsidian: {Message}", ex.Message);
+            _logger.Warn("Could not establish connection to Obsidian: {Message}", ex.Message);
             return new BridgeResponse
             {
                 Success = false,
@@ -65,7 +66,7 @@ public sealed class ObsidianBridgeService : IDisposable
         catch (Exception ex)
         {
             _pendingRequests.TryRemove(requestId, out _);
-            _logger.LogError(ex, "Error sending message over WebSocket");
+            _logger.Error(ex, "Error sending message over WebSocket");
             await CloseAndResetAsync();
             return new BridgeResponse { Success = false, Error = $"Communication error: {ex.Message}" };
         }
@@ -114,13 +115,13 @@ public sealed class ObsidianBridgeService : IDisposable
             _webSocket.Options.KeepAliveInterval = TimeSpan.FromSeconds(5);
 
             var uri = new Uri($"ws://127.0.0.1:{_port}/");
-            _logger.LogInformation("Connecting to Obsidian bridge at {Uri}...", uri);
+            _logger.Info("Connecting to Obsidian bridge at {Uri}...", uri);
 
             using var connectTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connectTimeoutCts.Token);
 
             await _webSocket.ConnectAsync(uri, linkedCts.Token);
-            _logger.LogInformation("Connected to Obsidian bridge successfully!");
+            _logger.Info("Connected to Obsidian bridge successfully.");
 
             _loopCts = new CancellationTokenSource();
             _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(_loopCts.Token));
@@ -168,13 +169,13 @@ public sealed class ObsidianBridgeService : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning("Error deserializing bridge response: {Error}. Raw: {Raw}", ex.Message, responseJson);
+                    _logger.Warn("Error deserializing bridge response: {Error}. Raw: {Raw}", ex.Message, responseJson);
                 }
             }
         }
         catch (Exception ex) when (ex is OperationCanceledException or WebSocketException)
         {
-            _logger.LogDebug("Receive loop terminated: {Message}", ex.Message);
+            _logger.Debug("Receive loop terminated: {Message}", ex.Message);
         }
         finally
         {
@@ -233,7 +234,7 @@ public sealed class ObsidianBridgeService : IDisposable
     }
 }
 
-// ── Bridge Protocol Types (AOT Safe) ──────────────────────────────────────
+// Bridge Protocol Types (AOT Safe)
 
 public sealed class BridgeMessage
 {
