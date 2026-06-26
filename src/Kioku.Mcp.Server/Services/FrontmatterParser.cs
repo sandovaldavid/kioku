@@ -156,9 +156,14 @@ public static class FrontmatterParser
                             break;
                         default:
                             if (extra.TryGetValue(currentListKey, out var existing))
+                            {
                                 extra[currentListKey] = existing + ", " + value;
+                            }
                             else
+                            {
                                 extra[currentListKey] = value;
+                            }
+
                             break;
                     }
                 }
