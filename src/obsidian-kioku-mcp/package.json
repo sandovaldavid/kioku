@@ -1,6 +1,6 @@
 {
   "name": "obsidian-kioku-mcp",
-  "version": "1.7.0",
+  "version": "1.7.1-beta",
   "description": "Obsidian plugin bridge for Kioku MCP Server",
   "main": "main.js",
   "scripts": {
