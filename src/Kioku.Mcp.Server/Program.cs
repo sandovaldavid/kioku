@@ -55,6 +55,7 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder)
         .WithTools<PluginIntegrationTools>()
         .WithTools<GraphAnalysisTools>()
         .WithTools<GitTools>()
+        .WithTools<RestoreTools>()
         .WithTools<AssetTools>()
         .WithTools<UtilityTools>();
 }
