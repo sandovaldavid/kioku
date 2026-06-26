@@ -343,8 +343,14 @@ public sealed class VaultOrganizationTools(
             ? vault.GetAllNotes()
             : vault.GetNotesInFolder(folder);
 
-        var allNoteNames = vault.GetAllNotes()
+        var allNotesList = vault.GetAllNotes().ToList();
+        var allNoteNames = allNotesList
             .Select(n => n.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allNotePaths = allNotesList
+            .Select(n => n.VaultRelativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+                ? n.VaultRelativePath[..^3]
+                : n.VaultRelativePath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var broken = new List<(string NoteRelPath, string BrokenLink)>();
@@ -355,7 +361,9 @@ public sealed class VaultOrganizationTools(
             {
                 // Strip anchor fragments (#heading)
                 var linkTarget = link.Split('#')[0].Trim();
-                if (!string.IsNullOrWhiteSpace(linkTarget) && !allNoteNames.Contains(linkTarget))
+                if (!string.IsNullOrWhiteSpace(linkTarget)
+                    && !allNoteNames.Contains(linkTarget)
+                    && !allNotePaths.Contains(linkTarget))
                 {
                     broken.Add((note.VaultRelativePath, link));
                 }
@@ -395,10 +403,17 @@ public sealed class VaultOrganizationTools(
 
         // Broken links
         var allNoteNames = notes.Select(n => n.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allNotePaths = notes
+            .Select(n => n.VaultRelativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+                ? n.VaultRelativePath[..^3]
+                : n.VaultRelativePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var brokenLinks = notes
             .SelectMany(n => n.OutgoingLinks
                 .Select(l => l.Split('#')[0].Trim())
-                .Where(l => !string.IsNullOrWhiteSpace(l) && !allNoteNames.Contains(l))
+                .Where(l => !string.IsNullOrWhiteSpace(l)
+                    && !allNoteNames.Contains(l)
+                    && !allNotePaths.Contains(l))
                 .Select(l => (Note: n.VaultRelativePath, Link: l)))
             .ToList();
 

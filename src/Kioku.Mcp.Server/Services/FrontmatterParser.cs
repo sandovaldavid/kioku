@@ -130,6 +130,8 @@ public static class FrontmatterParser
         string? status = null;
         string? noteType = null;
 
+        string? currentListKey = null;
+
         int pos = 0;
         while (pos < frontmatter.Length)
         {
@@ -138,7 +140,38 @@ public static class FrontmatterParser
                 ? frontmatter[pos..]
                 : frontmatter.Slice(pos, lineEnd);
 
-            ProcessLine(line, aliases, tags, extra, ref date, ref updated, ref status, ref noteType);
+            var trimmedStart = line.TrimStart();
+            if (trimmedStart.StartsWith("- ".AsSpan()) && currentListKey is not null)
+            {
+                var value = trimmedStart[2..].Trim().Trim('"').Trim('\'').ToString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    switch (currentListKey)
+                    {
+                        case "aliases" or "alias":
+                            aliases.Add(value);
+                            break;
+                        case "tags" or "tag":
+                            tags.Add(value.Trim('#'));
+                            break;
+                        default:
+                            if (extra.TryGetValue(currentListKey, out var existing))
+                                extra[currentListKey] = existing + ", " + value;
+                            else
+                                extra[currentListKey] = value;
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                int colonIdx = line.IndexOf(':');
+                currentListKey = colonIdx > 0
+                    ? line[..colonIdx].Trim().ToString().ToLowerInvariant()
+                    : null;
+
+                ProcessLine(line, aliases, tags, extra, ref date, ref updated, ref status, ref noteType);
+            }
 
             pos += lineEnd < 0 ? frontmatter.Length - pos : lineEnd + 1;
             if (pos < frontmatter.Length && frontmatter[pos - 1] == '\r' && frontmatter[pos] == '\n')
