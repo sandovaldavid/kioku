@@ -17,7 +17,7 @@
     <PackageType>McpServer</PackageType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>kioku-mcp-server</PackageId>
-    <PackageVersion>1.8.0-beta.1</PackageVersion>
+    <PackageVersion>1.8.0-beta.2</PackageVersion>
     <PackageTags>AI; MCP; obsidian; notes; server; stdio; http-sse</PackageTags>
     <Description>Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read and write notes via the Model Context Protocol.</Description>
     <Authors>sandovaldavid</Authors>
@@ -28,18 +28,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
-    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/"/>
+    <None Include="README.md" Pack="true" PackagePath="/"/>
   </ItemGroup>
 
   <ItemGroup>
     <!-- SDK MCP oficial de Microsoft -->
     <!-- v1: stdio transport -->
-    <PackageReference Include="Markdig" Version="0.38.0" />
-    <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
+    <PackageReference Include="Markdig" Version="0.38.0"/>
+    <PackageReference Include="ModelContextProtocol" Version="1.4.0"/>
     <!-- v2: HTTP-SSE transport (Streamable HTTP) -->
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
-    <PackageReference Include="YamlDotNet" Version="18.0.0" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0"/>
+    <PackageReference Include="YamlDotNet" Version="18.0.0"/>
   </ItemGroup>
 
 </Project>

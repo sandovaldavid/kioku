@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0-beta.2](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.1...v1.8.0-beta.2) (2026-06-26)
+
+
+### Features
+
+* **server:** add VaultConfigService with .kioku/config.yml support ([#53](https://github.com/sandovaldavid/kioku/issues/53)) ([175c50a](https://github.com/sandovaldavid/kioku/commit/175c50a87d15153d190cc684a62e049efb817e82))
+
 ## [1.8.0-beta.1](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta...v1.8.0-beta.1) (2026-06-26)
 
 
