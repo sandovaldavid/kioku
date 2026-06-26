@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0-beta](https://github.com/sandovaldavid/kioku/compare/v1.7.1-beta...v1.8.0-beta) (2026-06-26)
+
+
+### Features
+
+* **plugin:** package Obsidian plugin files as ZIP for easy installation ([#43](https://github.com/sandovaldavid/kioku/issues/43)) ([8598368](https://github.com/sandovaldavid/kioku/commit/8598368c12f15e16cc32b51468ec236ab41a6466))
+
+
+### Bug Fixes
+
+* **plugin:** preserve requestId in dispatch response for all bridge commands ([#46](https://github.com/sandovaldavid/kioku/issues/46)) ([2a28318](https://github.com/sandovaldavid/kioku/commit/2a28318dc003ce1d554f82991a61ef112800ff8f))
+* **server:** resolve 5 bugs in git, prepend, session, rename, and extract tools ([#47](https://github.com/sandovaldavid/kioku/issues/47)) ([7bf0a50](https://github.com/sandovaldavid/kioku/commit/7bf0a50db46a37231a115970e7131a829233a461))
+* **server:** resolve false positives in tags, broken links, and backlinks ([aa1fe25](https://github.com/sandovaldavid/kioku/commit/aa1fe254ffd4572e95c8b74944dd709026891816))
+
 ## [1.7.1-beta](https://github.com/sandovaldavid/kioku/compare/v1.7.0...v1.7.1-beta) (2026-06-26)
 
 
