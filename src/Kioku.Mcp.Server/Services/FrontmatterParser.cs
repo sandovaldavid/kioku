@@ -129,6 +129,7 @@ public static class FrontmatterParser
         DateOnly? updated = null;
         string? status = null;
         string? noteType = null;
+        string? domain = null;
 
         string? currentListKey = null;
 
@@ -175,7 +176,7 @@ public static class FrontmatterParser
                     ? line[..colonIdx].Trim().ToString().ToLowerInvariant()
                     : null;
 
-                ProcessLine(line, aliases, tags, extra, ref date, ref updated, ref status, ref noteType);
+                ProcessLine(line, aliases, tags, extra, ref date, ref updated, ref status, ref noteType, ref domain);
             }
 
             pos += lineEnd < 0 ? frontmatter.Length - pos : lineEnd + 1;
@@ -193,6 +194,7 @@ public static class FrontmatterParser
             Updated = updated,
             Status = status,
             NoteType = noteType,
+            Domain = domain,
             ExtraFields = extra,
         };
     }
@@ -202,7 +204,8 @@ public static class FrontmatterParser
         List<string> aliases, List<string> tags,
         Dictionary<string, string> extra,
         ref DateOnly? date, ref DateOnly? updated,
-        ref string? status, ref string? noteType)
+        ref string? status, ref string? noteType,
+        ref string? domain)
     {
         // Skip list lines (elements of multiline arrays like "  - value")
         // — we process them inline when we find the root key
@@ -261,6 +264,9 @@ public static class FrontmatterParser
                 break;
             case "type":
                 noteType = string.IsNullOrEmpty(valueStr) ? null : valueStr;
+                break;
+            case "domain":
+                domain = string.IsNullOrEmpty(valueStr) ? null : valueStr;
                 break;
             default:
                 if (!string.IsNullOrEmpty(valueStr))

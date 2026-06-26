@@ -26,6 +26,9 @@ public sealed class NoteMetadata
     /// <summary>Type of note (`type` field). E.g. note, project, area, resource.</summary>
     public string? NoteType { get; init; }
 
+    /// <summary>Knowledge domain (`domain` field). E.g. tech/general, academic/research.</summary>
+    public string? Domain { get; init; }
+
     /// <summary>
     /// All key-value pairs of the frontmatter that were not recognized
     /// as standard fields. Preserved to avoid losing user information.

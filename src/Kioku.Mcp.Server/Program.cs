@@ -31,6 +31,7 @@ return await RunStdioAsync(config);
 static void ConfigureKiokuServices(IServiceCollection services, KiokuConfiguration config)
 {
     services.AddSingleton(config);
+    services.AddSingleton<VaultConfigService>();
     services.AddSingleton<EmbeddingService>();
     services.AddSingleton<VaultIndexService>();
     services.AddSingleton<ObsidianBridgeService>();

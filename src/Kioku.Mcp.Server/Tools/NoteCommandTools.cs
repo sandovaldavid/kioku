@@ -11,7 +11,7 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations here modify files on disk.
 /// </summary>
 [McpServerToolType]
-public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration config)
+public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration config, VaultConfigService vaultConfig)
 {
     // create_note
 
@@ -37,7 +37,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var dir = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(dir);
 
-        var noteContent = BuildNoteContent(content, tags, type, status);
+        var noteContent = BuildNoteContent(content, tags, type, status, name);
         await File.WriteAllTextAsync(filePath, noteContent, Encoding.UTF8);
 
         return $"[ok] Note created: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
@@ -150,8 +150,11 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
         var newStatus = !string.IsNullOrWhiteSpace(status) ? status : existingMeta.Status;
         var newType = !string.IsNullOrWhiteSpace(type) ? type : existingMeta.NoteType;
+        var newDomain = existingMeta.Domain ?? vaultConfig.GetDomainForFolder(
+            Path.GetDirectoryName(found.VaultRelativePath) ?? "");
 
-        var frontmatter = BuildFrontmatter(newTags, newType ?? "", newStatus ?? "", existingMeta.Date, existingMeta.ExtraFields);
+        var frontmatter = BuildFrontmatter(newTags, newType ?? "", newStatus ?? "",
+            existingMeta.Date, domain: newDomain, extraFields: existingMeta.ExtraFields);
         var newContent = frontmatter + body;
 
         await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
@@ -306,10 +309,17 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
     // Private helpers
 
-    private static string BuildNoteContent(string body, string tags, string type, string status)
+    private string BuildNoteContent(string body, string tags, string type, string status, string name)
     {
         var tagList = NoteHelpers.ParseTags(tags);
-        var frontmatter = NoteHelpers.BuildFrontmatter(tagList, type, status, DateOnly.FromDateTime(DateTime.Today));
+
+        // Resolve domain from the note's folder path (if name includes a subfolder)
+        var folder = Path.GetDirectoryName(name.Replace('\\', '/')) ?? "";
+        var domain = vaultConfig.GetDomainForFolder(folder)
+                  ?? vaultConfig.GetDefaults(type.ToLowerInvariant())?.Domain;
+
+        var frontmatter = NoteHelpers.BuildFrontmatter(tagList, type, status,
+            DateOnly.FromDateTime(DateTime.Today), domain: domain);
         return frontmatter + "\n" + body;
     }
 
@@ -322,6 +332,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         string? type,
         string? status,
         DateOnly? date = null,
+        string? domain = null,
         IReadOnlyDictionary<string, string>? extraFields = null) =>
-        NoteHelpers.BuildFrontmatter(tags, type, status, date, extraFields: extraFields);
+        NoteHelpers.BuildFrontmatter(tags, type, status, date, domain: domain, extraFields: extraFields);
 }

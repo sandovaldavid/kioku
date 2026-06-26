@@ -1,0 +1,87 @@
+# ============================================
+# Kioku Vault Configuration — Example
+# ============================================
+# Copia este archivo a .kioku/config.yml dentro
+# de tu vault y ajusta los valores según tu
+# estructura de carpetas.
+#
+# Todas las secciones son OPCIONALES. Si el
+# archivo no existe o una sección falta, Kioku
+# usa los valores por defecto documentados.
+# ============================================
+
+# --- Identidad del vault ---
+# Solo informativo, se muestra en logs.
+vault:
+  name: "Mi Bóveda"
+
+# --- Mapeo de carpetas ---
+# Define dónde se crean las notas según su tipo.
+# Cada tool (create_zettel, start_work_session,
+# create_template, etc.) consulta esta sección
+# cuando el usuario no especifica una carpeta.
+folders:
+  inbox: "00_Inbox"
+  zettel: "30_Brain"
+  daily: "00_Inbox/Daily_Notes"
+  literature: "50_Research"
+  sessions: "Sessions"
+  templates: "99_System/Templates"
+  assets: "99_System/Attachments"
+
+# --- Dominios por carpeta ---
+# Asigna automáticamente el campo `domain:` en
+# el frontmatter de cualquier nota creada en
+# esa carpeta (o subcarpeta).
+#
+# Precedencia:
+#   1. Carpeta exacta
+#   2. Prefijo de carpeta más largo
+#   3. default.{type}.domain
+domains:
+  "00_Inbox": "general/inbox"
+  "10_Nexus": "career/strategy"
+  "20_Execution": "work/atena"
+  "30_Brain": "tech/general"
+  "40_Laboratory": "learning/cs50w"
+  "50_Research": "academic/research"
+  "60_Archive": "general/archive"
+  "99_System": "general/system"
+
+# --- Defaults por tipo de nota ---
+# Valores de frontmatter que se aplican según
+# el `type:` de la nota. Se fusionan con los
+# valores explícitos pasados por el tool call.
+defaults:
+  note:
+    type: capture
+    status: inbox
+  zettel:
+    type: concept
+    status: active
+    domain: tech/general
+  daily:
+    type: log
+    status: active
+    domain: general/inbox
+  literature:
+    type: source
+    status: draft
+    domain: academic/research
+  session:
+    type: log
+    status: active
+    domain: general/system
+    tags: [session, work-log]
+  moc:
+    type: guide
+    status: published
+    domain: general/system
+    tags: [meta/moc]
+
+# --- Carpetas excluidas del índice ---
+# Además de las carpetas ocultas (las que
+# empiezan con `.`), puedes excluir carpetas
+# adicionales de la búsqueda y el índice.
+exclude:
+  - "60_Archive"
