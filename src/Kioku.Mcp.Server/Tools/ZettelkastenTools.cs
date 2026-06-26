@@ -144,11 +144,13 @@ public sealed class ZettelkastenTools(
     // create_folder_readme
 
     [McpServerTool, Description(
-        "Creates a README.md file inside a vault folder listing all its notes. " +
+        "Creates a folder note (named after the folder, e.g. Projects.md inside Projects/) " +
+        "listing all its notes. Compatible with the Obsidian Folder Notes plugin. " +
         "Acts as a lightweight, non-Zettelkasten alternative to create_moc. " +
-        "Overwrites an existing README.md in that folder.")]
+        "Overwrites any existing note with the same name in that folder. " +
+        "Only supports folders up to level 2 depth (e.g. 'Projects' or 'Areas/Work').")]
     public async Task<string> create_folder_readme(
-        [Description("Vault-relative folder path where the README.md will be created (e.g. 'Projects').")] string folder)
+        [Description("Vault-relative folder path (max level 2, e.g. 'Projects' or 'Areas/Work').")] string folder)
     {
         if (!vault.IsReady)
         {
@@ -160,12 +162,17 @@ public sealed class ZettelkastenTools(
             return "[error] 'folder' parameter is required.";
         }
 
+        if (folder.Count(c => c is '/' or '\\') >= 2)
+        {
+            return "[error] 'folder' must be at most level 2 deep (e.g. 'Projects' or 'Projects/Active').";
+        }
+
+        var folderTitle = folder.Split('/', '\\').Last();
         var notes = vault.GetNotesInFolder(folder)
-            .Where(n => !n.Name.Equals("README", StringComparison.OrdinalIgnoreCase))
+            .Where(n => !n.Name.Equals(folderTitle, StringComparison.OrdinalIgnoreCase))
             .OrderBy(n => n.VaultRelativePath)
             .ToList();
 
-        var folderTitle = folder.Split('/', '\\').Last();
         var sb = new StringBuilder();
         sb.AppendLine($"# {folderTitle}\n");
         sb.AppendLine($"> Auto-generated index for `{folder}`. Last updated: {DateTime.Today:yyyy-MM-dd}\n");
@@ -199,13 +206,13 @@ public sealed class ZettelkastenTools(
             }
         }
 
-        var readmePath = Path.Combine(config.VaultPath, folder.TrimEnd('/'), "README.md");
-        var dir = Path.GetDirectoryName(readmePath)!;
+        var folderNotePath = Path.Combine(config.VaultPath, folder.TrimEnd('/'), $"{folderTitle}.md");
+        var dir = Path.GetDirectoryName(folderNotePath)!;
         Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(readmePath, sb.ToString(), Encoding.UTF8);
+        await File.WriteAllTextAsync(folderNotePath, sb.ToString(), Encoding.UTF8);
 
-        var relPath = Path.GetRelativePath(config.VaultPath, readmePath).Replace('\\', '/');
-        return $"[ok] README created: {relPath} ({notes.Count} notes listed)";
+        var relPath = Path.GetRelativePath(config.VaultPath, folderNotePath).Replace('\\', '/');
+        return $"[ok] Folder note created: {relPath} ({notes.Count} notes listed)";
     }
 
     // link_related_notes

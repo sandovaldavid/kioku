@@ -132,7 +132,7 @@ Herramientas para construir y navegar la red de conocimiento Zettelkasten.
 |---|---|---|---|---|
 | 33 | `create_zettel` | v3 | ✅ | Crea una nota Zettel atómica con ID único |
 | 34 | `create_moc` | v3 | ✅ | Crea un Map of Content (MOC) para un tema |
-| 35 | `create_folder_readme` | v3 | ✅ | Genera un README.md para una carpeta de la bóveda |
+| 35 | `create_folder_readme` | v3 | ✅ | Genera un folder note ({Folder}.md) para una carpeta de la bóveda (máx. nivel 2) — compatible con Folder Notes plugin |
 | 36 | `link_related_notes` | v3 | ✅ | Encuentra notas relacionadas y agrega wikilinks |
 | 37 | `create_literature_note` | v3 | ✅ | Crea nota de literatura con frontmatter estándar |
 | 38 | `create_note_from_template` | v3 | ✅ | Crea nota desde template con variables `{{ var }}` |
@@ -143,7 +143,7 @@ Herramientas para construir y navegar la red de conocimiento Zettelkasten.
 
 - **`create_zettel`**: El ID único (timestamp) garantiza permanencia de los wikilinks aunque se renombre la nota.
 - **`create_moc`**: Los MOCs son el mecanismo de indexación en Zettelkasten — el agente los genera automáticamente.
-- **`create_folder_readme`**: Documenta la estructura de la bóveda para que tanto el usuario como el agente entiendan el propósito de cada carpeta.
+- **`create_folder_readme`**: Crea un folder note ({Folder}.md) listando todas las notas de la carpeta. Máximo nivel 2. Compatible con el plugin Folder Notes de Obsidian.
 - **`link_related_notes`**: Construye el grafo de conocimiento automáticamente usando embeddings existentes.
 - **`create_literature_note`**: Estándar para bóvedas académicas — citekey, DOI, autores, año en frontmatter.
 - **`create_note_from_template`**: El patrón más frecuente del día a día — evita 4-5 tool calls encadenados.
