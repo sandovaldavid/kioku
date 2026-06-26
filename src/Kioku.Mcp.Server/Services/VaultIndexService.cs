@@ -26,7 +26,7 @@ public sealed class VaultIndexService : IDisposable
     // Tag index: tag -> set of note paths
     private readonly ConcurrentDictionary<string, HashSet<string>> _tagIndex = new(StringComparer.OrdinalIgnoreCase);
 
-    // Backlinks: note name -> set of paths that link to it
+    // Backlinks: target note name -> set of source file paths that link to it
     private readonly ConcurrentDictionary<string, HashSet<string>> _backlinkIndex = new(StringComparer.OrdinalIgnoreCase);
 
     // FileSystemWatcher and debouncing
@@ -297,7 +297,7 @@ public sealed class VaultIndexService : IDisposable
 
             foreach (var link in note.OutgoingLinks)
             {
-                AddToBacklinkIndex(note.Name, link);
+                AddToBacklinkIndex(note.FilePath, link);
             }
 
             if (_embedding is not null)
@@ -460,12 +460,12 @@ public sealed class VaultIndexService : IDisposable
         }
     }
 
-    private void AddToBacklinkIndex(string sourceNoteName, string targetNoteName)
+    private void AddToBacklinkIndex(string sourceFilePath, string targetNoteName)
     {
         var paths = _backlinkIndex.GetOrAdd(targetNoteName.ToLowerInvariant(), _ => []);
         lock (paths)
         {
-            paths.Add(sourceNoteName);
+            paths.Add(sourceFilePath);
         }
     }
 
