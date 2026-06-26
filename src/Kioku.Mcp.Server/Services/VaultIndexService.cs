@@ -447,7 +447,24 @@ public sealed class VaultIndexService : IDisposable
         await IndexFileAsync(newPath);
     }
 
+    /// <summary>
+    /// Synchronously removes a file from the index after deletion.
+    /// Use from tools that delete files to avoid race conditions with FileSystemWatcher.
+    /// </summary>
+    public void SynchronizeFileDelete(string filePath)
+    {
+        RemoveFromIndex(filePath);
+    }
 
+    /// <summary>
+    /// Synchronously re-indexes a file (removes old entry, re-reads from disk).
+    /// Use after reverting a file via git to refresh the in-memory index.
+    /// </summary>
+    public async Task SynchronizeFileReindexAsync(string filePath)
+    {
+        RemoveFromIndex(filePath);
+        await IndexFileAsync(filePath);
+    }
 
     // Indexes
 

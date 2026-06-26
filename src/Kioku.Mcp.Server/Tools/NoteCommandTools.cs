@@ -277,6 +277,33 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         return $"[ok] Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
     }
 
+    // delete_note
+
+    [McpServerTool, Description(
+        "Deletes a note from the vault. Irreversible — use with caution. " +
+        "When dry_run is true, only reports what would be deleted without modifying the vault.")]
+    public async Task<string> delete_note(
+        [Description("Name or path of the note to delete.")] string note,
+        [Description("If true, only reports what would be deleted without modifying the vault.")] bool dry_run = false)
+    {
+        var found = ResolveNote(note);
+        if (found is null)
+        {
+            return $"[error] Note not found: '{note}'";
+        }
+
+        if (dry_run)
+        {
+            return $"[info] Would delete: {found.VaultRelativePath}";
+        }
+
+        var filePath = found.FilePath;
+        File.Delete(filePath);
+        vault.SynchronizeFileDelete(filePath);
+
+        return $"[ok] Note deleted: {found.VaultRelativePath}";
+    }
+
     // Private helpers
 
     private static string BuildNoteContent(string body, string tags, string type, string status)
