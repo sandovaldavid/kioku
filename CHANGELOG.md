@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/sandovaldavid/kioku/compare/v1.6.3...v1.7.0) (2026-06-26)
+
+
+### Features
+
+* **server:** change create_folder_readme to use folder name for Folder Notes plugin compatibility ([#39](https://github.com/sandovaldavid/kioku/issues/39)) ([aaa8668](https://github.com/sandovaldavid/kioku/commit/aaa8668545bfea5a92488142ce3472363de3db7a))
+
 ## [1.6.3](https://github.com/sandovaldavid/kioku/compare/v1.6.2...v1.6.3) (2026-06-26)
 
 
