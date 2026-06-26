@@ -207,7 +207,7 @@ export default class KiokuPlugin extends Plugin {
 
     try {
       const result = await handler(payload, requestId);
-      return { requestId, ...result };
+      return { ...result, requestId };
     } catch (err) {
       return { requestId, success: false, error: String(err) };
     }
