@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1-beta](https://github.com/sandovaldavid/kioku/compare/v1.7.0...v1.7.1-beta) (2026-06-26)
+
+
+### Bug Fixes
+
+* **server:** add prerelease versioning strategy for develop branch ([#41](https://github.com/sandovaldavid/kioku/issues/41)) ([06c842f](https://github.com/sandovaldavid/kioku/commit/06c842ff54b77f97172ebd604a06d591f48a832b))
+
 ## [1.7.0](https://github.com/sandovaldavid/kioku/compare/v1.6.3...v1.7.0) (2026-06-26)
 
 
