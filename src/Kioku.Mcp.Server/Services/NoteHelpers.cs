@@ -68,6 +68,7 @@ public static class NoteHelpers
         string? status = null,
         DateOnly? date = null,
         string? zettelId = null,
+        string? domain = null,
         IReadOnlyDictionary<string, string>? extraFields = null)
     {
         var sb = new StringBuilder("---\n");
@@ -90,6 +91,11 @@ public static class NoteHelpers
         if (!string.IsNullOrWhiteSpace(status))
         {
             sb.AppendLine($"status: {status}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(domain))
+        {
+            sb.AppendLine($"domain: {domain}");
         }
 
         if (date.HasValue)

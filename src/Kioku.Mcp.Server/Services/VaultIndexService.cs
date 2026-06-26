@@ -40,12 +40,17 @@ public sealed class VaultIndexService : IDisposable
     private bool _isReady;
 
     private readonly EmbeddingService? _embedding;
+    private readonly HashSet<string> _excludeFolders = [];
 
-    public VaultIndexService(ILogger<VaultIndexService> logger, KiokuConfiguration config, EmbeddingService? embedding = null)
+    public VaultIndexService(ILogger<VaultIndexService> logger, KiokuConfiguration config, EmbeddingService? embedding = null, VaultConfigService? vaultConfig = null)
     {
         _logger = logger;
         _vaultPath = config.VaultPath;
         _embedding = embedding;
+        if (vaultConfig is not null)
+        {
+            _excludeFolders = vaultConfig.ExcludeFolders;
+        }
     }
 
     /// <summary>Total number of indexed notes.</summary>
@@ -553,8 +558,25 @@ public sealed class VaultIndexService : IDisposable
     private bool IsExcludedPath(string filePath)
     {
         var relative = Path.GetRelativePath(_vaultPath, filePath);
-        return relative.Split(Path.DirectorySeparatorChar)
-            .Any(segment => segment.StartsWith('.'));
+
+        // Exclude hidden paths (starting with .)
+        if (relative.Split(Path.DirectorySeparatorChar).Any(segment => segment.StartsWith('.')))
+        {
+            return true;
+        }
+
+        // Exclude user-configured folders from .kioku/config.yml
+        foreach (var exclude in _excludeFolders)
+        {
+            var normalized = exclude.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            if (relative.StartsWith(normalized + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                relative.Equals(normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void Dispose()

@@ -225,6 +225,11 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
             sb.AppendLine($"Type: {m.NoteType}");
         }
 
+        if (m.Domain is not null)
+        {
+            sb.AppendLine($"Domain: {m.Domain}");
+        }
+
         if (m.Date.HasValue)
         {
             sb.AppendLine($"Date: {m.Date:yyyy-MM-dd}");

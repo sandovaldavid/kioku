@@ -16,7 +16,8 @@ public sealed class ZettelkastenTools(
     VaultIndexService vault,
     EmbeddingService embedding,
     HybridSearchService hybrid,
-    KiokuConfiguration config)
+    KiokuConfiguration config,
+    VaultConfigService vaultConfig)
 {
     // create_zettel
 
@@ -28,7 +29,7 @@ public sealed class ZettelkastenTools(
         [Description("Title of the note (used as the H1 heading inside the note).")] string title,
         [Description("Main content of the note in Markdown.")] string content,
         [Description("Tags to add in the frontmatter (comma-separated). E.g. 'idea, philosophy'.")] string tags = "",
-        [Description("Folder inside the vault to create the note in. Leave empty for the vault root.")] string folder = "",
+        [Description("Folder inside the vault to create the note in. Leave empty to use the configured default folder.")] string folder = "",
         [Description("If true, automatically finds up to 5 semantically related notes and adds [[wikilinks]] to them.")] bool link_related = true,
         [Description("Maximum number of related notes to link (default 5). Only used when link_related=true.")] int max_links = 5)
     {
@@ -38,10 +39,16 @@ public sealed class ZettelkastenTools(
         }
 
         // Generate Zettelkasten ID from current timestamp
-        var zettelId = DateTime.Now.ToString("yyyyMMddHHmmss");
-        var noteName = string.IsNullOrWhiteSpace(folder)
+        var zettelId = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+
+        // Resolve target folder: user-provided > config default
+        var targetFolder = !string.IsNullOrWhiteSpace(folder)
+            ? folder
+            : vaultConfig.GetFolder("zettel") ?? "";
+
+        var noteName = string.IsNullOrWhiteSpace(targetFolder)
             ? zettelId
-            : $"{folder.TrimEnd('/')}/{zettelId}";
+            : $"{targetFolder.TrimEnd('/')}/{zettelId}";
 
         var filePath = BuildFilePath(noteName);
         if (File.Exists(filePath))
@@ -64,7 +71,13 @@ public sealed class ZettelkastenTools(
 
         var tagList = ParseTags(tags);
         var body = BuildZettelBody(title, content, relatedLinks);
-        var frontmatter = BuildFrontmatter(tagList, "zettel", "published", DateOnly.FromDateTime(DateTime.Today), zettelId);
+
+        // Resolve domain: folder mapping > per-type default
+        var domain = vaultConfig.GetDomainForFolder(targetFolder)
+                  ?? vaultConfig.GetDefaults("zettel")?.Domain;
+
+        var frontmatter = BuildFrontmatter(tagList, "zettel", "published",
+            DateOnly.FromDateTime(DateTime.Today), zettelId, domain: domain);
         var fullContent = frontmatter + "\n" + body;
 
         var dir = Path.GetDirectoryName(filePath)!;
@@ -129,7 +142,10 @@ public sealed class ZettelkastenTools(
         var fullMocName = $"{saveFolder.TrimEnd('/')}/{mocName}";
 
         var body = BuildMocBody(folder, notes);
-        var frontmatter = BuildFrontmatter(["moc", "index"], "moc", "published", DateOnly.FromDateTime(DateTime.Today));
+        var domain = vaultConfig.GetDomainForFolder(saveFolder)
+                  ?? vaultConfig.GetDefaults("moc")?.Domain;
+        var frontmatter = BuildFrontmatter(["moc", "index"], "moc", "published",
+            DateOnly.FromDateTime(DateTime.Today), domain: domain);
         var fullContent = frontmatter + "\n" + body;
 
         var filePath = BuildFilePath(fullMocName);
@@ -317,7 +333,10 @@ public sealed class ZettelkastenTools(
         }
 
         var body = BuildLiteratureNoteBody(title, author, year, source, summary);
-        var frontmatter = BuildFrontmatter(tagList, "literature", "draft", DateOnly.FromDateTime(DateTime.Today));
+        var domain = vaultConfig.GetDomainForFolder(folder)
+                  ?? vaultConfig.GetDefaults("literature")?.Domain;
+        var frontmatter = BuildFrontmatter(tagList, "literature", "draft",
+            DateOnly.FromDateTime(DateTime.Today), domain: domain);
         var fullContent = frontmatter + "\n" + body;
 
         var dir = Path.GetDirectoryName(filePath)!;
@@ -341,8 +360,9 @@ public sealed class ZettelkastenTools(
         string type,
         string status,
         DateOnly? date = null,
-        string? zettelId = null) =>
-        NoteHelpers.BuildFrontmatter(tags, type, status, date, zettelId);
+        string? zettelId = null,
+        string? domain = null) =>
+        NoteHelpers.BuildFrontmatter(tags, type, status, date, zettelId, domain);
 
     private static string BuildZettelBody(string title, string content, IReadOnlyList<string> relatedLinks)
     {
