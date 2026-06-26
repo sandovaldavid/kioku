@@ -532,7 +532,7 @@ public sealed class VaultOrganizationTools(
         }
 
         var capped = Math.Min(max_suggestions, config.MaxSearchResults);
-        var ranked = RankFolders(found, capped);
+        var ranked = FolderRanker.RankFolders(found, capped, vault, hybrid, embedding);
 
         if (ranked.Count == 0)
         {
@@ -574,7 +574,7 @@ public sealed class VaultOrganizationTools(
             return $"[error] Note not found: '{note}'";
         }
 
-        var ranked = RankFolders(found, 1);
+        var ranked = FolderRanker.RankFolders(found, 1, vault, hybrid, embedding);
 
         if (ranked.Count == 0)
         {
@@ -608,81 +608,6 @@ public sealed class VaultOrganizationTools(
 
         return $"[ok] Note reclassified:\n   Before: {found.VaultRelativePath}\n   After:  {newRelativePath}";
     }
-
-    private List<(string Folder, double Score)> RankFolders(Note source, int topN)
-    {
-        var allFolders = vault.GetAllNotes()
-            .Select(n => Path.GetDirectoryName(n.VaultRelativePath) ?? "")
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(f => !string.IsNullOrEmpty(f))
-            .ToList();
-
-        if (allFolders.Count == 0)
-        {
-            return [];
-        }
-
-        var sourceFolder = Path.GetDirectoryName(source.VaultRelativePath) ?? "";
-        allFolders = allFolders.Where(f => !f.Equals(sourceFolder, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        if (allFolders.Count == 0)
-        {
-            return [];
-        }
-
-        var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-
-        if (embedding.IsAvailable)
-        {
-            var similar = hybrid.FindSimilar(source, topN * 3, 0.3f);
-            foreach (var result in similar)
-            {
-                var folder = Path.GetDirectoryName(result.Note.VaultRelativePath) ?? "";
-                if (string.IsNullOrEmpty(folder) || folder.Equals(sourceFolder, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-                if (!scores.TryGetValue(folder, out var existing))
-                {
-                    scores[folder] = 0;
-                }
-                scores[folder] = existing + result.Score;
-            }
-        }
-
-        var sourceTokens = Tokenize(source.PlainText + " " + source.Name);
-
-        foreach (var folder in allFolders)
-        {
-            var notesInFolder = vault.GetNotesInFolder(folder).ToList();
-            if (notesInFolder.Count == 0)
-            {
-                continue;
-            }
-
-            var folderText = string.Join(" ", notesInFolder.Select(n => n.PlainText + " " + n.Name));
-            var folderTokens = Tokenize(folderText);
-            var overlap = sourceTokens.Count(t => folderTokens.Contains(t));
-            var keywordScore = notesInFolder.Count > 0 ? (double)overlap / notesInFolder.Count : 0;
-
-            if (!scores.TryGetValue(folder, out var existing))
-            {
-                scores[folder] = 0;
-            }
-            scores[folder] = existing + keywordScore;
-        }
-
-        return [.. scores
-            .Where(kv => kv.Value > 0)
-            .OrderByDescending(kv => kv.Value)
-            .Take(topN)
-            .Select(kv => (kv.Key, kv.Value))];
-    }
-
-    private static HashSet<string> Tokenize(string text) =>
-        [.. text.ToLowerInvariant()
-            .Split([' ', '\n', '\r', '\t', '.', ',', ':', ';', '!', '?', '(', ')', '[', ']', '#'], StringSplitOptions.RemoveEmptyEntries)
-            .Where(t => t.Length > 2)];
 
     private static void AppendSection(StringBuilder sb, string title, IEnumerable<string> items)
     {
