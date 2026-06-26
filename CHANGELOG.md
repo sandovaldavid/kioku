@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0-beta.1](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta...v1.8.0-beta.1) (2026-06-26)
+
+
+### Features
+
+* **server:** add delete_note and revert_note tools ([#48](https://github.com/sandovaldavid/kioku/issues/48)) ([c6b9194](https://github.com/sandovaldavid/kioku/commit/c6b919467d0a05d964b5b7610ceb92746408f93b))
+* **server:** add FolderRanker service, zettel filename format, auto-folder ([#52](https://github.com/sandovaldavid/kioku/issues/52)) ([cb9bcef](https://github.com/sandovaldavid/kioku/commit/cb9bcef6fe3aeb88b78aadf2f2b15f29dcee0ffd))
+* **server:** add staging tools — stage_note, stage_all, unstage_note, commit_staged ([#50](https://github.com/sandovaldavid/kioku/issues/50)) ([0df3660](https://github.com/sandovaldavid/kioku/commit/0df36607c5f264000ffacea37d43a26f402f1d4c))
+
+
+### Bug Fixes
+
+* **server:** resolve note lookup bugs from diagnostics ([#51](https://github.com/sandovaldavid/kioku/issues/51)) ([7dc3c17](https://github.com/sandovaldavid/kioku/commit/7dc3c17a7ae2c4651b7883e8821b8854dbe199a0))
+
 ## [1.8.0-beta](https://github.com/sandovaldavid/kioku/compare/v1.7.1-beta...v1.8.0-beta) (2026-06-26)
 
 

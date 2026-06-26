@@ -29,7 +29,7 @@ public sealed class ZettelkastenTools(
         [Description("Title of the note (used as the H1 heading inside the note).")] string title,
         [Description("Main content of the note in Markdown.")] string content,
         [Description("Tags to add in the frontmatter (comma-separated). E.g. 'idea, philosophy'.")] string tags = "",
-        [Description("Folder inside the vault to create the note in. Leave empty to use the configured default folder.")] string folder = "",
+        [Description("Folder inside the vault to create the note in. Leave empty to use the configured default, or auto-detect via content similarity if no default is set.")] string folder = "",
         [Description("If true, automatically finds up to 5 semantically related notes and adds [[wikilinks]] to them.")] bool link_related = true,
         [Description("Maximum number of related notes to link (default 5). Only used when link_related=true.")] int max_links = 5)
     {
@@ -41,15 +41,14 @@ public sealed class ZettelkastenTools(
         // Generate Zettelkasten ID from current timestamp
         var zettelId = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
 
-        // Resolve target folder: user-provided > config default
-        var targetFolder = !string.IsNullOrWhiteSpace(folder)
-            ? folder
-            : vaultConfig.GetFolder("zettel") ?? "";
+        // Resolve target folder: user-provided > config default > auto-detect via content similarity
+        var targetFolder = folder;
+        if (string.IsNullOrWhiteSpace(targetFolder))
+        {
+            targetFolder = vaultConfig.GetFolder("zettel") ?? await SuggestFolderForContent(title, content);
+        }
 
-        var noteName = string.IsNullOrWhiteSpace(targetFolder)
-            ? zettelId
-            : $"{targetFolder.TrimEnd('/')}/{zettelId}";
-
+        var noteName = $"{targetFolder.TrimEnd('/')}/{zettelId}";
         var filePath = BuildFilePath(noteName);
         if (File.Exists(filePath))
         {
@@ -412,6 +411,62 @@ public sealed class ZettelkastenTools(
         }
 
         return sb.ToString();
+    }
+
+    private async Task<string> SuggestFolderForContent(string title, string content)
+    {
+        var searchQuery = $"{title} {content}".Trim();
+
+        if (embedding.IsAvailable)
+        {
+            var queryVector = await embedding.EmbedAsync(searchQuery);
+            if (queryVector is not null)
+            {
+                var results = hybrid.Search(searchQuery, maxResults: 20, queryVector: queryVector);
+                var folderScores = new Dictionary<string, (double Score, int Count)>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var result in results)
+                {
+                    var f = Path.GetDirectoryName(result.Note.VaultRelativePath) ?? "";
+                    if (string.IsNullOrEmpty(f))
+                    {
+                        continue;
+                    }
+
+                    var (score, count) = folderScores.GetValueOrDefault(f);
+                    folderScores[f] = (score + result.Score, count + 1);
+                }
+
+                if (folderScores.Count > 0)
+                {
+                    return folderScores
+                        .OrderByDescending(kv => kv.Value.Score / kv.Value.Count)
+                        .First().Key;
+                }
+            }
+        }
+
+        // Fallback: keyword-only search, group by folder
+        var keywordResults = vault.Search(searchQuery, 20);
+        var kwFolderScores = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var result in keywordResults)
+        {
+            var f = Path.GetDirectoryName(result.Note.VaultRelativePath) ?? "";
+            if (string.IsNullOrEmpty(f))
+            {
+                continue;
+            }
+
+            kwFolderScores[f] = kwFolderScores.GetValueOrDefault(f) + 1;
+        }
+
+        if (kwFolderScores.Count > 0)
+        {
+            return kwFolderScores.OrderByDescending(kv => kv.Value).First().Key;
+        }
+
+        return "Inbox";
     }
 
     private static string BuildLiteratureNoteBody(
