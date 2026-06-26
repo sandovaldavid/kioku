@@ -4,10 +4,22 @@ import { log } from "./logger";
 
 // Types
 
+interface PluginManifest {
+  name: string;
+  version: string;
+  author?: string;
+  description?: string;
+}
+
 interface KiokuApp extends App {
   version: string;
   commands: {
     executeCommandById(commandId: string): boolean;
+  };
+  plugins: {
+    manifests: Record<string, PluginManifest>;
+    enabledPlugins: Set<string>;
+    plugins: Record<string, any>;
   };
 }
 
@@ -20,9 +32,7 @@ function asKiokuApp(app: App): KiokuApp {
 }
 
 interface KiokuSettings {
-  /** Port where the plugin's WebSocket server listens. */
   bridgePort: number;
-  /** If true, shows notifications in Obsidian when the agent performs actions. */
   showNotifications: boolean;
 }
 
@@ -44,18 +54,23 @@ interface BridgeResponse {
   error?: string;
 }
 
+type CommandHandler = (
+  payload: Record<string, unknown> | undefined,
+  requestId?: string
+) => BridgeResponse | Promise<BridgeResponse>;
+
 // Main Plugin
 
 export default class KiokuPlugin extends Plugin {
   declare settings: KiokuSettings;
   private wss: WebSocketServer | null = null;
   private clients = new Set<WebSocket>();
+  private handlers: Record<string, CommandHandler> = {};
 
   async onload() {
     await this.loadSettings();
-
+    this.registerHandlers();
     this.addSettingTab(new KiokuSettingTab(this.app, this));
-
     this.startBridgeServer();
 
     this.addCommand({
@@ -76,12 +91,55 @@ export default class KiokuPlugin extends Plugin {
     log.info("Plugin unloaded.");
   }
 
+  // Handler Registry
+
+  private registerHandlers() {
+    this.handlers = {
+      // Obsidian UI Bridge
+      "open-file": (p) => this.cmdOpenFile(p as { path: string }),
+      "get-active-note": () => this.cmdGetActiveNote(),
+      "get-vault-path": () => this.cmdGetVaultPath(),
+      "is-obsidian-ready": () => ({ success: true, data: { ready: true } }),
+      "get-app-version": () => ({
+        success: true,
+        data: {
+          obsidianVersion: asKiokuApp(this.app).version,
+          kiokuVersion: this.manifest.version,
+        },
+      }),
+      "get-open-notes": () => this.cmdGetOpenNotes(),
+
+      // Command execution
+      "trigger-command": (p) => this.cmdTriggerCommand(p as { commandId: string }),
+      "toggle-reading-mode": () => this.cmdToggleReadingMode(),
+      "get-selection": () => this.cmdGetSelection(),
+      "fold-all-headings": () => this.cmdFoldAll(),
+      "unfold-all-headings": () => this.cmdUnfoldAll(),
+      "reload-snippets": () => this.cmdReloadSnippets(),
+
+      // Editor
+      "insert-at-cursor": (p) => this.cmdInsertAtCursor(p as { text: string }),
+      "replace-selection": (p) => this.cmdReplaceSelection(p as { text: string }),
+      "create-note-ui": (p) => this.cmdCreateNoteUi(p as { path: string }),
+      "scroll-to-block": (p) => this.cmdScrollToBlock(p as { blockId: string }),
+      "open-in-split": (p) => this.cmdOpenInSplit(p as { path: string }),
+
+      // Plugin Integrations
+      "run-dataview-query": (p) => this.cmdRunDataviewQuery(p as { query: string }),
+      "run-templater": (p) =>
+        this.cmdRunTemplater(p as { templatePath: string; targetNote?: string }),
+      "run-linter": (p) => this.cmdRunLinter(p as { notePath?: string }),
+      "run-linter-vault": () => this.cmdRunLinterVault(),
+      "get-installed-plugins": () => this.cmdGetInstalledPlugins(),
+    };
+  }
+
   // WebSocket Bridge
 
   private startBridgeServer() {
     try {
       this.wss = new WebSocketServer({
-        host: "127.0.0.1", // Localhost only — never expose externally
+        host: "127.0.0.1",
         port: this.settings.bridgePort,
       });
 
@@ -97,7 +155,7 @@ export default class KiokuPlugin extends Plugin {
                 ? Buffer.concat(data).toString("utf8")
                 : Buffer.from(data).toString("utf8");
             const msg = JSON.parse(raw) as BridgeMessage;
-            const response = await this.handleCommand(msg);
+            const response = await this.dispatch(msg);
             ws.send(JSON.stringify(response));
           } catch (err) {
             ws.send(JSON.stringify({ success: false, error: String(err) }));
@@ -139,80 +197,23 @@ export default class KiokuPlugin extends Plugin {
     }
   }
 
-  // Command Handler
-
-  private async handleCommand(msg: BridgeMessage): Promise<BridgeResponse> {
+  private async dispatch(msg: BridgeMessage): Promise<BridgeResponse> {
     const { command, payload, requestId } = msg;
+    const handler = this.handlers[command];
+
+    if (!handler) {
+      return { requestId, success: false, error: `Unknown command: ${command}` };
+    }
 
     try {
-      switch (command) {
-        case "open-file":
-          return await this.cmdOpenFile(payload as { path: string }, requestId);
-
-        case "get-active-note":
-          return this.cmdGetActiveNote(requestId);
-
-        case "get-vault-path":
-          return this.cmdGetVaultPath(requestId);
-
-        case "is-obsidian-ready":
-          return { requestId, success: true, data: { ready: true } };
-
-        case "get-app-version":
-          return {
-            requestId,
-            success: true,
-            data: {
-              obsidianVersion: asKiokuApp(this.app).version,
-              kiokuVersion: this.manifest.version,
-            },
-          };
-
-        case "get-open-notes":
-          return this.cmdGetOpenNotes(requestId);
-
-        case "trigger-command":
-          return this.cmdTriggerCommand(payload as { commandId: string }, requestId);
-
-        case "toggle-reading-mode":
-          return this.cmdToggleReadingMode(requestId);
-
-        case "get-selection":
-          return this.cmdGetSelection(requestId);
-
-        case "fold-all-headings":
-          return this.cmdFoldAll(requestId);
-
-        case "unfold-all-headings":
-          return this.cmdUnfoldAll(requestId);
-
-        case "reload-snippets":
-          return this.cmdReloadSnippets(requestId);
-
-        case "insert-at-cursor":
-          return this.cmdInsertAtCursor(payload as { text: string }, requestId);
-
-        case "replace-selection":
-          return this.cmdReplaceSelection(payload as { text: string }, requestId);
-
-        case "create-note-ui":
-          return await this.cmdCreateNoteUi(payload as { path: string }, requestId);
-
-        case "scroll-to-block":
-          return this.cmdScrollToBlock(payload as { blockId: string }, requestId);
-
-        case "open-in-split":
-          return await this.cmdOpenInSplit(payload as { path: string }, requestId);
-
-        default:
-          return { requestId, success: false, error: `Unknown command: ${command}` };
-      }
+      const result = await handler(payload, requestId);
+      return { requestId, ...result };
     } catch (err) {
       return { requestId, success: false, error: String(err) };
     }
   }
 
-  // Command implementations
+  // Command implementations — Obsidian UI Bridge
 
   private async cmdOpenFile(
     payload: { path: string },
@@ -289,7 +290,6 @@ export default class KiokuPlugin extends Plugin {
         error: `Command not found or not executable: '${commandId}'`,
       };
     }
-
     return { requestId, success: true, data: { commandId } };
   }
 
@@ -348,7 +348,6 @@ export default class KiokuPlugin extends Plugin {
   }
 
   private cmdReloadSnippets(requestId?: string): BridgeResponse {
-    // Uses the public Obsidian command — does not touch app.customCss
     const executed = asKiokuApp(this.app).commands.executeCommandById("app:reload-css-snippets");
     if (!executed) {
       return {
@@ -432,6 +431,118 @@ export default class KiokuPlugin extends Plugin {
     const leaf = this.app.workspace.getLeaf("split");
     await leaf.openFile(file);
     return { requestId, success: true, data: { path } };
+  }
+
+  // Command implementations — Plugin Integrations
+
+  private async cmdRunDataviewQuery(
+    payload: { query: string },
+    requestId?: string
+  ): Promise<BridgeResponse> {
+    const dvApi = asKiokuApp(this.app).plugins.plugins.dataview?.api;
+    if (!dvApi) {
+      return {
+        requestId,
+        success: false,
+        error: "Dataview plugin is not enabled or installed.",
+      };
+    }
+    try {
+      const result = await dvApi.query(payload.query);
+      return { requestId, success: true, data: result };
+    } catch (err) {
+      return { requestId, success: false, error: `Dataview query error: ${String(err)}` };
+    }
+  }
+
+  private async cmdRunTemplater(
+    payload: { templatePath: string; targetNote?: string },
+    requestId?: string
+  ): Promise<BridgeResponse> {
+    const templater = asKiokuApp(this.app).plugins.plugins["templater-obsidian"];
+    if (!templater) {
+      return {
+        requestId,
+        success: false,
+        error: "Templater plugin is not enabled or installed.",
+      };
+    }
+    try {
+      const file = this.app.vault.getFileByPath(payload.templatePath);
+      if (!file) {
+        return {
+          requestId,
+          success: false,
+          error: `Template file not found: ${payload.templatePath}`,
+        };
+      }
+      const targetFile = payload.targetNote
+        ? this.app.vault.getFileByPath(payload.targetNote)
+        : this.app.workspace.getActiveFile();
+      if (!targetFile) {
+        return { requestId, success: false, error: "No target note specified and no active note." };
+      }
+      const parent = targetFile.parent;
+      if (!parent) {
+        return { requestId, success: false, error: "Target note has no parent folder." };
+      }
+      await templater.templater.create_new_note_from_template(file, parent, file.basename);
+      return {
+        requestId,
+        success: true,
+        data: { template: payload.templatePath, target: targetFile.path },
+      };
+    } catch (err) {
+      return { requestId, success: false, error: `Templater error: ${String(err)}` };
+    }
+  }
+
+  private cmdRunLinter(payload: { notePath?: string }, requestId?: string): BridgeResponse {
+    const file = payload.notePath
+      ? this.app.vault.getFileByPath(payload.notePath)
+      : this.app.workspace.getActiveFile();
+    if (!file) {
+      return { requestId, success: false, error: "No note specified and no active note." };
+    }
+    const cmdId = "obsidian-linter:lint-file";
+    const executed = asKiokuApp(this.app).commands.executeCommandById(cmdId);
+    if (!executed) {
+      return {
+        requestId,
+        success: false,
+        error: "Linter plugin not found or command unavailable.",
+      };
+    }
+    return { requestId, success: true, data: { note: file.path, command: cmdId } };
+  }
+
+  private cmdRunLinterVault(requestId?: string): BridgeResponse {
+    const cmdId = "obsidian-linter:lint-all-files";
+    const executed = asKiokuApp(this.app).commands.executeCommandById(cmdId);
+    if (!executed) {
+      return {
+        requestId,
+        success: false,
+        error:
+          "Linter 'lint all files' command not found. Ensure obsidian-linter is enabled and up to date.",
+      };
+    }
+    return { requestId, success: true, data: { action: "lint-vault", command: cmdId } };
+  }
+
+  private cmdGetInstalledPlugins(requestId?: string): BridgeResponse {
+    const app = asKiokuApp(this.app);
+    const manifests = app.plugins.manifests;
+    const enabledPlugins = app.plugins.enabledPlugins ?? new Set<string>();
+    const plugins = Object.entries(manifests).map(([id, manifest]: [string, PluginManifest]) => ({
+      id,
+      name: manifest.name,
+      version: manifest.version,
+      author: manifest.author,
+      description: manifest.description,
+      enabled: enabledPlugins.has(id),
+    }));
+    return { requestId, success: true, data: plugins };
   }
 
   // Configuration

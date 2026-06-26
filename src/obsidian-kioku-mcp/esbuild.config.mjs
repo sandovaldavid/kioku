@@ -31,6 +31,7 @@ const context = await esbuild.context({
     ...builtinModules,
     ...builtinModules.map(m => "node:" + m),
   ],
+  platform: "node",
   format: "cjs",
   target: "es2022",
   logLevel: "info",
