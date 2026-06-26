@@ -211,7 +211,7 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
         [Description("If provided, creates a new note at this path containing the extracted action items.")] string output_note = "",
         [Description("If true, only reports found action items without creating the output note.")] bool dry_run = false)
     {
-        var found = vault.GetNote(note) ?? vault.GetNoteByName(note);
+        var found = NoteHelpers.ResolveNote(note, vault);
         if (found is null)
         {
             return $"[error] Note not found: '{note}'";

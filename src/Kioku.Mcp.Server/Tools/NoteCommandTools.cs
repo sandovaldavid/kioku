@@ -87,7 +87,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var frontmatter = rawContent[..bodyStart];
         var body = rawContent[bodyStart..];
 
-        var newContent = frontmatter + content + "\n" + body;
+        var newContent = frontmatter + content.Replace("\\n", "\n") + "\n" + body;
         await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
 
         return $"[ok] Content prepended to the start of '{found.Name}'";
@@ -115,7 +115,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
             toAppend.AppendLine("\n---");
         }
 
-        toAppend.AppendLine(content);
+        toAppend.AppendLine(content.Replace("\\n", "\n"));
 
         await File.AppendAllTextAsync(found.FilePath, toAppend.ToString(), Encoding.UTF8);
         return $"[ok] Content appended to '{found.Name}' ({content.Length} characters)";
@@ -188,7 +188,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
             return $"[info] Tags already exist in '{found.Name}': #{string.Join(", #", newTags)}";
         }
 
-        return await update_frontmatter(note, string.Join(", ", existingTags));
+        return await update_frontmatter(found.Name, string.Join(", ", existingTags));
     }
 
     // remove_tag
@@ -211,7 +211,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
             .Where(t => !toRemove.Contains(t))
             .ToList();
 
-        return await update_frontmatter(note, string.Join(", ", remaining));
+        return await update_frontmatter(found.Name, string.Join(", ", remaining));
     }
 
     // move_note
@@ -238,7 +238,9 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
             return $"[error] A note with that name already exists in '{destination_folder}'";
         }
 
-        File.Move(found.FilePath, destPath);
+        var oldPath = found.FilePath;
+        File.Move(oldPath, destPath);
+        await vault.SynchronizeFileMoveAsync(oldPath, destPath);
         var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
 
         return $"[ok] Note moved:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
@@ -267,7 +269,9 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var destDir = Path.GetDirectoryName(destPath)!;
         Directory.CreateDirectory(destDir);
 
-        File.Move(found.FilePath, destPath);
+        var oldPath = found.FilePath;
+        File.Move(oldPath, destPath);
+        await vault.SynchronizeFileMoveAsync(oldPath, destPath);
         var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
 
         return $"[ok] Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";

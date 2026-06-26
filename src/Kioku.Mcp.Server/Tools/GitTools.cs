@@ -118,7 +118,7 @@ public sealed class GitTools(KiokuConfiguration config, ILogger<GitTools> logger
             return "[error] max_count must be at least 1.";
         }
 
-        var (success, output, error) = RunGitCommand("log", $"--oneline -n {max_count}");
+        var (success, output, error) = RunGitCommand("log", "--oneline", $"-{max_count}");
         if (!success)
         {
             return $"[error] Git command failed: {error}";

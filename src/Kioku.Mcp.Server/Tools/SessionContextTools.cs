@@ -303,8 +303,7 @@ public sealed class SessionContextTools(VaultIndexService vault, KiokuConfigurat
         }
 
         var sessionNotes = vault.GetNotesInFolder(targetFolder)
-            .Where(n => n.Metadata.ExtraFields.TryGetValue("type", out var t) &&
-                        t.Equals("session", StringComparison.OrdinalIgnoreCase))
+            .Where(n => string.Equals(n.Metadata.NoteType, "session", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(n => n.Metadata.Date)
             .ToList();
 
@@ -353,8 +352,7 @@ public sealed class SessionContextTools(VaultIndexService vault, KiokuConfigurat
             return Task.FromResult($"[error] Session note not found: '{session_note}'");
         }
 
-        var isSession = note.Metadata.ExtraFields.TryGetValue("type", out var type) &&
-                        type.Equals("session", StringComparison.OrdinalIgnoreCase);
+        var isSession = string.Equals(note.Metadata.NoteType, "session", StringComparison.OrdinalIgnoreCase);
         if (!isSession)
         {
             return Task.FromResult($"[error] '{session_note}' is not a session note (type: session required).");

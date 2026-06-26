@@ -436,6 +436,19 @@ public sealed class VaultIndexService : IDisposable
         _logger.Debug("Removed from index: {File}", Path.GetFileName(filePath));
     }
 
+    /// <summary>
+    /// Synchronously updates the index after a file rename or move.
+    /// Removes the old path and re-indexes the new path.
+    /// Use this from tools that move/rename files to avoid race conditions with FileSystemWatcher.
+    /// </summary>
+    public async Task SynchronizeFileMoveAsync(string oldPath, string newPath)
+    {
+        RemoveFromIndex(oldPath);
+        await IndexFileAsync(newPath);
+    }
+
+
+
     // Indexes
 
     private void AddToWordIndex(string filePath, string text)
