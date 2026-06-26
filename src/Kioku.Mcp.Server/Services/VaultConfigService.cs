@@ -38,10 +38,16 @@ public sealed class VaultConfigService
 
     public string? GetDomainForFolder(string folderPath)
     {
-        if (_data.Domains is null) return null;
+        if (_data.Domains is null)
+        {
+            return null;
+        }
 
         // Try exact match first, then prefix match (longest prefix wins)
-        if (_data.Domains.TryGetValue(folderPath, out var exact)) return exact;
+        if (_data.Domains.TryGetValue(folderPath, out var exact))
+        {
+            return exact;
+        }
 
         var best = _data.Domains
             .Where(kv => folderPath.StartsWith(kv.Key, StringComparison.OrdinalIgnoreCase))
