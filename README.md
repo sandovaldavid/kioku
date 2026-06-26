@@ -1,38 +1,47 @@
 # Kioku — MCP Server for Obsidian
 
 > **Kioku** (記憶) significa "memoria" en japonés.
+>
+> Versión actual: **1.6.2** (`develop` · beta) · [Ver releases](https://github.com/sandovaldavid/kioku/releases)
 
-Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar y escribir en tu bóveda de Obsidian de manera nativa, rápida y privada.
+Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con más de 85 herramientas MCP y 16 comandos de plugin.
 
 ---
 
-## ¿Qué hace Kioku?
+## Capacidades
 
-- 🔍 **Búsqueda full-text** en todas tus notas por contenido, tags y título
-- 📖 **Lectura y escritura** de notas directamente desde el agente de IA
-- 🏷️ **Gestión de tags** y metadatos (frontmatter YAML)
-- 🔗 **Navegación de wikilinks** — backlinks y enlaces salientes
-- 🖥️ **Bridge con Obsidian** — el agente puede abrir notas en la app (opcional)
-- ⚡ **Inicio bajo demanda** — no consume recursos cuando no se usa
+- **Búsqueda híbrida** — full-text + semántica (embeddings con Ollama) + RRF
+- **Lectura/escritura** de notas, frontmatter y metadatos
+- **Gestión de tags** y organización taxonómica
+- **Navegación de wikilinks** — backlinks, enlaces salientes, grafo de conocimiento
+- **Gestión de tareas** — checkboxes nativos con filtros por tag, fecha, vencimiento
+- **Zettelkasten** — creación atómica, MOCs, templates, literatura
+- **CSS Theming** — snippets y temas completos desde el agente
+- **Assets** — Excalidraw, imágenes, archivos huérfanos
+- **Bridge con Obsidian** — abrir notas, ejecutar comandos, consultar estado (opcional)
+- **Inicio bajo demanda** — no consume recursos cuando no se usa
+- **Transporte dual** — stdio (v1, local) y HTTP-SSE (v2, múltiples agentes/VM)
 
 ## Arquitectura
 
 ```
 Agente de IA (Claude Code / agy)
-        │ stdio (MCP Protocol)
-        ▼
+    │
+    ├── stdio (v1 — local, bajo demanda)
+    └── HTTP-SSE (v2 — VM, múltiples agentes)
+    │
+    ▼
 Kioku.Mcp.Server (C# .NET 10)
-        │
-        ├── VaultIndexService (FileSystemWatcher + índice invertido)
-        ├── NoteQueryTools (read_note, search_notes, list_notes, ...)
-        ├── NoteCommandTools (create_note, append_to_note, ...)
-        └── UtilityTools (ping, rebuild_index, ...)
-        │
-        │ WebSocket (opcional, solo si Obsidian está abierto)
-        ▼
-Plugin Obsidian (TypeScript)
-        │ Obsidian API
-        ▼
+    ├── 16 Tool Classes (~85 herramientas MCP)
+    ├── Services: VaultIndex · Embedding(Ollama) · HybridSearch
+    │            TaskService · ObsidianBridge · Persistence
+    └── Middleware: ApiKeyMiddleware
+    │
+    │ WebSocket (opcional, solo si Obsidian está abierto)
+    ▼
+Plugin Obsidian (TypeScript) — WebSocket Server :7765
+    │
+    ▼
 Obsidian App
 ```
 
@@ -153,52 +162,42 @@ Para instalar el plugin localmente en tu Obsidian:
 | `KIOKU_MAX_RESULTS` | ❌ | Máximo de resultados de búsqueda | `20` |
 | `KIOKU_OBSIDIAN_PORT` | ❌ | Puerto del WebSocket bridge con Obsidian | `7765` |
 
-## MCP Tools Disponibles (v2)
+## MCP Tools Disponibles
 
-### Consulta (Read-Only)
-| Tool | Parámetros | Descripción |
-|---|---|---|
-| `ping` | — | Health check del servidor |
-| `read_note` | `note` | Lee el contenido completo de una nota |
-| `list_notes` | `folder?` | Lista todas las notas (o de una carpeta específica) |
-| `search_notes` | `query`, `max_results?` | Búsqueda full-text en toda la bóveda |
-| `search_notes_semantic` | `query`, `max_results?`, `min_score?` | Búsqueda semántica usando Ollama embeddings (requiere GPU local/Ollama) |
-| `filter_notes` | `tag?`, `status?`, `type?`, `date_from?`, `date_to?` | Filtra notas por tags, status, tipo, fecha |
-| `get_note_metadata` | `note` | Lee solo el frontmatter YAML de la nota |
-| `get_backlinks` | `note_name` | Notas que enlazan a una nota dada |
-| `get_outgoing_links` | `note` | Enlaces salientes de una nota dada |
-| `get_vault_stats` | — | Estadísticas de la bóveda (conteo de notas, tags, carpetas) |
-| `get_index_status` | — | Estado del índice en memoria y tiempos de indexación |
-| `rebuild_index` | — | Re-indexar toda la bóveda y regenerar caché de embeddings |
+~85 herramientas organizadas en 16 categorías. Para el inventario completo con parámetros y estados, ver [`docs/commands-reference.md`](docs/commands-reference.md).
 
-### Escritura
-| Tool | Parámetros | Descripción |
-|---|---|---|
-| `create_note` | `name`, `content`, `tags?`, `type?`, `status?` | Crea una nota nueva con frontmatter estructurado |
-| `update_note_content` | `note`, `content` | Reemplaza el cuerpo de la nota manteniendo frontmatter |
-| `prepend_to_note` | `note`, `content` | Inserta texto al inicio de la nota después del frontmatter |
-| `append_to_note` | `note`, `content`, `add_separator?` | Añade texto al final de una nota |
-| `update_frontmatter` | `note`, `tags?`, `status?`, `type?` | Actualiza o añade campos al frontmatter YAML |
-| `add_tag` | `note`, `tags` | Añade tags (separados por coma) |
-| `remove_tag` | `note`, `tags` | Remueve tags (separados por coma) |
-| `move_note` | `note`, `destination_folder` | Mueve una nota a otra carpeta |
-| `rename_note` | `note`, `new_name` | Cambia el nombre o ruta de la nota |
+| Categoría | Tools clave |
+|---|---|
+| **Consulta** | `read_note`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_note_metadata`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes` |
+| **Escritura** | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note` |
+| **Tareas** | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks`, `extract_action_items` |
+| **Zettelkasten** | `create_zettel`, `create_moc`, `create_literature_note`, `link_related_notes`, `create_folder_readme` |
+| **Templates** | `create_note_from_template`, `list_templates`, `create_template` |
+| **Organización** | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `audit_vault`, `reorder_notes_in_folder` |
+| **Sesiones** | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context` |
+| **Grafo** | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot`, `find_unlinked_notes`, `find_graph_islands` |
+| **Research** | `export_citations`, `get_literature_gap`, `validate_research_notes` |
+| **CSS Theming** | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet` |
+| **Assets** | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names` |
+| **Git** | `get_git_status`, `list_git_commits`, `create_git_commit` |
+| **Plugin Bridge** | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts` |
+| **Workflows** | `process_inbox`, `sunday_hygiene` |
+| **Obsidian UI** (requiere plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command` |
+| **Utilidades** | `ping`, `get_vault_stats`, `get_index_status`, `rebuild_index` |
 
-### Obsidian UI Bridge
-*(Requiere la aplicación de Obsidian abierta y el plugin Kioku activado)*
+## Plugins de Obsidian Integrados (vía Plugin Bridge)
 
-| Tool | Parámetros | Descripción |
-|---|---|---|
-| `open_note_in_obsidian` | `note` | Abre y enfoca una nota en el editor de Obsidian |
-| `get_active_note_in_obsidian` | — | Obtiene metadatos de la nota actualmente activa en el editor |
-| `get_open_notes_in_obsidian` | — | Obtiene las notas en todas las pestañas actualmente abiertas |
-| `trigger_obsidian_command` | `command_id` | Ejecuta cualquier comando registrado en la paleta de Obsidian |
+| Plugin | Comandos |
+|---|---|
+| **Dataview** | `query_dataview` — ejecuta queries DQL sobre la bóveda |
+| **Templater** | `apply_template` — aplica templates con variables |
+| **Linter** | `lint_note`, `lint_vault` — formatea y corrige notas |
 
-## Hoja de Ruta
+## Estado del Proyecto
 
-- **v1** (actual): Transporte stdio, búsqueda full-text, lectura/escritura básica
-- **v2**: HTTP-SSE (múltiples agentes), búsqueda semántica con Ollama, assets (Excalidraw, imágenes)
-- **v3**: Native AOT, publicación en Obsidian Community Plugin Store
+- **v1** (stdio): ✅ Completo — ~85 herramientas MCP + 16 comandos plugin
+- **v2** (HTTP-SSE): ✅ Completo — transporte dual, embeddings Ollama, auth Bearer Token, despliegue en VM
+- **v3** (Ecosystem Tools): ✅ Completo — templates, tareas, Zettelkasten, CSS theming, assets, Git, grafo
 
 Ver [`docs/planning.md`](docs/planning.md) para el plan arquitectural completo.
 

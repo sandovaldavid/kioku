@@ -1,7 +1,7 @@
 # Especificaciones v2: Transporte HTTP-SSE
 
-> **Estado:** Planificación — Para implementar tras merge de `feat/initial-setup` a `develop`.
-> **Referencia:** [planning.md](./planning.md) · [commands-reference.md](./commands-reference.md) · [auth-options.md](./auth-options.md)
+> **Estado:** ✅ Completado — Transporte HTTP-SSE, autenticación, búsqueda híbrida y despliegue en VM implementados.
+> **Referencia:** [planning.md](./planning.md) · [commands-reference.md](./commands-reference.md) · [auth-options.md](./deploy/auth-options.md)
 
 ---
 
@@ -22,17 +22,18 @@
 | KiokuLogger / Logger TypeScript | ✅ Implementado | Sin emojis, extensiones ILogger<T> |
 | 18 MCP tools | ✅ Implementado | Query + Command + Bridge + Utility |
 
-### Lo que falta para v2
+### Lo que ya está implementado (v2 completo)
 
-| Componente | Estado | Prioridad |
+| Componente | Estado | Notas |
 |---|---|---|
-| Transporte HTTP-SSE | ⬜ Pendiente | Alta |
-| Bearer Token auth (API Key) | ⬜ Pendiente | Alta — requerido antes de subir a VM |
-| nginx reverse proxy config | ⬜ Pendiente | Alta — HTTPS en VM |
-| Búsqueda híbrida (keyword + semántica) | ⬜ Pendiente | Media |
-| `find_similar_notes` (por nota, no por query) | ⬜ Pendiente | Media |
-| Comandos avanzados (`normalize_tags`, `suggest_tags`) | ⬜ Pendiente | Baja |
-| Soporte assets no-Markdown (Excalidraw, Canvas) | ⬜ Pendiente | Baja |
+| Transporte HTTP-SSE | ✅ Implementado | `WithHttpTransport()` en `Program.cs` |
+| Bearer Token auth (API Key) | ✅ Implementado | `Middleware/ApiKeyMiddleware.cs` |
+| nginx reverse proxy config | ✅ Implementado | `docs/deploy/nginx.conf` |
+| systemd service | ✅ Implementado | `docs/deploy/kioku.service` |
+| Búsqueda híbrida (keyword + semántica) | ✅ Implementado | `HybridSearchService` con RRF |
+| `find_similar_notes` (por nota) | ✅ Implementado | En `NoteQueryTools` |
+| Comandos avanzados (`normalize_tags`, `suggest_tags`) | ✅ Implementado | En `VaultOrganizationTools` |
+| Soporte assets (Excalidraw, imágenes) | ✅ Implementado | En `AssetTools` |
 
 ---
 
@@ -165,7 +166,7 @@ public string Transport { get; init; } = "stdio"; // KIOKU_TRANSPORT: "stdio" | 
 
 ## 2. Autenticación (Bearer Token)
 
-Ver análisis completo en [`auth-options.md`](./auth-options.md).
+Ver análisis completo en [`auth-options.md`](./deploy/auth-options.md).
 
 ### Middleware de API Key
 
@@ -211,7 +212,7 @@ openssl rand -hex 32
 
 ## 3. Despliegue en VM
 
-Ver guía completa en [`auth-options.md`](./auth-options.md). Resumen:
+Ver guía completa en [`auth-options.md`](./deploy/auth-options.md). Resumen:
 
 ### systemd service
 
@@ -292,24 +293,21 @@ Nuevo tool: `search_notes_hybrid(query, max_results, min_score, keyword_weight, 
 
 | Paquete | Propósito | Estado |
 |---|---|---|
-| `ModelContextProtocol` | SDK MCP (stdio) | ✅ Ya en uso |
-| `ModelContextProtocol.AspNetCore` | Transporte HTTP-SSE | ⬜ Añadir en v2 |
-| `Microsoft.AspNetCore.App` | Middleware, routing | ⬜ Añadir en v2 |
+| `ModelContextProtocol` | SDK MCP (stdio) | ✅ En uso |
+| `ModelContextProtocol.AspNetCore` | Transporte HTTP-SSE | ✅ En uso |
 
 > **Nota:** El caché de embeddings usa formato binario propio (`embeddings.bin`), no SQLite.
 > Esto reduce dependencias y es más rápido para lectura secuencial de 5000 vectores (~15MB).
-> SQLite sería relevante si se necesitaran queries arbitrarias sobre los vectores.
 
 ---
 
-## 6. Plan de Commits para v2
+## 6. Commits de Referencia
 
-| # | Commit | Archivos |
-|---|--------|---------|
-| 1 | `feat(server): add HTTP-SSE transport with dual-mode startup` | `Program.cs`, `KiokuConfiguration.cs`, `Kioku.Mcp.Server.csproj` |
-| 2 | `feat(server): add API key authentication middleware` | NEW `Middleware/ApiKeyMiddleware.cs`, `Program.cs`, `KiokuConfiguration.cs` |
-| 3 | `docs(docs): add systemd service and nginx config examples` | NEW `docs/deploy/kioku.service`, NEW `docs/deploy/nginx.conf` |
-| 4 | `feat(server): add search_notes_hybrid tool with RRF` | `NoteQueryTools.cs`, `Services/HybridSearchService.cs` |
+Los siguientes commits implementaron v2 en `develop`:
+- `feat(server): add HTTP-SSE transport with dual-mode startup`
+- `feat(server): add API key authentication middleware`
+- `docs: add systemd service and nginx config examples`
+- `feat(server): add search_notes_hybrid tool with RRF`
 
 ---
 

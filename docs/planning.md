@@ -1,6 +1,6 @@
 # Plan Maestro de Arquitectura: Kioku MCP Ecosystem
 
-> **Última revisión:** 2026-06-24 — Decisiones de dependencias AOT resueltas: Self-Contained como modelo de compilación, Ollama para embeddings, parsers manuales para YAML/Markdown.
+> **Última revisión:** 2026-06-25 — v2 completado, v3 en producción. Este documento refleja el estado actual de la arquitectura tras la implementación de las 16 tool classes y el transporte HTTP-SSE.
 
 Este documento describe la estrategia de diseño, la selección tecnológica y los conceptos clave para construir un ecosistema de acceso a notas de alto rendimiento, optimizado para ser consumido por agentes de IA como Claude Code y Antigravity CLI en entornos multiplataforma (Windows 11 / Fedora 43).
 
@@ -86,34 +86,59 @@ Aunque son dos proyectos con tecnologías totalmente distintas, se organizan en 
 kioku/                              ← Carpeta raíz del repositorio (Monorepo)
 ├── .git/
 ├── README.md
+├── AGENTS.md                       ← Contexto para agentes de IA (Kioku mismo)
 ├── .gitignore
 ├── docs/
 │   ├── planning.md                 ← Este archivo
+│   ├── commands-reference.md       ← Inventario de comandos (MCP Tools + Plugin)
 │   ├── v2-http-sse-spec.md         ← Especificaciones HTTP-SSE para v2
-│   └── commands-reference.md       ← Inventario de comandos (MCP Tools + Plugin)
+│   └── deploy/
+│       ├── auth-options.md         ← Opciones de autenticación para despliegue
+│       ├── kioku.service           ← systemd unit para VM
+│       └── nginx.conf              ← Reverse proxy nginx
 └── src/
     ├── Kioku.Mcp.Server/           ← Proyecto C# (.NET 10)
     │   ├── Kioku.Mcp.Server.csproj
-    │   ├── Program.cs              ← Punto de entrada (stdio transport v1)
-    │   ├── Tools/                  ← Clases marcadas con [McpServerToolType]
+    │   ├── Program.cs              ← Punto de entrada (stdio y HTTP-SSE)
+    │   ├── KiokuConfiguration.cs   ← Variables de entorno
+    │   ├── Middleware/
+    │   │   └── ApiKeyMiddleware.cs ← Bearer token auth
+    │   ├── Tools/                  ← 16 tool classes registradas
     │   │   ├── NoteQueryTools.cs   ← search, read, list, filter
-    │   │   ├── NoteCommandTools.cs ← create, update, append, reorder
-    │   │   └── ObsidianBridgeTools.cs ← open-file, get-active-note, etc.
+    │   │   ├── NoteCommandTools.cs ← create, update, append
+    │   │   ├── ObsidianBridgeTools.cs ← open-file, get-active-note, etc.
+    │   │   ├── TaskManagementTools.cs  ← list_tasks, complete_task, etc.
+    │   │   ├── ZettelkastenTools.cs    ← create_zettel, create_moc, etc.
+    │   │   ├── VaultOrganizationTools.cs ← normalize_tags, merge_tags, etc.
+    │   │   ├── SessionContextTools.cs  ← start/end_work_session, etc.
+    │   │   ├── WorkflowTools.cs        ← create_note_from_template, etc.
+    │   │   ├── CssThemingTools.cs      ← apply_css_snippet, etc.
+    │   │   ├── KnowledgeGraphTools.cs  ← get_concept_map, etc.
+    │   │   ├── ResearchTools.cs        ← export_citations, etc.
+    │   │   ├── PluginIntegrationTools.cs ← Dataview, Templater, Linter
+    │   │   ├── GraphAnalysisTools.cs   ← find_unlinked_notes, etc.
+    │   │   ├── GitTools.cs            ← get_git_status, etc.
+    │   │   ├── AssetTools.cs          ← list_excalidraw_files, etc.
+    │   │   └── UtilityTools.cs        ← ping, rebuild_index, etc.
     │   ├── Services/               ← Lógica interna (no expuesta como MCP tools)
-    │   │   ├── VaultIndexService.cs   ← FileSystemWatcher + índice en memoria
-    │   │   ├── MarkdownParser.cs      ← Parseo de frontmatter YAML
-    │   │   ├── SemanticSearchService.cs ← Embeddings locales (Microsoft.ML)
+    │   │   ├── VaultIndexService.cs   ← FileSystemWatcher + índice invertido
+    │   │   ├── EmbeddingService.cs    ← Ollama embeddings vía HTTP
+    │   │   ├── EmbeddingPersistence.cs ← Caché binaria (.kioku/embeddings.bin)
+    │   │   ├── HybridSearchService.cs ← Búsqueda combinada (keyword + semántica)
+    │   │   ├── TaskService.cs         ← Parseo de checkboxes nativos
     │   │   └── ObsidianBridgeService.cs ← WebSocket client hacia plugin
     │   └── Domain/
     │       ├── Note.cs
     │       ├── NoteMetadata.cs
+    │       ├── SearchResult.cs
     │       └── VaultIndex.cs
     │
     └── obsidian-kioku-mcp/         ← Proyecto TypeScript (Obsidian Plugin)
         ├── package.json
         ├── tsconfig.json
         ├── manifest.json           ← Metadatos del plugin para Obsidian
-        ├── main.ts                 ← Código del plugin (WebSocket server local)
+        ├── main.ts                 ← WebSocket server local
+        ├── logger.ts               ← Logger tipado
         └── styles.css
 ```
 
@@ -124,40 +149,40 @@ kioku/                              ← Carpeta raíz del repositorio (Monorepo)
 El sistema opera bajo un modelo descentralizado de comunicación local:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│              AGENTE DE IA (Claude Code / agy)            │
-└─────────────────────┬───────────────────────────────────┘
-                      │ Stdio (JSON-RPC / MCP Protocol)
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│         Kioku.Mcp.Server  (C# .NET 10 Native AOT)       │
-│                                                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐   │
-│  │ NoteQuery    │  │ NoteCommand  │  │ ObsidianBr. │   │
-│  │ Tools        │  │ Tools        │  │ Tools       │   │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬──────┘   │
-│         └─────────────────┴──────────────────┘          │
-│                           │                             │
-│              ┌────────────┴──────────────┐              │
-│              │      VaultIndexService    │              │
-│              │  (FileSystemWatcher +     │              │
-│              │   In-Memory Index +       │              │
-│              │   Semantic Embeddings)    │              │
-│              └────────────┬─────────────┘               │
-│                           │ WebSocket Client             │
-└───────────────────────────┼────────────────────────────┘
-                            │ WebSocket (localhost)
+┌───────────────────────────────────────────────────────────────┐
+│              AGENTE DE IA (Claude Code / agy)                  │
+└───┬───────────────────────────────────────────────────┬───────┘
+    │ Stdio (v1 — JSON-RPC / MCP)                        │ HTTP-SSE (v2)
+    ▼                                                     ▼
+┌───────────────────────────────────────────────────────────────┐
+│              Kioku.Mcp.Server  (C# .NET 10)                   │
+│                                                               │
+│  ┌───────────────────────────────────────────────────────┐    │
+│  │              16 Tool Classes (McpServerTool)           │    │
+│  │  Query · Command · Bridge · Tasks · Zettelkasten      │    │
+│  │  Org · Sessions · Workflows · CSS · KnowledgeGraph    │    │
+│  │  Research · PluginInt · GraphAnalysis · Git · Assets  │    │
+│  │  Utility                                              │    │
+│  └───────────────────────┬───────────────────────────────┘    │
+│                          │                                    │
+│  ┌───────────────────────┴───────────────────────────────┐    │
+│  │  Services: VaultIndex · Embedding(Ollama) · Hybrid    │    │
+│  │           TaskService · ObsidianBridge · Persistence  │    │
+│  └───────────────────────┬───────────────────────────────┘    │
+│                          │ WebSocket Client                   │
+└──────────────────────────┼──────────────────────────────────┘
+                           │ WebSocket :7765 (localhost)
+                           ▼
+┌───────────────────────────────────────────────────────────────┐
+│      Plugin Obsidian (TypeScript — Thin Client)               │
+│         WebSocket Server Local (KIOKU_OBSIDIAN_PORT)           │
+└───────────────────────────┬───────────────────────────────────┘
+                            │ Obsidian Plugin API
                             ▼
-┌─────────────────────────────────────────────────────────┐
-│      Plugin Obsidian (TypeScript — Thin Client)         │
-│         WebSocket Server Local (puerto configurable)    │
-└─────────────────────────┬───────────────────────────────┘
-                          │ Obsidian Plugin API
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│                    Obsidian App                         │
-│            (Electron / Chromium + Node.js)              │
-└─────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│                    Obsidian App                               │
+│            (Electron / Chromium + Node.js)                    │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 - **Desacoplamiento Total:** Si Obsidian está cerrado, el Agente de IA aún puede buscar, leer y escribir notas porque el Motor de C# procesa los archivos Markdown directamente en disco.
@@ -248,36 +273,54 @@ Ver [`docs/commands-reference.md`](./commands-reference.md) para el inventario c
 
 ## 7. Versiones y Hoja de Ruta
 
-### v1 — MVP (Transporte Stdio)
+### v1 — MVP (Transporte Stdio) ✅ COMPLETADO
 
 **Objetivo:** Servidor MCP funcional que el agente de IA puede usar sin Obsidian.
 
-- [x] Plan arquitectural
-- [ ] Inicializar proyecto con `dotnet new mcpserver`
-- [ ] `NoteQueryTools`: `search_notes`, `read_note`, `list_notes`, `filter_notes`
-- [ ] `VaultIndexService` con FileSystemWatcher + debouncing
-- [ ] Parseo de frontmatter YAML con `Span<char>`
-- [ ] Índice invertido en memoria para búsqueda por texto
-- [ ] Compilación y prueba en Fedora 43 y Windows 11
-- [ ] Plugin TypeScript mínimo (WebSocket server + comandos básicos)
+- 11 herramientas core (lectura, escritura, utilidades)
+- Plugin TypeScript con WebSocket bridge
+- FileSystemWatcher + índice invertido en memoria
 
-### v2 — HTTP-SSE + Búsqueda Semántica
+### v2 — HTTP-SSE + Búsqueda Semántica ✅ COMPLETADO
 
 Ver especificaciones completas en [`docs/v2-http-sse-spec.md`](./v2-http-sse-spec.md).
 
 **Resumen:**
 - Transporte HTTP-SSE adicional al stdio (múltiples agentes simultáneos)
-- Búsqueda semántica con embeddings locales (Microsoft.ML + ONNX)
-- Cache de vectores en SQLite
-- Soporte mejorado para assets (Excalidraw, imágenes, tablas)
-- Comandos avanzados de organización (reordenar, clasificar, reclasificar tags)
+- Búsqueda semántica con Ollama (`nomic-embed-text`, 768-dim)
+- Caché binaria persistente en `vault/.kioku/embeddings.bin`
+- Bearer Token auth (ApiKeyMiddleware)
+- Búsqueda híbrida (keyword + semántica con RRF)
+- Despliegue en VM con systemd + nginx
 
-### v3 — Native AOT Optimization + Publicación
+### v3 — Ecosystem Tools ✅ COMPLETADO
 
-- Publicar binarios AOT para Windows 11 (x64) y Fedora 43 (x64)
-- Validar compatibilidad AOT de todas las dependencias
-- Benchmarking de RAM y tiempo de arranque
-- Candidato a publicación en Obsidian Community Plugin Store
+**80+ herramientas implementadas en 16 tool classes:**
+
+| Categoría | Tools |
+|---|---|
+| Session & Context | `get_recent_activity`, `get_work_context`, `start/end_work_session`, `get_knowledge_timeline` |
+| Task Management | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks`, `extract_action_items` |
+| Zettelkasten | `create_zettel`, `create_moc`, `create_folder_readme`, `link_related_notes`, `create_literature_note` |
+| Templates | `create_note_from_template`, `list_templates`, `create_template` |
+| Tag & Org | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `find_duplicate_notes`, `audit_vault`, `find_broken_links`, `reorder_notes_in_folder`, `reclassify_note`, `suggest_folder` |
+| CSS Theming | `apply_css_snippet`, `list_css_snippets` |
+| Knowledge Graph | `get_knowledge_timeline`, `get_concept_map`, `get_vault_snapshot` |
+| Research | `export_citations`, `get_literature_gap` |
+| Graph Analysis | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
+| Git Integration | `get_git_status`, `list_git_commits`, `create_git_commit` |
+| Assets | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder` |
+| Plugin Integration | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts` |
+| Workflows | `process_inbox`, `sunday_hygiene` |
+
+Ver [`docs/commands-reference.md`](./commands-reference.md) para el inventario completo.
+
+### v4 — Futuro (Propuesto)
+
+- Native AOT optimization para startups más rápidos
+- Publicación en Obsidian Community Plugin Store
+- Streaming de cambios en tiempo real (SSE server-sent events)
+- Integración con Zotero API
 
 ---
 
@@ -303,24 +346,23 @@ Por esto, la estrategia de compilación óptima es **Self-Contained** (no AOT es
 
 ---
 
-### Tabla de Dependencias NuGet — Estado Definitivo
+### Dependencias NuGet — Estado Actual
 
-| Paquete | Propósito | AOT Compat. | Decisión Final |
-|---|---|---|---|
-| `ModelContextProtocol` | SDK MCP oficial (stdio) | ✅ | ✅ **Usar** |
-| `ModelContextProtocol.AspNetCore` | Transporte HTTP-SSE (v2) | ✅ | ✅ **Usar en v2** |
-| `Microsoft.Data.Sqlite` | Persistencia de vectores | ✅ | ✅ **Usar en v2** |
-| `System.Numerics.Tensors` | Cosine similarity (vectores) | ✅ .NET 9+ | ✅ **Usar en v2** |
-| `YamlDotNet` | Parseo YAML | ❌ Reflexión | 🔄 **Reemplazar** — ver alternativa abajo |
-| `Markdig` | Parseo Markdown | ⚠️ Advertencias | 🔄 **Reemplazar** — ver alternativa abajo |
-| `Microsoft.ML.OnnxRuntime` | Embeddings locales ONNX | ❌ Wrapper nativo | ❌ **Descartar** — reemplazado por Ollama |
-| `OllamaSharp` _(opcional)_ | Cliente Ollama tipado | ✅ (solo HTTP) | 💡 **Opcional** — `HttpClient` nativo es suficiente |
+| Paquete | Propósito | Estado |
+|---|---|---|
+| `ModelContextProtocol` | SDK MCP oficial (stdio) | ✅ En uso |
+| `ModelContextProtocol.AspNetCore` | Transporte HTTP-SSE (v2) | ✅ En uso |
+| `System.Numerics.Tensors` | Cosine similarity (vectores) | ✅ En uso |
+| `YamlDotNet` | Parseo YAML | ❌ Reemplazado por parser manual con `Span<char>` |
+| `Markdig` | Parseo Markdown | ❌ Reemplazado por extractor de texto manual |
+| `Microsoft.ML.OnnxRuntime` | Embeddings locales ONNX | ❌ Reemplazado por Ollama |
+| `OllamaSharp` _(opcional)_ | Cliente Ollama tipado | ❌ `HttpClient` nativo es suficiente |
 
 ---
 
-### Alternativas Implementadas
+### Alternativas Implementadas (Verificadas en Producción)
 
-#### 🔄 YAML → Parser Manual con `Span<char>`
+#### ✅ YAML → Parser Manual con `Span<char>`
 
 El frontmatter de Obsidian es **extremadamente predecible**. Siempre sigue el formato:
 ```
@@ -345,7 +387,7 @@ public static class FrontmatterParser
 }
 ```
 
-#### 🔄 Markdig → Extractor de Texto Manual
+#### ✅ Markdig → Extractor de Texto Manual
 
 Para la indexación de búsqueda, solo necesitamos **texto limpio** (sin sintaxis Markdown). No necesitamos renderizar HTML. Un extractor de ~80 líneas con `Span<char>` elimina:
 - `#` de encabezados
@@ -356,7 +398,7 @@ Para la indexación de búsqueda, solo necesitamos **texto limpio** (sin sintaxi
 
 Si en el futuro se necesita renderizado HTML completo (para previsualización), añadir `Markdig` como dependencia **opcional y no-AOT** en una capa separada.
 
-#### ❌ ONNX Runtime → Ollama (Embeddings vía HTTP local)
+#### ✅ ONNX Runtime → Ollama (Embeddings vía HTTP local)
 
 `Microsoft.ML.OnnxRuntime` es un wrapper nativo sobre una DLL de C++. **No es compatible con Native AOT** y es complejo de distribuir.
 
