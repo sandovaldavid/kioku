@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.3](https://github.com/sandovaldavid/kioku/compare/v1.6.2...v1.6.3) (2026-06-26)
+
+
+### Bug Fixes
+
+* **plugin:** bundle ws correctly and refactor command dispatch to registry pattern ([#36](https://github.com/sandovaldavid/kioku/issues/36)) ([ef2bd4b](https://github.com/sandovaldavid/kioku/commit/ef2bd4b60aca154d83cd8f6bf5fe7c8f7318d3b5))
+
 ## [1.6.2](https://github.com/sandovaldavid/kioku/compare/v1.6.1...v1.6.2) (2026-06-25)
 
 
