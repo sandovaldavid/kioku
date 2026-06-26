@@ -79,40 +79,209 @@ Ejecuta el comando correspondiente a tu sistema operativo desde la raíz del pro
 Esto generará el binario ejecutable `Kioku.Mcp.Server` (o `Kioku.Mcp.Server.exe` en Windows) en el directorio:
 `src/Kioku.Mcp.Server/bin/Release/net10.0/<runtime>/publish/`
 
-### 2. Registro en Clientes MCP (Claude Code, Cursor, VS Code, etc.)
+### 2. Registro en Clientes MCP
 
-Los clientes MCP ejecutarán este binario en segundo plano utilizando el protocolo `stdio`.
+Compila el servidor (paso 1) y luego agrega Kioku a tu cliente MCP favorito:
 
-#### Para Claude Code (`.mcp.json`)
-Añade lo siguiente al archivo `.mcp.json` en la raíz de tu espacio de trabajo o directorio raíz del agente:
+> [!TIP]
+> Usa `<RUTA_AL_BINARIO>` como `dotnet run --project /ruta/a/kioku/src/Kioku.Mcp.Server/` para desarrollo, o la ruta al binario compilado del paso 1.
+
+#### OpenCode
+
+Archivo: `~/.config/opencode/opencode.jsonc` o `./opencode.jsonc` (proyecto)
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "kioku": {
+      "type": "local",
+      "command": ["<RUTA_AL_BINARIO>"],
+      "environment": {
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+      },
+      "enabled": true
+    }
+  }
+}
+```
+
+#### Claude Code
+
+Archivo: `.mcp.json` (raíz del proyecto) o `~/.claude.json` (global)
 
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "command": "/ruta/absoluta/a/kioku/src/Kioku.Mcp.Server/bin/Release/net10.0/<runtime>/publish/Kioku.Mcp.Server",
+      "type": "stdio",
+      "command": "<RUTA_AL_BINARIO>",
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/absoluta/a/tu/boveda",
-        "KIOKU_OLLAMA_URL": "http://localhost:11434",
-        "KIOKU_EMBEDDING_MODEL": "nomic-embed-text"
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
       }
     }
   }
 }
 ```
 
-#### Para Claude Desktop (`claude_desktop_config.json`)
-Agrega la configuración en tu archivo de configuración de Claude Desktop (ubicado típicamente en `%APPDATA%/Claude/claude_desktop_config.json` en Windows o `~/Library/Application Support/Claude/claude_desktop_config.json` en macOS):
+#### Claude Desktop
+
+Archivo:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "command": "/ruta/absoluta/a/kioku/src/Kioku.Mcp.Server/bin/Release/net10.0/<runtime>/publish/Kioku.Mcp.Server",
+      "command": "<RUTA_AL_BINARIO>",
+      "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/absoluta/a/tu/boveda",
-        "KIOKU_OLLAMA_URL": "http://localhost:11434",
-        "KIOKU_EMBEDDING_MODEL": "nomic-embed-text"
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+      }
+    }
+  }
+}
+```
+
+#### VS Code
+
+Archivo: `.vscode/mcp.json` (workspace)
+
+```json
+{
+  "servers": {
+    "kioku": {
+      "type": "stdio",
+      "command": "<RUTA_AL_BINARIO>",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+      }
+    }
+  }
+}
+```
+
+#### Cursor
+
+Archivo: `.cursor/mcp.json` (raíz del proyecto)
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "<RUTA_AL_BINARIO>",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+      }
+    }
+  }
+}
+```
+
+#### Zed
+
+Archivo: `.zed/settings.json` (proyecto) o `~/.config/zed/settings.json` (global)
+
+```json
+{
+  "context_servers": {
+    "kioku": {
+      "command": "<RUTA_AL_BINARIO>",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+      }
+    }
+  }
+}
+```
+
+#### JetBrains IDEs (IntelliJ, PyCharm, WebStorm, etc.)
+
+Archivo:
+- **macOS:** `~/Library/Application Support/JetBrains/AIAssistant/mcp.json`
+- **Windows:** `%APPDATA%\JetBrains\AIAssistant\mcp.json`
+- **Linux:** `~/.config/JetBrains/AIAssistant/mcp.json`
+
+O desde Settings → Tools → AI Assistant → MCP.
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "<RUTA_AL_BINARIO>",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+      }
+    }
+  }
+}
+```
+
+#### Warp
+
+Configuración gráfica desde Warp Settings → MCP Servers. Alternativamente, en el archivo de configuración del agente local:
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "<RUTA_AL_BINARIO>",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+      }
+    }
+  }
+}
+```
+
+#### GitHub Copilot CLI
+
+Archivo: `.mcp.json` (raíz del proyecto) o `.vscode/mcp.json`.
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "<RUTA_AL_BINARIO>",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+      }
+    }
+  }
+}
+```
+
+#### Codex CLI (OpenAI)
+
+Archivo: `config.toml` (raíz del proyecto o `~/.codex/`)
+
+```toml
+[mcp_servers.kioku]
+command = "<RUTA_AL_BINARIO>"
+args = []
+env = { KIOKU_VAULT_PATH = "/ruta/a/tu/boveda" }
+```
+
+#### Antigravity CLI e IDE
+
+Archivo: `.antigravity/mcp.json` (raíz del proyecto)
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "<RUTA_AL_BINARIO>",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
       }
     }
   }
