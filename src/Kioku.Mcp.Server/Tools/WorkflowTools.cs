@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
@@ -89,9 +90,9 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
         [Description("Name of the template (without .md extension). Use list_templates to see available templates.")] string template_name,
         [Description("Path for the new note (without .md extension). Can include subfolders: 'Projects/My Note'.")] string target_path,
         [Description(
-            "Variables to inject into the template as JSON object. " +
+            "Variables to inject into the template as key-value pairs. " +
             "Example: {\"title\": \"My Note\", \"status\": \"draft\", \"author\": \"David\"}. " +
-            "Built-in variables (date, time, title) are auto-populated if not provided.")] string variables = "{}",
+            "Built-in variables (date, time, title) are auto-populated if not provided.")] Dictionary<string, string>? variables = null,
         [Description("Templates folder relative to vault root. Leave empty to auto-detect.")] string templates_folder = "")
     {
         // Resolve template file
@@ -114,8 +115,8 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
             return $"[error] Note already exists: '{target_path}'. Use update_note_content to modify it.";
         }
 
-        // Parse variables from JSON
-        var vars = ParseVariables(variables);
+        // Use provided variables or start fresh
+        var vars = variables ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // Inject built-in variables (only if not already provided)
         var now = DateTime.Now;
@@ -302,31 +303,4 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
 
     private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
 
-    private static Dictionary<string, string> ParseVariables(string json)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        if (string.IsNullOrWhiteSpace(json) || json.Trim() == "{}")
-        {
-            return result;
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            foreach (var prop in doc.RootElement.EnumerateObject())
-            {
-                if (prop.Value.ValueKind == System.Text.Json.JsonValueKind.String)
-                {
-                    result[prop.Name] = prop.Value.GetString() ?? "";
-                }
-            }
-        }
-        catch
-        {
-            // Return empty dict on parse failure — built-in vars will still populate
-        }
-
-        return result;
-    }
 }

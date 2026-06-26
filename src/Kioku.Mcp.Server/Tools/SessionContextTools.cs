@@ -223,7 +223,7 @@ public sealed class SessionContextTools(VaultIndexService vault, KiokuConfigurat
 
         if (!string.IsNullOrWhiteSpace(session_note))
         {
-            sessionNote = vault.GetNote(session_note) ?? vault.GetNoteByName(session_note);
+            sessionNote = NoteHelpers.ResolveNote(session_note, vault);
             if (sessionNote is null)
             {
                 return $"[error] Session note not found: '{session_note}'";
@@ -346,7 +346,7 @@ public sealed class SessionContextTools(VaultIndexService vault, KiokuConfigurat
             return Task.FromResult("[error] The 'session_note' parameter cannot be empty.");
         }
 
-        var note = vault.GetNote(session_note) ?? vault.GetNoteByName(session_note);
+        var note = NoteHelpers.ResolveNote(session_note, vault);
         if (note is null)
         {
             return Task.FromResult($"[error] Session note not found: '{session_note}'");
