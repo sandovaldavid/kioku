@@ -13,7 +13,7 @@ namespace Kioku.Mcp.Server.Tools;
 /// Requires the vault to be a git repository.
 /// </summary>
 [McpServerToolType]
-public sealed class GitTools(KiokuConfiguration config, ILogger<GitTools> logger)
+public sealed class GitTools(KiokuConfiguration config, VaultIndexService vault, ILogger<GitTools> logger)
 {
     [McpServerTool, Description(
         "Shows the current git status of the vault repository (modified, added, deleted files).")]
@@ -160,6 +160,134 @@ public sealed class GitTools(KiokuConfiguration config, ILogger<GitTools> logger
 
         result.AddRange(commits);
         return string.Join("\n", result);
+    }
+
+    // stage_note
+
+    [McpServerTool, Description(
+        "Stages a note for commit using git add. " +
+        "Prepares the file to be included in the next commit.")]
+    public async Task<string> stage_note(
+        [Description("Name or path of the note to stage.")] string note,
+        [Description("If true, only reports what would be staged without running git add.")] bool dry_run = false)
+    {
+        var found = NoteHelpers.ResolveNote(note, vault);
+        if (found is null)
+        {
+            return $"[error] Note not found: '{note}'";
+        }
+
+        if (!IsGitRepository())
+        {
+            return "[error] Not a git repository.";
+        }
+
+        if (dry_run)
+        {
+            return $"[info] Would stage: {found.VaultRelativePath}";
+        }
+
+        var (success, _, error) = RunGitCommand("add", found.VaultRelativePath);
+        if (!success)
+        {
+            return $"[error] Git add failed: {error}";
+        }
+
+        return $"[ok] Staged: {found.VaultRelativePath}";
+    }
+
+    // stage_all
+
+    [McpServerTool, Description(
+        "Stages all changes across the entire vault using git add -A. " +
+        "Includes modified, deleted, and new (untracked) files.")]
+    public Task<string> stage_all(
+        [Description("If true, only reports what would be staged without running git add.")] bool dry_run = false)
+    {
+        if (!IsGitRepository())
+        {
+            return Task.FromResult("[error] Not a git repository.");
+        }
+
+        if (dry_run)
+        {
+            var (success, output, error) = RunGitCommand("status", "--porcelain");
+            if (!success)
+            {
+                return Task.FromResult($"[error] Git command failed: {error}");
+            }
+
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                return Task.FromResult("[info] No changes to stage.");
+            }
+
+            return Task.FromResult($"[info] Would stage {output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length} change(s)");
+        }
+
+        var (stageSuccess, _, stageError) = RunGitCommand("add", "-A");
+        if (!stageSuccess)
+        {
+            return Task.FromResult($"[error] Git add failed: {stageError}");
+        }
+
+        return Task.FromResult("[ok] All changes staged.");
+    }
+
+    // unstage_note
+
+    [McpServerTool, Description(
+        "Unstages a previously staged note using git restore --staged. " +
+        "Removes the file from the staging area without discarding changes.")]
+    public async Task<string> unstage_note(
+        [Description("Name or path of the note to unstage.")] string note)
+    {
+        var found = NoteHelpers.ResolveNote(note, vault);
+        if (found is null)
+        {
+            return $"[error] Note not found: '{note}'";
+        }
+
+        if (!IsGitRepository())
+        {
+            return "[error] Not a git repository.";
+        }
+
+        var (success, _, error) = RunGitCommand("restore", "--staged", found.VaultRelativePath);
+        if (!success)
+        {
+            return $"[error] Git unstage failed: {error}";
+        }
+
+        return $"[ok] Unstaged: {found.VaultRelativePath}";
+    }
+
+    // commit_staged
+
+    [McpServerTool, Description(
+        "Commits all staged changes with the given message. " +
+        "Returns an informational message if there is nothing to commit.")]
+    public Task<string> commit_staged(
+        [Description("Commit message describing the changes.")] string message)
+    {
+        if (!IsGitRepository())
+        {
+            return Task.FromResult("[error] Not a git repository.");
+        }
+
+        var (success, output, error) = RunGitCommand("commit", "-m", message);
+        if (!success)
+        {
+            if (error.Contains("nothing to commit", StringComparison.OrdinalIgnoreCase) ||
+                error.Contains("nothing added to commit", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult("[info] No staged changes to commit.");
+            }
+
+            return Task.FromResult($"[error] Git commit failed: {error}");
+        }
+
+        return Task.FromResult($"[ok] Changes committed: {message}");
     }
 
     // Git utilities
