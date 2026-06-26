@@ -67,10 +67,22 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
             return "[error] 'template_path' is required.";
         }
 
-        var payload = new JsonObject { ["templatePath"] = template_path };
+        var resolvedTemplate = ResolveNote(template_path);
+        if (resolvedTemplate is null)
+        {
+            return $"[error] Template not found: '{template_path}'";
+        }
+
+        var payload = new JsonObject { ["templatePath"] = resolvedTemplate.VaultRelativePath };
+
         if (!string.IsNullOrWhiteSpace(target_note))
         {
-            payload["targetNote"] = target_note;
+            var resolvedTarget = ResolveNote(target_note);
+            if (resolvedTarget is null)
+            {
+                return $"[error] Target note not found: '{target_note}'";
+            }
+            payload["targetNote"] = resolvedTarget.VaultRelativePath;
         }
 
         var result = await bridge.SendRequestAsync("run-templater", payload);
@@ -101,7 +113,12 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
         var payload = new JsonObject();
         if (!string.IsNullOrWhiteSpace(note))
         {
-            payload["notePath"] = note;
+            var resolved = ResolveNote(note);
+            if (resolved is null)
+            {
+                return $"[error] Note not found: '{note}'";
+            }
+            payload["notePath"] = resolved.VaultRelativePath;
         }
 
         var result = await bridge.SendRequestAsync("run-linter", payload);
@@ -111,7 +128,8 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
             return $"[error] {result.Error}";
         }
 
-        return $"[ok] Linter executed on '{(string.IsNullOrWhiteSpace(note) ? "active note" : note)}'.";
+        var displayName = string.IsNullOrWhiteSpace(note) ? "active note" : (ResolveNote(note)?.VaultRelativePath ?? note);
+        return $"[ok] Linter executed on '{displayName}'.";
     }
 
     // lint_vault
