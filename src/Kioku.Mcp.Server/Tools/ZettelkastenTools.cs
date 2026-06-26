@@ -414,7 +414,10 @@ public sealed class ZettelkastenTools(
                 foreach (var result in results)
                 {
                     var f = Path.GetDirectoryName(result.Note.VaultRelativePath) ?? "";
-                    if (string.IsNullOrEmpty(f)) continue;
+                    if (string.IsNullOrEmpty(f))
+                    {
+                        continue;
+                    }
 
                     var (score, count) = folderScores.GetValueOrDefault(f);
                     folderScores[f] = (score + result.Score, count + 1);
@@ -436,7 +439,11 @@ public sealed class ZettelkastenTools(
         foreach (var result in keywordResults)
         {
             var f = Path.GetDirectoryName(result.Note.VaultRelativePath) ?? "";
-            if (string.IsNullOrEmpty(f)) continue;
+            if (string.IsNullOrEmpty(f))
+            {
+                continue;
+            }
+
             kwFolderScores[f] = kwFolderScores.GetValueOrDefault(f) + 1;
         }
 
