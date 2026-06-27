@@ -46,6 +46,10 @@ jobs:
             --verify-no-changes \
             --verbosity diagnostic
 
+      - name: Vulnerability check
+        run: |
+          dotnet list src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj package --vulnerable
+
   test-server:
     name: test-server (ubuntu-latest)
     runs-on: ubuntu-latest
@@ -90,6 +94,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high
 
       - name: Type-check
         run: pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json
