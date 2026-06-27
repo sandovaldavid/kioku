@@ -32,7 +32,7 @@ function validatePayload(
   return null;
 }
 
-export function createHandlers(app: App, settings: KiokuSettings) {
+export function createHandlers(app: App, settings: KiokuSettings, pluginManifest: PluginManifest) {
   return {
     "open-file": async (p: Record<string, unknown> | undefined, requestId?: string) => {
       const validation = validatePayload(p, ["path"], requestId);
@@ -49,7 +49,7 @@ export function createHandlers(app: App, settings: KiokuSettings) {
       requestId,
     }),
     "get-app-version": (_p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdGetAppVersion(app, requestId),
+      cmdGetAppVersion(app, pluginManifest, requestId),
     "get-open-notes": (_p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdGetOpenNotes(app, requestId),
     "trigger-command": (p: Record<string, unknown> | undefined, requestId?: string) => {
@@ -167,15 +167,18 @@ function cmdGetVaultPath(app: App, requestId?: string): BridgeResponse {
   };
 }
 
-function cmdGetAppVersion(app: App, requestId?: string): BridgeResponse {
+function cmdGetAppVersion(
+  app: App,
+  pluginManifest: PluginManifest,
+  requestId?: string
+): BridgeResponse {
   const kiokuApp = asKiokuApp(app);
-  const kiokuManifest = kiokuApp.plugins.manifests["kioku-mcp"];
   return {
     requestId,
     success: true,
     data: {
       obsidianVersion: kiokuApp.version,
-      kiokuVersion: kiokuManifest?.version ?? "unknown",
+      kiokuVersion: pluginManifest.version,
     },
   };
 }
