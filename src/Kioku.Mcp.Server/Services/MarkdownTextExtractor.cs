@@ -241,25 +241,22 @@ public static class MarkdownTextExtractor
 
         bool firstCell = true;
         int pos = 0;
+
+        // Skip leading '|' so pos points to the start of the first cell
+        if (line.Length > 0 && line[0] == '|')
+        {
+            pos = 1;
+        }
+
         while (pos < line.Length)
         {
-            int pipe = line[pos..].IndexOf('|');
-            if (pipe < 0)
+            int nextPipe = line[pos..].IndexOf('|');
+            if (nextPipe < 0)
             {
                 break;
             }
 
-            int cellStart = pos + pipe + 1;
-            if (cellStart >= line.Length)
-            {
-                break;
-            }
-
-            int nextPipe = line[cellStart..].IndexOf('|');
-            var cell = nextPipe < 0
-                ? line[cellStart..]
-                : line.Slice(cellStart, nextPipe);
-
+            var cell = line.Slice(pos, nextPipe);
             var cellTrimmed = cell.Trim();
             bool isSeparator = !cellTrimmed.IsEmpty && cellTrimmed.IndexOf('-') >= 0
                 && !cellTrimmed.ContainsAny(AlphaNum);
@@ -274,7 +271,7 @@ public static class MarkdownTextExtractor
                 firstCell = false;
             }
 
-            pos = cellStart + (nextPipe < 0 ? line.Length - cellStart : nextPipe + 1);
+            pos = pos + nextPipe + 1;
         }
     }
 }
