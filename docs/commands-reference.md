@@ -1,440 +1,1075 @@
-# Kioku — Referencia de Comandos
+# MCP Tools Reference
 
-> **Versiones:** v1 (stdio) · v2 (HTTP-SSE + Semántica) · v3 (Ecosystem Tools — completado)  
-> **Referencia:** [planning.md](./planning.md) · [v2-http-sse-spec.md](./v2-http-sse-spec.md)
+> Auto-generated documentation of all MCP tools. Do not edit manually.
+> Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-Este documento es el inventario oficial de todos los comandos del ecosistema Kioku:
-- **MCP Tools** → expuestos al agente de IA a través del protocolo MCP.
-- **Plugin Commands** → comandos que el motor C# envía al plugin de Obsidian vía WebSocket.
+**Generated:** 2026-06-27 16:40 UTC
 
-Cada comando incluye su estado de implementación, versión objetivo, y justificación de por qué existe.
+## Summary
+
+Total tool classes: **17**
+
+## AssetTools
+
+### `find_orphan_assets`
+
+Find asset files (images, PDFs, Excalidraw) not referenced by any note. When dry_run=false, moves orphans to .trash/.kioku-orphans/.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `dry_run` | Boolean | No | If true (default), lists orphans without moving them. |
+
+### `get_asset_metadata`
+
+Return metadata (name, path, size, last modified) for a non-Markdown asset file in the vault.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `path` | String | Yes | Vault-relative path to the asset file (e.g. 'Attachments/diagram.png'). |
+
+### `list_excalidraw_files`
+
+List all Excalidraw files in the vault: standalone .excalidraw files and Markdown notes with 'excalidraw: true' in frontmatter.
+
+### `move_attachments_to_folder`
+
+Move scattered attachment files to a centralized folder and update all references in notes.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `target_folder` | String | Yes | Target folder path where attachments will be moved (e.g., 'Attachments'). |
+| `dry_run` | Boolean | No | If true, returns a preview without moving files. |
+
+### `normalize_attachment_names`
+
+Rename attachment files with a consistent pattern (note-slug-N.ext) and update all references in notes.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `asset_folder` | String | Yes | Asset folder path containing attachments to normalize (e.g., 'Attachments', 'Assets'). |
+| `dry_run` | Boolean | No | If true, returns a preview without renaming files. |
+
+### `reorder_notes_in_folder`
+
+Rename notes in a folder with numeric prefixes (01-, 02-, …) to define explicit ordering.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | Yes | Vault-relative folder path containing the notes to reorder. |
+| `dry_run` | Boolean | No | If true, returns a preview without renaming files. |
+
+## CssThemingTools
+
+### `apply_css_snippet`
+
+Creates or updates a CSS snippet file in the Obsidian vault's .obsidian/snippets/ folder. Use Obsidian CSS variables (--color-base-00, --text-normal, etc.) for best compatibility. After applying, call trigger_obsidian_command with 'app:reload-css-snippets' to activate it.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `name` | String | Yes | Snippet filename without .css extension (e.g. 'sepia-editor', 'custom-tags'). |
+| `css_content` | String | Yes | Valid CSS content. Use Obsidian CSS variables for theme compatibility. |
+| `enable` | Boolean | No | If true, adds the snippet to Obsidian's enabled snippets list in app.json. Requires 'app:reload-css-snippets' plugin command to take effect. |
+
+### `list_css_snippets`
+
+Lists all CSS snippet files in the vault's .obsidian/snippets/ folder, showing their enabled/disabled status and a preview of their content.
+
+### `remove_css_snippet`
+
+Removes a CSS snippet file from the Obsidian vault's .obsidian/snippets/ folder. Also removes it from the enabledCssSnippets list in app.json.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `name` | String | Yes | Snippet name without .css extension (e.g. 'sepia-editor'). |
+
+## GitTools
+
+### `commit_staged`
+
+Commits all staged changes with the given message. Returns an informational message if there is nothing to commit.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `message` | String | Yes | Commit message describing the changes. |
+
+### `get_git_status`
+
+Shows the current git status of the vault repository (modified, added, deleted files).
+
+### `list_git_commits`
+
+Lists the most recent git commits in the repository.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `max_count` | Int32 | No | Maximum number of commits to return (default: 10) |
+
+### `stage_all`
+
+Stages all changes across the entire vault using git add -A. Includes modified, deleted, and new (untracked) files.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `dry_run` | Boolean | No | If true, only reports what would be staged without running git add. |
+
+### `stage_note`
+
+Stages a note for commit using git add. Prepares the file to be included in the next commit.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to stage. |
+| `dry_run` | Boolean | No | If true, only reports what would be staged without running git add. |
+
+### `unstage_note`
+
+Unstages a previously staged note using git restore --staged. Removes the file from the staging area without discarding changes.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to unstage. |
+
+## GraphAnalysisTools
+
+### `find_graph_islands`
+
+Finds connected components in the graph smaller than a threshold (graph islands). Small isolated clusters often indicate notes that should be linked to the main graph.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `threshold` | Int32 | No | Maximum size of a connected component to be considered an island (default: 3). |
+
+### `find_unlinked_notes`
+
+Finds all notes with no outgoing links and no backlinks (completely isolated from the graph).
+
+### `measure_vault_density`
+
+Computes vault graph density metrics: average links per note, percentage of notes with backlinks, connectivity profile.
+
+## KnowledgeGraphTools
+
+### `get_concept_map`
+
+Returns a JSON graph centered on a specific note: nodes (notes) and edges (links). Edges include outgoing wikilinks, backlinks, and (optionally) semantic similarity. Use 'depth' to control traversal depth (1=direct links, 2=links of links). Use 'max_nodes' to limit graph size. The graph JSON can be visualized with tools like Obsidian Graph View, D3.js, or Cytoscape.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the center note for the concept map. |
+| `depth` | Int32 | No | Traversal depth: 1 = direct links only, 2 = links of links (default: 2, max: 3). |
+| `max_nodes` | Int32 | No | Maximum number of nodes to include (default: 50, max: 150). |
+
+### `get_knowledge_timeline`
+
+Returns notes ordered chronologically by their frontmatter 'date' field. Useful for reviewing the evolution of ideas over time. Optionally filter by tag, folder, or date range. Notes without a 'date' frontmatter field are excluded.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `tag` | String | No | Filter by tag (without #). Leave empty for all notes. |
+| `folder` | String | No | Folder path relative to vault root. Leave empty for all folders. |
+| `date_from` | String | No | Start date (inclusive) in YYYY-MM-DD format. Leave empty for no lower bound. |
+| `date_to` | String | No | End date (inclusive) in YYYY-MM-DD format. Leave empty for no upper bound. |
+| `max_results` | Int32 | No | Maximum number of notes to return (default: 50, max: 200). |
+
+### `get_vault_snapshot`
+
+Returns a comprehensive snapshot of the vault in a single call: folder tree with note counts, top tags by frequency, frontmatter coverage stats, and recent activity summary. Replaces the need to call list_notes + get_vault_stats + multiple get_note_metadata.
+
+## NoteCommandTools
+
+### `add_tag`
+
+Adds one or more tags to an existing note.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+| `tags` | String | Yes | Tag(s) to add (comma-separated). |
+
+### `append_to_note`
+
+Appends text to the end of an existing note. Ideal for log notes or journals where the agent records entries.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+| `content` | String | Yes | Text to append to the end of the note (in Markdown). |
+| `add_separator` | Boolean | No | If true, appends a horizontal separator (---) before the new content. |
+
+### `create_note`
+
+Creates a new note in the Obsidian vault with frontmatter and content. If the note already exists, returns an error — use update_note_content to modify it.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `name` | String | Yes | Name of the note (without .md extension). Can include subfolders: 'Projects/My Note'. |
+| `content` | String | Yes | Content of the note body (in Markdown). |
+| `tags` | String | No | Tags to add in the frontmatter (comma-separated). E.g. 'ai, project, draft'. |
+| `type` | String | No | Note type for frontmatter (e.g. 'note', 'project', 'area', 'resource'). |
+| `status` | String | No | Status of the note (e.g. 'draft', 'published'). |
+
+### `delete_note`
+
+Deletes a note from the vault. Irreversible — use with caution. When dry_run is true, only reports what would be deleted without modifying the vault.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to delete. |
+| `dry_run` | Boolean | No | If true, only reports what would be deleted without modifying the vault. |
+
+### `move_note`
+
+Moves a note to another folder in the vault. Note: wikilinks pointing to this note are not updated automatically in v1.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to move. |
+| `destination_folder` | String | Yes | Destination folder (relative to the vault). E.g. 'Archive/2024' |
+
+### `prepend_to_note`
+
+Prepends text to the beginning of a note body (just after the YAML frontmatter).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+| `content` | String | Yes | Text to prepend (in Markdown). |
+
+### `remove_tag`
+
+Removes one or more tags from an existing note.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+| `tags` | String | Yes | Tag(s) to remove (comma-separated). |
+
+### `rename_note`
+
+Renames a note in the vault. The new name can include subfolders.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to rename. |
+| `new_name` | String | Yes | New name of the note (without .md extension, e.g. 'New Folder/New Name'). |
+
+### `update_frontmatter`
+
+Updates or adds fields in the YAML frontmatter of an existing note. Only modifies specified fields, the rest remains intact.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+| `tags` | String | No | New tags (replaces existing ones, comma-separated). Leave empty to not modify. |
+| `status` | String | No | New status (e.g. 'published', 'draft', 'archived'). Leave empty to not modify. |
+| `type` | String | No | New note type. Leave empty to not modify. |
+
+### `update_note_content`
+
+Replaces the body of an existing note keeping its YAML frontmatter intact.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+| `content` | String | Yes | New content of the body of the note. |
+
+## NoteQueryTools
+
+### `filter_notes`
+
+Filters notes by YAML frontmatter metadata. All parameters are optional — combined with AND.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `tag` | String | No | Filter by tag (e.g. 'project', 'ai', 'reference'). |
+| `status` | String | No | Filter by frontmatter status (e.g. 'draft', 'published', 'archived'). |
+| `type` | String | No | Filter by note type (e.g. 'note', 'project', 'area'). |
+| `date_from` | String | No | Minimum date in frontmatter (format: YYYY-MM-DD). |
+| `date_to` | String | No | Maximum date in frontmatter (format: YYYY-MM-DD). |
+
+### `find_similar_notes`
+
+Finds notes conceptually similar to a given note using semantic embeddings. Unlike search_notes_semantic (which takes a text query), this tool takes a note name and finds notes similar to it — useful for discovering hidden connections in the vault. Requires Ollama.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the source note. |
+| `max_results` | Int32 | No | Maximum number of similar notes to return (default: 10). |
+| `min_score` | Single | No | Minimum similarity score 0.0–1.0 (default: 0.5). |
+
+### `get_backlinks`
+
+Returns all notes linking to the specified note via [[wikilinks]].
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note_name` | String | Yes | Name of the target note (without .md extension). |
+
+### `get_note_embedding`
+
+Returns diagnostic information about the embedding vector of a note. Shows the vector dimensions and a preview of the first values. Use to verify that a note has been indexed for semantic search.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+
+### `get_note_metadata`
+
+Reads only the YAML frontmatter metadata of a note, without loading its full content. More efficient than read_note when only metadata is needed.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+
+### `get_outgoing_links`
+
+Returns all wikilinks outgoing from the specified note.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+
+### `get_vault_stats`
+
+Returns general statistics of the vault: total notes, unique tags, folders, and index status.
+
+### `list_notes`
+
+Lists all notes in the vault or a specific folder. Returns name, relative path, tags, and modified date.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to list (relative to the vault). Leave empty to list the entire vault. |
+
+### `read_note`
+
+Reads the full content of an Obsidian note. Accepts note name (without extension), vault-relative path, or absolute path.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. E.g. 'My Note', 'Projects/Kioku', '/home/user/vault/note.md' |
+
+### `search_notes`
+
+Searches notes in the vault by text in title, content, and tags. Returns results ordered by relevance with a snippet of context.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `query` | String | Yes | Text to search. Can include multiple keywords. |
+| `max_results` | Int32 | No | Maximum number of results to return (default: 10). |
+
+### `search_notes_hybrid`
+
+Searches notes combining keyword and semantic search using Reciprocal Rank Fusion (RRF). Finds notes that match by exact terms AND by conceptual meaning. Best general-purpose search when you are unsure whether to use keyword or semantic search. Requires Ollama for the semantic leg — degrades to keyword-only if Ollama is unavailable.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `query` | String | Yes | Search query in natural language or keywords. |
+| `max_results` | Int32 | No | Maximum number of results to return (default: 10). |
+| `min_score` | Single | No | Minimum RRF score 0.0–1.0 to include a result (default: 0.0 = no filter). |
+| `keyword_weight` | Single | No | Weight for keyword search leg (default: 1.0). |
+| `semantic_weight` | Single | No | Weight for semantic search leg (default: 1.0). Set to 0 to disable semantic. |
+
+### `search_notes_semantic`
+
+Searches notes by semantic meaning using Ollama embeddings. Finds notes conceptually related to the query even without exact keyword matches. Frontmatter fields (tags, status, type, date, extra fields) are included in the index. Requires Ollama running with the configured embedding model.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `query` | String | Yes | Natural language query. E.g. 'notes about stress and burnout'. |
+| `max_results` | Int32 | No | Maximum number of results to return (default: 10). |
+| `min_score` | Single | No | Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches. |
+
+### `suggest_tags`
+
+Returns the current tag state of a note to help an AI agent decide which new tags to add. Reports existing tags, folder-inherited tags from config.yml auto_tags, and frontmatter fields that must not be duplicated as tags. After reading this, the AI agent should call add_tag with any missing semantic tags.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or vault-relative path of the note. |
+
+## ObsidianBridgeTools
+
+### `create_note_ui`
+
+Create a note and open it in Obsidian. Creates the file if it does not exist.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `path` | String | Yes | Vault-relative path of the note to create and open (e.g. 'Projects/NewNote.md'). |
+
+### `get_active_note_in_obsidian`
+
+Returns metadata of the note currently open in Obsidian.
+
+### `get_open_notes_in_obsidian`
+
+Returns the list of all notes currently open in Obsidian tabs.
+
+### `insert_at_cursor`
+
+Insert text at the cursor position in the active Obsidian note.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `text` | String | Yes | Text to insert at the current cursor position. |
+
+### `open_in_split`
+
+Open a note in a new split pane in Obsidian.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to open in a split pane. |
+
+### `open_note_in_obsidian`
+
+Opens and focuses a specific note within the Obsidian application.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to open. |
+
+### `replace_selection`
+
+Replace the current text selection in the active Obsidian note.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `text` | String | Yes | Text to replace the selection with. |
+
+### `scroll_to_block`
+
+Scroll the active Obsidian note to a specific block ID (e.g. '^blockid').
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `block_id` | String | Yes | Block ID to scroll to (without the ^ prefix, e.g. 'abc123'). |
+
+### `trigger_obsidian_command`
+
+Triggers an internal Obsidian command by its unique identifier (command ID).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `command_id` | String | Yes | Unique ID of the command (e.g., 'app:toggle-left-sidebar', 'workspace:close-others'). |
+
+## PluginIntegrationTools
+
+### `apply_template`
+
+Creates a new note from a Templater template via the Obsidian plugin bridge. Requires Obsidian to be open with the Kioku plugin and Templater plugin enabled. The template is instantiated by Templater — all template variables (tp.date, tp.file, etc.) are evaluated.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `template_path` | String | Yes | Vault-relative path to the Templater template file. Example: 'Templates/Daily Note.md' |
+| `target_note` | String | No | Optional: vault-relative path of an existing note to apply the template to. |
+
+### `fix_merge_conflicts`
+
+Scans all Markdown notes in the vault for Git merge conflict markers (<<<<<<<, =======, >>>>>>>). Returns a list of affected notes with the conflicting sections. Does not modify any files — use resolve_merge_conflict to resolve conflicts. Does not require Obsidian to be running.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scan (vault-relative). Leave empty to scan the entire vault. |
+
+### `get_installed_plugins`
+
+Returns a list of all installed Obsidian plugins with their ID, name, version, author, and enabled status. Requires Obsidian to be open with the Kioku plugin. Use this to check if a required plugin (e.g. 'dataview', 'templater-obsidian') is available before calling plugin-dependent tools.
+
+### `lint_note`
+
+Runs the Obsidian Linter plugin on a specific note or the currently active note. Requires Obsidian to be open with the Kioku plugin and the 'obsidian-linter' plugin enabled. Linter fixes formatting issues according to the user's configured Linter rules.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | No | Vault-relative path of the note to lint. Leave empty to lint the currently active note. |
+
+### `lint_vault`
+
+Runs the Obsidian Linter plugin on all notes in the vault. Requires Obsidian to be open with the Kioku plugin and the 'obsidian-linter' plugin enabled. This is a long-running operation for large vaults.
+
+### `query_dataview`
+
+Executes a Dataview DQL query via the Obsidian plugin bridge and returns results as JSON. Requires Obsidian to be open with the Kioku plugin and Dataview plugin enabled. Supports TABLE, LIST, TASK queries and inline expressions.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `query` | String | Yes | Dataview DQL query. Example: 'TABLE status, tags FROM "Projects" WHERE status = "active" SORT file.mtime DESC' |
+
+### `resolve_merge_conflict`
+
+Resolves a specific Git merge conflict in a note by choosing one version. Use 'ours' to keep the HEAD version, 'theirs' to keep the incoming version, or 'both' to concatenate both versions. Does not require Obsidian to be running. The FileSystemWatcher will automatically re-index the note after resolution.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or vault-relative path of the note with conflicts. |
+| `conflict_index` | Int32 | No | Index of the conflict to resolve (0-based). Use -1 to resolve all conflicts at once. |
+| `version` | String | No | Which version to keep: 'ours' (HEAD), 'theirs' (incoming), or 'both'. |
+
+## ResearchTools
+
+### `export_citations`
+
+Exports citation keys found in note frontmatter ('citekey' field) as a BibTeX stub list or Markdown table. Useful for building a bibliography from your literature notes. Each note with a 'citekey' in its extra frontmatter fields is included.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `format` | String | No | Export format: 'bib' for BibTeX stubs, 'markdown' for a Markdown table (default: markdown). |
+| `folder` | String | No | Folder to scan (vault-relative). Leave empty to scan the entire vault. |
+
+### `export_note`
+
+Exports a note as HTML (rendered from Markdown using Markdig). Returns a self-contained HTML document with inline styles. Useful for sharing notes without requiring Obsidian.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to export. |
+| `format` | String | No | Output format: only 'html' is supported. |
+
+### `get_literature_gap`
+
+Identifies citekeys referenced inline in notes (as [@citekey] or @citekey) that do not have a corresponding literature note in the vault. Helps find gaps in your literature review — citations you have referenced but not yet synthesized.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scan for literature notes (vault-relative). Leave empty to scan the entire vault. |
+
+### `share_as_gist`
+
+Publishes a note as a GitHub Gist and returns the URL. Requires the KIOKU_GITHUB_TOKEN environment variable to be set with a GitHub personal access token that has the 'gist' scope. Gists are public by default; set 'public' to false for a secret Gist.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to share. |
+| `description` | String | No | Gist description shown on GitHub. |
+| `public` | Boolean | No | Whether the Gist should be public (default: true). |
+
+### `validate_research_notes`
+
+Validates that research and literature notes have required metadata fields (citekey, year, authors, status, updated). Returns a report of notes with missing fields for quality assurance.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scan for research notes (vault-relative). Leave empty for entire vault. |
+
+## RestoreTools
+
+### `list_deleted_notes`
+
+Lists notes in the trash folder that can be restored. Shows file paths and how long ago they were deleted.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `trash_folder` | String | No | Trash folder (vault-relative). Default: '.trash'. |
+
+### `restore_note_from_trash`
+
+Restores a deleted note from the trash folder back to the vault. Moves the file from .trash to the vault root or a specified destination folder.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note in the trash to restore. |
+| `destination` | String | No | Target folder to restore into (vault-relative). Defaults to vault root. |
+| `dry_run` | Boolean | No | If true, only reports what would be restored without moving the file. |
+
+### `restore_note_version`
+
+Restores a note to a specific git revision using git restore --source. Requires the vault to be a git repository.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note. |
+| `revision` | String | Yes | Git revision (commit hash, branch name, or ref like HEAD~2). |
+
+### `revert_all_uncommitted`
+
+Reverts all uncommitted changes across the entire vault using git restore. Discards staged and unstaged changes to tracked files. Untracked files are not affected.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `dry_run` | Boolean | No | If true, lists files that would be reverted without modifying them. |
+
+### `revert_note`
+
+Reverts a note to its last committed version using git restore. Discards all uncommitted changes. Requires the vault to be a git repository.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to revert. |
+
+## SessionContextTools
+
+### `end_work_session`
+
+Closes the current work session by appending a summary of notes modified since the session started. Updates the session note status to 'done'.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `session_note` | String | No | Name or path of the session note to close. If empty, finds the most recent active session. |
+| `summary` | String | No | Optional summary or outcome of the session. |
+
+### `get_recent_activity`
+
+Returns the N most recently modified notes in the vault, ordered by last modification time. Useful for the agent to quickly understand what the user has been working on.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `n` | Int32 | No | Maximum number of notes to return. |
+| `folder` | String | No | Scope to a subfolder (relative to vault root). Leave empty for the full vault. |
+
+### `get_session_activity`
+
+Returns all notes created or modified during a specific work session.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `session_note` | String | Yes | Name or path of the session note (e.g., '2025-06-25' or 'Sessions/2025-06-25'). |
+
+### `get_work_context`
+
+Returns a snapshot of the vault's current work state: notes in inbox folders, notes with status 'draft', and the most recently modified notes. Call this at the start of a session to quickly understand where to resume work.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `inbox_folder` | String | No | Folder treated as the inbox (relative to vault root). Default: 'Inbox'. |
+| `max_per_section` | Int32 | No | Maximum number of recent notes to show in each section. |
+
+### `list_work_sessions`
+
+Lists all work session notes with their dates, status (active/done), and duration if closed.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `sessions_folder` | String | No | Folder where session notes are stored (relative to vault root). Auto-detects if empty. |
+
+### `start_work_session`
+
+Creates a new work session note with a timestamp header. Records the current date, time, and optional session goal. The note is saved in the sessions folder for later reference.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `session_name` | String | No | Optional name for the session (e.g. 'Thesis Chapter 3 Review'). Defaults to today's date. |
+| `sessions_folder` | String | No | Folder where session notes are stored (relative to vault root). |
+| `goal` | String | No | Optional goal or focus for this session. |
+
+## TaskManagementTools
+
+### `complete_task`
+
+Marks a task as completed ('- [x]') at the specified line in a note. Use list_tasks first to find the note name and line number of the task.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note containing the task. |
+| `line_number` | Int32 | Yes | 1-based line number of the task within the note. |
+
+### `list_overdue_tasks`
+
+Lists all open tasks whose due date (📅 YYYY-MM-DD in Obsidian Tasks format) is in the past. Only scans open tasks — completed tasks are never overdue.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to restrict the search (relative to vault root). Leave empty to scan the entire vault. |
+
+### `list_tasks`
+
+Lists all tasks (open and completed) across the vault or within a specific note. Supports filtering by completion status. Returns task text, note name, line number, due date, and inline tags.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | No | Name or path of a specific note to scan. Leave empty to scan the entire vault. |
+| `status` | String | No | Filter by completion status: 'open' (default), 'done', or 'all'. |
+| `folder` | String | No | Folder to restrict the search (relative to vault root). Only used when 'note' is empty. |
+
+### `list_tasks_by_tag`
+
+Lists all open tasks that match a given tag. Matches both frontmatter tags of the note and inline '#tag' annotations in the task text. Returns task text, note, line number, and due date.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `tag` | String | Yes | Tag to filter by (without the '#' prefix). E.g. 'project', 'urgent'. |
+| `include_done` | Boolean | No | Include completed tasks too (default: false — open tasks only). |
+
+### `reopen_task`
+
+Reopens a completed task by changing '- [x]' back to '- [ ]'. Use list_tasks with status='done' first to find the note and line number.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note containing the task. |
+| `line_number` | Int32 | Yes | 1-based line number of the task within the note. |
+
+## UtilityTools
+
+### `get_index_status`
+
+Returns the current status of the in-memory index: number of notes, last update time, and whether the index is ready.
+
+### `ping`
+
+Verifies that the Kioku MCP server is active and responding.
+
+### `rebuild_index`
+
+Forces a full re-indexing of the entire vault. Useful if the index got out of sync or massive changes were made outside of Obsidian.
+
+## VaultOrganizationTools
+
+### `audit_vault`
+
+Generates a health report of the vault: notes without tags, without dates, without content, broken wikilinks, and notes not updated in a long time.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `stale_days` | Int32 | No | Flag notes not updated in this many days (default: 90). |
+
+### `find_broken_links`
+
+Scans the entire vault for broken wikilinks — links that point to notes that do not exist.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scope the scan (relative to vault root). Leave empty for full vault. |
+
+### `find_duplicate_notes`
+
+Detects notes with very similar titles or content that may be duplicates. Always operates as a dry run — reports findings without modifying the vault.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `threshold` | Single | No | Similarity threshold (0.0–1.0). Higher = only very similar notes. Default: 0.8. |
+| `max_results` | Int32 | No | Maximum number of duplicate pairs to report. |
+
+### `merge_tags`
+
+Merges two tags into one across the entire vault. All notes containing source_tag will have it replaced with target_tag. Use dry_run=true to preview changes without modifying files.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `source_tag` | String | Yes | The tag to merge away (will be replaced). |
+| `target_tag` | String | Yes | The tag to merge into (will remain). |
+| `dry_run` | Boolean | No | If true, returns a preview without modifying any files. |
+
+### `normalize_tags`
+
+Normalizes tag formatting across all notes in the vault. Converts tags to lowercase and replaces spaces/underscores with hyphens. Use dry_run=true to preview changes without modifying files.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `dry_run` | Boolean | No | If true, returns a preview of what would change without modifying any files. |
+
+### `reclassify_note`
+
+Move a note to the most appropriate folder based on its content. Uses the same scoring as suggest_folder.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to reclassify. |
+| `dry_run` | Boolean | No | If true, returns the suggested destination without moving the file. |
+
+### `rename_tag_globally`
+
+Renames a tag in every note across the entire vault. Use dry_run=true to preview which notes would be affected without modifying files.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `old_tag` | String | Yes | The tag to rename (without the # prefix). |
+| `new_tag` | String | Yes | The new tag name (without the # prefix). |
+| `dry_run` | Boolean | No | If true, returns a preview of which notes would change without modifying any files. |
+
+### `suggest_folder`
+
+Suggest the most appropriate vault folder(s) for a note based on content similarity to existing notes.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to suggest a folder for. |
+| `max_suggestions` | Int32 | No | Maximum number of folder suggestions to return. |
+
+### `suggest_tags`
+
+Suggests existing tags from the vault that are relevant to the given note's content. Uses keyword overlap between the note's text and existing tags.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to suggest tags for. |
+| `max_suggestions` | Int32 | No | Maximum number of tag suggestions to return. |
+
+## WorkflowTools
+
+### `create_note_from_template`
+
+Creates a new note by applying a template with variable substitution. Replaces {{ variable }} placeholders with the provided values. Built-in variables: {{date}} (today), {{time}} (now), {{title}} (note name).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `template_name` | String | Yes | Name of the template (without .md extension). Use list_templates to see available templates. |
+| `target_path` | String | Yes | Path for the new note (without .md extension). Can include subfolders: 'Projects/My Note'. |
+| `variables` | Dictionary`2 | No | Variables to inject into the template as key-value pairs. Example: {"title": "My Note", "status": "draft", "author": "David"}. Built-in variables (date, time, title) are auto-populated if not provided. |
+| `templates_folder` | String | No | Templates folder relative to vault root. Leave empty to auto-detect. |
+
+### `create_template`
+
+Creates a new template file in the vault's templates folder. Use {{ variable }} syntax for placeholders that will be filled when the template is used.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `name` | String | Yes | Template name (without .md extension). |
+| `content` | String | Yes | Template content in Markdown. Use {{ variable }} for placeholders. |
+| `templates_folder` | String | No | Templates folder relative to vault root. Leave empty to auto-detect (defaults to 'Templates'). |
+
+### `extract_action_items`
+
+Extracts all unchecked task checkboxes from a note and optionally consolidates them into a new action items note. Returns the found tasks even in dry-run mode.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to scan for action items. |
+| `output_note` | String | No | If provided, creates a new note at this path containing the extracted action items. |
+| `dry_run` | Boolean | No | If true, only reports found action items without creating the output note. |
+
+### `list_templates`
+
+Lists all available note templates in the vault's templates folder. Returns template names and the variables they accept ({{ variable }} syntax).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `templates_folder` | String | No | Templates folder relative to vault root. Leave empty to auto-detect. |
+
+## ZettelkastenTools
+
+### `create_folder_readme`
+
+Creates a folder note (named after the folder, e.g. Projects.md inside Projects/) listing all its notes. Compatible with the Obsidian Folder Notes plugin. Acts as a lightweight, non-Zettelkasten alternative to create_moc. Overwrites any existing note with the same name in that folder. Only supports folders up to level 2 depth (e.g. 'Projects' or 'Areas/Work').
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | Yes | Vault-relative folder path (max level 2, e.g. 'Projects' or 'Areas/Work'). |
+
+### `create_literature_note`
+
+Creates a structured literature note for a book, article, or paper using the standard Zettelkasten literature note template. The note includes fields for author, year, title, source, and a summary section.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `title` | String | Yes | Title of the work (book, article, paper, etc.). |
+| `author` | String | Yes | Author(s) of the work. |
+| `year` | String | Yes | Publication year (e.g. '2023'). |
+| `source` | String | No | Source or URL (e.g. 'https://...', 'ISBN 978-...'). |
+| `summary` | String | No | Brief summary or key insight from the work. |
+| `tags` | String | No | Tags to add in frontmatter (comma-separated). 'literature' is always included. |
+| `folder` | String | No | Folder to save the note in. Default: 'Literature'. |
+
+### `create_moc`
+
+Generates a Map of Content (MOC) note for a given vault folder. The MOC lists all notes in the folder with their tags and a brief description, organized hierarchically by subfolder. Overwrites any existing MOC for the same folder.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | Yes | Vault-relative folder path to generate the MOC for (e.g. 'Projects', 'Areas/Work'). |
+| `output_name` | String | No | Name of the output MOC note (without extension). Default: '<folder>-MOC'. |
+| `output_folder` | String | No | Folder to save the MOC note. Defaults to the same folder being mapped. |
+
+### `create_zettel`
+
+Creates a Zettelkasten note with a unique timestamp ID (YYYYMMDDHHMMSS) as the filename. Optionally finds semantically related notes and adds wikilinks to them. Returns the created note's path and ID.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `title` | String | Yes | Title of the note (used as the H1 heading inside the note). |
+| `content` | String | Yes | Main content of the note in Markdown. |
+| `tags` | String | No | Tags to add in the frontmatter (comma-separated). E.g. 'idea, philosophy'. |
+| `folder` | String | No | Folder inside the vault to create the note in. Leave empty to use the configured default, or auto-detect via content similarity if no default is set. |
+| `link_related` | Boolean | No | If true, automatically finds up to 5 semantically related notes and adds [[wikilinks]] to them. |
+| `max_links` | Int32 | No | Maximum number of related notes to link (default 5). Only used when link_related=true. |
+
+### `link_related_notes`
+
+Finds notes that are semantically related to a given note and appends wikilinks to them in a 'Related' section at the end of the note. Requires Ollama to be running (semantic search). Does not add links that already exist in the note.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to find related notes for and link. |
+| `max_links` | Int32 | No | Maximum number of related notes to link (default 5). |
+| `min_similarity` | Double | No | Minimum similarity score (0.0–1.0). Notes below this threshold are excluded. Default: 0.65. |
 
 ---
 
-## Leyenda
-
-| Símbolo | Significado |
-|---|---|
-| ✅ Implementado | Disponible y funcional en `develop` |
-| 🔨 En desarrollo | En construcción para la versión actual |
-| 📋 Planificado | En backlog, confirmado para una rama futura |
-| 💡 Propuesto | Evaluando viabilidad e impacto |
-| ❌ Descartado | Fuera del alcance — ver justificación |
-
----
-
-## Parte 1: MCP Tools (Servidor C#)
-
-Comandos que el agente de IA (Claude Code, agy) puede invocar directamente a través del protocolo MCP. Cada tool está decorada con `[McpServerTool]` en C#.
-
----
-
-### 📖 Grupo 1: Lectura y Consulta de Notas
-
-Estas herramientas son de **solo lectura** — no modifican la bóveda.
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 1 | `read_note` | v1 | ✅ | Lee el contenido completo de una nota por ruta o nombre |
-| 2 | `list_notes` | v1 | ✅ | Lista todas las notas de la bóveda (o de una carpeta) |
-| 3 | `search_notes` | v1 | ✅ | Búsqueda de texto en título, contenido y tags |
-| 4 | `filter_notes` | v1 | ✅ | Filtra notas por frontmatter (tags, fecha, estado, tipo) |
-| 5 | `get_note_metadata` | v1 | ✅ | Lee solo el frontmatter YAML de una nota |
-| 6 | `get_backlinks` | v1 | ✅ | Devuelve todas las notas que enlazan a una nota dada |
-| 7 | `get_outgoing_links` | v1 | ✅ | Devuelve todos los wikilinks que salen de una nota |
-| 8 | `search_notes_semantic` | v2 | ✅ | Búsqueda por similitud conceptual (embeddings Ollama) |
-| 9 | `search_notes_hybrid` | v2 | ✅ | Búsqueda combinada: texto + semántica (RRF) |
-| 10 | `find_similar_notes` | v2 | ✅ | Notas conceptualmente similares a una nota dada |
-| 11 | `get_note_embedding` | v2 | ✅ | Devuelve el embedding de una nota (debug/diagnóstico) |
-| 12 | `get_recent_activity` | v3 | ✅ | N notas modificadas más recientemente (por `mtime`) |
-| 13 | `get_work_context` | v3 | ✅ | Snapshot de la bóveda: inbox, drafts, sesión activa |
-| 14 | `get_knowledge_timeline` | v3 | ✅ | Notas ordenadas por `date` en un rango de fechas |
-| 15 | `get_concept_map` | v3 | ✅ | Grafo de notas relacionadas como JSON (nodos + aristas) |
-| 16 | `get_vault_snapshot` | v3 | ✅ | Árbol de carpetas + top tags + stats en un solo llamado |
-
-#### Justificaciones
-
-- **`read_note`**: Operación fundamental. El agente necesita leer el contenido completo antes de razonar sobre él.
-- **`list_notes`**: Permite al agente tener una vista de la bóveda completa para planear acciones.
-- **`search_notes`**: Búsqueda rápida por texto. Esencial para localizar notas por tema sin iterar toda la bóveda.
-- **`filter_notes`**: Permite al agente filtrar subconjuntos específicos (ej. "todas las notas con status: draft del mes pasado").
-- **`get_note_metadata`**: Más eficiente que `read_note` cuando solo se necesitan los metadatos YAML.
-- **`get_backlinks` / `get_outgoing_links`**: Permiten al agente navegar el grafo de conocimiento de la bóveda.
-- **`search_notes_semantic`**: Para bóvedas donde los términos exactos no coinciden pero el concepto sí (ej. buscar "redes neuronales recurrentes" y encontrar notas sobre "LSTM").
-- **`search_notes_hybrid`**: Combina la precisión del texto con la flexibilidad semántica — mejor resultado general.
-- **`find_similar_notes`**: El agente puede sugerir conexiones no obvias entre notas.
-- **`get_recent_activity`**: Solo `File.GetLastWriteTime()` — implementación trivial, alto valor para retomar sesiones.
-- **`get_work_context`**: El agente no tiene memoria entre sesiones — este snapshot le da el estado en un llamado.
-- **`get_knowledge_timeline`**: Ver cómo evolucionó el conocimiento sobre un tema en el tiempo.
-- **`get_concept_map`**: Habilita visualizaciones externas del grafo y razonamiento sobre la red de conocimiento.
-- **`get_vault_snapshot`**: Reemplaza `list_notes + get_vault_stats + múltiples get_note_metadata` — reduce tokens.
-
----
-
-### ✏️ Grupo 2: Escritura y Modificación de Notas
-
-Estas herramientas **modifican la bóveda**. Requieren confirmación implícita del agente.
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 17 | `create_note` | v1 | ✅ | Crea una nueva nota con frontmatter y contenido |
-| 18 | `update_note_content` | v1 | ✅ | Reemplaza o edita el contenido de una nota |
-| 19 | `append_to_note` | v1 | ✅ | Añade texto al final de una nota (útil para bitácoras) |
-| 20 | `prepend_to_note` | v1 | ✅ | Añade texto al inicio del cuerpo (después del frontmatter) |
-| 21 | `update_frontmatter` | v1 | ✅ | Actualiza o añade campos en el frontmatter YAML |
-| 22 | `add_tag` | v1 | ✅ | Añade uno o más tags a una nota |
-| 23 | `remove_tag` | v1 | ✅ | Elimina un tag de una nota |
-| 24 | `move_note` | v1 | ✅ | Mueve una nota a otra carpeta |
-| 25 | `rename_note` | v1 | ✅ | Renombra una nota |
-| 26 | `delete_note` | v1 | 💡 | Elimina una nota (requiere confirmación explícita) |
-
-#### Justificaciones
-
-- **`create_note`**: Permite al agente crear notas de resumen, notas de sesión de trabajo, o nuevas entradas.
-- **`update_note_content`**: Para que el agente pueda editar notas existentes directamente.
-- **`append_to_note`**: Patrón muy común en flujos de bitácora. El agente añade un registro sin tocar el contenido previo.
-- **`prepend_to_note`**: Útil para añadir un TL;DR o resumen ejecutivo al inicio de notas largas.
-- **`update_frontmatter`**: Permite clasificar o cambiar el status de una nota sin editar su cuerpo.
-- **`add_tag` / `remove_tag`**: Operaciones frecuentes de clasificación y reorganización de la taxonomía de tags.
-- **`delete_note`**: Marcado como 💡 porque es destructivo. Evaluar si se mueve a la papelera de Obsidian.
-- **`move_note` / `rename_note`**: Cruciales para reorganización. Deben actualizar los wikilinks referenciadores.
-
----
-
-### ✅ Grupo 3: Task Management
-
-Herramientas para gestión de tareas nativas de Obsidian (compatible con el plugin Tasks).
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 27 | `list_tasks` | v3 | ✅ | Lista todas las tareas (checkboxes) en la bóveda |
-| 28 | `complete_task` | v3 | ✅ | Marca una tarea como completada (`[x]`) |
-| 29 | `reopen_task` | v3 | ✅ | Reabre una tarea completada (`[ ]`) |
-| 30 | `list_tasks_by_tag` | v3 | ✅ | Filtra tareas por tag o contexto |
-| 31 | `list_overdue_tasks` | v3 | ✅ | Lista tareas con fecha de vencimiento pasada |
-| 32 | `extract_action_items` | v3 | ✅ | Consolida checkboxes de una nota en una nota de tareas |
-
-#### Justificaciones
-
-- **`list_tasks`**: El agente puede ver todas las tareas pendientes sin que el usuario abra Obsidian.
-- **`complete_task` / `reopen_task`**: Flujo bidireccional — el agente gestiona tareas igual que el usuario.
-- **`list_tasks_by_tag`**: Para bóvedas GTD con contextos (`@home`, `@work`, `@computer`).
-- **`list_overdue_tasks`**: El agente puede hacer un "daily briefing" de tareas atrasadas al inicio de la sesión.
-- **`extract_action_items`**: Puente entre notas de reunión y el sistema de tareas — sin depender del plugin Tasks.
-
----
-
-### 🧠 Grupo 4: Zettelkasten y Gestión del Conocimiento
-
-Herramientas para construir y navegar la red de conocimiento Zettelkasten.
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 33 | `create_zettel` | v3 | ✅ | Crea una nota Zettel atómica con ID único |
-| 34 | `create_moc` | v3 | ✅ | Crea un Map of Content (MOC) para un tema |
-| 35 | `create_folder_readme` | v3 | ✅ | Genera un folder note ({Folder}.md) para una carpeta de la bóveda (máx. nivel 2) — compatible con Folder Notes plugin |
-| 36 | `link_related_notes` | v3 | ✅ | Encuentra notas relacionadas y agrega wikilinks |
-| 37 | `create_literature_note` | v3 | ✅ | Crea nota de literatura con frontmatter estándar |
-| 38 | `create_note_from_template` | v3 | ✅ | Crea nota desde template con variables `{{ var }}` |
-| 39 | `list_templates` | v3 | ✅ | Lista templates disponibles en la carpeta configurada |
-| 40 | `create_template` | v3 | ✅ | Guarda un nuevo template en la carpeta de templates |
-
-#### Justificaciones
-
-- **`create_zettel`**: El ID único (timestamp) garantiza permanencia de los wikilinks aunque se renombre la nota.
-- **`create_moc`**: Los MOCs son el mecanismo de indexación en Zettelkasten — el agente los genera automáticamente.
-- **`create_folder_readme`**: Crea un folder note ({Folder}.md) listando todas las notas de la carpeta. Máximo nivel 2. Compatible con el plugin Folder Notes de Obsidian.
-- **`link_related_notes`**: Construye el grafo de conocimiento automáticamente usando embeddings existentes.
-- **`create_literature_note`**: Estándar para bóvedas académicas — citekey, DOI, autores, año en frontmatter.
-- **`create_note_from_template`**: El patrón más frecuente del día a día — evita 4-5 tool calls encadenados.
-- **`list_templates`**: El agente necesita saber qué templates existen antes de elegir uno.
-
----
-
-### 🗂️ Grupo 5: Organización y Taxonomía
-
-Herramientas para mantener la bóveda ordenada y bien clasificada.
-
-| # | Tool Name | Versión | Estado | Patrón | Descripción |
-|---|---|---|---|---|---|
-| 41 | `reorder_notes_in_folder` | v3 | ✅ | dry_run | Renombra notas con prefijo numérico para definir orden |
-| 42 | `normalize_tags` | v3 | ✅ | dry_run | Estandariza capitalización y formato de tags en toda la bóveda |
-| 43 | `rename_tag_globally` | v3 | ✅ | dry_run | Renombra un tag en todas las notas de la bóveda |
-| 44 | `merge_tags` | v3 | ✅ | dry_run | Fusiona dos tags en uno |
-| 45 | `reclassify_note` | v3 | ✅ | — | Mueve una nota a la carpeta más apropiada según su contenido |
-| 46 | `suggest_tags` | v3 | ✅ | — | Sugiere tags relevantes para una nota basándose en el contenido |
-| 47 | `suggest_folder` | v3 | ✅ | — | Sugiere la carpeta más adecuada para una nota |
-| 48 | `find_duplicate_notes` | v3 | ✅ | dry_run | Detecta notas con contenido similar (posibles duplicados) |
-| 49 | `audit_vault` | v3 | ✅ | — | Reporte de salud: notas sin tags, sin fecha, wikilinks rotos |
-| 68 | `find_unlinked_notes` | v3 | 📋 | — | Notas sin backlinks NI outgoing links (islas del grafo) |
-| 69 | `find_graph_islands` | v3 | 📋 | — | Componentes conexos pequeños (< N notas) no conectados al principal |
-| 70 | `measure_vault_density` | v3 | 📋 | — | Métricas globales: avg backlinks, ratio de notas con tags/frontmatter |
-
-> **Patrón `dry_run`:** Los tools marcados aceptan `dry_run: bool = false`. Con `true` devuelven un preview de qué cambiaría sin ejecutar nada.
-
-#### Justificaciones
-
-- **`normalize_tags`**: Con 500 notas, es común acumular variaciones del mismo tag (`machine-learning`, `MachineLearning`, `ML`).
-- **`rename_tag_globally`**: Refactoring de taxonomía. Cambiar un tag en cientos de notas manualmente es inviable.
-- **`merge_tags`**: Elimina redundancias en la taxonomía fusionando tags semánticamente equivalentes.
-- **`reclassify_note`**: El agente analiza el contenido y mueve la nota a la carpeta más apropiada.
-- **`find_duplicate_notes`**: Con 500+ notas, es probable tener duplicados. El agente los detecta y propone fusionarlos.
-- **`audit_vault`**: Dashboard de calidad. Devuelve schema estructurado `{ summary, items: [{path, issue, severity}] }`.
-
----
-
-### 🖼️ Grupo 6: Assets, Theming y Archivos No-Markdown
-
-Herramientas para trabajar con activos visuales, bases de datos y personalización visual.
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 50 | `list_excalidraw_files` | v3 | ✅ | Lista todos los diagramas Excalidraw de la bóveda |
-| 51 | `get_asset_metadata` | v3 | ✅ | Metadatos de un asset (nombre, ubicación, tamaño, fecha) |
-| 52 | `find_orphan_assets` | v3 | ✅ | Assets no referenciados por ninguna nota |
-| 53 | `find_broken_links` | v3 | ✅ | Wikilinks rotos en toda la bóveda |
-| 54 | `list_database_tables` | v3 | 💡 | Lista las bases de datos de DB Folder / Dataview |
-| 55 | `query_database_table` | v3 | 💡 | Consulta filas de una base de datos nativa de Obsidian |
-| 56 | `apply_css_snippet` | v3 | ✅ | Crea/actualiza un snippet CSS en `.obsidian/snippets/` |
-| 57 | `list_css_snippets` | v3 | ✅ | Lista snippets CSS con estado enabled/disabled |
-| 71 | `normalize_attachment_names` | v3 | 📋 | Renombra attachments con patrón consistente + actualiza referencias (dry_run) |
-| 72 | `move_attachments_to_folder` | v3 | 📋 | Centraliza attachments dispersos en carpeta estándar + actualiza refs |
-| 77 | `remove_css_snippet` | v3 | 📋 | Elimina un snippet CSS de .obsidian/snippets/ y lo quita de app.json |
-
-#### Justificaciones
-
-- **`list_excalidraw_files`**: El agente puede referenciar diagramas existentes al escribir notas.
-- **`find_orphan_assets`**: Con 500 notas, es común acumular imágenes y diagramas que nadie referencia.
-- **`find_broken_links`**: Detecta wikilinks que apuntan a notas que ya no existen.
-- **`apply_css_snippet`**: Escribe en `.obsidian/snippets/` y llama `reload-snippets` — sin APIs privadas. Permite "modo sepia", fuentes personalizadas, colorizar tags por categoría.
-- **`list_css_snippets`**: El agente necesita saber qué snippets existen antes de agregar/modificar.
-
----
-
-### 🔬 Grupo 7: Research y Academic
-
-Herramientas para gestión de conocimiento académico y exportación de referencias.
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 58 | `export_citations` | v3 | ✅ | Exporta notas con `citekey` en formato `.bib` o Markdown |
-| 59 | `get_literature_gap` | v3 | ✅ | Citekeys referenciados en el texto sin nota propia |
-| 60 | `import_zotero_item` | v3 | 💡 | Crea nota de literatura desde Zotero API local |
-| 73 | `validate_research_notes` | v3 | 📋 | Valida que notas type:literature/research tengan citekey, year, authors, status |
-
-#### Justificaciones
-
-- **`export_citations`**: Solo escanea frontmatter `citekey` — lectura pura del índice existente. Genera `.bib` o lista Markdown.
-- **`get_literature_gap`**: Detecta papers citados que no tienen su propia nota de lectura — identifica qué falta leer.
-- **`import_zotero_item`**: 💡 porque depende de Zotero desktop activo en `localhost:23119` — dependencia frágil.
-
----
-
-### 🕐 Grupo 8: Sesión de Trabajo y Contexto
-
-Herramientas para gestionar el estado y continuidad entre sesiones de trabajo.
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 61 | `start_work_session` | v3 | ✅ | Crea nota de sesión con timestamp y notas abiertas actuales |
-| 62 | `end_work_session` | v3 | ✅ | Cierra sesión: agrega resumen de notas creadas/modificadas |
-| 75 | `list_work_sessions` | v3 | 📋 | Lista notas de sesión con fecha, duración y estado abierta/cerrada |
-| 76 | `get_session_activity` | v3 | 📋 | Notas creadas/modificadas durante una sesión específica |
-
-#### Justificaciones
-
-- **`start_work_session`**: Macro sobre `create_note` + `get-open-notes` — registra el estado de la bóveda al iniciar.
-- **`end_work_session`**: Macro sobre `append_to_note` — genera el log automático de la sesión de trabajo.
-
----
-
-### 🔧 Grupo 9: Utilidades del Sistema
-
-Herramientas de diagnóstico e información del servidor.
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 63 | `get_vault_stats` | v1 | ✅ | Estadísticas de la bóveda (total notas, tags, carpetas) |
-| 64 | `get_index_status` | v1 | ✅ | Estado del índice en memoria y última actualización |
-| 65 | `rebuild_index` | v1 | ✅ | Fuerza una re-indexación completa de la bóveda |
-| 66 | `ping` | v1 | ✅ | Verificación de que el servidor está activo (health check) |
-
----
-
-### 🔗 Grupo 10: Ecosystem e Integración Git
-
-Herramientas para interactuar con el entorno externo (git, configuración) que rodea la bóveda.
-
-| # | Tool Name | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| 78 | `get_git_status` | v3 | 📋 | `git status --short` sobre el vault (archivos modificados/añadidos/borrados) |
-| 79 | `list_git_commits` | v3 | 📋 | Últimos N commits con hash, mensaje y fecha |
-| 80 | `create_git_commit` | v3 | 💡 | Stagea y crea commit con dry_run (destructivo — exige confirmación explícita) |
-
----
-
-## Parte 2: Plugin Commands (Obsidian ↔ Motor C#)
-
-Comandos que el motor C# envía al plugin de Obsidian vía WebSocket local. El plugin actúa como un **servidor WebSocket local** y el motor C# como cliente.
-
-> Estos comandos solo funcionan cuando Obsidian está abierto. Si está cerrado, el motor C# ignora los comandos del plugin sin error.
-
----
-
-### 🖥️ Grupo A: Navegación y Foco
-
-| # | Comando | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| A1 | `open-file` | v1 | ✅ | Abre y enfoca una nota específica en Obsidian |
-| A2 | `get-active-note` | v1 | ✅ | Devuelve la nota que actualmente tiene el foco |
-| A3 | `get-open-notes` | v1 | ✅ | Lista todas las notas actualmente abiertas en pestañas |
-| A4 | `scroll-to-block` | v1 | ✅ | Desplaza la vista hasta un bloque específico (por ID de bloque) |
-| A5 | `open-in-split` | v1 | ✅ | Abre una nota en un panel dividido sin cerrar la vista actual |
-| A6 | `close-note` | v1 | 💡 | Cierra la pestaña de una nota específica |
-
-#### Justificaciones
-
-- **`open-file`**: Cuando el agente trabaja con una nota, el usuario puede querer verla. El agente la abre automáticamente.
-- **`get-active-note`**: Permite al agente saber qué nota está leyendo el usuario en este momento.
-- **`get-open-notes`**: El agente puede adaptar sus respuestas según qué notas tiene el usuario abiertas.
-- **`scroll-to-block`**: Esencial cuando el agente referencia un fragmento específico de una nota larga.
-- **`open-in-split`**: El usuario tiene una nota abierta y el agente necesita mostrarle una referencia sin interrumpir.
-
----
-
-### ⚡ Grupo B: Ejecución de Comandos y UI
-
-| # | Comando | Versión | Estado | API | Descripción |
-|---|---|---|---|---|---|
-| B1 | `trigger-command` | v1 | ✅ | pública | Ejecuta un comando nativo de Obsidian por su ID |
-| B2 | `toggle-reading-mode` | v3 | ✅ | pública | Alterna modo edición/lectura en la nota activa |
-| B3 | `get-selection` | v3 | ✅ | pública | Devuelve el texto seleccionado en el editor activo |
-| B4 | `fold-all-headings` | v3 | ✅ | pública | Colapsa todos los headings (`editor:fold-all`) |
-| B5 | `unfold-all-headings` | v3 | ✅ | pública | Expande todos los headings (`editor:unfold-all`) |
-| B6 | `reload-snippets` | v3 | ✅ | pública | Recarga snippets CSS (`app:reload-css-snippets`) |
-| B7 | `trigger-plugin-command` | v1 | 📋 | pública | Ejecuta un comando de otro plugin instalado |
-| B8 | `open-command-palette` | v1 | 💡 | pública | Abre la paleta de comandos de Obsidian |
-
-#### Justificaciones
-
-- **`trigger-command`**: Puente hacia el ecosistema completo de Obsidian. Permite al agente ejecutar cualquier acción.
-- **`toggle-reading-mode`**: Usa `app.commands.executeCommandById('markdown:toggle-preview')` — API pública, alto valor para flujos de review.
-- **`get-selection`**: `editor.getSelection()` — elimina fricción: el usuario selecciona un párrafo y el agente puede operar directamente sobre él.
-- **`fold-all-headings` / `unfold-all-headings`**: Útil cuando el agente quiere que el usuario vea la estructura macro de una nota larga.
-- **`reload-snippets`**: Necesario para aplicar CSS snippets sin reiniciar Obsidian — usa `app:reload-css-snippets` (API pública).
-
----
-
-### 🏛️ Grupo C: Información del Vault (desde Obsidian)
-
-| # | Comando | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| C1 | `get-vault-path` | v1 | ✅ | Ruta raíz de la bóveda activa |
-| C2 | `is-obsidian-ready` | v1 | ✅ | Indica si Obsidian está completamente cargado y listo |
-| C3 | `get-app-version` | v1 | ✅ | Versión de Obsidian y del plugin Kioku |
-| C4 | `get-installed-plugins` | v1 | 💡 | Lista de plugins de comunidad instalados |
-
-#### Justificaciones
-
-- **`get-vault-path`**: El motor C# puede inferir la ruta por configuración, pero verificar con Obsidian elimina ambigüedad (múltiples bóvedas).
-- **`is-obsidian-ready`**: Permite al motor C# esperar a que Obsidian cargue completamente antes de enviar comandos de navegación.
-
----
-
-### ✏️ Grupo D: Creación Asistida (Solo si Obsidian está abierto)
-
-| # | Comando | Versión | Estado | Descripción |
-|---|---|---|---|---|
-| D1 | `create-note-ui` | v2 | ✅ | Crea una nueva nota y la abre en Obsidian inmediatamente |
-| D2 | `insert-at-cursor` | v2 | ✅ | Inserta texto en la posición del cursor del editor activo |
-| D3 | `replace-selection` | v2 | ✅ | Reemplaza el texto seleccionado en el editor activo |
-| D4 | `highlight-block` | v2 | 💡 | Resalta visualmente un bloque de texto en el editor |
-
-#### Justificaciones
-
-- **`create-note-ui`**: Diferente a `create_note` del servidor MCP (que crea en disco). Este comando crea la nota Y la abre en Obsidian.
-- **`insert-at-cursor`**: El agente puede insertar contenido exactamente donde el usuario tiene el cursor.
-- **`replace-selection`**: Flujo de refactoring asistido: el usuario selecciona un fragmento y el agente lo reescribe.
-
----
-
-## Resumen de Estado por Versión
-
-### v1 — MVP (Stdio Transport) ✅ COMPLETO
-
-**MCP Tools:** 11 herramientas  
-- Lectura (1–7), Escritura (17–25), Utilidades (63–66)
-
-**Plugin Commands:** A1–A2, A3, B1, C1, C2  
-**Criterio:** El agente puede leer, buscar, crear y modificar notas sin necesitar que Obsidian esté abierto.
-
-### v2 — HTTP-SSE + Semántica ✅ COMPLETO
-
-**Añade:** 4 MCP Tools  
-- Búsqueda semántica e híbrida (8–11)
-
-**Criterio:** El agente puede buscar por significado, no solo por texto literal. Embeddings via Ollama.
-
-### v3 — Ecosystem Tools ✅ COMPLETADO
-
-**Estado actual:** ~85 MCP Tools + 16 Plugin Commands — todas las ramas (F–N) implementadas
-
-#### MCP Tools Completados
-- Session Context (12–13, 61–62): `get_recent_activity`, `get_work_context`, `start/end_work_session`
-- Task Management (27–31): `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks`
-- Task Extraction (32): `extract_action_items`
-- Zettelkasten (33–37): `create_zettel`, `create_moc`, `create_folder_readme`, `link_related_notes`, `create_literature_note`
-- Templates (38–40): `create_note_from_template`, `list_templates`, `create_template`
-- Tag & Org (42–44, 46, 48–49, 53): `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `find_duplicate_notes`, `audit_vault`, `find_broken_links`
-- CSS Theming (56–57): `apply_css_snippet`, `list_css_snippets`
-- Knowledge Graph (14–16): `get_knowledge_timeline`, `get_concept_map`, `get_vault_snapshot`
-- Research (58–59): `export_citations`, `get_literature_gap`
-- Plugin Integrations (via `PluginIntegrationTools.cs`): `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts`, `resolve_merge_conflict`
-
-#### Plugin Commands Completados
-- Navigation (A1–A3): `open-file`, `get-active-note`, `get-open-notes`
-- Execution (B1–B6): `trigger-command`, `toggle-reading-mode`, `get-selection`, `fold-all`, `unfold-all`, `reload-snippets`
-- Vault Info (C1–C3): `get-vault-path`, `is-obsidian-ready`, `get-app-version`
-- Integration (via PluginIntegrationTools): `run-dataview-query`, `run-templater`, `run-linter`, `run-linter-vault`, `get-installed-plugins`
-
-**Implementado (Ramas F, G, H):**
-- Assets (50–52): `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`
-- Organization (41, 45, 47): `reorder_notes_in_folder`, `reclassify_note`, `suggest_folder`
-- Editor Commands (A4, A5, C3, D1–D3): `scroll-to-block`, `open-in-split`, `get-app-version`, `create-note-ui`, `insert-at-cursor`, `replace-selection`
-
-**Resumen de conteos:**
-| Categoría | Implementadas | Propuestas |
-|-----------|:---:|:---:|
-| MCP Tools | ~85 | 2 |
-| Plugin Commands | 16 | 1 |
-| **Total** | **~101** | **3** |
-
----
-
-## Tools Descartadas (❌ No implementar)
-
-| Tool | Razón |
-|------|-------|
-| `answer_from_vault` | Responsabilidad del LLM (Claude, agy) — no del servidor MCP. El RAG lo hace el agente con `hybrid_search_notes` + `read_note` |
-| `process_inbox_note` / `cortex_process_inbox` | Hardcodea reglas de un vault específico — rompe la genericidad de Kioku |
-| `summarize_note` | Requiere LLM externo — el servidor C# no razona, solo lee y escribe |
-| `sunday_hygiene` | Demasiado vault-specific. El agente + tools individuales cubren esto sin necesitar una tool propia |
-| `cross_reference_notes` | Requiere comprensión semántica profunda que `hybrid_search` solo aproxima — responsabilidad del LLM |
-| `create_theme` (CSS nivel 3) | Usa `app.customCss.setTheme()` (API privada) + 400 variables CSS → riesgo de regresiones visuales |
-| `export_note(pdf)` | Requiere Pandoc (dependencia de sistema) o Obsidian abierto — demasiado frágil para un servidor genérico |
-| `watch_vault_changes` | Solo útil en HTTP-SSE con cliente compatible — muy pocos clientes MCP lo soportan hoy |
-| `toggle-snippet` (plugin) | Usa `app.customCss.setCssEnabledStatus()` (API privada) — puede romperse en actualizaciones |
-
----
-
-## Consideraciones para Publicación en Community Store
-
-Los MCP Tools son internos al servidor C# y no requieren aprobación de Obsidian. El plugin de TypeScript sí debe seguir los estándares:
-
-1. **Solo usar APIs públicas de Obsidian** — `app.workspace`, `app.vault`, `app.metadataCache`, `app.commands`.
-2. **No hacer peticiones de red externas** desde el plugin — toda comunicación es local (WebSocket a `localhost`).
-3. **Manejar correctamente `onunload`** — cerrar el WebSocket server al desinstalar el plugin.
-4. **No almacenar datos de usuario fuera de la bóveda** — respetar la privacidad del usuario.
-5. **Documentar el puerto WebSocket como configurable** en la pantalla de configuración del plugin.
-6. **Seguir las guías de `manifest.json`** con `minAppVersion` apropiado.
-7. **No usar `app.customCss`** (API privada) — usar `app.commands.executeCommandById('app:reload-css-snippets')` para snippets y modificar `appearance.json` directamente para cambio de tema.
+**Total tools:** 102
