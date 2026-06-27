@@ -151,4 +151,23 @@ public static class NoteHelpers
 
         return result;
     }
+
+    /// <summary>
+    /// Expands {{variable}} placeholders in a template string.
+    /// Unknown placeholders are left as-is. Variables are matched case-insensitively.
+    /// </summary>
+    /// <param name="template">Template string with {{variable}} placeholders.</param>
+    /// <param name="variables">Key-value pairs of variable name to value.</param>
+    /// <returns>Template with all known placeholders replaced.</returns>
+    public static string ExpandTemplateVariables(
+        string template,
+        IReadOnlyDictionary<string, string> variables)
+    {
+        foreach (var (key, value) in variables)
+        {
+            template = template.Replace($"{{{{{key}}}}}", value ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        return template;
+    }
 }

@@ -86,6 +86,13 @@ public sealed class VaultConfigService
     /// <summary>Fields that should never be duplicated as tags. Default: ["domain","type","status"].</summary>
     public IReadOnlyList<string> ExcludeFromTags =>
         _data.AutoTags?.ExcludeFromTags is { Count: > 0 } list ? list : ["domain", "type", "status"];
+
+    /// <summary>
+    /// Returns the body template for the given note type key (e.g. "zettel", "literature").
+    /// Returns null if no template is configured — callers should fall back to their hardcoded body.
+    /// </summary>
+    public string? GetTemplate(string typeKey) =>
+        _data.Templates?.TryGetValue(typeKey, out var t) == true ? t : null;
 }
 
 public sealed class VaultConfigData
@@ -96,6 +103,7 @@ public sealed class VaultConfigData
     public Dictionary<string, NoteDefaults>? Defaults { get; init; }
     public List<string>? Exclude { get; init; }
     public AutoTagsConfig? AutoTags { get; init; }
+    public Dictionary<string, string>? Templates { get; init; }
 }
 
 public sealed class VaultInfo
