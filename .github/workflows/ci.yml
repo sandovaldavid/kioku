@@ -61,12 +61,23 @@ jobs:
       - name: Restore
         run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
 
-      - name: Test
+      - name: Test with coverage
         run: |
           dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
             --configuration Release \
             --no-restore \
-            --verbosity normal
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/**/coverage.cobertura.xml
+          flags: server
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   build-plugin:
     name: build-plugin (ubuntu-latest)
