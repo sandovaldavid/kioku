@@ -96,12 +96,12 @@ release.
 
 | # | Task | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 1 | BUG-1: Vault path-traversal containment | `fix/p0-path-traversal` | — | done |
-| 2 | BUG-5: Restore bridge-startup Notice | `fix/p0-bridge-notice` | — | done |
-| 3 | Doc reconciliation (README, AGENTS, planning) | `fix/p0-doc-reconciliation` | — | done |
-| 4 | VaultFixture test infrastructure | `test/p0-vault-fixture` | — | done |
-| 5 | Path-traversal regression tests | `test/p0-path-traversal-tests` | — | done |
-| 6 | BRAT support for plugin | `feat/p0-brat-support` | — | done |
+| 1 | BUG-1: Vault path-traversal containment | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | done |
+| 2 | BUG-5: Restore bridge-startup Notice | `fix/p0-bridge-notice` | [#60](https://github.com/sandovaldavid/kioku/pull/60) | done |
+| 3 | Doc reconciliation (README, AGENTS, planning) | `fix/p0-doc-reconciliation` | [#61](https://github.com/sandovaldavid/kioku/pull/61) | done |
+| 4 | VaultFixture test infrastructure | `test/p0-vault-fixture` | [#62](https://github.com/sandovaldavid/kioku/pull/62) | done |
+| 5 | Path-traversal regression tests | `test/p0-path-traversal-tests` | [#63](https://github.com/sandovaldavid/kioku/pull/63) | done |
+| 6 | BRAT support for plugin | `feat/p0-brat-support` | [#64](https://github.com/sandovaldavid/kioku/pull/64) | done |
 
 **Progress: 6/6 tasks complete**
 

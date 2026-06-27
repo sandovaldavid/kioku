@@ -138,12 +138,12 @@ From [02](./02-architecture-review.md) §3. Do these before promoting the projec
 
 | # | Item | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 1 | Path containment (BUG-1) | `fix/p0-path-traversal` | — | done |
-| 2 | Bridge Notice (BUG-5) | `fix/p0-bridge-notice` | — | done |
-| 3 | Doc reconciliation | `fix/p0-doc-reconciliation` | — | done |
-| 4 | VaultFixture | `test/p0-vault-fixture` | — | done |
-| 5 | Path-traversal tests | `test/p0-path-traversal-tests` | — | done |
-| 6 | BRAT support | `feat/p0-brat-support` | — | done |
+| 1 | Path containment (BUG-1) | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | done |
+| 2 | Bridge Notice (BUG-5) | `fix/p0-bridge-notice` | [#60](https://github.com/sandovaldavid/kioku/pull/60) | done |
+| 3 | Doc reconciliation | `fix/p0-doc-reconciliation` | [#61](https://github.com/sandovaldavid/kioku/pull/61) | done |
+| 4 | VaultFixture | `test/p0-vault-fixture` | [#62](https://github.com/sandovaldavid/kioku/pull/62) | done |
+| 5 | Path-traversal tests | `test/p0-path-traversal-tests` | [#63](https://github.com/sandovaldavid/kioku/pull/63) | done |
+| 6 | BRAT support | `feat/p0-brat-support` | [#64](https://github.com/sandovaldavid/kioku/pull/64) | done |
 
 ### Phase P1 — Public 1.0
 

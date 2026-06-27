@@ -274,8 +274,8 @@ P0 items should land before any wider distribution push (see [07](./07-productio
 
 | ID | Task | Branch | PR | Status |
 |----|------|--------|----|--------|
-| BUG-1 | Vault path-traversal containment | `fix/p0-path-traversal` | — | done |
-| BUG-5 | Restore bridge-startup Notice | `fix/p0-bridge-notice` | — | done |
+| BUG-1 | Vault path-traversal containment | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | done |
+| BUG-5 | Restore bridge-startup Notice | `fix/p0-bridge-notice` | [#60](https://github.com/sandovaldavid/kioku/pull/60) | done |
 | BUG-2 | Reindex exception handling | — | — | pending |
 | BUG-3 | Embedding model/dim stamping | — | — | pending |
 | BUG-6 | open-file async/await | — | — | pending |
