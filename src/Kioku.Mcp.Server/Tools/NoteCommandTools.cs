@@ -285,11 +285,13 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
     // delete_note
 
     [McpServerTool, Description(
-        "Deletes a note from the vault. Irreversible — use with caution. " +
+        "Deletes a note from the vault by moving it to .trash folder (recoverable). " +
+        "Set permanent=true to delete immediately (irreversible). " +
         "When dry_run is true, only reports what would be deleted without modifying the vault.")]
     public async Task<string> delete_note(
         [Description("Name or path of the note to delete.")] string note,
-        [Description("If true, only reports what would be deleted without modifying the vault.")] bool dry_run = false)
+        [Description("If true, only reports what would be deleted without modifying the vault.")] bool dry_run = false,
+        [Description("If true, deletes permanently instead of moving to trash. Default: false (soft delete).")] bool permanent = false)
     {
         var found = ResolveNote(note);
         if (found is null)
@@ -299,14 +301,47 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
         if (dry_run)
         {
-            return $"[info] Would delete: {found.VaultRelativePath}";
+            var action = permanent ? "permanently delete" : "move to trash";
+            return $"[info] Would {action}: {found.VaultRelativePath}";
         }
 
         var filePath = found.FilePath;
-        File.Delete(filePath);
-        vault.SynchronizeFileDelete(filePath);
 
-        return $"[ok] Note deleted: {found.VaultRelativePath}";
+        if (permanent)
+        {
+            // Permanent delete
+            File.Delete(filePath);
+            vault.SynchronizeFileDelete(filePath);
+            return $"[ok] Note permanently deleted: {found.VaultRelativePath}";
+        }
+        else
+        {
+            // Soft delete: move to .trash
+            var trashDir = Path.Combine(config.VaultPath, ".trash");
+            if (!Directory.Exists(trashDir))
+            {
+                Directory.CreateDirectory(trashDir);
+            }
+
+            // Generate unique filename in trash to avoid conflicts
+            var fileName = Path.GetFileName(filePath);
+            var trashPath = Path.Combine(trashDir, fileName);
+            var counter = 1;
+            while (File.Exists(trashPath))
+            {
+                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                var ext = Path.GetExtension(fileName);
+                trashPath = Path.Combine(trashDir, $"{nameWithoutExt}_{counter}{ext}");
+                counter++;
+            }
+
+            File.Move(filePath, trashPath);
+            vault.SynchronizeFileDelete(filePath);
+
+            var trashRelativePath = Path.GetRelativePath(config.VaultPath, trashPath);
+            return $"[ok] Note moved to trash: {found.VaultRelativePath} → {trashRelativePath}\n" +
+                   "Use restore_note_from_trash to recover if needed.";
+        }
     }
 
     // Private helpers
