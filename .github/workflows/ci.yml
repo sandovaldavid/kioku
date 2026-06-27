@@ -33,11 +33,39 @@ jobs:
             --no-restore \
             --runtime linux-x64
 
+      - name: Build (osx-arm64 cross-check)
+        run: |
+          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-restore \
+            --runtime osx-arm64
+
       - name: Format check
         run: |
           dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
             --verify-no-changes \
             --verbosity diagnostic
+
+  test-server:
+    name: test-server (ubuntu-latest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+
+      - name: Test
+        run: dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+          --configuration Release \
+          --no-restore \
+          --verbosity normal
 
   build-plugin:
     name: build-plugin (ubuntu-latest)
