@@ -13,7 +13,7 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations are read-only and require no external dependencies.
 /// </summary>
 [McpServerToolType]
-public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfiguration config)
+public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfiguration config, IHttpClientFactory httpClientFactory)
 {
     // -------------------------------------------------------------------------
     // export_citations
@@ -325,7 +325,7 @@ public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfigur
             }
         };
 
-        using var http = new HttpClient();
+        using var http = httpClientFactory.CreateClient("web");
         http.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
         http.DefaultRequestHeaders.Add("User-Agent", "Kioku-MCP-Server/1.0");
         http.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");

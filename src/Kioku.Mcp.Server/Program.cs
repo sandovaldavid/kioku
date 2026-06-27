@@ -37,6 +37,28 @@ static void ConfigureKiokuServices(IServiceCollection services, KiokuConfigurati
     services.AddSingleton<ObsidianBridgeService>();
     services.AddSingleton<HybridSearchService>();
     services.AddSingleton<TaskService>();
+
+    // Named HttpClient for Ollama
+    services.AddHttpClient("ollama", c =>
+    {
+        c.BaseAddress = new Uri(config.OllamaUrl);
+        c.Timeout = TimeSpan.FromSeconds(30);
+    }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        MaxConnectionsPerServer = 4,
+    });
+
+    // Named HttpClient for web requests (ResearchTools)
+    services.AddHttpClient("web", c =>
+    {
+        c.Timeout = TimeSpan.FromSeconds(30);
+    }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+    });
 }
 
 static void ConfigureKiokuTools(IMcpServerBuilder builder)
