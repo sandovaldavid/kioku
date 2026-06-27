@@ -154,8 +154,8 @@ Polish items (none blocking):
 
 | Item | Task | Branch | PR | Status |
 |------|------|--------|----|--------|
-| §3 Doc drift | Doc reconciliation | `fix/p0-doc-reconciliation` | — | pending |
-| §4 Protocol SSoT | Protocol version handshake | — | — | pending |
-| §5 AOT decision | Update planning.md | `fix/p0-doc-reconciliation` | — | pending |
+| §3 Doc drift | Doc reconciliation | `fix/p0-doc-reconciliation` | [#61](https://github.com/sandovaldavid/kioku/pull/61) | merged |
+| §4 Protocol SSoT | Protocol version handshake + contract test | `fix/p1-protocol-version`, `feat/p1-plugin-vitest-tests` | [#71](https://github.com/sandovaldavid/kioku/pull/71), [#86](https://github.com/sandovaldavid/kioku/pull/86) | merged |
+| §5 AOT decision | Update planning.md | `fix/p0-doc-reconciliation` | [#61](https://github.com/sandovaldavid/kioku/pull/61) | merged |
 | §6 Tool sprawl | Tool namespacing (P2) | — | — | pending |
 | §7 config-v2 polish | Config-v2 polish (P2) | — | — | pending |

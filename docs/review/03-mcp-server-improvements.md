@@ -107,6 +107,6 @@ Concrete, mostly-incremental improvements to `Kioku.Mcp.Server` beyond the bug f
 | 1 | Vault containment helper (P0) | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | merged |
 | 5 | Reindex error handling (P1) | `fix/p1-reindex-errors` | [#68](https://github.com/sandovaldavid/kioku/pull/68) | merged |
 | 6 | Embedding cache integrity (P1) | `fix/p1-embedding-cache-stamp` | [#70](https://github.com/sandovaldavid/kioku/pull/70) | merged |
-| 15 | IHttpClientFactory (P2) | `fix/p1-httpclient-factory` | [#72](https://github.com/sandovaldavid/kioku/pull/72) | merged |
-| 20 | Bootstrap logger (P2) | `fix/p1-bootstrap-logger` | [#73](https://github.com/sandovaldavid/kioku/pull/73) | merged |
-| 22 | Generated commands-reference.md | `feat/p1-generated-commands-ref` | [#81](https://github.com/sandovaldavid/kioku/pull/81) | merged |
+| 15 | IHttpClientFactory (P1) | `fix/p1-httpclient-factory` | [#72](https://github.com/sandovaldavid/kioku/pull/72) | merged |
+| 20 | Bootstrap logger (P1) | `fix/p1-bootstrap-logger` | [#73](https://github.com/sandovaldavid/kioku/pull/73) | merged |
+| 22 | Generated commands-reference.md (P1) | `feat/p1-generated-commands-ref` | [#81](https://github.com/sandovaldavid/kioku/pull/81) | merged |
