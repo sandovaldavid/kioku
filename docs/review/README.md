@@ -114,8 +114,8 @@ release.
 | 9 | BUG-6: open-file async/await | `fix/p1-open-file-async` | [#67](https://github.com/sandovaldavid/kioku/pull/67) | merged |
 | 10 | BUG-7: Payload validation layer | `fix/p1-payload-validation` | [#69](https://github.com/sandovaldavid/kioku/pull/69) | merged |
 | 11 | BUG-8: Protocol version handshake | `fix/p1-protocol-version` | [#71](https://github.com/sandovaldavid/kioku/pull/71) | merged |
-| 12 | Plugin Vitest test suite | — | — | pending |
-| 13 | Bridge protocol contract test | — | — | pending |
+| 12 | Plugin Vitest test suite | `feat/p1-plugin-vitest-tests` | [#86](https://github.com/sandovaldavid/kioku/pull/86) | merged |
+| 13 | Bridge protocol contract test | `feat/p1-plugin-vitest-tests` | [#86](https://github.com/sandovaldavid/kioku/pull/86) | merged |
 | 14 | Coverage gate (coverlet + Codecov) | `feat/p1-coverage-gate` | [#75](https://github.com/sandovaldavid/kioku/pull/75) | merged |
 | 15 | Docker image + docker-compose | `feat/p1-docker-image` | [#76](https://github.com/sandovaldavid/kioku/pull/76) | merged |
 | 16 | dotnet tool publish to NuGet | `feat/p1-dotnet-tool-publish` | [#77](https://github.com/sandovaldavid/kioku/pull/77) | merged |
@@ -125,7 +125,7 @@ release.
 | 20 | Generated commands-reference.md | `feat/p1-generated-commands-ref` | [#81](https://github.com/sandovaldavid/kioku/pull/81) | merged |
 | 21 | Dependency scanning in CI | `feat/p1-dep-scanning` | [#80](https://github.com/sandovaldavid/kioku/pull/80) | merged |
 
-**Progress: 13/15 tasks complete (2 pending: Vitest tests, contract test)**
+**Progress: 15/15 tasks complete**
 
 ### Phase P2 — Scale & Polish
 

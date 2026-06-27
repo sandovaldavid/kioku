@@ -111,4 +111,4 @@ Improvements to `src/obsidian-kioku-mcp`. The recent refactor (`main.ts` → `br
 | 6 | Protocol version handshake (P1) | `fix/p1-protocol-version` | [#71](https://github.com/sandovaldavid/kioku/pull/71) | merged |
 | 15 | BRAT support (P0) | `feat/p0-brat-support` | [#64](https://github.com/sandovaldavid/kioku/pull/64) | merged |
 | 16 | Community Store checklist (P1) | `feat/p1-community-store-ready` | [#78](https://github.com/sandovaldavid/kioku/pull/78) | merged |
-| 18 | Plugin Vitest tests (P1) | — | — | pending |
+| 18 | Plugin Vitest tests (P1) | `feat/p1-plugin-vitest-tests` | [#86](https://github.com/sandovaldavid/kioku/pull/86) | merged |
