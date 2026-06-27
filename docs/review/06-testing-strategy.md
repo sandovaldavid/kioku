@@ -132,8 +132,8 @@ A scripted run against a built server + a sample vault (the public demo vault fr
 
 | # | Item | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 1 | VaultFixture (P0) | `test/p0-vault-fixture` | [#62](https://github.com/sandovaldavid/kioku/pull/62) | done |
-| 2 | Path-traversal regression tests (P0) | `test/p0-path-traversal-tests` | [#63](https://github.com/sandovaldavid/kioku/pull/63) | done |
+| 1 | VaultFixture (P0) | `test/p0-vault-fixture` | [#62](https://github.com/sandovaldavid/kioku/pull/62) | merged |
+| 2 | Path-traversal regression tests (P0) | `test/p0-path-traversal-tests` | [#63](https://github.com/sandovaldavid/kioku/pull/63) | merged |
 | 3 | Plugin Vitest tests (P1) | — | — | pending |
 | 4 | Protocol contract test (P1) | — | — | pending |
 | 5 | Coverage gate (P1) | — | — | pending |
