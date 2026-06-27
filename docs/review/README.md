@@ -129,4 +129,20 @@ release.
 
 ### Phase P2 — Scale & Polish
 
-See detailed task list in individual review docs. Tasks 22-36 pending P0/P1 completion.
+| # | Task | Branch | PR | Status |
+|---|------|--------|----|--------|
+| 22 | Operational counters (ping/get_index_status) | — | — | pending |
+| 23 | Consistent error taxonomy | — | — | pending |
+| 24 | Embedding model registry | — | — | pending |
+| 25 | Config-v2 polish (ExpandTemplateVariables + built-ins + malformed warning) | — | — | pending |
+| 26 | Pagination & limits on search/list tools | — | — | pending |
+| 27 | Structured tool results (optional JSON variants) | — | — | pending |
+| 28 | Tool namespacing / capability groups | — | — | pending |
+| 29 | Opt-in privacy-first telemetry | — | — | pending |
+| 30 | Performance benchmarks (BenchmarkDotNet) | — | — | pending |
+| 31 | Graceful shutdown / SIGTERM flush | — | — | pending |
+| 32 | brew/winget one-line installers | — | — | pending |
+| 33 | SBOM / signing | — | — | pending |
+| 34 | Optional crash reporting (Sentry) | — | — | pending |
+
+**Progress: 0/13 tasks complete**
