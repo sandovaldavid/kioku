@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0-beta.5](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.4...v1.8.0-beta.5) (2026-06-27)
+
+
+### Features
+
+* **plugin:** add BRAT support and fundingUrl to manifest ([#64](https://github.com/sandovaldavid/kioku/issues/64)) ([ac5ebd9](https://github.com/sandovaldavid/kioku/commit/ac5ebd998dbb2330da10bdb5cf0cf6f90afa16ae))
+
+
+### Bug Fixes
+
+* **plugin:** restore bridge startup error Notice ([#60](https://github.com/sandovaldavid/kioku/issues/60)) ([81761b6](https://github.com/sandovaldavid/kioku/commit/81761b65216ac19b7fb35907c6830048cda745da))
+* **server:** add vault path-traversal containment for all write tools ([#59](https://github.com/sandovaldavid/kioku/issues/59)) ([54adcf2](https://github.com/sandovaldavid/kioku/commit/54adcf21ecd2d6bd27a9baf56eafc00810d3f0a1))
+
 ## [1.8.0-beta.4](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.3...v1.8.0-beta.4) (2026-06-27)
 
 
