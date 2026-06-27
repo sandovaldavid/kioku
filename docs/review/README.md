@@ -109,23 +109,23 @@ release.
 
 | # | Task | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 7 | BUG-2: Reindex exception handling | — | — | pending |
-| 8 | BUG-3: Embedding cache stamp + invalidation | — | — | pending |
-| 9 | BUG-6: open-file async/await | — | — | pending |
-| 10 | BUG-7: Payload validation layer | — | — | pending |
-| 11 | BUG-8: Protocol version handshake | — | — | pending |
+| 7 | BUG-2: Reindex exception handling | `fix/p1-reindex-errors` | [#68](https://github.com/sandovaldavid/kioku/pull/68) | open |
+| 8 | BUG-3: Embedding cache stamp + invalidation | `fix/p1-embedding-cache-stamp` | [#70](https://github.com/sandovaldavid/kioku/pull/70) | open |
+| 9 | BUG-6: open-file async/await | `fix/p1-open-file-async` | [#67](https://github.com/sandovaldavid/kioku/pull/67) | open |
+| 10 | BUG-7: Payload validation layer | `fix/p1-payload-validation` | [#69](https://github.com/sandovaldavid/kioku/pull/69) | open |
+| 11 | BUG-8: Protocol version handshake | `fix/p1-protocol-version` | [#71](https://github.com/sandovaldavid/kioku/pull/71) | open |
 | 12 | Plugin Vitest test suite | — | — | pending |
 | 13 | Bridge protocol contract test | — | — | pending |
-| 14 | Coverage gate (coverlet + Codecov) | — | — | pending |
-| 15 | Docker image + docker-compose | — | — | pending |
-| 16 | dotnet tool publish to NuGet | — | — | pending |
-| 17 | Community Store readiness | — | — | pending |
-| 18 | Soft-delete / trash routing | — | — | pending |
-| 19 | SECURITY.md + install/troubleshooting docs | — | — | pending |
-| 20 | Generated commands-reference.md | — | — | pending |
-| 21 | Dependency scanning in CI | — | — | pending |
+| 14 | Coverage gate (coverlet + Codecov) | `feat/p1-coverage-gate` | [#75](https://github.com/sandovaldavid/kioku/pull/75) | open |
+| 15 | Docker image + docker-compose | `feat/p1-docker-image` | [#76](https://github.com/sandovaldavid/kioku/pull/76) | open |
+| 16 | dotnet tool publish to NuGet | `feat/p1-dotnet-tool-publish` | [#77](https://github.com/sandovaldavid/kioku/pull/77) | open |
+| 17 | Community Store readiness | `feat/p1-community-store-ready` | [#78](https://github.com/sandovaldavid/kioku/pull/78) | open |
+| 18 | Soft-delete / trash routing | `feat/p1-soft-delete-trash` | [#79](https://github.com/sandovaldavid/kioku/pull/79) | open |
+| 19 | SECURITY.md + install/troubleshooting docs | `feat/p1-security-docs` | [#82](https://github.com/sandovaldavid/kioku/pull/82) | open |
+| 20 | Generated commands-reference.md | `feat/p1-generated-commands-ref` | [#81](https://github.com/sandovaldavid/kioku/pull/81) | open |
+| 21 | Dependency scanning in CI | `feat/p1-dep-scanning` | [#80](https://github.com/sandovaldavid/kioku/pull/80) | open |
 
-**Progress: 0/15 tasks complete**
+**Progress: 0/15 tasks complete (16 PRs open, 2 pending)**
 
 ### Phase P2 — Scale & Polish
 
