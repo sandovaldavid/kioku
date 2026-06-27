@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  kioku-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kioku-server
+    ports:
+      - "5173:5173"
+    environment:
+      - KIOKU_VAULT_PATH=/vault
+      - KIOKU_HTTP_PORT=5173
+      - KIOKU_TRANSPORT=http
+      - KIOKU_API_KEY=${KIOKU_API_KEY:-}
+      - KIOKU_OLLAMA_URL=http://ollama:11434
+      - KIOKU_EMBEDDING_MODEL=${KIOKU_EMBEDDING_MODEL:-nomic-embed-text}
+    volumes:
+      - ${KIOKU_VAULT_PATH:-./vault}:/vault
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kioku-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    # Optional: GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  ollama-data:
