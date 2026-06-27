@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 
 // Configuration from environment variables
+// Note: Uses BootstrapLogger because this occurs before DI/logging is configured.
 KiokuConfiguration config;
 try
 {
@@ -14,7 +15,7 @@ try
 }
 catch (InvalidOperationException ex)
 {
-    Console.Error.WriteLine($"[error] Configuration: {ex.Message}");
+    BootstrapLogger.Error($"Configuration: {ex.Message}");
     return 1;
 }
 
