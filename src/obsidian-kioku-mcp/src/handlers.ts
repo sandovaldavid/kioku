@@ -5,7 +5,7 @@ import { asKiokuApp } from "./types";
 
 export function createHandlers(app: App, settings: KiokuSettings) {
   return {
-    "open-file": (p: Record<string, unknown> | undefined, requestId?: string) =>
+    "open-file": async (p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdOpenFile(app, settings, p as { path: string }, requestId),
     "get-active-note": (_p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdGetActiveNote(app, requestId),
@@ -55,12 +55,12 @@ export function createHandlers(app: App, settings: KiokuSettings) {
   };
 }
 
-function cmdOpenFile(
+async function cmdOpenFile(
   app: App,
   settings: KiokuSettings,
   payload: { path: string },
   requestId?: string
-): BridgeResponse {
+): Promise<BridgeResponse> {
   const { path } = payload;
   const file = app.vault.getFileByPath(path);
 
@@ -68,13 +68,17 @@ function cmdOpenFile(
     return { requestId, success: false, error: `File not found: ${path}` };
   }
 
-  void app.workspace.openLinkText(path, "", false);
+  try {
+    await app.workspace.openLinkText(path, "", false);
 
-  if (settings.showNotifications) {
-    new Notice(`Kioku opened: ${file.basename}`);
+    if (settings.showNotifications) {
+      new Notice(`Kioku opened: ${file.basename}`);
+    }
+
+    return { requestId, success: true, data: { path, name: file.basename } };
+  } catch (err) {
+    return { requestId, success: false, error: `Failed to open file: ${String(err)}` };
   }
-
-  return { requestId, success: true, data: { path, name: file.basename } };
 }
 
 function cmdGetActiveNote(app: App, requestId?: string): BridgeResponse {
