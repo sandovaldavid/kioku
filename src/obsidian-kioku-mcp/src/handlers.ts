@@ -3,10 +3,42 @@ import type { App } from "obsidian";
 import type { BridgeResponse, KiokuDataAdapter, KiokuSettings, PluginManifest } from "./types";
 import { asKiokuApp } from "./types";
 
+function validatePayload(
+  payload: Record<string, unknown> | undefined,
+  requiredFields: string[],
+  requestId?: string
+): BridgeResponse | null {
+  if (!payload) {
+    return {
+      requestId,
+      success: false,
+      error: `Missing payload. Required fields: ${requiredFields.join(", ")}`,
+    };
+  }
+
+  const missing = requiredFields.filter((field) => {
+    const value = payload[field];
+    return value === undefined || value === null || value === "";
+  });
+
+  if (missing.length > 0) {
+    return {
+      requestId,
+      success: false,
+      error: `Missing required field(s): ${missing.join(", ")}`,
+    };
+  }
+
+  return null;
+}
+
 export function createHandlers(app: App, settings: KiokuSettings) {
   return {
-    "open-file": async (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdOpenFile(app, settings, p as { path: string }, requestId),
+    "open-file": async (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["path"], requestId);
+      if (validation) return validation;
+      return cmdOpenFile(app, settings, p as { path: string }, requestId);
+    },
     "get-active-note": (_p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdGetActiveNote(app, requestId),
     "get-vault-path": (_p: Record<string, unknown> | undefined, requestId?: string) =>
@@ -20,8 +52,11 @@ export function createHandlers(app: App, settings: KiokuSettings) {
       cmdGetAppVersion(app, requestId),
     "get-open-notes": (_p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdGetOpenNotes(app, requestId),
-    "trigger-command": (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdTriggerCommand(app, p as { commandId: string }, requestId),
+    "trigger-command": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["commandId"], requestId);
+      if (validation) return validation;
+      return cmdTriggerCommand(app, p as { commandId: string }, requestId);
+    },
     "toggle-reading-mode": (_p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdToggleReadingMode(app, requestId),
     "get-selection": (_p: Record<string, unknown> | undefined, requestId?: string) =>
@@ -32,20 +67,41 @@ export function createHandlers(app: App, settings: KiokuSettings) {
       cmdUnfoldAll(app, requestId),
     "reload-snippets": (_p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdReloadSnippets(app, requestId),
-    "insert-at-cursor": (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdInsertAtCursor(app, p as { text: string }, requestId),
-    "replace-selection": (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdReplaceSelection(app, p as { text: string }, requestId),
-    "create-note-ui": (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdCreateNoteUi(app, p as { path: string }, requestId),
-    "scroll-to-block": (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdScrollToBlock(app, p as { blockId: string }, requestId),
-    "open-in-split": (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdOpenInSplit(app, p as { path: string }, requestId),
-    "run-dataview-query": (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdRunDataviewQuery(app, p as { query: string }, requestId),
-    "run-templater": (p: Record<string, unknown> | undefined, requestId?: string) =>
-      cmdRunTemplater(app, p as { templatePath: string; targetNote?: string }, requestId),
+    "insert-at-cursor": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["text"], requestId);
+      if (validation) return validation;
+      return cmdInsertAtCursor(app, p as { text: string }, requestId);
+    },
+    "replace-selection": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["text"], requestId);
+      if (validation) return validation;
+      return cmdReplaceSelection(app, p as { text: string }, requestId);
+    },
+    "create-note-ui": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["path"], requestId);
+      if (validation) return validation;
+      return cmdCreateNoteUi(app, p as { path: string }, requestId);
+    },
+    "scroll-to-block": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["blockId"], requestId);
+      if (validation) return validation;
+      return cmdScrollToBlock(app, p as { blockId: string }, requestId);
+    },
+    "open-in-split": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["path"], requestId);
+      if (validation) return validation;
+      return cmdOpenInSplit(app, p as { path: string }, requestId);
+    },
+    "run-dataview-query": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["query"], requestId);
+      if (validation) return validation;
+      return cmdRunDataviewQuery(app, p as { query: string }, requestId);
+    },
+    "run-templater": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["templatePath"], requestId);
+      if (validation) return validation;
+      return cmdRunTemplater(app, p as { templatePath: string; targetNote?: string }, requestId);
+    },
     "run-linter": (p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdRunLinter(app, p as { notePath?: string }, requestId),
     "run-linter-vault": (_p: Record<string, unknown> | undefined, requestId?: string) =>
