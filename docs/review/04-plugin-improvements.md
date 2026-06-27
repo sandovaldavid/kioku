@@ -106,9 +106,9 @@ Improvements to `src/obsidian-kioku-mcp`. The recent refactor (`main.ts` → `br
 | # | Item | Branch | PR | Status |
 |---|------|--------|----|--------|
 | 1 | Restore startup-failure Notice (P0) | `fix/p0-bridge-notice` | [#60](https://github.com/sandovaldavid/kioku/pull/60) | merged |
-| 2 | open-file async/await (P1) | — | — | pending |
-| 3 | Payload validation (P1) | — | — | pending |
-| 6 | Protocol version handshake (P1) | — | — | pending |
+| 2 | open-file async/await (P1) | `fix/p1-open-file-async` | [#67](https://github.com/sandovaldavid/kioku/pull/67) | open |
+| 3 | Payload validation (P1) | `fix/p1-payload-validation` | [#69](https://github.com/sandovaldavid/kioku/pull/69) | open |
+| 6 | Protocol version handshake (P1) | `fix/p1-protocol-version` | [#71](https://github.com/sandovaldavid/kioku/pull/71) | open |
 | 15 | BRAT support (P0) | `feat/p0-brat-support` | [#64](https://github.com/sandovaldavid/kioku/pull/64) | merged |
-| 16 | Community Store checklist (P1) | — | — | pending |
+| 16 | Community Store checklist (P1) | `feat/p1-community-store-ready` | [#78](https://github.com/sandovaldavid/kioku/pull/78) | open |
 | 18 | Plugin Vitest tests (P1) | — | — | pending |

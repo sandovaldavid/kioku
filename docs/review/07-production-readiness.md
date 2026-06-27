@@ -149,10 +149,10 @@ From [02](./02-architecture-review.md) §3. Do these before promoting the projec
 
 | # | Item | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 15 | Docker image | — | — | pending |
-| 16 | dotnet tool NuGet | — | — | pending |
-| 17 | Community Store | — | — | pending |
-| 18 | Soft-delete/trash | — | — | pending |
-| 19 | SECURITY.md + docs | — | — | pending |
-| 20 | Generated commands-ref | — | — | pending |
-| 21 | Dependency scanning | — | — | pending |
+| 15 | Docker image | `feat/p1-docker-image` | [#76](https://github.com/sandovaldavid/kioku/pull/76) | open |
+| 16 | dotnet tool NuGet | `feat/p1-dotnet-tool-publish` | [#77](https://github.com/sandovaldavid/kioku/pull/77) | open |
+| 17 | Community Store | `feat/p1-community-store-ready` | [#78](https://github.com/sandovaldavid/kioku/pull/78) | open |
+| 18 | Soft-delete/trash | `feat/p1-soft-delete-trash` | [#79](https://github.com/sandovaldavid/kioku/pull/79) | open |
+| 19 | SECURITY.md + docs | `feat/p1-security-docs` | [#82](https://github.com/sandovaldavid/kioku/pull/82) | open |
+| 20 | Generated commands-ref | `feat/p1-generated-commands-ref` | [#81](https://github.com/sandovaldavid/kioku/pull/81) | open |
+| 21 | Dependency scanning | `feat/p1-dep-scanning` | [#80](https://github.com/sandovaldavid/kioku/pull/80) | open |
