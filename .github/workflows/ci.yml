@@ -118,5 +118,8 @@ jobs:
       - name: Format check
         run: pnpm --filter obsidian-kioku-mcp run format:check
 
+      - name: Test
+        run: pnpm --filter obsidian-kioku-mcp run test
+
       - name: Build
         run: pnpm --filter obsidian-kioku-mcp run build
