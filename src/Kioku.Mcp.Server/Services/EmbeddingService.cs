@@ -13,18 +13,9 @@ namespace Kioku.Mcp.Server.Services;
 /// Embeddings are cached in {vault}/.kioku/embeddings.bin to survive restarts.
 /// If Ollama is unavailable, the service degrades gracefully: IsAvailable = false.
 /// </summary>
-public sealed class EmbeddingService(KiokuConfiguration config, ILogger<EmbeddingService> logger)
+public sealed class EmbeddingService(KiokuConfiguration config, ILogger<EmbeddingService> logger, IHttpClientFactory httpClientFactory)
     : IDisposable
 {
-    private static readonly HttpClient _http = new(new SocketsHttpHandler
-    {
-        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-        MaxConnectionsPerServer = 4,
-    })
-    {
-        Timeout = TimeSpan.FromSeconds(30),
-    };
     private readonly Dictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
     private int _pendingFlushes;
     private const int FlushEvery = 50;
@@ -176,7 +167,8 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
         try
         {
-            var response = await _http.PostAsJsonAsync(
+            using var http = httpClientFactory.CreateClient("ollama");
+            var response = await http.PostAsJsonAsync(
                 $"{config.OllamaUrl}/api/embeddings",
                 new OllamaEmbedRequest { Model = config.EmbeddingModel, Prompt = text });
 
@@ -282,7 +274,8 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     {
         try
         {
-            var response = await _http.GetAsync($"{config.OllamaUrl}/api/tags");
+            using var http = httpClientFactory.CreateClient("ollama");
+            var response = await http.GetAsync($"{config.OllamaUrl}/api/tags");
             return response.IsSuccessStatusCode;
         }
         catch
@@ -337,7 +330,10 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         return dot / (MathF.Sqrt(normA) * MathF.Sqrt(normB) + 1e-8f);
     }
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+        // HttpClient instances are managed by IHttpClientFactory, no need to dispose here
+    }
 }
 
 // Domain types
