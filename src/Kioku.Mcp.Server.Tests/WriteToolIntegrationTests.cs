@@ -123,4 +123,54 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => tools.rename_note(name, "/tmp/evil"));
     }
+
+    [Fact]
+    public async Task DeleteNote_SoftDelete_MovesToTrash()
+    {
+        var tools = CreateTools();
+        var name = $"SoftDelete-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Soft delete body", "");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.delete_note(name);
+
+        Assert.StartsWith("[ok]", result);
+        Assert.Contains("moved to trash", result);
+        Assert.False(_fixture.NoteExists(name));
+
+        var trashDir = Path.Combine(_fixture.VaultPath, ".trash");
+        Assert.True(Directory.Exists(trashDir));
+        var trashFiles = Directory.GetFiles(trashDir, "*.md");
+        Assert.True(trashFiles.Length > 0);
+    }
+
+    [Fact]
+    public async Task DeleteNote_PermanentDelete_RemovesFile()
+    {
+        var tools = CreateTools();
+        var name = $"PermDelete-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Permanent delete body", "");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.delete_note(name, permanent: true);
+
+        Assert.StartsWith("[ok]", result);
+        Assert.Contains("permanently deleted", result);
+        Assert.False(_fixture.NoteExists(name));
+    }
+
+    [Fact]
+    public async Task DeleteNote_DryRun_DoesNotDelete()
+    {
+        var tools = CreateTools();
+        var name = $"DryRunDelete-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Dry run body", "");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.delete_note(name, dry_run: true);
+
+        Assert.StartsWith("[info]", result);
+        Assert.Contains("Would", result);
+        Assert.True(_fixture.NoteExists(name));
+    }
 }
