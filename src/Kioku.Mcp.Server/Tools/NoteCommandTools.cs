@@ -306,7 +306,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         }
 
         var filePath = found.FilePath;
-        
+
         if (permanent)
         {
             // Permanent delete
@@ -337,7 +337,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
             File.Move(filePath, trashPath);
             vault.SynchronizeFileDelete(filePath);
-            
+
             var trashRelativePath = Path.GetRelativePath(config.VaultPath, trashPath);
             return $"[ok] Note moved to trash: {found.VaultRelativePath} → {trashRelativePath}\n" +
                    "Use restore_note_from_trash to recover if needed.";
