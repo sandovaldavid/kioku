@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0-beta.4](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.3...v1.8.0-beta.4) (2026-06-27)
+
+
+### Bug Fixes
+
+* **server:** correct table cell extraction and use cross-platform invalid filename chars ([#57](https://github.com/sandovaldavid/kioku/issues/57)) ([3e743df](https://github.com/sandovaldavid/kioku/commit/3e743dfdb09419eb702114b6a7363d9731f5c440))
+
 ## [1.8.0-beta.3](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.2...v1.8.0-beta.3) (2026-06-27)
 
 
