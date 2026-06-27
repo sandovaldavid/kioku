@@ -141,3 +141,12 @@ jobs:
             artifacts/kioku-server-osx-x64/kioku-server-osx-x64 \
             artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64 \
             artifacts/obsidian-plugin/kioku-mcp-plugin.zip
+
+      - name: Upload plugin files for BRAT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            src/obsidian-kioku-mcp/main.js \
+            src/obsidian-kioku-mcp/manifest.json \
+            src/obsidian-kioku-mcp/styles.css
