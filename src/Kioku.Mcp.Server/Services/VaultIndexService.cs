@@ -385,18 +385,29 @@ public sealed class VaultIndexService : IDisposable
         _debouncers[filePath] = cts;
 
         // Re-index after the debounce period
-        _ = Task.Delay(DebounceDelay, cts.Token)
-            .ContinueWith(async t =>
+        _ = Task.Run(async () =>
+        {
+            try
             {
-                if (t.IsCanceled)
-                {
-                    return;
-                }
+                await Task.Delay(DebounceDelay, cts.Token);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
 
-                _debouncers.TryRemove(filePath, out _);
+            _debouncers.TryRemove(filePath, out _);
+
+            try
+            {
                 await IndexFileAsync(filePath);
                 _logger.Debug("Re-indexed: {File}", Path.GetFileName(filePath));
-            }, TaskScheduler.Default);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Re-index failed: {File}", filePath);
+            }
+        });
     }
 
     private void RemoveFromIndex(string filePath)
