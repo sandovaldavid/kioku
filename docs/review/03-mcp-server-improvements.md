@@ -104,7 +104,7 @@ Concrete, mostly-incremental improvements to `Kioku.Mcp.Server` beyond the bug f
 
 | # | Item | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 1 | Vault containment helper (P0) | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | done |
+| 1 | Vault containment helper (P0) | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | merged |
 | 5 | Reindex error handling (P1) | — | — | pending |
 | 6 | Embedding cache integrity (P1) | — | — | pending |
 | 15 | IHttpClientFactory (P2) | — | — | pending |
