@@ -1,6 +1,7 @@
 import WebSocket, { WebSocketServer } from "ws";
 import { log } from "./logger";
 import type { BridgeMessage, BridgeResponse, CommandHandler } from "./types";
+import { PROTOCOL_VERSION } from "./types";
 
 export class BridgeServer {
   private wss: WebSocketServer | null = null;
@@ -9,7 +10,8 @@ export class BridgeServer {
 
   constructor(
     private port: number,
-    private onStartupError?: (message: string) => void
+    private onStartupError?: (message: string) => void,
+    private onProtocolMismatch?: (serverVersion: number, clientVersion: number) => void
   ) {}
 
   registerHandlers(handlers: Record<string, CommandHandler>) {
@@ -35,10 +37,22 @@ export class BridgeServer {
                 ? Buffer.concat(data).toString("utf8")
                 : Buffer.from(data).toString("utf8");
             const msg = JSON.parse(raw) as BridgeMessage;
+
+            // Check protocol version
+            if (msg.protocolVersion && msg.protocolVersion !== PROTOCOL_VERSION) {
+              this.onProtocolMismatch?.(PROTOCOL_VERSION, msg.protocolVersion);
+            }
+
             const response = await this.dispatch(msg);
             ws.send(JSON.stringify(response));
           } catch (err) {
-            ws.send(JSON.stringify({ success: false, error: String(err) }));
+            ws.send(
+              JSON.stringify({
+                success: false,
+                error: String(err),
+                protocolVersion: PROTOCOL_VERSION,
+              })
+            );
           }
         });
 
@@ -80,14 +94,19 @@ export class BridgeServer {
     const handler = this.handlers[command];
 
     if (!handler) {
-      return { requestId, success: false, error: `Unknown command: ${command}` };
+      return {
+        requestId,
+        success: false,
+        error: `Unknown command: ${command}`,
+        protocolVersion: PROTOCOL_VERSION,
+      };
     }
 
     try {
       const result = await handler(payload, requestId);
-      return { ...result, requestId };
+      return { ...result, requestId, protocolVersion: PROTOCOL_VERSION };
     } catch (err) {
-      return { requestId, success: false, error: String(err) };
+      return { requestId, success: false, error: String(err), protocolVersion: PROTOCOL_VERSION };
     }
   }
 }

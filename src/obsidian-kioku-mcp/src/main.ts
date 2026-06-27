@@ -34,11 +34,22 @@ export default class KiokuPlugin extends Plugin {
   }
 
   private startBridge() {
-    this.bridge = new BridgeServer(this.settings.bridgePort, (message) => {
-      if (this.settings.showNotifications) {
-        new Notice(`[Kioku] Bridge error: ${message}`);
+    this.bridge = new BridgeServer(
+      this.settings.bridgePort,
+      (message) => {
+        if (this.settings.showNotifications) {
+          new Notice(`[Kioku] Bridge error: ${message}`);
+        }
+      },
+      (pluginVersion, serverVersion) => {
+        if (this.settings.showNotifications) {
+          new Notice(
+            `[Kioku] Protocol version mismatch. Plugin: v${pluginVersion}, Server: v${serverVersion}. ` +
+              `Please update the Kioku plugin or server.`
+          );
+        }
       }
-    });
+    );
     this.bridge.registerHandlers(createHandlers(this.app, this.settings));
     this.bridge.start();
   }

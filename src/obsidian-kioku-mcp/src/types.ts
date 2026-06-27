@@ -37,10 +37,13 @@ export const DEFAULT_SETTINGS: KiokuSettings = {
   showNotifications: true,
 };
 
+export const PROTOCOL_VERSION = 1;
+
 export interface BridgeMessage {
   command: string;
   payload?: Record<string, unknown>;
   requestId?: string;
+  protocolVersion?: number;
 }
 
 export interface BridgeResponse {
@@ -48,6 +51,7 @@ export interface BridgeResponse {
   success: boolean;
   data?: unknown;
   error?: string;
+  protocolVersion?: number;
 }
 
 export type CommandHandler = (
