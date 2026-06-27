@@ -132,8 +132,8 @@ A scripted run against a built server + a sample vault (the public demo vault fr
 
 | # | Item | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 1 | VaultFixture (P0) | `test/p0-vault-fixture` | — | pending |
-| 2 | Path-traversal regression tests (P0) | `test/p0-path-traversal-tests` | — | pending |
+| 1 | VaultFixture (P0) | `test/p0-vault-fixture` | — | done |
+| 2 | Path-traversal regression tests (P0) | `test/p0-path-traversal-tests` | — | done |
 | 3 | Plugin Vitest tests (P1) | — | — | pending |
 | 4 | Protocol contract test (P1) | — | — | pending |
 | 5 | Coverage gate (P1) | — | — | pending |

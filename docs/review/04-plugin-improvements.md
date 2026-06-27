@@ -105,10 +105,10 @@ Improvements to `src/obsidian-kioku-mcp`. The recent refactor (`main.ts` → `br
 
 | # | Item | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 1 | Restore startup-failure Notice (P0) | `fix/p0-bridge-notice` | — | pending |
+| 1 | Restore startup-failure Notice (P0) | `fix/p0-bridge-notice` | — | done |
 | 2 | open-file async/await (P1) | — | — | pending |
 | 3 | Payload validation (P1) | — | — | pending |
 | 6 | Protocol version handshake (P1) | — | — | pending |
-| 15 | BRAT support (P0) | `feat/p0-brat-support` | — | pending |
+| 15 | BRAT support (P0) | `feat/p0-brat-support` | — | done |
 | 16 | Community Store checklist (P1) | — | — | pending |
 | 18 | Plugin Vitest tests (P1) | — | — | pending |

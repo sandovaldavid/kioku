@@ -138,12 +138,12 @@ From [02](./02-architecture-review.md) §3. Do these before promoting the projec
 
 | # | Item | Branch | PR | Status |
 |---|------|--------|----|--------|
-| 1 | Path containment (BUG-1) | `fix/p0-path-traversal` | — | pending |
-| 2 | Bridge Notice (BUG-5) | `fix/p0-bridge-notice` | — | pending |
-| 3 | Doc reconciliation | `fix/p0-doc-reconciliation` | — | pending |
-| 4 | VaultFixture | `test/p0-vault-fixture` | — | pending |
-| 5 | Path-traversal tests | `test/p0-path-traversal-tests` | — | pending |
-| 6 | BRAT support | `feat/p0-brat-support` | — | pending |
+| 1 | Path containment (BUG-1) | `fix/p0-path-traversal` | — | done |
+| 2 | Bridge Notice (BUG-5) | `fix/p0-bridge-notice` | — | done |
+| 3 | Doc reconciliation | `fix/p0-doc-reconciliation` | — | done |
+| 4 | VaultFixture | `test/p0-vault-fixture` | — | done |
+| 5 | Path-traversal tests | `test/p0-path-traversal-tests` | — | done |
+| 6 | BRAT support | `feat/p0-brat-support` | — | done |
 
 ### Phase P1 — Public 1.0
 
