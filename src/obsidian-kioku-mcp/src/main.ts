@@ -50,7 +50,7 @@ export default class KiokuPlugin extends Plugin {
         }
       }
     );
-    this.bridge.registerHandlers(createHandlers(this.app, this.settings));
+    this.bridge.registerHandlers(createHandlers(this.app, this.settings, this.manifest));
     this.bridge.start();
   }
 
