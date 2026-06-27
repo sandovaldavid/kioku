@@ -158,7 +158,10 @@ function cmdGetActiveNote(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdGetVaultPath(app: App, requestId?: string): BridgeResponse {
-  const vaultPath = (app.vault.adapter as unknown as KiokuDataAdapter).basePath;
+  // Note: vault.adapter is an internal Obsidian API. We cast to KiokuDataAdapter
+  // to access basePath. If this API changes, we return "unknown" as fallback.
+  const adapter = app.vault.adapter as unknown as KiokuDataAdapter;
+  const vaultPath = adapter?.basePath ?? "unknown";
 
   return {
     requestId,

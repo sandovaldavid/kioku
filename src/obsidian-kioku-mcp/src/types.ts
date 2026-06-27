@@ -7,6 +7,16 @@ export interface PluginManifest {
   description?: string;
 }
 
+/**
+ * Internal Obsidian App interface extension.
+ *
+ * Note: These are undocumented internal APIs that may change between Obsidian versions.
+ * We use type assertions to access them, but provide fallbacks where possible.
+ *
+ * - `version`: Obsidian app version (used for diagnostics)
+ * - `commands`: Command registry for executing Obsidian commands
+ * - `plugins`: Plugin manager for accessing other plugins' APIs
+ */
 export interface KiokuApp extends App {
   version: string;
   commands: {
@@ -19,12 +29,28 @@ export interface KiokuApp extends App {
   };
 }
 
-export interface KiokuDataAdapter {
-  basePath: string;
-}
-
+/**
+ * Type assertion helper for accessing internal Obsidian APIs.
+ *
+ * WARNING: This accesses undocumented internal APIs. If Obsidian changes
+ * these interfaces, the plugin may fail gracefully. We check for null/undefined
+ * where possible and provide fallback behavior.
+ */
 export function asKiokuApp(app: App): KiokuApp {
   return app as unknown as KiokuApp;
+}
+
+/**
+ * Internal Obsidian DataAdapter interface extension.
+ *
+ * Note: This is an undocumented internal API that provides access to the vault's
+ * base path. It may change between Obsidian versions. We use it to determine
+ * the absolute path to the vault on disk.
+ *
+ * Fallback: If this API is unavailable, we return "unknown" for the vault path.
+ */
+export interface KiokuDataAdapter {
+  basePath: string;
 }
 
 export interface KiokuSettings {
