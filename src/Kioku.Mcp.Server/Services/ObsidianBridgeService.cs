@@ -49,7 +49,8 @@ public sealed class ObsidianBridgeService : IDisposable
         {
             Command = command,
             Payload = payload,
-            RequestId = requestId
+            RequestId = requestId,
+            ProtocolVersion = BridgeProtocol.Version
         };
 
         try
@@ -244,6 +245,11 @@ public sealed class ObsidianBridgeService : IDisposable
 
 // Bridge Protocol Types (AOT Safe)
 
+public static class BridgeProtocol
+{
+    public const int Version = 1;
+}
+
 public sealed class BridgeMessage
 {
     [JsonPropertyName("command")]
@@ -254,6 +260,9 @@ public sealed class BridgeMessage
 
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
+
+    [JsonPropertyName("protocolVersion")]
+    public int? ProtocolVersion { get; set; }
 }
 
 public sealed class BridgeResponse
@@ -269,6 +278,9 @@ public sealed class BridgeResponse
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+
+    [JsonPropertyName("protocolVersion")]
+    public int? ProtocolVersion { get; set; }
 }
 
 [JsonSerializable(typeof(BridgeMessage))]
