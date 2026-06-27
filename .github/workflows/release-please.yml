@@ -150,3 +150,41 @@ jobs:
             src/obsidian-kioku-mcp/main.js \
             src/obsidian-kioku-mcp/manifest.json \
             src/obsidian-kioku-mcp/styles.css
+
+  publish-nuget:
+    needs: [release-please, attach-artifacts]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore dependencies
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+
+      - name: Build
+        run: |
+          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-restore
+
+      - name: Pack NuGet package
+        run: |
+          dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-build \
+            --output ./nupkg
+
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push ./nupkg/*.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
