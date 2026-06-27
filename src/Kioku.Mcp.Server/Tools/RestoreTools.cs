@@ -47,7 +47,9 @@ public sealed class RestoreTools(
     public Task<string> list_deleted_notes(
         [Description("Trash folder (vault-relative). Default: '.trash'.")] string trash_folder = ".trash")
     {
-        var trashPath = Path.Combine(config.VaultPath, trash_folder);
+        var trashPath = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, trash_folder));
         if (!Directory.Exists(trashPath))
         {
             return Task.FromResult($"[info] Trash folder '{trash_folder}' does not exist or is empty.");
@@ -95,6 +97,7 @@ public sealed class RestoreTools(
         var destPath = string.IsNullOrWhiteSpace(destination)
             ? Path.Combine(config.VaultPath, Path.GetFileName(trashFile))
             : Path.Combine(config.VaultPath, destination, Path.GetFileName(trashFile));
+        destPath = NoteHelpers.EnsureInsideVault(config.VaultPath, destPath);
 
         if (File.Exists(destPath))
         {
