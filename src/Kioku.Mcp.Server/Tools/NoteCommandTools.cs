@@ -311,10 +311,12 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
     private string BuildNoteContent(string body, string tags, string type, string status, string name)
     {
-        var tagList = NoteHelpers.ParseTags(tags);
-
         // Resolve domain from the note's folder path (if name includes a subfolder)
         var folder = Path.GetDirectoryName(name.Replace('\\', '/')) ?? "";
+        var userTags = NoteHelpers.ParseTags(tags);
+        var inherited = vaultConfig.GetInheritedTags(folder);
+        var tagList = NoteHelpers.MergeTagsWithInheritance(userTags, inherited, vaultConfig.ExcludeFromTags);
+
         var domain = vaultConfig.GetDomainForFolder(folder)
                   ?? vaultConfig.GetDefaults(type.ToLowerInvariant())?.Domain;
 

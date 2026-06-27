@@ -47,6 +47,12 @@ jobs:
           - rid: linux-x64
             artifact-name: kioku-server-linux-x64
             binary: Kioku.Mcp.Server
+          - rid: osx-x64
+            artifact-name: kioku-server-osx-x64
+            binary: Kioku.Mcp.Server
+          - rid: osx-arm64
+            artifact-name: kioku-server-osx-arm64
+            binary: Kioku.Mcp.Server
 
     steps:
       - uses: actions/checkout@v4
@@ -132,4 +138,6 @@ jobs:
           gh release upload "${{ needs.release-please.outputs.tag_name }}" \
             artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe \
             artifacts/kioku-server-linux-x64/kioku-server-linux-x64 \
+            artifacts/kioku-server-osx-x64/kioku-server-osx-x64 \
+            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64 \
             artifacts/obsidian-plugin/kioku-mcp-plugin.zip

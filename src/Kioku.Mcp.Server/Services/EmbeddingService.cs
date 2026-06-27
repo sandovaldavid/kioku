@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Numerics;
 using System.Text;
 using System.Text.Json.Serialization;
 using Kioku.Mcp.Server.Domain;
@@ -269,9 +270,34 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
     private static float CosineSimilarity(float[] a, float[] b)
     {
-        float dot = 0f, normA = 0f, normB = 0f;
         var len = Math.Min(a.Length, b.Length);
-        for (int i = 0; i < len; i++)
+        var vectors = len / Vector<float>.Count;
+        var remainder = vectors * Vector<float>.Count;
+
+        var dotAccum = Vector<float>.Zero;
+        var normAAccum = Vector<float>.Zero;
+        var normBAccum = Vector<float>.Zero;
+
+        for (int i = 0; i < vectors; i++)
+        {
+            var offset = i * Vector<float>.Count;
+            var va = new Vector<float>(a.AsSpan(offset, Vector<float>.Count));
+            var vb = new Vector<float>(b.AsSpan(offset, Vector<float>.Count));
+
+            dotAccum += va * vb;
+            normAAccum += va * va;
+            normBAccum += vb * vb;
+        }
+
+        float dot = 0f, normA = 0f, normB = 0f;
+        for (int i = 0; i < Vector<float>.Count; i++)
+        {
+            dot += dotAccum[i];
+            normA += normAAccum[i];
+            normB += normBAccum[i];
+        }
+
+        for (int i = remainder; i < len; i++)
         {
             dot += a[i] * b[i];
             normA += a[i] * a[i];

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -28,18 +28,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/"/>
-    <None Include="README.md" Pack="true" PackagePath="/"/>
+    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- SDK MCP oficial de Microsoft -->
     <!-- v1: stdio transport -->
-    <PackageReference Include="Markdig" Version="0.38.0"/>
-    <PackageReference Include="ModelContextProtocol" Version="1.4.0"/>
+    <PackageReference Include="Markdig" Version="0.38.0" />
+    <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
     <!-- v2: HTTP-SSE transport (Streamable HTTP) -->
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0"/>
-    <PackageReference Include="YamlDotNet" Version="18.0.0"/>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
+    <PackageReference Include="YamlDotNet" Version="18.0.0" />
   </ItemGroup>
 
 </Project>

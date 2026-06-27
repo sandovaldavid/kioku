@@ -68,7 +68,9 @@ public sealed class ZettelkastenTools(
                 .ToList();
         }
 
-        var tagList = ParseTags(tags);
+        var userTags = ParseTags(tags);
+        var inherited = vaultConfig.GetInheritedTags(targetFolder);
+        var tagList = NoteHelpers.MergeTagsWithInheritance(userTags, inherited, vaultConfig.ExcludeFromTags);
         var body = BuildZettelBody(title, content, relatedLinks);
 
         // Resolve domain: folder mapping > per-type default
@@ -325,7 +327,9 @@ public sealed class ZettelkastenTools(
             return $"[error] Literature note already exists: {relExisting}";
         }
 
-        var tagList = ParseTags(tags);
+        var userTags = ParseTags(tags);
+        var inherited = vaultConfig.GetInheritedTags(folder);
+        var tagList = NoteHelpers.MergeTagsWithInheritance(userTags, inherited, vaultConfig.ExcludeFromTags);
         if (!tagList.Contains("literature", StringComparer.OrdinalIgnoreCase))
         {
             tagList.Insert(0, "literature");

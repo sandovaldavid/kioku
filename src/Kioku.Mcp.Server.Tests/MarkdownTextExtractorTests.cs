@@ -1,0 +1,184 @@
+using Kioku.Mcp.Server.Services;
+using Xunit;
+
+namespace Kioku.Mcp.Server.Tests;
+
+public class MarkdownTextExtractorTests
+{
+    [Fact]
+    public void Extract_EmptyContent_ReturnsEmpty()
+    {
+        var result = MarkdownTextExtractor.Extract("");
+        Assert.Equal(string.Empty, result);
+    }
+
+    [Fact]
+    public void Extract_PlainText_ReturnsAsIs()
+    {
+        var result = MarkdownTextExtractor.Extract("Hello World");
+        Assert.Equal("Hello World", result);
+    }
+
+    [Fact]
+    public void Extract_Heading_RemovesHashPrefix()
+    {
+        var result = MarkdownTextExtractor.Extract("# Hello World");
+        Assert.Equal("Hello World", result);
+    }
+
+    [Fact]
+    public void Extract_MultipleHeadings_RemovesAllHashPrefixes()
+    {
+        var content = "# Title\n\n## Section\n\n### Subsection";
+        var result = MarkdownTextExtractor.Extract(content);
+        Assert.Contains("Title", result);
+        Assert.Contains("Section", result);
+        Assert.Contains("Subsection", result);
+    }
+
+    [Fact]
+    public void Extract_Bold_RemovesMarkers()
+    {
+        var result = MarkdownTextExtractor.Extract("This is **bold** text");
+        Assert.Equal("This is bold text", result);
+    }
+
+    [Fact]
+    public void Extract_Italic_RemovesMarkers()
+    {
+        var result = MarkdownTextExtractor.Extract("This is *italic* text");
+        Assert.Equal("This is italic text", result);
+    }
+
+    [Fact]
+    public void Extract_InlineCode_KeepsContent()
+    {
+        var result = MarkdownTextExtractor.Extract("Use `code` here");
+        Assert.Contains("code", result);
+    }
+
+    [Fact]
+    public void Extract_Wikilink_ExtractsAlias()
+    {
+        var result = MarkdownTextExtractor.Extract("See [[My Note|the note]] for details");
+        Assert.Contains("the note", result);
+        Assert.DoesNotContain("[[", result);
+        Assert.DoesNotContain("]]", result);
+    }
+
+    [Fact]
+    public void Extract_WikilinkNoAlias_ExtractsTarget()
+    {
+        var result = MarkdownTextExtractor.Extract("See [[My Note]] for details");
+        Assert.Contains("My Note", result);
+        Assert.DoesNotContain("[[", result);
+    }
+
+    [Fact]
+    public void Extract_MarkdownLink_ExtractsText()
+    {
+        var result = MarkdownTextExtractor.Extract("Click [here](https://example.com) now");
+        Assert.Contains("here", result);
+        Assert.DoesNotContain("https://example.com", result);
+    }
+
+    [Fact]
+    public void Extract_ListItems_RemovesBulletPrefix()
+    {
+        var content = "- Item one\n- Item two\n- Item three";
+        var result = MarkdownTextExtractor.Extract(content);
+        Assert.Contains("Item one", result);
+        Assert.Contains("Item two", result);
+        Assert.Contains("Item three", result);
+    }
+
+    [Fact]
+    public void Extract_WithFrontmatter_SkipsWhenBodyStartProvided()
+    {
+        var content = "---\ntags:\n  - project\n---\n# Hello World";
+        var bodyStart = FrontmatterParser.GetBodyStart(content);
+        var result = MarkdownTextExtractor.Extract(content, bodyStart);
+        Assert.Contains("Hello World", result);
+        Assert.DoesNotContain("tags", result);
+        Assert.DoesNotContain("project", result);
+    }
+
+    [Fact]
+    public void Extract_Table_ExtractsCellText()
+    {
+        var content = "| Name | Age |\n| --- | --- |\n| Alice | 30 |";
+        var result = MarkdownTextExtractor.Extract(content);
+        Assert.Contains("Name", result);
+        Assert.Contains("Age", result);
+        Assert.Contains("Alice", result);
+        Assert.Contains("30", result);
+    }
+
+    [Fact]
+    public void Extract_MultipleParagraphs_PreservesContent()
+    {
+        var content = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.";
+        var result = MarkdownTextExtractor.Extract(content);
+        Assert.Contains("First paragraph", result);
+        Assert.Contains("Second paragraph", result);
+        Assert.Contains("Third paragraph", result);
+    }
+
+    // ExtractWikilinks tests
+
+    [Fact]
+    public void ExtractWikilinks_NoLinks_ReturnsEmpty()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinks("No links here");
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_SimpleLink_ExtractsTarget()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinks("See [[My Note]] for details");
+        Assert.Single(result);
+        Assert.Equal("My Note", result[0]);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_LinkWithAlias_ExtractsTargetOnly()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinks("See [[My Note|the note]] here");
+        Assert.Single(result);
+        Assert.Equal("My Note", result[0]);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_LinkWithHeader_ExtractsFileOnly()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinks("See [[My Note#Section]] here");
+        Assert.Single(result);
+        Assert.Equal("My Note", result[0]);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_MultipleLinks_ExtractsAll()
+    {
+        var content = "See [[Note A]] and [[Note B]] and [[Note C|alias]]";
+        var result = MarkdownTextExtractor.ExtractWikilinks(content);
+        Assert.Equal(3, result.Count);
+        Assert.Contains("Note A", result);
+        Assert.Contains("Note B", result);
+        Assert.Contains("Note C", result);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_EmptyLink_IgnoresIt()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinks("See [[]] here");
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_UnclosedLink_IgnoresIt()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinks("See [[unclosed link");
+        Assert.Empty(result);
+    }
+}

@@ -128,4 +128,48 @@ public static class NoteHelpers
             .Where(c => !invalid.Contains(c)))
             .Trim('-');
     }
+
+    /// <summary>
+    /// Merges user-provided tags with inherited folder tags, removing duplicates
+    /// and filtering out values that appear in excludedFields.
+    /// Order: user tags first, then inherited additions.
+    /// </summary>
+    public static List<string> MergeTagsWithInheritance(
+        IEnumerable<string> userTags,
+        IEnumerable<string> inheritedTags,
+        IEnumerable<string>? excludedFields = null)
+    {
+        var excluded = new HashSet<string>(excludedFields ?? [], StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+
+        foreach (var tag in userTags.Concat(inheritedTags))
+        {
+            if (!string.IsNullOrWhiteSpace(tag) && !excluded.Contains(tag) && seen.Add(tag))
+            {
+                result.Add(tag);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Expands {{variable}} placeholders in a template string.
+    /// Unknown placeholders are left as-is. Variables are matched case-insensitively.
+    /// </summary>
+    /// <param name="template">Template string with {{variable}} placeholders.</param>
+    /// <param name="variables">Key-value pairs of variable name to value.</param>
+    /// <returns>Template with all known placeholders replaced.</returns>
+    public static string ExpandTemplateVariables(
+        string template,
+        IReadOnlyDictionary<string, string> variables)
+    {
+        foreach (var (key, value) in variables)
+        {
+            template = template.Replace($"{{{{{key}}}}}", value ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        return template;
+    }
 }

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using ModelContextProtocol.Server;
@@ -10,7 +11,7 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations here are read-only — they do not modify files.
 /// </summary>
 [McpServerToolType]
-public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config, EmbeddingService embedding, HybridSearchService hybrid)
+public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config, EmbeddingService embedding, HybridSearchService hybrid, VaultConfigService vaultConfig)
 {
     // read_note
 
@@ -579,4 +580,67 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     }
 
     private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
+
+    // suggest_tags
+
+    [McpServerTool, Description(
+        "Returns the current tag state of a note to help an AI agent decide which new tags to add. " +
+        "Reports existing tags, folder-inherited tags from config.yml auto_tags, " +
+        "and frontmatter fields that must not be duplicated as tags. " +
+        "After reading this, the AI agent should call add_tag with any missing semantic tags.")]
+    public string suggest_tags(
+        [Description("Name or vault-relative path of the note.")] string note)
+    {
+        var found = NoteHelpers.ResolveNote(note, vault);
+        if (found is null)
+        {
+            return $"[error] Note not found: '{note}'";
+        }
+
+        var folder = Path.GetDirectoryName(found.VaultRelativePath)?.Replace('\\', '/') ?? string.Empty;
+        var inherited = vaultConfig.GetInheritedTags(folder);
+        var excluded = vaultConfig.ExcludeFromTags;
+        var existing = found.Metadata.Tags;
+
+        var notYetApplied = inherited
+            .Where(t => !existing.Contains(t, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"[ok] Tag state for '{found.Name}':");
+        sb.AppendLine($"  Path: {found.VaultRelativePath}");
+        sb.AppendLine($"  Folder: {(string.IsNullOrEmpty(folder) ? "(root)" : folder)}");
+        sb.AppendLine();
+        sb.AppendLine("  Frontmatter (do NOT add as tags):");
+        if (!string.IsNullOrWhiteSpace(found.Metadata.NoteType))
+        {
+            sb.AppendLine($"    type: {found.Metadata.NoteType}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(found.Metadata.Status))
+        {
+            sb.AppendLine($"    status: {found.Metadata.Status}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(found.Metadata.Domain))
+        {
+            sb.AppendLine($"    domain: {found.Metadata.Domain}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine(existing.Count > 0
+            ? $"  Existing tags ({existing.Count}): {string.Join(", ", existing)}"
+            : "  Existing tags: (none)");
+        if (notYetApplied.Count > 0)
+        {
+            sb.AppendLine($"  Inherited from config (not yet applied): {string.Join(", ", notYetApplied)}");
+        }
+
+        sb.AppendLine($"  Fields excluded from tagging: {string.Join(", ", excluded)}");
+        sb.AppendLine();
+        sb.AppendLine("  [instruction] Read the note content and propose additional semantic tags.");
+        sb.AppendLine("  [instruction] Call add_tag with only tags NOT already listed above.");
+
+        return sb.ToString().TrimEnd();
+    }
 }
