@@ -72,7 +72,10 @@ public sealed class VaultConfigService
     /// </summary>
     public IReadOnlyList<string> GetInheritedTags(string folderPath)
     {
-        if (_data.AutoTags?.Inherit is null) return [];
+        if (_data.AutoTags?.Inherit is null)
+        {
+            return [];
+        }
 
         var best = _data.AutoTags.Inherit
             .Where(kv => folderPath.StartsWith(kv.Key, StringComparison.OrdinalIgnoreCase))

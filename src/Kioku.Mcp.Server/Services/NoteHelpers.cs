@@ -146,7 +146,9 @@ public static class NoteHelpers
         foreach (var tag in userTags.Concat(inheritedTags))
         {
             if (!string.IsNullOrWhiteSpace(tag) && !excluded.Contains(tag) && seen.Add(tag))
+            {
                 result.Add(tag);
+            }
         }
 
         return result;

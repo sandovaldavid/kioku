@@ -62,10 +62,11 @@ jobs:
         run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
 
       - name: Test
-        run: dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
-          --configuration Release \
-          --no-restore \
-          --verbosity normal
+        run: |
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity normal
 
   build-plugin:
     name: build-plugin (ubuntu-latest)

@@ -593,7 +593,9 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     {
         var found = NoteHelpers.ResolveNote(note, vault);
         if (found is null)
+        {
             return $"[error] Note not found: '{note}'";
+        }
 
         var folder = Path.GetDirectoryName(found.VaultRelativePath)?.Replace('\\', '/') ?? string.Empty;
         var inherited = vaultConfig.GetInheritedTags(folder);
@@ -611,17 +613,29 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         sb.AppendLine();
         sb.AppendLine("  Frontmatter (do NOT add as tags):");
         if (!string.IsNullOrWhiteSpace(found.Metadata.NoteType))
+        {
             sb.AppendLine($"    type: {found.Metadata.NoteType}");
+        }
+
         if (!string.IsNullOrWhiteSpace(found.Metadata.Status))
+        {
             sb.AppendLine($"    status: {found.Metadata.Status}");
+        }
+
         if (!string.IsNullOrWhiteSpace(found.Metadata.Domain))
+        {
             sb.AppendLine($"    domain: {found.Metadata.Domain}");
+        }
+
         sb.AppendLine();
         sb.AppendLine(existing.Count > 0
             ? $"  Existing tags ({existing.Count}): {string.Join(", ", existing)}"
             : "  Existing tags: (none)");
         if (notYetApplied.Count > 0)
+        {
             sb.AppendLine($"  Inherited from config (not yet applied): {string.Join(", ", notYetApplied)}");
+        }
+
         sb.AppendLine($"  Fields excluded from tagging: {string.Join(", ", excluded)}");
         sb.AppendLine();
         sb.AppendLine("  [instruction] Read the note content and propose additional semantic tags.");
