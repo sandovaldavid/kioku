@@ -5,19 +5,30 @@ namespace Kioku.Mcp.Server.Services;
 /// <summary>
 /// Binary serialization for the embedding cache file.
 ///
+/// File header:
+///   magic "KIOKU_EMB\n" (10 bytes)
+///   uint32 formatVersion
+///   uint16 modelNameLen + byte[modelNameLen] UTF-8 model name
+///   uint16 dimension
+///   uint32 count
+///
 /// Format per entry:
 ///   uint16  pathLen  + byte[pathLen]  UTF-8 vault-relative path
 ///   uint16  hashLen  + byte[hashLen]  UTF-8 MD5 hex content hash
 ///   uint16  dim      + float[dim]     IEEE 754 LE embedding vector
 ///
-/// File header: magic "KIOKU_EMB\n" (10 bytes) + uint32 version + uint32 count
+/// The cache is invalidated if the model name or dimension changes.
 /// </summary>
 internal static class EmbeddingPersistence
 {
     private static readonly byte[] Magic = "KIOKU_EMB\n"u8.ToArray();
-    private const uint FormatVersion = 2;
+    private const uint FormatVersion = 3;
 
-    public static async Task SaveAsync(string filePath, IReadOnlyDictionary<string, EmbeddingEntry> store)
+    public static async Task SaveAsync(
+        string filePath,
+        IReadOnlyDictionary<string, EmbeddingEntry> store,
+        string modelName,
+        int dimension)
     {
         var dir = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(dir);
@@ -29,6 +40,12 @@ internal static class EmbeddingPersistence
 
         writer.Write(Magic);
         writer.Write(FormatVersion);
+
+        var modelBytes = Encoding.UTF8.GetBytes(modelName);
+        writer.Write((ushort)modelBytes.Length);
+        writer.Write(modelBytes);
+        writer.Write((ushort)dimension);
+
         writer.Write((uint)store.Count);
 
         foreach (var (_, entry) in store)
@@ -54,13 +71,13 @@ internal static class EmbeddingPersistence
         File.Move(tmp, filePath, overwrite: true);
     }
 
-    public static async Task<Dictionary<string, EmbeddingEntry>> LoadAsync(string filePath)
+    public static async Task<(Dictionary<string, EmbeddingEntry> Entries, string? ModelName, int Dimension)> LoadAsync(string filePath)
     {
         var result = new Dictionary<string, EmbeddingEntry>(StringComparer.OrdinalIgnoreCase);
 
         if (!File.Exists(filePath))
         {
-            return result;
+            return (result, null, 0);
         }
 
         await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
@@ -71,14 +88,21 @@ internal static class EmbeddingPersistence
         var magic = reader.ReadBytes(Magic.Length);
         if (!magic.AsSpan().SequenceEqual(Magic))
         {
-            return result;
+            return (result, null, 0);
         }
 
         var version = reader.ReadUInt32();
         if (version != FormatVersion)
         {
-            return result;
+            return (result, null, 0);
         }
+
+        // Read model name
+        var modelNameLen = reader.ReadUInt16();
+        var modelName = Encoding.UTF8.GetString(reader.ReadBytes(modelNameLen));
+
+        // Read dimension
+        var dimension = reader.ReadUInt16();
 
         var count = reader.ReadUInt32();
         result.EnsureCapacity((int)count);
@@ -101,6 +125,6 @@ internal static class EmbeddingPersistence
             result[path] = new EmbeddingEntry(path, hash, vector);
         }
 
-        return result;
+        return (result, modelName, dimension);
     }
 }

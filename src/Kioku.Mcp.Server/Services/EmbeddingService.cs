@@ -31,6 +31,18 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
     public bool IsAvailable { get; private set; }
 
+    // Known embedding model dimensions for validation
+    private static readonly Dictionary<string, int> KnownModelDimensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["nomic-embed-text"] = 768,
+        ["mxbai-embed-large"] = 1024,
+        ["bge-m3"] = 1024,
+        ["all-minilm"] = 384,
+        ["snowflake-arctic-embed"] = 768,
+    };
+
+    private int ExpectedDimension => KnownModelDimensions.TryGetValue(config.EmbeddingModel, out var dim) ? dim : 768;
+
     private string CachePath => Path.Combine(config.VaultPath, ".kioku", "embeddings.bin");
 
     // Initialization
@@ -46,7 +58,18 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
         logger.Info("Ollama reachable. Model: {Model}", config.EmbeddingModel);
 
-        var loaded = await EmbeddingPersistence.LoadAsync(CachePath);
+        var (loaded, cachedModel, cachedDim) = await EmbeddingPersistence.LoadAsync(CachePath);
+
+        // Invalidate cache if model or dimension changed
+        if (loaded.Count > 0 && (cachedModel != config.EmbeddingModel || cachedDim != ExpectedDimension))
+        {
+            logger.Warn(
+                "Embedding cache mismatch: cached model={CachedModel} dim={CachedDim}, " +
+                "configured model={ConfigModel} dim={ConfigDim}. Invalidating cache.",
+                cachedModel, cachedDim, config.EmbeddingModel, ExpectedDimension);
+            loaded.Clear();
+        }
+
         foreach (var (k, v) in loaded)
         {
             _store[k] = v;
@@ -178,7 +201,7 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
         try
         {
-            await EmbeddingPersistence.SaveAsync(CachePath, _store);
+            await EmbeddingPersistence.SaveAsync(CachePath, _store, config.EmbeddingModel, ExpectedDimension);
             _pendingFlushes = 0;
             logger.Debug("Embedding cache saved. {Count} entries.", _store.Count);
         }
@@ -270,7 +293,14 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
     private static float CosineSimilarity(float[] a, float[] b)
     {
-        var len = Math.Min(a.Length, b.Length);
+        if (a.Length != b.Length)
+        {
+            throw new InvalidOperationException(
+                $"Vector dimension mismatch: query has {a.Length} dims, cached has {b.Length} dims. " +
+                "This may indicate a model change. Delete .kioku/embeddings.bin to re-embed.");
+        }
+
+        var len = a.Length;
         var vectors = len / Vector<float>.Count;
         var remainder = vectors * Vector<float>.Count;
 
