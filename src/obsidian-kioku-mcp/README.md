@@ -1,78 +1,108 @@
-# Kioku MCP — Obsidian Plugin
+# Kioku MCP Plugin
 
-> Versión: **1.6.2** — [Release notes](https://github.com/sandovaldavid/kioku/releases)
+Connects your Obsidian vault to the [Kioku MCP Server](https://github.com/sandovaldavid/kioku), enabling AI agents like Claude Code and Antigravity CLI to search, read, and modify your notes via the Model Context Protocol.
 
-Plugin puente (thin client) que conecta Obsidian con el servidor MCP Kioku mediante WebSocket local.
+## What is Kioku?
 
-## Rol
+Kioku (記憶, "memory" in Japanese) is a local-first MCP server that gives AI agents direct access to your Obsidian vault. This plugin is the bridge between Obsidian and the server, providing:
 
-El plugin actúa como un **servidor WebSocket** dentro de Obsidian. El servidor C# (Kioku.Mcp.Server) se conecta como cliente para ejecutar comandos de UI: abrir notas, consultar la nota activa, ejecutar comandos de Obsidian, etc.
+- **Real-time note opening** — agents can open notes in Obsidian
+- **UI commands** — trigger Obsidian commands from agents
+- **Selection access** — agents can read your current selection
+- **Plugin integration** — access Dataview, Templater, and Linter from agents
 
-Toda la lógica pesada (búsqueda, indexación, embeddings) corre en el servidor C# — el plugin solo traduce comandos a la API de Obsidian.
+## Requirements
 
-## Comandos del Plugin
-
-| Comando | Descripción |
-|---|---|
-| `open-file` | Abre y enfoca una nota |
-| `get-active-note` | Nota actualmente activa |
-| `get-open-notes` | Todas las pestañas abiertas |
-| `trigger-command` | Ejecuta cualquier comando de Obsidian por ID |
-| `toggle-reading-mode` | Alterna edición/lectura |
-| `get-selection` | Texto seleccionado en el editor |
-| `fold-all-headings` / `unfold-all-headings` | Colapsa/expande headings |
-| `reload-snippets` | Recarga snippets CSS |
-| `scroll-to-block` | Desplaza a un bloque específico |
-| `open-in-split` | Abre en panel dividido |
-| `get-vault-path` | Ruta de la bóveda activa |
-| `is-obsidian-ready` | Estado de carga de Obsidian |
-| `get-app-version` | Versión de Obsidian y del plugin |
-| `create-note-ui` | Crea nota y la abre en Obsidian |
-| `insert-at-cursor` | Inserta texto en el cursor |
-| `replace-selection` | Reemplaza texto seleccionado |
-
-## Instalación
-
-1. Asegúrate de tener el servidor Kioku.Mcp.Server configurado.
-2. Copia los archivos compilados a tu bóveda:
+1. **Kioku MCP Server** — install from [GitHub releases](https://github.com/sandovaldavid/kioku/releases) or via:
    ```bash
-   mkdir -p /ruta/a/tu/boveda/.obsidian/plugins/kioku
-   cp {main.js,manifest.json,styles.css} /ruta/a/tu/boveda/.obsidian/plugins/kioku/
+   # Docker
+   docker-compose up -d
+   
+   # dotnet tool
+   dotnet tool install -g kioku-mcp-server
+   
+   # Or download binary from releases
    ```
-3. En Obsidian: **Ajustes → Complementos de la comunidad → Recargar → Activar Kioku MCP Bridge**.
 
-## Configuración
+2. **Configure the server** with your vault path:
+   ```bash
+   export KIOKU_VAULT_PATH=/path/to/your/vault
+   kioku-mcp-server
+   ```
 
-El puerto WebSocket se configura en el servidor C# mediante `KIOKU_OBSIDIAN_PORT` (default: `7765`).
+3. **Configure your MCP client** (Claude Code, etc.):
+   ```json
+   {
+     "mcpServers": {
+       "kioku": {
+         "type": "stdio",
+         "command": "kioku-mcp-server"
+       }
+     }
+   }
+   ```
 
-## Desarrollo
+## Features
 
+This plugin provides a WebSocket bridge that allows the Kioku server to:
+
+- **Open notes** in Obsidian when agents edit them
+- **Execute commands** like toggling reading mode, folding headings
+- **Access current selection** for context-aware operations
+- **Integrate with plugins** like Dataview, Templater, and Linter
+- **Show notifications** when agents interact with your vault
+
+## Settings
+
+- **Bridge Port** (default: 7765) — port for WebSocket connections
+- **Show Notifications** — display notices when agents open notes
+
+## Privacy & Security
+
+- **Local-only** — the plugin only listens on `127.0.0.1` (localhost)
+- **No telemetry** — no data is sent to external services
+- **No cloud dependency** — works completely offline (except for Ollama if using semantic search)
+- **Your data stays yours** — the server reads/writes directly to your vault files
+
+## Troubleshooting
+
+### Bridge won't start
+
+Check if port 7765 is already in use:
 ```bash
-# Instalar dependencias
-pnpm install
-
-# Desarrollo con hot-reload
-pnpm dev
-
-# Build de producción
-pnpm build
-
-# Lint
-pnpm lint
-pnpm format
-
-# Output
-# - main.js   (plugin bundle)
-# - manifest.json
-# - styles.css
+lsof -i :7765
 ```
 
-## APIs de Obsidian Utilizadas
+Change the port in plugin settings if needed.
 
-- `app.workspace` — navegación y pestañas
-- `app.vault` — lectura/escritura de archivos
-- `app.metadataCache` — caché de metadatos
-- `app.commands` — ejecución de comandos
-- `app.customCss` — snippets y temas
+### Agent can't open notes
 
-Todas son APIs públicas documentadas. Sin dependencias externas no aprobadas.
+Ensure:
+1. Obsidian is open
+2. The plugin is enabled
+3. The server is running
+4. The port matches in both plugin settings and server config
+
+### Semantic search not working
+
+Semantic search requires Ollama running locally:
+```bash
+ollama pull nomic-embed-text
+```
+
+The server will gracefully degrade to keyword search if Ollama is unavailable.
+
+## Documentation
+
+- [Full documentation](https://github.com/sandovaldavid/kioku/tree/main/docs)
+- [Docker deployment guide](https://github.com/sandovaldavid/kioku/blob/main/docs/docker.md)
+- [Architecture overview](https://github.com/sandovaldavid/kioku#architecture)
+
+## Support
+
+- **GitHub Issues** — report bugs and request features
+- **GitHub Sponsors** — support development: https://github.com/sponsors/sandovaldavid
+
+## License
+
+MIT © sandovaldavid
