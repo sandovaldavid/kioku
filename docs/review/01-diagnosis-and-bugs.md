@@ -267,3 +267,20 @@ if the registry shape changes. Trivial fix: thread the manifest in from `main.ts
 | BUG-10 | `get-app-version` from `Plugin.manifest` | 🟢 | P2 | XS |
 
 P0 items should land before any wider distribution push (see [07](./07-production-readiness.md)).
+
+---
+
+## Implementation Status
+
+| ID | Task | Branch | PR | Status |
+|----|------|--------|----|--------|
+| BUG-1 | Vault path-traversal containment | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | done |
+| BUG-5 | Restore bridge-startup Notice | `fix/p0-bridge-notice` | [#60](https://github.com/sandovaldavid/kioku/pull/60) | done |
+| BUG-2 | Reindex exception handling | — | — | pending |
+| BUG-3 | Embedding model/dim stamping | — | — | pending |
+| BUG-6 | open-file async/await | — | — | pending |
+| BUG-7 | Payload validation layer | — | — | pending |
+| BUG-8 | Shared/versioned bridge protocol | — | — | pending |
+| BUG-4 | IHttpClientFactory everywhere | — | — | pending |
+| BUG-9 | Bootstrap logger | — | — | pending |
+| BUG-10 | get-app-version from manifest | — | — | pending |

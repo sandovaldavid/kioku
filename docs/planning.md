@@ -353,8 +353,8 @@ Por esto, la estrategia de compilación óptima es **Self-Contained** (no AOT es
 | `ModelContextProtocol` | SDK MCP oficial (stdio) | ✅ En uso |
 | `ModelContextProtocol.AspNetCore` | Transporte HTTP-SSE (v2) | ✅ En uso |
 | `System.Numerics.Tensors` | Cosine similarity (vectores) | ✅ En uso |
-| `YamlDotNet` | Parseo YAML | ❌ Reemplazado por parser manual con `Span<char>` |
-| `Markdig` | Parseo Markdown | ❌ Reemplazado por extractor de texto manual |
+| `YamlDotNet` | Parseo YAML | ✅ En uso (VaultConfigService para config.yml) |
+| `Markdig` | Parseo/Render Markdown | ✅ En uso (export HTML, text extraction) |
 | `Microsoft.ML.OnnxRuntime` | Embeddings locales ONNX | ❌ Reemplazado por Ollama |
 | `OllamaSharp` _(opcional)_ | Cliente Ollama tipado | ❌ `HttpClient` nativo es suficiente |
 
@@ -362,7 +362,7 @@ Por esto, la estrategia de compilación óptima es **Self-Contained** (no AOT es
 
 ### Alternativas Implementadas (Verificadas en Producción)
 
-#### ✅ YAML → Parser Manual con `Span<char>`
+#### ✅ YAML → Parser Manual para frontmatter + YamlDotNet para config
 
 El frontmatter de Obsidian es **extremadamente predecible**. Siempre sigue el formato:
 ```
@@ -372,7 +372,7 @@ tags: [tag1, tag2]
 fecha: 2024-01-15
 ---
 ```
-No se necesita una librería completa como `YamlDotNet`. Un parser de 100-150 líneas con `ReadOnlySpan<char>` es suficiente, más rápido y totalmente AOT-safe:
+No se necesita una librería completa para el frontmatter. Un parser de 100-150 líneas con `ReadOnlySpan<char>` es suficiente, más rápido y totalmente AOT-safe:
 
 ```csharp
 // FrontmatterParser.cs — Zero-allocation, sin dependencias externas
@@ -387,16 +387,19 @@ public static class FrontmatterParser
 }
 ```
 
-#### ✅ Markdig → Extractor de Texto Manual
+**Nota:** `YamlDotNet` se añadió posteriormente para `VaultConfigService` (config.yml),
+que requiere parseo YAML más complejo. El parser manual sigue usándose para frontmatter.
 
-Para la indexación de búsqueda, solo necesitamos **texto limpio** (sin sintaxis Markdown). No necesitamos renderizar HTML. Un extractor de ~80 líneas con `Span<char>` elimina:
+#### ✅ Markdig — Extractor de Texto + Renderizado HTML
+
+Para la indexación de búsqueda, solo necesitamos **texto limpio** (sin sintaxis Markdown). `MarkdownTextExtractor` elimina:
 - `#` de encabezados
 - `**bold**`, `_italic_` de énfasis
 - `[[wikilinks]]` y `[text](url)` de enlaces
 - ` ```code``` ` de bloques de código
 - Bloques de frontmatter YAML
 
-Si en el futuro se necesita renderizado HTML completo (para previsualización), añadir `Markdig` como dependencia **opcional y no-AOT** en una capa separada.
+`Markdig` se usa además para renderizado HTML completo (export de notas, herramientas de investigación).
 
 #### ✅ ONNX Runtime → Ollama (Embeddings vía HTTP local)
 

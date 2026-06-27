@@ -5,7 +5,7 @@
 Kioku is an MCP (Model Context Protocol) server that gives AI agents direct access to an
 Obsidian vault. It pairs with an Obsidian plugin that bridges UI actions over WebSocket.
 
-- **Server** (C# .NET 10): reads/writes `.md` files, exposes 18 MCP tools via stdio
+- **Server** (C# .NET 10): reads/writes `.md` files, exposes 102 MCP tools across 17 tool classes via stdio
 - **Plugin** (TypeScript 6): WebSocket server running inside Obsidian; receives commands from the server
 
 ## Architecture
@@ -33,6 +33,13 @@ Obsidian vault. It pairs with an Obsidian plugin that bridges UI actions over We
 | `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Ollama embedding model name |
 
 ## MCP Tools
+
+> **Note:** The tables below show the original v1 tool surface (NoteQuery, NoteCommand,
+> ObsidianBridge, Utility). The server now exposes **102 tools across 17 classes**:
+> AssetTools, CssThemingTools, GitTools, GraphAnalysisTools, KnowledgeGraphTools,
+> NoteCommandTools, NoteQueryTools, ObsidianBridgeTools, PluginIntegrationTools,
+> ResearchTools, RestoreTools, SessionContextTools, TaskManagementTools, UtilityTools,
+> VaultOrganizationTools, WorkflowTools, ZettelkastenTools.
 
 ### Read-only — NoteQueryTools
 
@@ -151,6 +158,9 @@ C# logs go to **stderr** only — stdout is reserved for the MCP protocol.
       Tools/                     MCP tool classes
     obsidian-kioku-mcp/          Obsidian plugin (TypeScript)
       src/main.ts                KiokuPlugin — WebSocket bridge
+      src/bridge.ts              BridgeServer — WebSocket server
+      src/handlers.ts            Command handlers for bridge
+      src/types.ts               Shared types and settings
       src/logger.ts              Logger class
       manifest.json              Obsidian plugin manifest
       esbuild.config.mjs         Build config (bundles to main.js)

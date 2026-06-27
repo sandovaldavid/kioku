@@ -87,3 +87,46 @@ release.
 
 > Note: the per-class tool counts here differ slightly from the first exploration pass; the numbers
 > in this review are the **verified** ones from a direct `grep` of `[McpServerTool]`.
+
+---
+
+## Implementation Progress
+
+### Phase P0 — Safe Beta (before any wider release)
+
+| # | Task | Branch | PR | Status |
+|---|------|--------|----|--------|
+| 1 | BUG-1: Vault path-traversal containment | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | done |
+| 2 | BUG-5: Restore bridge-startup Notice | `fix/p0-bridge-notice` | [#60](https://github.com/sandovaldavid/kioku/pull/60) | done |
+| 3 | Doc reconciliation (README, AGENTS, planning) | `fix/p0-doc-reconciliation` | [#61](https://github.com/sandovaldavid/kioku/pull/61) | done |
+| 4 | VaultFixture test infrastructure | `test/p0-vault-fixture` | [#62](https://github.com/sandovaldavid/kioku/pull/62) | done |
+| 5 | Path-traversal regression tests | `test/p0-path-traversal-tests` | [#63](https://github.com/sandovaldavid/kioku/pull/63) | done |
+| 6 | BRAT support for plugin | `feat/p0-brat-support` | [#64](https://github.com/sandovaldavid/kioku/pull/64) | done |
+
+**Progress: 6/6 tasks complete**
+
+### Phase P1 — Public 1.0
+
+| # | Task | Branch | PR | Status |
+|---|------|--------|----|--------|
+| 7 | BUG-2: Reindex exception handling | — | — | pending |
+| 8 | BUG-3: Embedding cache stamp + invalidation | — | — | pending |
+| 9 | BUG-6: open-file async/await | — | — | pending |
+| 10 | BUG-7: Payload validation layer | — | — | pending |
+| 11 | BUG-8: Protocol version handshake | — | — | pending |
+| 12 | Plugin Vitest test suite | — | — | pending |
+| 13 | Bridge protocol contract test | — | — | pending |
+| 14 | Coverage gate (coverlet + Codecov) | — | — | pending |
+| 15 | Docker image + docker-compose | — | — | pending |
+| 16 | dotnet tool publish to NuGet | — | — | pending |
+| 17 | Community Store readiness | — | — | pending |
+| 18 | Soft-delete / trash routing | — | — | pending |
+| 19 | SECURITY.md + install/troubleshooting docs | — | — | pending |
+| 20 | Generated commands-reference.md | — | — | pending |
+| 21 | Dependency scanning in CI | — | — | pending |
+
+**Progress: 0/15 tasks complete**
+
+### Phase P2 — Scale & Polish
+
+See detailed task list in individual review docs. Tasks 22-36 pending P0/P1 completion.
