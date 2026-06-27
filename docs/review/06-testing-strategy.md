@@ -125,3 +125,15 @@ A scripted run against a built server + a sample vault (the public demo vault fr
 - Plugin: enable, restart bridge, port-conflict shows a `Notice`, `open_note_in_obsidian` focuses the
   right note, deps-missing shows friendly errors.
 - HTTP mode behind nginx: `/health` open, `/mcp` requires token, SSE streams without buffering.
+
+---
+
+## Implementation Status
+
+| # | Item | Branch | PR | Status |
+|---|------|--------|----|--------|
+| 1 | VaultFixture (P0) | `test/p0-vault-fixture` | — | pending |
+| 2 | Path-traversal regression tests (P0) | `test/p0-path-traversal-tests` | — | pending |
+| 3 | Plugin Vitest tests (P1) | — | — | pending |
+| 4 | Protocol contract test (P1) | — | — | pending |
+| 5 | Coverage gate (P1) | — | — | pending |

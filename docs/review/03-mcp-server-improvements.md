@@ -97,3 +97,16 @@ Concrete, mostly-incremental improvements to `Kioku.Mcp.Server` beyond the bug f
 | **B** | 6, 7, 8, 9, 10 | Index & embedding correctness/resilience |
 | **C** | 14, 17, 18, 22 | Token efficiency, config, docs-as-code |
 | **D** | 12, 13, 15, 16, 19, 21 | Performance, structured outputs, observability |
+
+---
+
+## Implementation Status
+
+| # | Item | Branch | PR | Status |
+|---|------|--------|----|--------|
+| 1 | Vault containment helper (P0) | `fix/p0-path-traversal` | — | pending |
+| 5 | Reindex error handling (P1) | — | — | pending |
+| 6 | Embedding cache integrity (P1) | — | — | pending |
+| 15 | IHttpClientFactory (P2) | — | — | pending |
+| 20 | Bootstrap logger (P2) | — | — | pending |
+| 22 | Generated commands-reference.md | — | — | pending |

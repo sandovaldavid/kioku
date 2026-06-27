@@ -147,3 +147,15 @@ Polish items (none blocking):
 - **Self-Contained, cross-platform** release pipeline is genuinely production-grade.
 - **The plugin refactor** (bridge/handlers/types) is clean, single-responsibility, and well-typed —
   exactly the structure that makes the protocol single-source (§4) cheap to add.
+
+---
+
+## Implementation Status
+
+| Item | Task | Branch | PR | Status |
+|------|------|--------|----|--------|
+| §3 Doc drift | Doc reconciliation | `fix/p0-doc-reconciliation` | — | pending |
+| §4 Protocol SSoT | Protocol version handshake | — | — | pending |
+| §5 AOT decision | Update planning.md | `fix/p0-doc-reconciliation` | — | pending |
+| §6 Tool sprawl | Tool namespacing (P2) | — | — | pending |
+| §7 config-v2 polish | Config-v2 polish (P2) | — | — | pending |

@@ -129,3 +129,30 @@ From [02](./02-architecture-review.md) §3. Do these before promoting the projec
 | **P0 — Safe beta** | Don't ship a foot-gun | Path containment, restore bridge `Notice`, fixture+traversal tests, BRAT, doc-version fix |
 | **P1 — Public 1.0** | Anyone can install & trust | dotnet tool + Docker, Community Store, coverage gate, security hardening, generated docs, telemetry (opt-in) |
 | **P2 — Scale** | Polish & reach | brew/winget, one-line installer, SBOM/signing, perf benchmarks, crash reporting |
+
+---
+
+## Implementation Status
+
+### Phase P0 — Safe Beta
+
+| # | Item | Branch | PR | Status |
+|---|------|--------|----|--------|
+| 1 | Path containment (BUG-1) | `fix/p0-path-traversal` | — | pending |
+| 2 | Bridge Notice (BUG-5) | `fix/p0-bridge-notice` | — | pending |
+| 3 | Doc reconciliation | `fix/p0-doc-reconciliation` | — | pending |
+| 4 | VaultFixture | `test/p0-vault-fixture` | — | pending |
+| 5 | Path-traversal tests | `test/p0-path-traversal-tests` | — | pending |
+| 6 | BRAT support | `feat/p0-brat-support` | — | pending |
+
+### Phase P1 — Public 1.0
+
+| # | Item | Branch | PR | Status |
+|---|------|--------|----|--------|
+| 15 | Docker image | — | — | pending |
+| 16 | dotnet tool NuGet | — | — | pending |
+| 17 | Community Store | — | — | pending |
+| 18 | Soft-delete/trash | — | — | pending |
+| 19 | SECURITY.md + docs | — | — | pending |
+| 20 | Generated commands-ref | — | — | pending |
+| 21 | Dependency scanning | — | — | pending |
