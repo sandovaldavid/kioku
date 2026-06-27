@@ -164,7 +164,9 @@ public sealed class SessionContextTools(VaultIndexService vault, KiokuConfigurat
             ? dateStr
             : $"{dateStr} — {session_name}";
 
-        var destFolder = Path.Combine(config.VaultPath, sessions_folder);
+        var destFolder = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, sessions_folder));
         Directory.CreateDirectory(destFolder);
 
         var filePath = Path.Combine(destFolder, $"{noteName}.md");

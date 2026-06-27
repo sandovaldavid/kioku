@@ -223,7 +223,9 @@ public sealed class ZettelkastenTools(
             }
         }
 
-        var folderNotePath = Path.Combine(config.VaultPath, folder.TrimEnd('/'), $"{folderTitle}.md");
+        var folderNotePath = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, folder.TrimEnd('/'), $"{folderTitle}.md"));
         var dir = Path.GetDirectoryName(folderNotePath)!;
         Directory.CreateDirectory(dir);
         await File.WriteAllTextAsync(folderNotePath, sb.ToString(), Encoding.UTF8);

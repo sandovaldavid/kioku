@@ -174,7 +174,9 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
         }
 
         var folder = ResolveTemplatesFolder(templates_folder) ??
-                     Path.Combine(config.VaultPath, TemplateFolderCandidates[0]);
+                     NoteHelpers.EnsureInsideVault(
+                         config.VaultPath,
+                         Path.Combine(config.VaultPath, TemplateFolderCandidates[0]));
 
         Directory.CreateDirectory(folder);
 
@@ -285,7 +287,9 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
     {
         if (!string.IsNullOrWhiteSpace(overrideFolder))
         {
-            var path = Path.Combine(config.VaultPath, overrideFolder);
+            var path = NoteHelpers.EnsureInsideVault(
+                config.VaultPath,
+                Path.Combine(config.VaultPath, overrideFolder));
             return Directory.Exists(path) ? path : null;
         }
 

@@ -128,7 +128,9 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
             return "[error] Use get_note_metadata for Markdown notes.";
         }
 
-        var absPath = Path.Combine(config.VaultPath, path);
+        var absPath = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, path));
 
         if (!File.Exists(absPath))
         {
@@ -251,7 +253,9 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
             return "[error] The 'asset_folder' parameter cannot be empty.";
         }
 
-        var assetPath = Path.Combine(config.VaultPath, asset_folder);
+        var assetPath = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, asset_folder));
         if (!Directory.Exists(assetPath))
         {
             return $"[error] Folder not found: '{asset_folder}'";
@@ -344,7 +348,9 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
             return "[error] The 'target_folder' parameter cannot be empty.";
         }
 
-        var targetPath = Path.Combine(config.VaultPath, target_folder);
+        var targetPath = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, target_folder));
         var targetExtensions = new[] { ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".pdf", ".excalidraw", ".canvas" };
 
         // Find all asset files outside the target folder

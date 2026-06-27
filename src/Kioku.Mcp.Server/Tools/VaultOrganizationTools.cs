@@ -594,7 +594,9 @@ public sealed class VaultOrganizationTools(
             return $"[info] dry_run=true — would move '{found.Name}':\n  From: {currentFolder}\n  To:   {bestFolder}  (score: {bestScore:F2})";
         }
 
-        var destDir = Path.Combine(config.VaultPath, bestFolder);
+        var destDir = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, bestFolder));
         Directory.CreateDirectory(destDir);
         var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));
 

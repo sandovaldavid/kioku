@@ -232,7 +232,9 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
             return $"[error] Note not found: '{note}'";
         }
 
-        var destDir = Path.Combine(config.VaultPath, destination_folder);
+        var destDir = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, destination_folder));
         Directory.CreateDirectory(destDir);
 
         var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));

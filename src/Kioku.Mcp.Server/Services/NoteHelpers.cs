@@ -5,6 +5,32 @@ namespace Kioku.Mcp.Server.Services;
 
 public static class NoteHelpers
 {
+    /// <summary>
+    /// Ensures that a candidate path remains inside the vault root after canonicalization.
+    /// Throws <see cref="InvalidOperationException"/> if the path escapes the vault.
+    /// </summary>
+    /// <param name="vaultRoot">Absolute path to the vault root directory.</param>
+    /// <param name="candidate">Candidate path to validate (may be relative or absolute).</param>
+    /// <returns>The canonicalized absolute path, guaranteed to be inside the vault.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the path escapes the vault.</exception>
+    public static string EnsureInsideVault(string vaultRoot, string candidate)
+    {
+        var root = Path.GetFullPath(vaultRoot);
+        var full = Path.GetFullPath(candidate);
+        var rootWithSep = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+
+        if (!full.StartsWith(rootWithSep, StringComparison.Ordinal) &&
+            !full.Equals(root, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Path escapes the vault: '{candidate}' resolves outside '{vaultRoot}'.");
+        }
+
+        return full;
+    }
+
     public static Note? ResolveNote(string nameOrPath, VaultIndexService vault)
     {
         var all = vault.GetAllNotes();
@@ -49,7 +75,8 @@ public static class NoteHelpers
             normalized += ".md";
         }
 
-        return Path.Combine(vaultPath, normalized);
+        var combined = Path.Combine(vaultPath, normalized);
+        return EnsureInsideVault(vaultPath, combined);
     }
 
     public static List<string> ParseTags(string tags)

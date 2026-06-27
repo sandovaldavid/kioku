@@ -297,4 +297,76 @@ public class NoteHelpersTests
         Assert.Contains("citekey: smith2024", result);
         Assert.Contains("rating: 5", result);
     }
+
+    [Fact]
+    public void EnsureInsideVault_ValidPath_ReturnsCanonicalPath()
+    {
+        var vaultRoot = Path.GetTempPath();
+        var candidate = Path.Combine(vaultRoot, "subfolder", "note.md");
+
+        var result = NoteHelpers.EnsureInsideVault(vaultRoot, candidate);
+
+        Assert.Equal(Path.GetFullPath(candidate), result);
+    }
+
+    [Fact]
+    public void EnsureInsideVault_RootPath_ReturnsCanonicalPath()
+    {
+        var vaultRoot = Path.GetTempPath();
+
+        var result = NoteHelpers.EnsureInsideVault(vaultRoot, vaultRoot);
+
+        Assert.Equal(Path.GetFullPath(vaultRoot), result);
+    }
+
+    [Fact]
+    public void EnsureInsideVault_PathTraversal_Throws()
+    {
+        var vaultRoot = Path.GetTempPath();
+        var candidate = Path.Combine(vaultRoot, "..", "evil", "note.md");
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => NoteHelpers.EnsureInsideVault(vaultRoot, candidate));
+
+        Assert.Contains("escapes the vault", ex.Message);
+    }
+
+    [Fact]
+    public void EnsureInsideVault_AbsolutePathOutside_Throws()
+    {
+        var vaultRoot = Path.GetTempPath();
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => NoteHelpers.EnsureInsideVault(vaultRoot, "/etc/passwd"));
+
+        Assert.Contains("escapes the vault", ex.Message);
+    }
+
+    [Fact]
+    public void EnsureInsideVault_DoubleDotTraversal_Throws()
+    {
+        var vaultRoot = Path.GetTempPath();
+        var candidate = Path.Combine(vaultRoot, "sub", "..", "..", "outside.md");
+
+        Assert.Throws<InvalidOperationException>(
+            () => NoteHelpers.EnsureInsideVault(vaultRoot, candidate));
+    }
+
+    [Fact]
+    public void BuildFilePath_PathTraversal_Throws()
+    {
+        var vaultRoot = Path.GetTempPath();
+
+        Assert.Throws<InvalidOperationException>(
+            () => NoteHelpers.BuildFilePath("../../evil/note", vaultRoot));
+    }
+
+    [Fact]
+    public void BuildFilePath_AbsolutePathOutside_Throws()
+    {
+        var vaultRoot = Path.GetTempPath();
+
+        Assert.Throws<InvalidOperationException>(
+            () => NoteHelpers.BuildFilePath("/etc/passwd", vaultRoot));
+    }
 }
