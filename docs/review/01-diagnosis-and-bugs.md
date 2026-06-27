@@ -276,11 +276,11 @@ P0 items should land before any wider distribution push (see [07](./07-productio
 |----|------|--------|----|--------|
 | BUG-1 | Vault path-traversal containment | `fix/p0-path-traversal` | [#59](https://github.com/sandovaldavid/kioku/pull/59) | merged |
 | BUG-5 | Restore bridge-startup Notice | `fix/p0-bridge-notice` | [#60](https://github.com/sandovaldavid/kioku/pull/60) | merged |
-| BUG-2 | Reindex exception handling | `fix/p1-reindex-errors` | [#68](https://github.com/sandovaldavid/kioku/pull/68) | open |
-| BUG-3 | Embedding model/dim stamping | `fix/p1-embedding-cache-stamp` | [#70](https://github.com/sandovaldavid/kioku/pull/70) | open |
-| BUG-6 | open-file async/await | `fix/p1-open-file-async` | [#67](https://github.com/sandovaldavid/kioku/pull/67) | open |
-| BUG-7 | Payload validation layer | `fix/p1-payload-validation` | [#69](https://github.com/sandovaldavid/kioku/pull/69) | open |
-| BUG-8 | Shared/versioned bridge protocol | `fix/p1-protocol-version` | [#71](https://github.com/sandovaldavid/kioku/pull/71) | open |
-| BUG-4 | IHttpClientFactory everywhere | `fix/p1-httpclient-factory` | [#72](https://github.com/sandovaldavid/kioku/pull/72) | open |
-| BUG-9 | Bootstrap logger | `fix/p1-bootstrap-logger` | [#73](https://github.com/sandovaldavid/kioku/pull/73) | open |
-| BUG-10 | get-app-version from manifest | `fix/p1-app-version-manifest` | [#74](https://github.com/sandovaldavid/kioku/pull/74) | open |
+| BUG-2 | Reindex exception handling | `fix/p1-reindex-errors` | [#68](https://github.com/sandovaldavid/kioku/pull/68) | merged |
+| BUG-3 | Embedding model/dim stamping | `fix/p1-embedding-cache-stamp` | [#70](https://github.com/sandovaldavid/kioku/pull/70) | merged |
+| BUG-6 | open-file async/await | `fix/p1-open-file-async` | [#67](https://github.com/sandovaldavid/kioku/pull/67) | merged |
+| BUG-7 | Payload validation layer | `fix/p1-payload-validation` | [#69](https://github.com/sandovaldavid/kioku/pull/69) | merged |
+| BUG-8 | Shared/versioned bridge protocol | `fix/p1-protocol-version` | [#71](https://github.com/sandovaldavid/kioku/pull/71) | merged |
+| BUG-4 | IHttpClientFactory everywhere | `fix/p1-httpclient-factory` | [#72](https://github.com/sandovaldavid/kioku/pull/72) | merged |
+| BUG-9 | Bootstrap logger | `fix/p1-bootstrap-logger` | [#73](https://github.com/sandovaldavid/kioku/pull/73) | merged |
+| BUG-10 | get-app-version from manifest | `fix/p1-app-version-manifest` | [#74](https://github.com/sandovaldavid/kioku/pull/74) | merged |

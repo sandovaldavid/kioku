@@ -136,4 +136,4 @@ A scripted run against a built server + a sample vault (the public demo vault fr
 | 2 | Path-traversal regression tests (P0) | `test/p0-path-traversal-tests` | [#63](https://github.com/sandovaldavid/kioku/pull/63) | merged |
 | 3 | Plugin Vitest tests (P1) | — | — | pending |
 | 4 | Protocol contract test (P1) | — | — | pending |
-| 5 | Coverage gate (P1) | `feat/p1-coverage-gate` | [#75](https://github.com/sandovaldavid/kioku/pull/75) | open |
+| 5 | Coverage gate (P1) | `feat/p1-coverage-gate` | [#75](https://github.com/sandovaldavid/kioku/pull/75) | merged |
