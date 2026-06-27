@@ -122,7 +122,9 @@ public static class NoteHelpers
 
     public static string SanitizeFileName(string name)
     {
-        var invalid = Path.GetInvalidFileNameChars();
+        // Use a cross-platform set of invalid filename characters so vaults
+        // remain portable across Windows, macOS, and Linux.
+        char[] invalid = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
         return string.Concat(name
             .Replace(' ', '-')
             .Where(c => !invalid.Contains(c)))
