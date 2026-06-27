@@ -7,7 +7,10 @@ export class BridgeServer {
   private clients = new Set<WebSocket>();
   private handlers: Record<string, CommandHandler> = {};
 
-  constructor(private port: number) {}
+  constructor(
+    private port: number,
+    private onStartupError?: (message: string) => void
+  ) {}
 
   registerHandlers(handlers: Record<string, CommandHandler>) {
     this.handlers = handlers;
@@ -51,6 +54,7 @@ export class BridgeServer {
 
       this.wss.on("error", (err) => {
         log.error(`Could not start the bridge: ${err.message}`);
+        this.onStartupError?.(err.message);
       });
 
       log.info(`Bridge listening on 127.0.0.1:${this.port}`);

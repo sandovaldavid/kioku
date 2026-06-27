@@ -34,7 +34,11 @@ export default class KiokuPlugin extends Plugin {
   }
 
   private startBridge() {
-    this.bridge = new BridgeServer(this.settings.bridgePort);
+    this.bridge = new BridgeServer(this.settings.bridgePort, (message) => {
+      if (this.settings.showNotifications) {
+        new Notice(`[Kioku] Bridge error: ${message}`);
+      }
+    });
     this.bridge.registerHandlers(createHandlers(this.app, this.settings));
     this.bridge.start();
   }
