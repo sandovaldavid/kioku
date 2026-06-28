@@ -38,6 +38,7 @@ static void ConfigureKiokuServices(IServiceCollection services, KiokuConfigurati
     services.AddSingleton<ObsidianBridgeService>();
     services.AddSingleton<HybridSearchService>();
     services.AddSingleton<TaskService>();
+    services.AddSingleton<MetricsService>();
 
     // Named HttpClient for Ollama
     services.AddHttpClient("ollama", c =>

@@ -11,8 +11,16 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations here are read-only — they do not modify files.
 /// </summary>
 [McpServerToolType]
-public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration config, EmbeddingService embedding, HybridSearchService hybrid, VaultConfigService vaultConfig)
+public sealed class NoteQueryTools(
+    VaultIndexService vault,
+    KiokuConfiguration config,
+    EmbeddingService embedding,
+    HybridSearchService hybrid,
+    VaultConfigService vaultConfig,
+    MetricsService? metrics = null)
 {
+    private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
+
     // read_note
 
     [McpServerTool, Description(
@@ -21,6 +29,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     public async Task<string> read_note(
         [Description("Name or path of the note. E.g. 'My Note', 'Projects/Kioku', '/home/user/vault/note.md'")] string note)
     {
+        Count(nameof(read_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -43,6 +52,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         [Description("Maximum number of notes to return (default: 50, capped by KIOKU_MAX_RESULTS).")] int limit = 50,
         [Description("Number of notes to skip for pagination.")] int offset = 0)
     {
+        Count(nameof(list_notes), metrics);
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
@@ -98,6 +108,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         [Description("Text to search. Can include multiple keywords.")] string query,
         [Description("Maximum number of results to return (default: 10).")] int max_results = 10)
     {
+        Count(nameof(search_notes), metrics);
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading.";
@@ -148,6 +159,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         [Description("Minimum date in frontmatter (format: YYYY-MM-DD).")] string? date_from = null,
         [Description("Maximum date in frontmatter (format: YYYY-MM-DD).")] string? date_to = null)
     {
+        Count(nameof(filter_notes), metrics);
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading.";
@@ -225,6 +237,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     public string get_note_metadata(
         [Description("Name or path of the note.")] string note)
     {
+        Count(nameof(get_note_metadata), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -294,6 +307,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     public string get_backlinks(
         [Description("Name of the target note (without .md extension).")] string note_name)
     {
+        Count(nameof(get_backlinks), metrics);
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading.";
@@ -339,6 +353,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         "folders, and index status.")]
     public string get_vault_stats()
     {
+        Count(nameof(get_vault_stats), metrics);
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading.";
@@ -379,6 +394,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
         [Description("Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches.")] float min_score = 0f)
     {
+        Count(nameof(search_notes_semantic), metrics);
         if (!embedding.IsAvailable)
         {
             return $"[info] Semantic search unavailable — Ollama is not running at {config.OllamaUrl}";
