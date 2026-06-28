@@ -24,7 +24,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
+            return KiokuError.NotFound($"Note not found: '{note}'. Use list_notes to see available notes.");
         }
 
         // Re-read from disk to have the most up-to-date content
@@ -87,7 +87,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
 
         if (string.IsNullOrWhiteSpace(query))
         {
-            return "[error] The 'query' parameter cannot be empty.";
+            return KiokuError.InvalidArgument("The 'query' parameter cannot be empty.");
         }
 
         var results = vault.Search(query, Math.Min(max_results, config.MaxSearchResults)).ToList();
@@ -210,7 +210,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var m = found.Metadata;
@@ -302,7 +302,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         if (found.OutgoingLinks.Count == 0)
@@ -373,13 +373,13 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
 
         if (string.IsNullOrWhiteSpace(query))
         {
-            return "[error] The 'query' parameter cannot be empty.";
+            return KiokuError.InvalidArgument("The 'query' parameter cannot be empty.");
         }
 
         var queryVector = await embedding.EmbedAsync(query);
         if (queryVector is null)
         {
-            return "[error] Could not generate embedding for query.";
+            return KiokuError.DependencyUnavailable("Could not generate embedding for query. Is Ollama running?");
         }
 
         var notesByPath = vault.GetAllNotes()
@@ -430,7 +430,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
 
         if (string.IsNullOrWhiteSpace(query))
         {
-            return "[error] The 'query' parameter cannot be empty.";
+            return KiokuError.InvalidArgument("The 'query' parameter cannot be empty.");
         }
 
         float[]? queryVector = null;
@@ -505,7 +505,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var source = ResolveNote(note);
         if (source is null)
         {
-            return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
+            return KiokuError.NotFound($"Note not found: '{note}'. Use list_notes to see available notes.");
         }
 
         var capped = Math.Min(max_results, config.MaxSearchResults);
@@ -547,7 +547,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var vector = hybrid.GetEmbedding(found.VaultRelativePath);
@@ -594,7 +594,7 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
         var found = NoteHelpers.ResolveNote(note, vault);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var folder = Path.GetDirectoryName(found.VaultRelativePath)?.Replace('\\', '/') ?? string.Empty;
