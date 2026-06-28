@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0-beta.7](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.6...v1.8.0-beta.7) (2026-06-28)
+
+
+### Features
+
+* **ci:** generate SBOMs and sign release artifacts with cosign ([#110](https://github.com/sandovaldavid/kioku/issues/110)) ([107d4d9](https://github.com/sandovaldavid/kioku/commit/107d4d9e8bb55b9a602afc40a5ba8eab2b56bc84))
+* **server:** add one-line install script and package manager placeholders ([#108](https://github.com/sandovaldavid/kioku/issues/108)) ([0f4a9fa](https://github.com/sandovaldavid/kioku/commit/0f4a9fa5191d34e3ab929aa9b9a07baeb7ace6a9))
+* **server:** add opt-in Sentry crash reporting ([#112](https://github.com/sandovaldavid/kioku/issues/112)) ([fc1e1d8](https://github.com/sandovaldavid/kioku/commit/fc1e1d8b83e424d10111e5db775bfd1c716d8691))
+* **server:** add opt-in tool-call telemetry ([#103](https://github.com/sandovaldavid/kioku/issues/103)) ([93b709d](https://github.com/sandovaldavid/kioku/commit/93b709d4c630bbd1588bdb54000ba68c60d5b2df))
+* **server:** add optional JSON format for query tools ([#114](https://github.com/sandovaldavid/kioku/issues/114)) ([4022aa5](https://github.com/sandovaldavid/kioku/commit/4022aa54f746dc4061aa57a1dcd46057dcff9865))
+* **server:** add tool capability groups / namespacing ([#106](https://github.com/sandovaldavid/kioku/issues/106)) ([e0719e4](https://github.com/sandovaldavid/kioku/commit/e0719e419f0d6a74d32ab794cc45b21e6f698a40))
+
 ## [1.8.0-beta.6](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.5...v1.8.0-beta.6) (2026-06-28)
 
 
