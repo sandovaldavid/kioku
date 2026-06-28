@@ -186,15 +186,38 @@ public static class NoteHelpers
     /// <summary>
     /// Expands {{variable}} placeholders in a template string.
     /// Unknown placeholders are left as-is. Variables are matched case-insensitively.
+    /// Built-in variables are supported: {{date}}, {{time}}, {{datetime}}, {{year}}, {{month}},
+    /// {{day}}, {{title}}, and {{uid}}. User-provided variables take precedence over built-ins.
     /// </summary>
     /// <param name="template">Template string with {{variable}} placeholders.</param>
     /// <param name="variables">Key-value pairs of variable name to value.</param>
+    /// <param name="noteTitle">Optional note title for the {{title}} built-in.</param>
+    /// <param name="now">Optional timestamp for date/time built-ins. Defaults to UTC now.</param>
     /// <returns>Template with all known placeholders replaced.</returns>
     public static string ExpandTemplateVariables(
         string template,
-        IReadOnlyDictionary<string, string> variables)
+        IReadOnlyDictionary<string, string> variables,
+        string? noteTitle = null,
+        DateTimeOffset? now = null)
     {
-        foreach (var (key, value) in variables)
+        var timestamp = now ?? DateTimeOffset.UtcNow;
+        var merged = new Dictionary<string, string>(variables, StringComparer.OrdinalIgnoreCase);
+
+        // User-provided values take precedence; only add built-ins that are absent.
+        merged.TryAdd("date", timestamp.ToString("yyyy-MM-dd"));
+        merged.TryAdd("time", timestamp.ToString("HH:mm:ss"));
+        merged.TryAdd("datetime", timestamp.ToString("yyyy-MM-dd HH:mm:ss"));
+        merged.TryAdd("year", timestamp.Year.ToString());
+        merged.TryAdd("month", timestamp.Month.ToString("D2"));
+        merged.TryAdd("day", timestamp.Day.ToString("D2"));
+        merged.TryAdd("uid", Guid.NewGuid().ToString("N"));
+
+        if (noteTitle is not null)
+        {
+            merged.TryAdd("title", noteTitle);
+        }
+
+        foreach (var (key, value) in merged)
         {
             template = template.Replace($"{{{{{key}}}}}", value ?? string.Empty,
                 StringComparison.OrdinalIgnoreCase);

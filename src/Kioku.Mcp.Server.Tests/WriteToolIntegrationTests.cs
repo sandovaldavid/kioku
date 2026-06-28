@@ -1,6 +1,7 @@
 using Kioku.Mcp.Server;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Kioku.Mcp.Server.Tests;
@@ -21,7 +22,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     private NoteCommandTools CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        var vaultConfig = new VaultConfigService(config);
+        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
         return new NoteCommandTools(_fixture.Index, config, vaultConfig);
     }
 
