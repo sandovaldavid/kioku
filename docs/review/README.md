@@ -143,6 +143,6 @@ release.
 | 31 | Graceful shutdown / SIGTERM flush | `feat/p2-graceful-shutdown` | [#99](https://github.com/sandovaldavid/kioku/pull/99) | merged |
 | 32 | brew/winget one-line installers | `feat/p2-installer-scripts` | [#108](https://github.com/sandovaldavid/kioku/pull/108) | merged |
 | 33 | SBOM / signing | `feat/p2-sbom-signing` | [#110](https://github.com/sandovaldavid/kioku/pull/110) | merged |
-| 34 | Optional crash reporting (Sentry) | — | — | pending |
+| 34 | Optional crash reporting (Sentry) | `feat/p2-crash-reporting` | [#112](https://github.com/sandovaldavid/kioku/pull/112) | merged |
 
-**Progress: 11/13 tasks complete**
+**Progress: 12/13 tasks complete**
