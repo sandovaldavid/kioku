@@ -40,6 +40,23 @@ Kioku implements several security measures:
 4. **API Key Authentication:** Bearer token authentication for HTTP endpoints
 5. **Soft Delete:** Notes are moved to trash by default, not permanently deleted
 6. **Dependency Scanning:** Automated vulnerability checks in CI
+7. **Signed Releases:** Release binaries and SBOMs are signed with Sigstore/cosign
+8. **SBOMs:** Software Bill of Materials (SPDX) is published with every release
+
+### Verifying Release Signatures
+
+Each release binary includes a `.sig` signature file and a `.pem` certificate. To verify:
+
+```bash
+cosign verify-blob \
+  --certificate kioku-server-linux-x64.pem \
+  --signature kioku-server-linux-x64.sig \
+  --certificate-identity-regexp "^https://github.com/sandovaldavid/kioku/" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  kioku-server-linux-x64
+```
+
+SBOM files are signed the same way using the `.spdx.json.sig` and `.spdx.json.pem` files.
 
 ### Security Best Practices
 
