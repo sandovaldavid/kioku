@@ -101,6 +101,33 @@ public sealed class VaultConfigService
     /// </summary>
     public string? GetTemplate(string typeKey) =>
         _data.Templates?.TryGetValue(typeKey, out var t) == true ? t : null;
+
+    /// <summary>
+    /// Determines whether a tool capability group should be registered.
+    /// </summary>
+    public bool IsGroupEnabled(string groupName)
+    {
+        var caps = _data.Capabilities;
+        if (caps is null)
+        {
+            return true;
+        }
+
+        var disabled = caps.Disabled ?? [];
+        if (disabled.Contains("*", StringComparer.OrdinalIgnoreCase) ||
+            disabled.Contains(groupName, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (caps.RequireExplicit)
+        {
+            var enabled = caps.Enabled ?? [];
+            return enabled.Contains(groupName, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return true;
+    }
 }
 
 public sealed class VaultConfigData
@@ -112,6 +139,26 @@ public sealed class VaultConfigData
     public List<string>? Exclude { get; init; }
     public AutoTagsConfig? AutoTags { get; init; }
     public Dictionary<string, string>? Templates { get; init; }
+    public CapabilitiesConfig? Capabilities { get; init; }
+}
+
+public sealed class CapabilitiesConfig
+{
+    /// <summary>
+    /// Tool groups that should be disabled. Use '*' to disable all optional groups.
+    /// Known groups: git, css, assets, research, graph, zettelkasten, workflows, sessions, bridge, tasks.
+    /// </summary>
+    public List<string>? Disabled { get; init; }
+
+    /// <summary>
+    /// When true, only explicitly enabled groups are registered. Requires Enabled to be set.
+    /// </summary>
+    public bool RequireExplicit { get; init; }
+
+    /// <summary>
+    /// Tool groups that should be enabled when RequireExplicit is true.
+    /// </summary>
+    public List<string>? Enabled { get; init; }
 }
 
 public sealed class VaultInfo
