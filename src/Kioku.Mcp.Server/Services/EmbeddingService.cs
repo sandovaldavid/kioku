@@ -180,6 +180,10 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         }
     }
 
+    /// <summary>
+    /// Persists the in-memory embedding cache to disk.
+    /// Called automatically every <see cref="FlushEvery"/> embeddings and on graceful shutdown.
+    /// </summary>
     public async Task SaveAsync()
     {
         if (!IsAvailable || _store.Count == 0)

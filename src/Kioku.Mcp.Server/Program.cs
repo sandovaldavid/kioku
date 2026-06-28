@@ -137,6 +137,8 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
 
     // Initialize vault index before accepting connections
     var vaultIndex = webApp.Services.GetRequiredService<VaultIndexService>();
+    var embedding = webApp.Services.GetRequiredService<EmbeddingService>();
+    var lifetime = webApp.Services.GetRequiredService<IHostApplicationLifetime>();
     try
     {
         await vaultIndex.InitializeAsync();
@@ -145,6 +147,13 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     {
         return 2;
     }
+
+    lifetime.ApplicationStopping.Register(() =>
+    {
+        logger.Info("Shutting down: flushing embedding cache...");
+        embedding.SaveAsync().GetAwaiter().GetResult();
+        logger.Info("Embedding cache flushed.");
+    });
 
     await webApp.RunAsync($"http://localhost:{config.HttpPort}");
     return 0;
@@ -166,6 +175,8 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
     var host = builder.Build();
 
     var vaultIndex = host.Services.GetRequiredService<VaultIndexService>();
+    var embedding = host.Services.GetRequiredService<EmbeddingService>();
+    var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
     logger.Info("Kioku MCP Server starting in stdio mode...");
@@ -179,6 +190,13 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
     {
         return 2;
     }
+
+    lifetime.ApplicationStopping.Register(() =>
+    {
+        logger.Info("Shutting down: flushing embedding cache...");
+        embedding.SaveAsync().GetAwaiter().GetResult();
+        logger.Info("Embedding cache flushed.");
+    });
 
     await host.RunAsync();
     return 0;
