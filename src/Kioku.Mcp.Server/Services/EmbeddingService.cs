@@ -22,6 +22,12 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
     public bool IsAvailable { get; private set; }
 
+    /// <summary>Number of embeddings currently cached in memory.</summary>
+    public int CachedEmbeddingCount => _store.Count;
+
+    /// <summary>Configured embedding model name.</summary>
+    public string EmbeddingModel => config.EmbeddingModel;
+
     // Known embedding model dimensions for validation
     private static readonly Dictionary<string, int> KnownModelDimensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -30,6 +36,8 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         ["bge-m3"] = 1024,
         ["all-minilm"] = 384,
         ["snowflake-arctic-embed"] = 768,
+        ["gte-small"] = 384,
+        ["jina-embeddings-v2-base-en"] = 768,
     };
 
     private int ExpectedDimension => KnownModelDimensions.TryGetValue(config.EmbeddingModel, out var dim) ? dim : 768;
