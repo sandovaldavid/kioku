@@ -132,7 +132,7 @@ release.
 | # | Task | Branch | PR | Status |
 |---|------|--------|----|--------|
 | 22 | Operational counters (ping/get_index_status) | `feat/p2-operational-counters` | [#89](https://github.com/sandovaldavid/kioku/pull/89) | merged |
-| 23 | Consistent error taxonomy | — | — | pending |
+| 23 | Consistent error taxonomy | `feat/p2-error-taxonomy` | [#91](https://github.com/sandovaldavid/kioku/pull/91) | merged |
 | 24 | Embedding model registry | — | — | pending |
 | 25 | Config-v2 polish (ExpandTemplateVariables + built-ins + malformed warning) | — | — | pending |
 | 26 | Pagination & limits on search/list tools | — | — | pending |
@@ -145,4 +145,4 @@ release.
 | 33 | SBOM / signing | — | — | pending |
 | 34 | Optional crash reporting (Sentry) | — | — | pending |
 
-**Progress: 1/13 tasks complete**
+**Progress: 2/13 tasks complete**
