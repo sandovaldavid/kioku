@@ -28,19 +28,7 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     /// <summary>Configured embedding model name.</summary>
     public string EmbeddingModel => config.EmbeddingModel;
 
-    // Known embedding model dimensions for validation
-    private static readonly Dictionary<string, int> KnownModelDimensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["nomic-embed-text"] = 768,
-        ["mxbai-embed-large"] = 1024,
-        ["bge-m3"] = 1024,
-        ["all-minilm"] = 384,
-        ["snowflake-arctic-embed"] = 768,
-        ["gte-small"] = 384,
-        ["jina-embeddings-v2-base-en"] = 768,
-    };
-
-    private int ExpectedDimension => KnownModelDimensions.TryGetValue(config.EmbeddingModel, out var dim) ? dim : 768;
+    private int ExpectedDimension => EmbeddingModelRegistry.GetExpectedDimension(config.EmbeddingModel);
 
     private string CachePath => Path.Combine(config.VaultPath, ".kioku", "embeddings.bin");
 
