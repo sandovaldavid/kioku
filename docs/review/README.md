@@ -142,7 +142,7 @@ release.
 | 30 | Performance benchmarks (BenchmarkDotNet) | `feat/p2-benchmarks` | [#101](https://github.com/sandovaldavid/kioku/pull/101) | merged |
 | 31 | Graceful shutdown / SIGTERM flush | `feat/p2-graceful-shutdown` | [#99](https://github.com/sandovaldavid/kioku/pull/99) | merged |
 | 32 | brew/winget one-line installers | `feat/p2-installer-scripts` | [#108](https://github.com/sandovaldavid/kioku/pull/108) | merged |
-| 33 | SBOM / signing | — | — | pending |
+| 33 | SBOM / signing | `feat/p2-sbom-signing` | [#110](https://github.com/sandovaldavid/kioku/pull/110) | merged |
 | 34 | Optional crash reporting (Sentry) | — | — | pending |
 
-**Progress: 10/13 tasks complete**
+**Progress: 11/13 tasks complete**
