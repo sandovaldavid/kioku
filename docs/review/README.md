@@ -137,7 +137,7 @@ release.
 | 25 | Config-v2 polish (ExpandTemplateVariables + built-ins + malformed warning) | `feat/p2-config-v2-polish` | [#95](https://github.com/sandovaldavid/kioku/pull/95) | merged |
 | 26 | Pagination & limits on search/list tools | `feat/p2-pagination-limits` | [#97](https://github.com/sandovaldavid/kioku/pull/97) | merged |
 | 27 | Structured tool results (optional JSON variants) | — | — | pending |
-| 28 | Tool namespacing / capability groups | — | — | pending |
+| 28 | Tool namespacing / capability groups | `feat/p2-tool-namespacing` | [#106](https://github.com/sandovaldavid/kioku/pull/106) | merged |
 | 29 | Opt-in privacy-first telemetry | `feat/p2-opt-in-telemetry` | [#103](https://github.com/sandovaldavid/kioku/pull/103) | merged |
 | 30 | Performance benchmarks (BenchmarkDotNet) | `feat/p2-benchmarks` | [#101](https://github.com/sandovaldavid/kioku/pull/101) | merged |
 | 31 | Graceful shutdown / SIGTERM flush | `feat/p2-graceful-shutdown` | [#99](https://github.com/sandovaldavid/kioku/pull/99) | merged |
@@ -145,4 +145,4 @@ release.
 | 33 | SBOM / signing | — | — | pending |
 | 34 | Optional crash reporting (Sentry) | — | — | pending |
 
-**Progress: 8/13 tasks complete**
+**Progress: 9/13 tasks complete**
