@@ -141,8 +141,8 @@ release.
 | 29 | Opt-in privacy-first telemetry | `feat/p2-opt-in-telemetry` | [#103](https://github.com/sandovaldavid/kioku/pull/103) | merged |
 | 30 | Performance benchmarks (BenchmarkDotNet) | `feat/p2-benchmarks` | [#101](https://github.com/sandovaldavid/kioku/pull/101) | merged |
 | 31 | Graceful shutdown / SIGTERM flush | `feat/p2-graceful-shutdown` | [#99](https://github.com/sandovaldavid/kioku/pull/99) | merged |
-| 32 | brew/winget one-line installers | — | — | pending |
+| 32 | brew/winget one-line installers | `feat/p2-installer-scripts` | [#108](https://github.com/sandovaldavid/kioku/pull/108) | merged |
 | 33 | SBOM / signing | — | — | pending |
 | 34 | Optional crash reporting (Sentry) | — | — | pending |
 
-**Progress: 9/13 tasks complete**
+**Progress: 10/13 tasks complete**
