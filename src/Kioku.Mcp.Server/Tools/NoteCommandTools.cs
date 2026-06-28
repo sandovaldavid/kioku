@@ -11,8 +11,14 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations here modify files on disk.
 /// </summary>
 [McpServerToolType]
-public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration config, VaultConfigService vaultConfig)
+public sealed class NoteCommandTools(
+    VaultIndexService vault,
+    KiokuConfiguration config,
+    VaultConfigService vaultConfig,
+    MetricsService? metrics = null)
 {
+    private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
+
     // create_note
 
     [McpServerTool, Description(
@@ -25,6 +31,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Note type for frontmatter (e.g. 'note', 'project', 'area', 'resource').")] string type = "",
         [Description("Status of the note (e.g. 'draft', 'published').")] string status = "draft")
     {
+        Count(nameof(create_note), metrics);
         var filePath = BuildFilePath(name);
 
         if (File.Exists(filePath))
@@ -53,6 +60,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Name or path of the note.")] string note,
         [Description("New content of the body of the note.")] string content)
     {
+        Count(nameof(update_note_content), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -77,6 +85,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Name or path of the note.")] string note,
         [Description("Text to prepend (in Markdown).")] string content)
     {
+        Count(nameof(prepend_to_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -104,6 +113,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Text to append to the end of the note (in Markdown).")] string content,
         [Description("If true, appends a horizontal separator (---) before the new content.")] bool add_separator = false)
     {
+        Count(nameof(append_to_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -133,6 +143,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("New status (e.g. 'published', 'draft', 'archived'). Leave empty to not modify.")] string status = "",
         [Description("New note type. Leave empty to not modify.")] string type = "")
     {
+        Count(nameof(update_frontmatter), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -169,6 +180,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Name or path of the note.")] string note,
         [Description("Tag(s) to add (comma-separated).")] string tags)
     {
+        Count(nameof(add_tag), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -202,6 +214,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Name or path of the note.")] string note,
         [Description("Tag(s) to remove (comma-separated).")] string tags)
     {
+        Count(nameof(remove_tag), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -227,6 +240,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Name or path of the note to move.")] string note,
         [Description("Destination folder (relative to the vault). E.g. 'Archive/2024'")] string destination_folder)
     {
+        Count(nameof(move_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -260,6 +274,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Name or path of the note to rename.")] string note,
         [Description("New name of the note (without .md extension, e.g. 'New Folder/New Name').")] string new_name)
     {
+        Count(nameof(rename_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -294,6 +309,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("If true, only reports what would be deleted without modifying the vault.")] bool dry_run = false,
         [Description("If true, deletes permanently instead of moving to trash. Default: false (soft delete).")] bool permanent = false)
     {
+        Count(nameof(delete_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {

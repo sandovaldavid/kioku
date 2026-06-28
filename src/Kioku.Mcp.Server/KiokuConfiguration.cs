@@ -63,6 +63,13 @@ public sealed class KiokuConfiguration
     public string? GitHubToken { get; init; }
 
     /// <summary>
+    /// Enables lightweight, in-memory tool-call telemetry.
+    /// When enabled, Kioku counts tool invocations (never note contents).
+    /// Default: false. Environment variable: KIOKU_ENABLE_METRICS
+    /// </summary>
+    public bool EnableMetrics { get; init; }
+
+    /// <summary>
     /// Returns true when the server is running in HTTP-SSE transport mode.
     /// </summary>
     public bool IsHttpTransport => Transport.Equals("http", StringComparison.OrdinalIgnoreCase);
@@ -98,6 +105,8 @@ public sealed class KiokuConfiguration
 
         var apiKey = Environment.GetEnvironmentVariable("KIOKU_API_KEY");
         var githubToken = Environment.GetEnvironmentVariable("KIOKU_GITHUB_TOKEN");
+        var enableMetrics = bool.TryParse(
+            Environment.GetEnvironmentVariable("KIOKU_ENABLE_METRICS"), out var em) && em;
 
         return new KiokuConfiguration
         {
@@ -110,6 +119,7 @@ public sealed class KiokuConfiguration
             HttpPort = httpPort,
             ApiKey = apiKey,
             GitHubToken = githubToken,
+            EnableMetrics = enableMetrics,
         };
     }
 }

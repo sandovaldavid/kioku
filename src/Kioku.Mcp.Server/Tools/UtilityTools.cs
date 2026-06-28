@@ -11,18 +11,26 @@ namespace Kioku.Mcp.Server.Tools;
 public sealed class UtilityTools(
     VaultIndexService vault,
     KiokuConfiguration config,
-    EmbeddingService? embedding = null)
+    EmbeddingService? embedding = null,
+    MetricsService? metrics = null)
 {
     [McpServerTool, Description("Verifies that the Kioku MCP server is active and responding.")]
     public string ping()
     {
-        return $"[online] Kioku MCP Server\n" +
-               $"Vault: {config.VaultPath}\n" +
-               $"Indexed notes: {vault.IndexedCount}\n" +
-               $"Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
-               $"Ollama: {(embedding?.IsAvailable == true ? "available" : "unavailable")}\n" +
-               $"Index ready: {(vault.IsReady ? "Yes" : "No (loading...)")}\n" +
-               $"UTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
+        var result = $"[online] Kioku MCP Server\n" +
+                     $"Vault: {config.VaultPath}\n" +
+                     $"Indexed notes: {vault.IndexedCount}\n" +
+                     $"Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
+                     $"Ollama: {(embedding?.IsAvailable == true ? "available" : "unavailable")}\n" +
+                     $"Index ready: {(vault.IsReady ? "Yes" : "No (loading...)")}";
+
+        if (metrics?.Enabled == true)
+        {
+            result += $"\nMetrics: enabled, total tool calls: {metrics.TotalCalls}";
+        }
+
+        result += $"\nUTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
+        return result;
     }
 
     [McpServerTool, Description(
@@ -31,14 +39,21 @@ public sealed class UtilityTools(
         "last update time, and whether the index is ready.")]
     public string get_index_status()
     {
-        return $"Kioku Index Status\n" +
-               $"   Indexed notes: {vault.IndexedCount}\n" +
-               $"   Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
-               $"   Ollama: {(embedding?.IsAvailable == true ? "[ok] Available" : "[info] Unavailable")}\n" +
-               $"   Embedding model: {config.EmbeddingModel}\n" +
-               $"   Last indexed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n" +
-               $"   Status: {(vault.IsReady ? "[ok] Ready" : "[loading] Loading...")}\n" +
-               $"   Vault: {config.VaultPath}";
+        var result = $"Kioku Index Status\n" +
+                     $"   Indexed notes: {vault.IndexedCount}\n" +
+                     $"   Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
+                     $"   Ollama: {(embedding?.IsAvailable == true ? "[ok] Available" : "[info] Unavailable")}\n" +
+                     $"   Embedding model: {config.EmbeddingModel}\n" +
+                     $"   Last indexed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n" +
+                     $"   Status: {(vault.IsReady ? "[ok] Ready" : "[loading] Loading...")}\n" +
+                     $"   Vault: {config.VaultPath}";
+
+        if (metrics?.Enabled == true)
+        {
+            result += $"\n   Metrics: enabled, total tool calls: {metrics.TotalCalls}";
+        }
+
+        return result;
     }
 
     [McpServerTool, Description(
