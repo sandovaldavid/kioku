@@ -29,8 +29,9 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
         if (File.Exists(filePath))
         {
-            return $"[error] Note '{name}' already exists at: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
-                   "Use update_note_content to modify an existing note.";
+            return KiokuError.InvalidArgument(
+                $"Note '{name}' already exists at: {Path.GetRelativePath(config.VaultPath, filePath)}. " +
+                "Use update_note_content to modify an existing note.");
         }
 
         // Ensure directory exists
@@ -55,7 +56,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -79,7 +80,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -106,7 +107,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var toAppend = new StringBuilder("\n");
@@ -135,7 +136,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -171,7 +172,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var newTags = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -204,7 +205,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var toRemove = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -229,7 +230,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var destDir = NoteHelpers.EnsureInsideVault(
@@ -240,7 +241,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));
         if (File.Exists(destPath))
         {
-            return $"[error] A note with that name already exists in '{destination_folder}'";
+            return KiokuError.InvalidArgument($"A note with that name already exists in '{destination_folder}'");
         }
 
         var oldPath = found.FilePath;
@@ -262,13 +263,13 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var destPath = BuildFilePath(new_name);
         if (File.Exists(destPath))
         {
-            return $"[error] A note already exists at the destination path: {Path.GetRelativePath(config.VaultPath, destPath)}";
+            return KiokuError.InvalidArgument($"A note already exists at the destination path: {Path.GetRelativePath(config.VaultPath, destPath)}");
         }
 
         var destDir = Path.GetDirectoryName(destPath)!;
@@ -296,7 +297,7 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         if (dry_run)
