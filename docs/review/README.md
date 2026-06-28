@@ -139,10 +139,10 @@ release.
 | 27 | Structured tool results (optional JSON variants) | — | — | pending |
 | 28 | Tool namespacing / capability groups | — | — | pending |
 | 29 | Opt-in privacy-first telemetry | — | — | pending |
-| 30 | Performance benchmarks (BenchmarkDotNet) | — | — | pending |
+| 30 | Performance benchmarks (BenchmarkDotNet) | `feat/p2-benchmarks` | [#101](https://github.com/sandovaldavid/kioku/pull/101) | merged |
 | 31 | Graceful shutdown / SIGTERM flush | `feat/p2-graceful-shutdown` | [#99](https://github.com/sandovaldavid/kioku/pull/99) | merged |
 | 32 | brew/winget one-line installers | — | — | pending |
 | 33 | SBOM / signing | — | — | pending |
 | 34 | Optional crash reporting (Sentry) | — | — | pending |
 
-**Progress: 6/13 tasks complete**
+**Progress: 7/13 tasks complete**
