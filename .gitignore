@@ -25,6 +25,7 @@ kioku.db-wal
 
 # Logs
 *.log
+BenchmarkDotNet.Artifacts/
 
 # Env local (puede contener KIOKU_VAULT_PATH)
 .env

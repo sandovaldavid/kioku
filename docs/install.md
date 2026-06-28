@@ -34,6 +34,26 @@ export KIOKU_VAULT_PATH=/path/to/your/vault
 kioku-mcp-server
 ```
 
+#### One-line Installer (Linux/macOS)
+```bash
+curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/install.sh | bash
+```
+Set `INSTALL_DIR` to customize the destination:
+```bash
+curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/install.sh | INSTALL_DIR=/usr/local/bin bash
+```
+
+#### Homebrew (coming soon)
+```bash
+brew tap sandovaldavid/kioku
+brew install kioku-mcp-server
+```
+
+#### WinGet (coming soon)
+```powershell
+winget install sandovaldavid.kioku
+```
+
 #### Binary Release
 Download from [GitHub Releases](https://github.com/sandovaldavid/kioku/releases):
 
