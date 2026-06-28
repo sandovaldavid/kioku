@@ -186,7 +186,7 @@ public class TaskServiceTests
             var tasks = await _service.ParseTasksFromFileAsync(tmpFile, "test.md", "test");
             Assert.Equal(4, tasks.Count);
             Assert.Equal(3, tasks.Count(t => !t.IsCompleted));
-            Assert.Single(tasks.Where(t => t.IsCompleted));
+            Assert.Single(tasks, t => t.IsCompleted);
         }
         finally
         {
