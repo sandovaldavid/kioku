@@ -70,6 +70,13 @@ public sealed class KiokuConfiguration
     public bool EnableMetrics { get; init; }
 
     /// <summary>
+    /// Sentry DSN for opt-in crash reporting.
+    /// If null or empty, crash reporting is disabled.
+    /// Environment variable: KIOKU_SENTRY_DSN
+    /// </summary>
+    public string? SentryDsn { get; init; }
+
+    /// <summary>
     /// Returns true when the server is running in HTTP-SSE transport mode.
     /// </summary>
     public bool IsHttpTransport => Transport.Equals("http", StringComparison.OrdinalIgnoreCase);
@@ -107,6 +114,7 @@ public sealed class KiokuConfiguration
         var githubToken = Environment.GetEnvironmentVariable("KIOKU_GITHUB_TOKEN");
         var enableMetrics = bool.TryParse(
             Environment.GetEnvironmentVariable("KIOKU_ENABLE_METRICS"), out var em) && em;
+        var sentryDsn = Environment.GetEnvironmentVariable("KIOKU_SENTRY_DSN");
 
         return new KiokuConfiguration
         {
@@ -120,6 +128,7 @@ public sealed class KiokuConfiguration
             ApiKey = apiKey,
             GitHubToken = githubToken,
             EnableMetrics = enableMetrics,
+            SentryDsn = sentryDsn,
         };
     }
 }
