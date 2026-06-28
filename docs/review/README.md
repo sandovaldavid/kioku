@@ -134,7 +134,7 @@ release.
 | 22 | Operational counters (ping/get_index_status) | `feat/p2-operational-counters` | [#89](https://github.com/sandovaldavid/kioku/pull/89) | merged |
 | 23 | Consistent error taxonomy | `feat/p2-error-taxonomy` | [#91](https://github.com/sandovaldavid/kioku/pull/91) | merged |
 | 24 | Embedding model registry | `feat/p2-embedding-model-registry` | [#93](https://github.com/sandovaldavid/kioku/pull/93) | merged |
-| 25 | Config-v2 polish (ExpandTemplateVariables + built-ins + malformed warning) | — | — | pending |
+| 25 | Config-v2 polish (ExpandTemplateVariables + built-ins + malformed warning) | `feat/p2-config-v2-polish` | [#95](https://github.com/sandovaldavid/kioku/pull/95) | merged |
 | 26 | Pagination & limits on search/list tools | — | — | pending |
 | 27 | Structured tool results (optional JSON variants) | — | — | pending |
 | 28 | Tool namespacing / capability groups | — | — | pending |
@@ -145,4 +145,4 @@ release.
 | 33 | SBOM / signing | — | — | pending |
 | 34 | Optional crash reporting (Sentry) | — | — | pending |
 
-**Progress: 3/13 tasks complete**
+**Progress: 4/13 tasks complete**
