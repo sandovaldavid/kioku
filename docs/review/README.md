@@ -136,7 +136,7 @@ release.
 | 24 | Embedding model registry | `feat/p2-embedding-model-registry` | [#93](https://github.com/sandovaldavid/kioku/pull/93) | merged |
 | 25 | Config-v2 polish (ExpandTemplateVariables + built-ins + malformed warning) | `feat/p2-config-v2-polish` | [#95](https://github.com/sandovaldavid/kioku/pull/95) | merged |
 | 26 | Pagination & limits on search/list tools | `feat/p2-pagination-limits` | [#97](https://github.com/sandovaldavid/kioku/pull/97) | merged |
-| 27 | Structured tool results (optional JSON variants) | — | — | pending |
+| 27 | Structured tool results (optional JSON variants) | `feat/p2-structured-tool-results` | [#114](https://github.com/sandovaldavid/kioku/pull/114) | merged |
 | 28 | Tool namespacing / capability groups | `feat/p2-tool-namespacing` | [#106](https://github.com/sandovaldavid/kioku/pull/106) | merged |
 | 29 | Opt-in privacy-first telemetry | `feat/p2-opt-in-telemetry` | [#103](https://github.com/sandovaldavid/kioku/pull/103) | merged |
 | 30 | Performance benchmarks (BenchmarkDotNet) | `feat/p2-benchmarks` | [#101](https://github.com/sandovaldavid/kioku/pull/101) | merged |
@@ -145,4 +145,4 @@ release.
 | 33 | SBOM / signing | `feat/p2-sbom-signing` | [#110](https://github.com/sandovaldavid/kioku/pull/110) | merged |
 | 34 | Optional crash reporting (Sentry) | `feat/p2-crash-reporting` | [#112](https://github.com/sandovaldavid/kioku/pull/112) | merged |
 
-**Progress: 12/13 tasks complete**
+**Progress: 13/13 tasks complete**
