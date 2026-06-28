@@ -284,7 +284,10 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         }
     }
 
-    private static float CosineSimilarity(float[] a, float[] b)
+    /// <summary>
+    /// Computes cosine similarity between two equal-length vectors.
+    /// </summary>
+    public static float CosineSimilarity(float[] a, float[] b)
     {
         if (a.Length != b.Length)
         {
