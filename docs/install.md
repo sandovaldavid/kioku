@@ -146,6 +146,8 @@ Add to your MCP client configuration:
 | `KIOKU_OLLAMA_URL` | No | http://localhost:11434 | Ollama server URL |
 | `KIOKU_EMBEDDING_MODEL` | No | nomic-embed-text | Embedding model name |
 | `KIOKU_OBSIDIAN_PORT` | No | 7765 | WebSocket bridge port |
+| `KIOKU_ENABLE_METRICS` | No | false | Opt-in anonymous tool-call counters |
+| `KIOKU_SENTRY_DSN` | No | — | Opt-in Sentry crash reporting DSN |
 
 ### Vault Configuration
 

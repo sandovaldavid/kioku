@@ -5,6 +5,7 @@ using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using Sentry;
 
 // Configuration from environment variables
 // Note: Uses BootstrapLogger because this occurs before DI/logging is configured.
@@ -148,11 +149,45 @@ static void ConfigureLogging(ILoggingBuilder logging)
     logging.SetMinimumLevel(LogLevel.Information);
 }
 
+static void ConfigureSentry(KiokuConfiguration config)
+{
+    if (string.IsNullOrWhiteSpace(config.SentryDsn))
+    {
+        return;
+    }
+
+    SentrySdk.Init(options =>
+    {
+        options.Dsn = config.SentryDsn;
+        options.Release = typeof(Program).Assembly.GetName().Version?.ToString();
+        options.TracesSampleRate = 0.0;
+        options.ProfilesSampleRate = 0.0;
+        options.AutoSessionTracking = false;
+        options.SendDefaultPii = false;
+        options.MaxBreadcrumbs = 50;
+    });
+}
+
 // v2: HTTP-SSE Transport (Streamable HTTP)
 
 static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
 {
     var webBuilder = WebApplication.CreateBuilder(args);
+
+    if (!string.IsNullOrWhiteSpace(config.SentryDsn))
+    {
+        webBuilder.WebHost.UseSentry(options =>
+        {
+            options.Dsn = config.SentryDsn;
+            options.Release = typeof(Program).Assembly.GetName().Version?.ToString();
+            options.TracesSampleRate = 0.0;
+            options.ProfilesSampleRate = 0.0;
+            options.AutoSessionTracking = false;
+            options.SendDefaultPii = false;
+            options.MaxBreadcrumbs = 50;
+        });
+    }
+
     ConfigureLogging(webBuilder.Logging);
     ConfigureKiokuServices(webBuilder.Services, config);
 
@@ -225,6 +260,8 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
 
 static async Task<int> RunStdioAsync(KiokuConfiguration config)
 {
+    ConfigureSentry(config);
+
     var builder = Host.CreateApplicationBuilder();
     ConfigureLogging(builder.Logging);
     ConfigureKiokuServices(builder.Services, config);
