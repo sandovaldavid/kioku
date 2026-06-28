@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.8.0-beta.6](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.5...v1.8.0-beta.6) (2026-06-28)
+
+
+### Features
+
+* **ci:** add code coverage reporting with coverlet and Codecov ([#75](https://github.com/sandovaldavid/kioku/issues/75)) ([2c385f7](https://github.com/sandovaldavid/kioku/commit/2c385f71a62c48b545c5008c600c4346b34d4916))
+* **ci:** add dependency vulnerability scanning ([7b08098](https://github.com/sandovaldavid/kioku/commit/7b0809867513744a2f7925ecb82f2ff290b3bdc9))
+* **ci:** add Docker deployment with Ollama integration ([#76](https://github.com/sandovaldavid/kioku/issues/76)) ([259387a](https://github.com/sandovaldavid/kioku/commit/259387acf58108aa79de8c87ecded3eca3c556d0))
+* **ci:** add NuGet package publish on release ([#77](https://github.com/sandovaldavid/kioku/issues/77)) ([e5c9159](https://github.com/sandovaldavid/kioku/commit/e5c91592e6e1df6d3572c8abaa5cccd292d6d642))
+* **docs:** add auto-generated MCP tools reference ([#81](https://github.com/sandovaldavid/kioku/issues/81)) ([9de9c1e](https://github.com/sandovaldavid/kioku/commit/9de9c1e311751cd031300c333283cb8c8d6e247c))
+* **plugin:** prepare for Obsidian Community Store submission ([#78](https://github.com/sandovaldavid/kioku/issues/78)) ([1ded917](https://github.com/sandovaldavid/kioku/commit/1ded917c1ab7c42d048cfb31931d1618628e3624))
+* **server:** add BenchmarkDotNet project for performance tracking ([#101](https://github.com/sandovaldavid/kioku/issues/101)) ([2616e70](https://github.com/sandovaldavid/kioku/commit/2616e7041cba4aeb511473e8a934a4b26cfe2de4))
+* **server:** add EmbeddingModelRegistry for known Ollama models ([#93](https://github.com/sandovaldavid/kioku/issues/93)) ([0a8263c](https://github.com/sandovaldavid/kioku/commit/0a8263c607a7646f34da923eb27c6ff6a5610eaf))
+* **server:** add pagination to list_notes ([#97](https://github.com/sandovaldavid/kioku/issues/97)) ([e3e7883](https://github.com/sandovaldavid/kioku/commit/e3e7883c642e431a8a2f0d4562c173662c5a7a9c))
+* **server:** add soft-delete with trash for delete_note ([#79](https://github.com/sandovaldavid/kioku/issues/79)) ([661c396](https://github.com/sandovaldavid/kioku/commit/661c39677caf761dcc831d1807874bd32100d4c3))
+* **server:** config-v2 polish — built-in template variables and malformed config warning ([#95](https://github.com/sandovaldavid/kioku/issues/95)) ([993050f](https://github.com/sandovaldavid/kioku/commit/993050f8acbe5da5e5a989c327e3ed292fdf78c1))
+* **server:** expose operational counters in ping and get_index_status ([#89](https://github.com/sandovaldavid/kioku/issues/89)) ([c85e632](https://github.com/sandovaldavid/kioku/commit/c85e632062ed37f93fef57c4dd9f5dc9c9a1205b))
+* **server:** flush embedding cache on graceful shutdown ([#99](https://github.com/sandovaldavid/kioku/issues/99)) ([a06d47a](https://github.com/sandovaldavid/kioku/commit/a06d47aaf01121505b6cc68eb637531294b61610))
+* **server:** introduce standardized KiokuError taxonomy ([#91](https://github.com/sandovaldavid/kioku/issues/91)) ([0b29768](https://github.com/sandovaldavid/kioku/commit/0b29768580a2854156f1a4815ddaba893f2f8971))
+
+
+### Bug Fixes
+
+* **plugin:** add payload validation for all bridge handlers ([#69](https://github.com/sandovaldavid/kioku/issues/69)) ([6c19e63](https://github.com/sandovaldavid/kioku/commit/6c19e63fecc25b20ff69568e9b24eab785644683))
+* **plugin:** await openLinkText in cmdOpenFile ([#67](https://github.com/sandovaldavid/kioku/issues/67)) ([b81da7a](https://github.com/sandovaldavid/kioku/commit/b81da7aee77fdd0a2fd7e8844d74ec4715968246))
+* **plugin:** use Plugin.manifest for get-app-version ([#74](https://github.com/sandovaldavid/kioku/issues/74)) ([30bf43a](https://github.com/sandovaldavid/kioku/commit/30bf43a6d37ce66f6c1104fa6d9317026d5354d8))
+* **server,plugin:** add protocol version handshake to bridge ([#71](https://github.com/sandovaldavid/kioku/issues/71)) ([d9f7629](https://github.com/sandovaldavid/kioku/commit/d9f7629411eb34b2aa4b99e072959c93dbf4e231))
+* **server:** add BootstrapLogger for early startup errors ([#73](https://github.com/sandovaldavid/kioku/issues/73)) ([a4af0a5](https://github.com/sandovaldavid/kioku/commit/a4af0a55bebdbea6db7af690e0b9ebb051523146))
+* **server:** add model/dimension stamping to embedding cache ([#70](https://github.com/sandovaldavid/kioku/issues/70)) ([e05674a](https://github.com/sandovaldavid/kioku/commit/e05674ab46467df0617c64ff3f6803dcdaf6f7da))
+* **server:** handle reindex exceptions in debounced task ([#68](https://github.com/sandovaldavid/kioku/issues/68)) ([f243da7](https://github.com/sandovaldavid/kioku/commit/f243da748c1314af78f2db9db45172107c92e76d))
+* **server:** use IHttpClientFactory instead of static/new HttpClient ([#72](https://github.com/sandovaldavid/kioku/issues/72)) ([7a8f431](https://github.com/sandovaldavid/kioku/commit/7a8f4310b42ce7316e98127dd9efdc0893654b4a))
+
 ## [1.8.0-beta.5](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.4...v1.8.0-beta.5) (2026-06-27)
 
 
