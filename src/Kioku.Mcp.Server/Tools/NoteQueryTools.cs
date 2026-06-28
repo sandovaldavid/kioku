@@ -35,30 +35,47 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
     // list_notes
 
     [McpServerTool, Description(
-        "Lists all notes in the vault or a specific folder. " +
+        "Lists notes in the vault or a specific folder. " +
+        "Supports pagination via offset and limit. " +
         "Returns name, relative path, tags, and modified date.")]
     public string list_notes(
-        [Description("Folder to list (relative to the vault). Leave empty to list the entire vault.")] string folder = "")
+        [Description("Folder to list (relative to the vault). Leave empty to list the entire vault.")] string folder = "",
+        [Description("Maximum number of notes to return (default: 50, capped by KIOKU_MAX_RESULTS).")] int limit = 50,
+        [Description("Number of notes to skip for pagination.")] int offset = 0)
     {
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
         }
 
+        if (offset < 0)
+        {
+            return KiokuError.InvalidArgument("'offset' must be 0 or greater.");
+        }
+
+        if (limit <= 0)
+        {
+            return KiokuError.InvalidArgument("'limit' must be greater than 0.");
+        }
+
+        limit = Math.Min(limit, config.MaxSearchResults);
+
         var notes = string.IsNullOrWhiteSpace(folder)
             ? vault.GetAllNotes()
             : vault.GetNotesInFolder(folder);
 
         var sorted = notes.OrderBy(n => n.VaultRelativePath).ToList();
+        var total = sorted.Count;
+        var page = sorted.Skip(offset).Take(limit).ToList();
 
-        if (sorted.Count == 0)
+        if (page.Count == 0)
         {
             return string.IsNullOrWhiteSpace(folder)
-                ? "The vault has no Markdown notes."
-                : $"No notes found in folder '{folder}'.";
+                ? "The vault has no Markdown notes (or the requested page is empty)."
+                : $"No notes found in folder '{folder}' (or the requested page is empty).";
         }
 
-        var lines = sorted.Select(n =>
+        var lines = page.Select(n =>
         {
             var tags = n.Metadata.Tags.Count > 0
                 ? $" [#{string.Join(", #", n.Metadata.Tags)}]"
@@ -67,7 +84,8 @@ public sealed class NoteQueryTools(VaultIndexService vault, KiokuConfiguration c
             return $"- {n.VaultRelativePath}{tags} (modified: {modified})";
         });
 
-        return $"{sorted.Count} note(s){(string.IsNullOrWhiteSpace(folder) ? "" : $" in '{folder}'")}:\n" +
+        var end = Math.Min(offset + page.Count, total);
+        return $"Showing {offset + 1}-{end} of {total} note(s){(string.IsNullOrWhiteSpace(folder) ? "" : $" in '{folder}'")}:\n" +
                string.Join("\n", lines);
     }
 
