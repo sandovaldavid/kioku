@@ -242,6 +242,50 @@ public class NoteHelpersTests
     }
 
     [Fact]
+    public void ExpandTemplateVariables_BuiltinDateTime_ReplacesCorrectly()
+    {
+        var now = new DateTimeOffset(2026, 6, 27, 15, 30, 45, TimeSpan.Zero);
+
+        var result = NoteHelpers.ExpandTemplateVariables(
+            "{{date}} {{time}} {{datetime}} {{year}}-{{month}}-{{day}}",
+            new Dictionary<string, string>(),
+            now: now);
+
+        Assert.Equal("2026-06-27 15:30:45 2026-06-27 15:30:45 2026-06-27", result);
+    }
+
+    [Fact]
+    public void ExpandTemplateVariables_BuiltinTitle_ReplacesWhenProvided()
+    {
+        var result = NoteHelpers.ExpandTemplateVariables(
+            "{{title}}",
+            new Dictionary<string, string>(),
+            noteTitle: "My Note");
+
+        Assert.Equal("My Note", result);
+    }
+
+    [Fact]
+    public void ExpandTemplateVariables_BuiltinUid_GeneratesUniqueValues()
+    {
+        var result1 = NoteHelpers.ExpandTemplateVariables("{{uid}}", new Dictionary<string, string>());
+        var result2 = NoteHelpers.ExpandTemplateVariables("{{uid}}", new Dictionary<string, string>());
+
+        Assert.NotEqual(result1, result2);
+        Assert.Equal(32, result1.Length);
+    }
+
+    [Fact]
+    public void ExpandTemplateVariables_UserVariablesTakePrecedenceOverBuiltins()
+    {
+        var result = NoteHelpers.ExpandTemplateVariables(
+            "{{date}}",
+            new Dictionary<string, string> { ["date"] = "custom-date" });
+
+        Assert.Equal("custom-date", result);
+    }
+
+    [Fact]
     public void BuildFrontmatter_WithTags_GeneratesYamlList()
     {
         var tags = new[] { "project", "ai" };

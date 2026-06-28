@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -7,7 +8,7 @@ public sealed class VaultConfigService
 {
     private readonly VaultConfigData _data;
 
-    public VaultConfigService(KiokuConfiguration config)
+    public VaultConfigService(KiokuConfiguration config, ILogger<VaultConfigService> logger)
     {
         var configPath = Path.Combine(config.VaultPath, ".kioku", "config.yml");
 
@@ -22,8 +23,12 @@ public sealed class VaultConfigService
 
                 _data = deserializer.Deserialize<VaultConfigData>(yaml) ?? new VaultConfigData();
             }
-            catch
+            catch (Exception ex)
             {
+                logger.LogWarning(
+                    ex,
+                    "Malformed vault config at '{ConfigPath}'. Using empty defaults. Fix the YAML and restart.",
+                    configPath);
                 _data = new VaultConfigData();
             }
         }
