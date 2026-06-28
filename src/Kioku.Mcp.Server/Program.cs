@@ -32,7 +32,6 @@ return await RunStdioAsync(config);
 static void ConfigureKiokuServices(IServiceCollection services, KiokuConfiguration config)
 {
     services.AddSingleton(config);
-    services.AddSingleton<VaultConfigService>();
     services.AddSingleton<EmbeddingService>();
     services.AddSingleton<VaultIndexService>();
     services.AddSingleton<ObsidianBridgeService>();
@@ -63,26 +62,83 @@ static void ConfigureKiokuServices(IServiceCollection services, KiokuConfigurati
     });
 }
 
-static void ConfigureKiokuTools(IMcpServerBuilder builder)
+static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService vaultConfig)
 {
+    // Core tools are always available
     builder
         .WithTools<NoteQueryTools>()
         .WithTools<NoteCommandTools>()
-        .WithTools<ObsidianBridgeTools>()
-        .WithTools<TaskManagementTools>()
-        .WithTools<ZettelkastenTools>()
-        .WithTools<VaultOrganizationTools>()
-        .WithTools<SessionContextTools>()
-        .WithTools<WorkflowTools>()
-        .WithTools<CssThemingTools>()
-        .WithTools<KnowledgeGraphTools>()
-        .WithTools<ResearchTools>()
-        .WithTools<PluginIntegrationTools>()
-        .WithTools<GraphAnalysisTools>()
-        .WithTools<GitTools>()
-        .WithTools<RestoreTools>()
-        .WithTools<AssetTools>()
         .WithTools<UtilityTools>();
+
+    if (vaultConfig.IsGroupEnabled("tasks"))
+    {
+        builder.WithTools<TaskManagementTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("zettelkasten"))
+    {
+        builder.WithTools<ZettelkastenTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("organization"))
+    {
+        builder.WithTools<VaultOrganizationTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("sessions"))
+    {
+        builder.WithTools<SessionContextTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("workflows"))
+    {
+        builder.WithTools<WorkflowTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("css"))
+    {
+        builder.WithTools<CssThemingTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("graph"))
+    {
+        builder.WithTools<KnowledgeGraphTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("research"))
+    {
+        builder.WithTools<ResearchTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("bridge"))
+    {
+        builder.WithTools<ObsidianBridgeTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("plugin"))
+    {
+        builder.WithTools<PluginIntegrationTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("graph-analysis"))
+    {
+        builder.WithTools<GraphAnalysisTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("git"))
+    {
+        builder.WithTools<GitTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("restore"))
+    {
+        builder.WithTools<RestoreTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("assets"))
+    {
+        builder.WithTools<AssetTools>();
+    }
 }
 
 static void ConfigureLogging(ILoggingBuilder logging)
@@ -100,6 +156,11 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     ConfigureLogging(webBuilder.Logging);
     ConfigureKiokuServices(webBuilder.Services, config);
 
+    // Build VaultConfigService early so tool groups can be filtered at registration time.
+    using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
+    var vaultConfig = new VaultConfigService(config, loggerFactory.CreateLogger<VaultConfigService>());
+    webBuilder.Services.AddSingleton(vaultConfig);
+
     // CORS: allow localhost and the Obsidian app origin
     webBuilder.Services.AddCors(options =>
         options.AddDefaultPolicy(policy =>
@@ -111,7 +172,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     // MCP over HTTP-SSE
     ConfigureKiokuTools(webBuilder.Services
         .AddMcpServer()
-        .WithHttpTransport());
+        .WithHttpTransport(), vaultConfig);
 
     var webApp = webBuilder.Build();
 
@@ -168,10 +229,15 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
     ConfigureLogging(builder.Logging);
     ConfigureKiokuServices(builder.Services, config);
 
+    // Build VaultConfigService early so tool groups can be filtered at registration time.
+    using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
+    var vaultConfig = new VaultConfigService(config, loggerFactory.CreateLogger<VaultConfigService>());
+    builder.Services.AddSingleton(vaultConfig);
+
     // MCP over stdio
     ConfigureKiokuTools(builder.Services
         .AddMcpServer()
-        .WithStdioServerTransport());
+        .WithStdioServerTransport(), vaultConfig);
 
     var host = builder.Build();
 
