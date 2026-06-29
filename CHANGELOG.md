@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0-beta.8](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.7...v1.8.0-beta.8) (2026-06-29)
+
+
+### Features
+
+* **ci:** add github actions workflow for opencode integration ([#116](https://github.com/sandovaldavid/kioku/issues/116)) ([60eac58](https://github.com/sandovaldavid/kioku/commit/60eac5866e2c26af6ad589c4a4824db96e1b5775))
+
 ## [1.8.0-beta.7](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.6...v1.8.0-beta.7) (2026-06-28)
 
 
