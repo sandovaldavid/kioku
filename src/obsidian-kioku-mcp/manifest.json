@@ -1,7 +1,7 @@
 {
   "id": "kioku-mcp",
   "name": "Kioku MCP",
-  "version": "1.8.0-beta.7",
+  "version": "1.8.0-beta.8",
   "minAppVersion": "1.4.0",
   "description": "Connects Obsidian to the Kioku MCP Server, enabling AI agents (Claude Code, Antigravity CLI) to read, search and modify your vault via the Model Context Protocol.",
   "author": "sandovaldavid",
