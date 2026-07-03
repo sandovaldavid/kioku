@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-06-28 00:27 UTC
+**Generated:** 2026-07-03 00:29 UTC
 
 ## Summary
 
@@ -246,7 +246,7 @@ Creates a new note in the Obsidian vault with frontmatter and content. If the no
 
 ### `delete_note`
 
-Deletes a note from the vault. Irreversible — use with caution. When dry_run is true, only reports what would be deleted without modifying the vault.
+Deletes a note from the vault by moving it to .trash folder (recoverable). Set permanent=true to delete immediately (irreversible). When dry_run is true, only reports what would be deleted without modifying the vault.
 
 **Parameters:**
 
@@ -254,6 +254,7 @@ Deletes a note from the vault. Irreversible — use with caution. When dry_run i
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note to delete. |
 | `dry_run` | Boolean | No | If true, only reports what would be deleted without modifying the vault. |
+| `permanent` | Boolean | No | If true, deletes permanently instead of moving to trash. Default: false (soft delete). |
 
 ### `move_note`
 
@@ -327,7 +328,7 @@ Replaces the body of an existing note keeping its YAML frontmatter intact.
 
 ### `filter_notes`
 
-Filters notes by YAML frontmatter metadata. All parameters are optional — combined with AND.
+Filters notes by YAML frontmatter metadata. All parameters are optional — combined with AND. Use format='json' to receive a structured response.
 
 **Parameters:**
 
@@ -338,6 +339,7 @@ Filters notes by YAML frontmatter metadata. All parameters are optional — comb
 | `type` | String | No | Filter by note type (e.g. 'note', 'project', 'area'). |
 | `date_from` | String | No | Minimum date in frontmatter (format: YYYY-MM-DD). |
 | `date_to` | String | No | Maximum date in frontmatter (format: YYYY-MM-DD). |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `find_similar_notes`
 
@@ -353,13 +355,14 @@ Finds notes conceptually similar to a given note using semantic embeddings. Unli
 
 ### `get_backlinks`
 
-Returns all notes linking to the specified note via [[wikilinks]].
+Returns all notes linking to the specified note via [[wikilinks]]. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note_name` | String | Yes | Name of the target note (without .md extension). |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `get_note_embedding`
 
@@ -373,51 +376,73 @@ Returns diagnostic information about the embedding vector of a note. Shows the v
 
 ### `get_note_metadata`
 
-Reads only the YAML frontmatter metadata of a note, without loading its full content. More efficient than read_note when only metadata is needed.
+Reads only the YAML frontmatter metadata of a note, without loading its full content. More efficient than read_note when only metadata is needed. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note. |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `get_outgoing_links`
 
-Returns all wikilinks outgoing from the specified note.
+Returns all wikilinks outgoing from the specified note. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note. |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `get_vault_stats`
 
-Returns general statistics of the vault: total notes, unique tags, folders, and index status.
+Returns general statistics of the vault: total notes, unique tags, folders, and index status. Use format='json' to receive a structured response.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
+
+### `inspect_note_tags`
+
+Returns the current tag state of a note to help an AI agent decide which new tags to add. Reports existing tags, folder-inherited tags from config.yml auto_tags, and frontmatter fields that must not be duplicated as tags. After reading this, the AI agent should call add_tag with any missing semantic tags.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or vault-relative path of the note. |
 
 ### `list_notes`
 
-Lists all notes in the vault or a specific folder. Returns name, relative path, tags, and modified date.
+Lists notes in the vault or a specific folder. Supports pagination via offset and limit. Returns name, relative path, tags, and modified date. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `folder` | String | No | Folder to list (relative to the vault). Leave empty to list the entire vault. |
+| `limit` | Int32 | No | Maximum number of notes to return (default: 50, capped by KIOKU_MAX_RESULTS). |
+| `offset` | Int32 | No | Number of notes to skip for pagination. |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `read_note`
 
-Reads the full content of an Obsidian note. Accepts note name (without extension), vault-relative path, or absolute path.
+Reads the full content of an Obsidian note. Accepts note name (without extension), vault-relative path, or absolute path. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note. E.g. 'My Note', 'Projects/Kioku', '/home/user/vault/note.md' |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `search_notes`
 
-Searches notes in the vault by text in title, content, and tags. Returns results ordered by relevance with a snippet of context.
+Searches notes in the vault by text in title, content, and tags. Returns results ordered by relevance with a snippet of context. Use format='json' to receive a structured response.
 
 **Parameters:**
 
@@ -425,6 +450,7 @@ Searches notes in the vault by text in title, content, and tags. Returns results
 |------|------|----------|-------------|
 | `query` | String | Yes | Text to search. Can include multiple keywords. |
 | `max_results` | Int32 | No | Maximum number of results to return (default: 10). |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `search_notes_hybrid`
 
@@ -451,16 +477,6 @@ Searches notes by semantic meaning using Ollama embeddings. Finds notes conceptu
 | `query` | String | Yes | Natural language query. E.g. 'notes about stress and burnout'. |
 | `max_results` | Int32 | No | Maximum number of results to return (default: 10). |
 | `min_score` | Single | No | Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches. |
-
-### `suggest_tags`
-
-Returns the current tag state of a note to help an AI agent decide which new tags to add. Reports existing tags, folder-inherited tags from config.yml auto_tags, and frontmatter fields that must not be duplicated as tags. After reading this, the AI agent should call add_tag with any missing semantic tags.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `note` | String | Yes | Name or vault-relative path of the note. |
 
 ## ObsidianBridgeTools
 
@@ -844,7 +860,7 @@ Reopens a completed task by changing '- [x]' back to '- [ ]'. Use list_tasks wit
 
 ### `get_index_status`
 
-Returns the current status of the in-memory index: number of notes, last update time, and whether the index is ready.
+Returns the current status of the in-memory index: number of notes, embeddings cached, Ollama availability, last update time, and whether the index is ready.
 
 ### `ping`
 

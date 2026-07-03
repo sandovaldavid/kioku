@@ -808,14 +808,14 @@ public sealed class NoteQueryTools(
 
     private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
 
-    // suggest_tags
+    // inspect_note_tags
 
     [McpServerTool, Description(
         "Returns the current tag state of a note to help an AI agent decide which new tags to add. " +
         "Reports existing tags, folder-inherited tags from config.yml auto_tags, " +
         "and frontmatter fields that must not be duplicated as tags. " +
         "After reading this, the AI agent should call add_tag with any missing semantic tags.")]
-    public string suggest_tags(
+    public string inspect_note_tags(
         [Description("Name or vault-relative path of the note.")] string note)
     {
         var found = NoteHelpers.ResolveNote(note, vault);
