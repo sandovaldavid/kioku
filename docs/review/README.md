@@ -1,5 +1,12 @@
 # Kioku — Project Review (2026-06-27)
 
+> **Point-in-time snapshot.** This review describes the repo as of 2026-06-27 against
+> `1.8.0-beta.1`; the P0/P1/P2 backlogs below are fully merged and the "drift" findings have
+> since been fixed. The "119 tools" figure was an over-count (it included the 17 class-level
+> `[McpServerToolType]` attributes); the actual count is **102 tool methods in 17 classes** —
+> see [commands-reference.md](../commands-reference.md). For current planning, use
+> [`docs/features/`](../features/README.md) and [`docs/tasks/`](../tasks/README.md).
+
 A full review of the Kioku MCP ecosystem: bugs, architecture adherence, improvement and
 integration ideas, a path to production, a testing strategy, and a monetization/sponsorship plan.
 

@@ -1,6 +1,6 @@
 # Plan Maestro de Arquitectura: Kioku MCP Ecosystem
 
-> **Última revisión:** 2026-06-25 — v2 completado, v3 en producción. Este documento refleja el estado actual de la arquitectura tras la implementación de las 16 tool classes y el transporte HTTP-SSE.
+> **Última revisión:** 2026-07-02 — v2 completado, v3 en producción. Este documento refleja el estado actual de la arquitectura tras la implementación de las 17 tool classes (102 herramientas MCP) y el transporte HTTP-SSE. Los specs de las próximas features viven en [`docs/features/`](./features/README.md) y el desglose de trabajo en [`docs/tasks/`](./tasks/README.md).
 
 Este documento describe la estrategia de diseño, la selección tecnológica y los conceptos clave para construir un ecosistema de acceso a notas de alto rendimiento, optimizado para ser consumido por agentes de IA como Claude Code y Antigravity CLI en entornos multiplataforma (Windows 11 / Fedora 43).
 
@@ -48,31 +48,9 @@ Para lograr el máximo rendimiento, eficiencia y mantenibilidad en este sistema 
 
 ---
 
-## 2.1 Estado del Entorno de Desarrollo
+## 2.1 Entorno de Desarrollo
 
-Registro del estado actual de las herramientas y pre-requisitos en cada plataforma.
-
-### Fedora 43 (Laptop Acer Nitro — Linux)
-
-| Herramienta | Estado | Notas |
-|---|---|---|
-| .NET 10 SDK | ✅ Instalado | Verificado por el usuario |
-| .NET 8 SDK | ✅ Instalado | Disponible como fallback |
-| Ollama | ✅ Instalado | Corriendo en `localhost:11434` |
-| `nomic-embed-text` | 🔄 Descargando | `ollama pull nomic-embed-text` en curso |
-| Obsidian | ✅ Asumido | Bóveda con ~500 notas |
-| Git | ✅ Asumido | Monorepo `kioku` iniciado |
-
-### Windows 11 (PC Intel i7)
-
-| Herramienta | Estado | Comando de instalación |
-|---|---|---|
-| .NET 10 SDK | ⬜ Pendiente verificar | `winget install Microsoft.DotNet.SDK.10` |
-| Ollama | ⬜ Pendiente | `winget install Ollama.Ollama` |
-| `nomic-embed-text` | ⬜ Pendiente | `ollama pull nomic-embed-text` |
-| Obsidian | ✅ Asumido | Misma bóveda sincronizada |
-
-> **Siguiente acción inmediata en Fedora:** Esperar a que termine `ollama pull nomic-embed-text` (~274 MB) y verificar con `ollama list` que el modelo aparece disponible. Luego ejecutar `dotnet new install Microsoft.McpServer.ProjectTemplates` para iniciar el proyecto.
+Ambos entornos (Fedora 43 y Windows 11) están operativos: .NET 10 SDK, Ollama con `nomic-embed-text` (768-dim) en `localhost:11434`, Obsidian y el monorepo `kioku`. Los pre-requisitos de instalación para usuarios finales están documentados en [`docs/install.md`](./install.md).
 
 ---
 
@@ -103,9 +81,9 @@ kioku/                              ← Carpeta raíz del repositorio (Monorepo)
     │   ├── KiokuConfiguration.cs   ← Variables de entorno
     │   ├── Middleware/
     │   │   └── ApiKeyMiddleware.cs ← Bearer token auth
-    │   ├── Tools/                  ← 16 tool classes registradas
+    │   ├── Tools/                  ← 17 tool classes registradas
     │   │   ├── NoteQueryTools.cs   ← search, read, list, filter
-    │   │   ├── NoteCommandTools.cs ← create, update, append
+    │   │   ├── NoteCommandTools.cs ← create, update, append, delete
     │   │   ├── ObsidianBridgeTools.cs ← open-file, get-active-note, etc.
     │   │   ├── TaskManagementTools.cs  ← list_tasks, complete_task, etc.
     │   │   ├── ZettelkastenTools.cs    ← create_zettel, create_moc, etc.
@@ -117,29 +95,42 @@ kioku/                              ← Carpeta raíz del repositorio (Monorepo)
     │   │   ├── ResearchTools.cs        ← export_citations, etc.
     │   │   ├── PluginIntegrationTools.cs ← Dataview, Templater, Linter
     │   │   ├── GraphAnalysisTools.cs   ← find_unlinked_notes, etc.
-    │   │   ├── GitTools.cs            ← get_git_status, etc.
+    │   │   ├── GitTools.cs            ← get_git_status, stage/commit, etc.
+    │   │   ├── RestoreTools.cs        ← revert_note, restore_note_from_trash, etc.
     │   │   ├── AssetTools.cs          ← list_excalidraw_files, etc.
     │   │   └── UtilityTools.cs        ← ping, rebuild_index, etc.
     │   ├── Services/               ← Lógica interna (no expuesta como MCP tools)
     │   │   ├── VaultIndexService.cs   ← FileSystemWatcher + índice invertido
     │   │   ├── EmbeddingService.cs    ← Ollama embeddings vía HTTP
-    │   │   ├── EmbeddingPersistence.cs ← Caché binaria (.kioku/embeddings.bin)
+    │   │   ├── EmbeddingPersistence.cs ← Caché binaria (.kioku/embeddings.bin, formato v3)
     │   │   ├── HybridSearchService.cs ← Búsqueda combinada (keyword + semántica)
     │   │   ├── TaskService.cs         ← Parseo de checkboxes nativos
-    │   │   └── ObsidianBridgeService.cs ← WebSocket client hacia plugin
+    │   │   ├── ObsidianBridgeService.cs ← WebSocket client hacia plugin
+    │   │   ├── VaultConfigService.cs  ← .kioku/config.yml + capability groups
+    │   │   ├── FrontmatterParser.cs   ← Parser YAML manual (Span<char>)
+    │   │   ├── MarkdownTextExtractor.cs ← Markdown → texto plano + wikilinks
+    │   │   ├── MetricsService.cs      ← Contadores de tools (opt-in)
+    │   │   └── FolderRanker.cs        ← Ranking de carpetas (suggest_folder)
     │   └── Domain/
     │       ├── Note.cs
     │       ├── NoteMetadata.cs
     │       ├── SearchResult.cs
-    │       └── VaultIndex.cs
+    │       ├── TaskItem.cs
+    │       ├── KiokuError.cs
+    │       └── EmbeddingModelRegistry.cs
     │
     └── obsidian-kioku-mcp/         ← Proyecto TypeScript (Obsidian Plugin)
         ├── package.json
         ├── tsconfig.json
         ├── manifest.json           ← Metadatos del plugin para Obsidian
-        ├── main.ts                 ← WebSocket server local
-        ├── logger.ts               ← Logger tipado
-        └── styles.css
+        ├── styles.css
+        └── src/
+            ├── main.ts             ← Entry point (KiokuPlugin + settings tab)
+            ├── bridge.ts           ← WebSocket server local (BridgeServer)
+            ├── handlers.ts         ← 22 comandos del bridge
+            ├── types.ts            ← Protocolo compartido (PROTOCOL_VERSION)
+            ├── logger.ts           ← Logger tipado
+            └── protocol-schema.json ← JSON-Schema del wire format
 ```
 
 ---
@@ -158,11 +149,11 @@ El sistema opera bajo un modelo descentralizado de comunicación local:
 │              Kioku.Mcp.Server  (C# .NET 10)                   │
 │                                                               │
 │  ┌───────────────────────────────────────────────────────┐    │
-│  │              16 Tool Classes (McpServerTool)           │    │
+│  │              17 Tool Classes (McpServerTool)           │    │
 │  │  Query · Command · Bridge · Tasks · Zettelkasten      │    │
 │  │  Org · Sessions · Workflows · CSS · KnowledgeGraph    │    │
-│  │  Research · PluginInt · GraphAnalysis · Git · Assets  │    │
-│  │  Utility                                              │    │
+│  │  Research · PluginInt · GraphAnalysis · Git · Restore │    │
+│  │  Assets · Utility                                     │    │
 │  └───────────────────────┬───────────────────────────────┘    │
 │                          │                                    │
 │  ┌───────────────────────┴───────────────────────────────┐    │
@@ -233,10 +224,10 @@ Para una bóveda de ~500 notas con imágenes y Excalidraw:
 
 | Fase | Tipo | Tecnología | Estado |
 |---|---|---|---|
-| v1 | Texto plano | Índice invertido en memoria (`Dictionary<string, HashSet<string>>`) | 📋 Planificado |
-| v1 | Texto plano | Parser manual con `Span<char>` para frontmatter YAML | 📋 Planificado |
-| v2 | Semántica | **Ollama** (`nomic-embed-text`) vía HTTP `localhost:11434` | ✅ Motor listo en Fedora |
-| v2 | Semántica | Embeddings persistidos en SQLite (`Microsoft.Data.Sqlite`) | 📋 Planificado |
+| v1 | Texto plano | Índice invertido en memoria (`Dictionary<string, HashSet<string>>`) | ✅ Implementado (`VaultIndexService`) |
+| v1 | Texto plano | Parser manual con `Span<char>` para frontmatter YAML | ✅ Implementado (`FrontmatterParser`) |
+| v2 | Semántica | **Ollama** (`nomic-embed-text`) vía HTTP `localhost:11434` | ✅ Implementado (`EmbeddingService`) |
+| v2 | Semántica | Embeddings persistidos en caché binaria `.kioku/embeddings.bin` (formato v3) | ✅ Implementado (SQLite descartado — `EmbeddingPersistence`) |
 
 **Cómo usar Ollama para embeddings desde C#:**
 ```bash
@@ -295,32 +286,41 @@ Ver especificaciones completas en [`docs/v2-http-sse-spec.md`](./v2-http-sse-spe
 
 ### v3 — Ecosystem Tools ✅ COMPLETADO
 
-**80+ herramientas implementadas en 16 tool classes:**
+**102 herramientas implementadas en 17 tool classes:**
 
 | Categoría | Tools |
 |---|---|
-| Session & Context | `get_recent_activity`, `get_work_context`, `start/end_work_session`, `get_knowledge_timeline` |
-| Task Management | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks`, `extract_action_items` |
+| Session & Context | `get_recent_activity`, `get_work_context`, `start/end_work_session`, `list_work_sessions`, `get_session_activity` |
+| Task Management | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
 | Zettelkasten | `create_zettel`, `create_moc`, `create_folder_readme`, `link_related_notes`, `create_literature_note` |
-| Templates | `create_note_from_template`, `list_templates`, `create_template` |
-| Tag & Org | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `find_duplicate_notes`, `audit_vault`, `find_broken_links`, `reorder_notes_in_folder`, `reclassify_note`, `suggest_folder` |
-| CSS Theming | `apply_css_snippet`, `list_css_snippets` |
+| Workflows & Templates | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items` |
+| Tag & Org | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `find_duplicate_notes`, `audit_vault`, `find_broken_links`, `reclassify_note`, `suggest_folder` |
+| CSS Theming | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet` |
 | Knowledge Graph | `get_knowledge_timeline`, `get_concept_map`, `get_vault_snapshot` |
-| Research | `export_citations`, `get_literature_gap` |
+| Research | `export_citations`, `export_note`, `get_literature_gap`, `share_as_gist`, `validate_research_notes` |
 | Graph Analysis | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
-| Git Integration | `get_git_status`, `list_git_commits`, `create_git_commit` |
-| Assets | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder` |
-| Plugin Integration | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts` |
-| Workflows | `process_inbox`, `sunday_hygiene` |
+| Git Integration | `get_git_status`, `list_git_commits`, `stage_note`, `stage_all`, `unstage_note`, `commit_staged` |
+| Restore | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
+| Assets | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder`, `reorder_notes_in_folder` |
+| Plugin Integration | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts`, `resolve_merge_conflict` |
 
-Ver [`docs/commands-reference.md`](./commands-reference.md) para el inventario completo.
+Las clases fuera del núcleo se activan por grupos de capacidades en `.kioku/config.yml`
+(ver [`docs/vault-config.md`](./vault-config.md)). Inventario completo en
+[`docs/commands-reference.md`](./commands-reference.md).
 
 ### v4 — Futuro (Propuesto)
 
+Los specs detallados de la siguiente ola de features viven en [`docs/features/`](./features/README.md),
+con su desglose de trabajo priorizado en [`docs/tasks/`](./tasks/README.md). Líneas principales:
+
+- Generación local con Ollama (`KIOKU_GEN_MODEL`) — enabler de digest, flashcards y síntesis
+- Sugerencias de enlaces, smart inbox y daily digest (fortalecer el grafo)
+- MCP Prompts & Resources (workflows empaquetados para cualquier cliente MCP)
+- Autenticación del bridge WebSocket y UI de estado en el plugin
+- Zotero/BibTeX, flashcards/Anki, re-embedding incremental
 - Native AOT optimization para startups más rápidos
 - Publicación en Obsidian Community Plugin Store
 - Streaming de cambios en tiempo real (SSE server-sent events)
-- Integración con Zotero API
 
 ---
 

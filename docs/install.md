@@ -141,11 +141,14 @@ Add to your MCP client configuration:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `KIOKU_VAULT_PATH` | Yes | — | Absolute path to your Obsidian vault |
+| `KIOKU_TRANSPORT` | No | stdio | MCP transport: `stdio` or `http` |
 | `KIOKU_HTTP_PORT` | No | 5173 | HTTP server port |
 | `KIOKU_API_KEY` | No | — | Bearer token for HTTP authentication |
 | `KIOKU_OLLAMA_URL` | No | http://localhost:11434 | Ollama server URL |
 | `KIOKU_EMBEDDING_MODEL` | No | nomic-embed-text | Embedding model name |
+| `KIOKU_MAX_RESULTS` | No | 20 | Maximum number of search results |
 | `KIOKU_OBSIDIAN_PORT` | No | 7765 | WebSocket bridge port |
+| `KIOKU_GITHUB_TOKEN` | No | — | GitHub token for the `share_as_gist` tool |
 | `KIOKU_ENABLE_METRICS` | No | false | Opt-in anonymous tool-call counters |
 | `KIOKU_SENTRY_DSN` | No | — | Opt-in Sentry crash reporting DSN |
 
@@ -154,26 +157,34 @@ Add to your MCP client configuration:
 Create `.kioku/config.yml` in your vault for advanced settings:
 
 ```yaml
-# Folder-specific settings
+# Where each note type is created (used by create_zettel, sessions, templates, ...)
 folders:
-  Projects:
-    domain: projects
-    tags:
-      - project
-  Research:
-    domain: research
-    tags:
-      - research
-  
-# Template variables
-templates:
-  default:
-    tags:
-      - "{{domain}}"
-    status: draft
+  inbox: "Inbox"
+  zettel: "Zettelkasten"
+  literature: "Literature"
+
+# Frontmatter domain assigned by folder (longest prefix wins)
+domains:
+  "Projects": "work/projects"
+  "Research": "academic/research"
+
+# Frontmatter defaults per note type
+defaults:
+  zettel:
+    type: concept
+    status: active
+
+# Folders excluded from the index (dot-folders are always excluded)
+exclude:
+  - "Archive"
+
+# Enable/disable optional tool groups
+capabilities:
+  disabled: []          # e.g. [git, css] — or ["*"] to disable all optional groups
 ```
 
-See [Vault Configuration Guide](vault-config.md) for details.
+See the [Vault Configuration Guide](vault-config.md) for the full schema, and
+[`vault-config.example.yml`](vault-config.example.yml) for a complete annotated example.
 
 ## Verification
 
@@ -202,6 +213,6 @@ ollama pull nomic-embed-text
 
 ## Next Steps
 
-- Read the [Architecture Guide](architecture.md) to understand how Kioku works
+- Read the [Architecture Plan](planning.md) to understand how Kioku works
 - Explore [Available Tools](commands-reference.md) to see what you can do
 - Check [Troubleshooting](troubleshooting.md) if you encounter issues

@@ -68,7 +68,7 @@ From [02](./02-architecture-review.md) §3. Do these before promoting the projec
 - [x] `manifest.json` with `id`, `name`, `version`, `minAppVersion`, `author`, `authorUrl`, `description`
 - [x] desktop-only declared (`isDesktopOnly: true`) — correct (uses `ws`/Node)
 - [x] clean `onload`/`onunload`
-- [ ] **`fundingUrl`** in `manifest.json` (enables the Sponsor button — see [08](./08-monetization-and-sponsorship.md))
+- [x] **`fundingUrl`** in `manifest.json` (enables the Sponsor button — see [08](./08-monetization-and-sponsorship.md))
 - [ ] no undocumented-API usage without justification (the `as unknown as` casts — [04](./04-plugin-improvements.md) §5)
 - [ ] no network calls beyond localhost (verify; the store reviews this)
 - [ ] scoped CSS (`.kioku-*`), screenshots, polished README
