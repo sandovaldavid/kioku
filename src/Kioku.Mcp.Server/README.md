@@ -24,7 +24,7 @@ Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre.
 
 | Class | Grupo | Tools |
 |---|---|---|
-| `NoteQueryTools` | core | `read_note`, `list_notes`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `get_note_metadata`, `get_note_embedding`, `get_vault_stats`, `suggest_tags` |
+| `NoteQueryTools` | core | `read_note`, `list_notes`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `get_note_metadata`, `get_note_embedding`, `get_vault_stats`, `inspect_note_tags` |
 | `NoteCommandTools` | core | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note`, `delete_note` |
 | `UtilityTools` | core | `ping`, `get_index_status`, `rebuild_index` |
 | `TaskManagementTools` | `tasks` | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
