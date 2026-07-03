@@ -2,7 +2,7 @@
 
 > Versión: **1.8.0-beta.8** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
 
-Servidor MCP en C# .NET 10 que expone 102 herramientas en 17 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
+Servidor MCP en C# .NET 10 que expone 108 herramientas en 17 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
 
 ## Arquitectura
 
@@ -32,7 +32,7 @@ Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre.
 | `VaultOrganizationTools` | `organization` | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `audit_vault`, `find_broken_links` |
 | `SessionContextTools` | `sessions` | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context`, `list_work_sessions`, `get_session_activity` |
 | `WorkflowTools` | `workflows` | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items` |
-| `CssThemingTools` | `css` | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet` |
+| `CssThemingTools` | `css` | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet`, `reload_css_snippets` |
 | `KnowledgeGraphTools` | `graph` | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
 | `GraphAnalysisTools` | `graph-analysis` | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
 | `ResearchTools` | `research` | `export_citations`, `export_note`, `get_literature_gap`, `share_as_gist`, `validate_research_notes` |
@@ -40,7 +40,7 @@ Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre.
 | `GitTools` | `git` | `get_git_status`, `list_git_commits`, `stage_note`, `stage_all`, `unstage_note`, `commit_staged`, `fix_merge_conflicts`, `resolve_merge_conflict` |
 | `RestoreTools` | `restore` | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
 | `AssetTools` | `assets` | `reorder_notes_in_folder`, `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder` |
-| `ObsidianBridgeTools` | `bridge` | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split` |
+| `ObsidianBridgeTools` | `bridge` | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split`, `get_selection_in_obsidian`, `toggle_reading_mode`, `fold_all_headings`, `unfold_all_headings`, `get_obsidian_status` |
 
 ## Services
 

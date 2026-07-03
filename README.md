@@ -4,7 +4,7 @@
 >
 > Versión actual: **1.8.0-beta.8** (`develop` · beta) <!-- x-release-please-version --> · [Ver releases](https://github.com/sandovaldavid/kioku/releases)
 
-Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 102 herramientas MCP en 17 clases y 22 comandos del bridge del plugin.
+Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 108 herramientas MCP en 17 clases y 22 comandos del bridge del plugin.
 
 ---
 
@@ -32,7 +32,7 @@ Agente de IA (Claude Code / agy)
     │
     ▼
 Kioku.Mcp.Server (C# .NET 10)
-    ├── 17 Tool Classes (102 herramientas MCP)
+    ├── 17 Tool Classes (108 herramientas MCP)
     ├── Services: VaultIndex · Embedding(Ollama) · HybridSearch
     │            TaskService · ObsidianBridge · Persistence
     └── Middleware: ApiKeyMiddleware
@@ -339,7 +339,7 @@ Para instalar el plugin localmente en tu Obsidian:
 
 ## MCP Tools Disponibles
 
-102 herramientas organizadas en 17 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
+108 herramientas organizadas en 17 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
 
 Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desactivan por **grupos de capacidades** en `{vault}/.kioku/config.yml` — ver [`docs/vault-config.md`](docs/vault-config.md).
 
@@ -356,11 +356,11 @@ Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desa
 | **Análisis de grafo** | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
 | **Research** | `export_citations`, `export_note`, `get_literature_gap`, `share_as_gist`, `validate_research_notes` |
 | **Restore** | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
-| **CSS Theming** | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet` |
+| **CSS Theming** | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet`, `reload_css_snippets` |
 | **Assets** | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder`, `reorder_notes_in_folder` |
 | **Git** | `get_git_status`, `list_git_commits`, `stage_note`, `stage_all`, `unstage_note`, `commit_staged`, `fix_merge_conflicts`, `resolve_merge_conflict` |
 | **Plugin Bridge** | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins` |
-| **Obsidian UI** (requiere plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split` |
+| **Obsidian UI** (requiere plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split`, `get_selection_in_obsidian`, `toggle_reading_mode`, `fold_all_headings`, `unfold_all_headings`, `get_obsidian_status` |
 | **Utilidades** | `ping`, `get_vault_stats`, `get_index_status`, `rebuild_index` |
 
 ## Plugins de Obsidian Integrados (vía Plugin Bridge)

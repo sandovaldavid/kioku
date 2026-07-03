@@ -244,6 +244,89 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         return $"[ok] Note opened in split pane: '{found.Name}'.";
     }
 
+    [McpServerTool, Description("Returns the text currently selected in the active Obsidian note, if any.")]
+    public async Task<string> get_selection_in_obsidian()
+    {
+        var response = await bridge.SendRequestAsync("get-selection");
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        var data = response.Data;
+        var hasSelection = data?["hasSelection"]?.GetValue<bool?>() ?? false;
+        if (!hasSelection)
+        {
+            return "[info] No text selected in Obsidian.";
+        }
+
+        var selection = data?["selection"]?.ToString();
+        var length = data?["length"]?.ToString();
+        return $"Selected text ({length} chars):\n{selection}";
+    }
+
+    [McpServerTool, Description("Toggles the active Obsidian note between edit mode and reading (preview) mode.")]
+    public async Task<string> toggle_reading_mode()
+    {
+        var response = await bridge.SendRequestAsync("toggle-reading-mode");
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return "[ok] Reading mode toggled.";
+    }
+
+    [McpServerTool, Description("Folds all headings in the active Obsidian note (collapses all sections).")]
+    public async Task<string> fold_all_headings()
+    {
+        var response = await bridge.SendRequestAsync("fold-all-headings");
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return "[ok] All headings folded.";
+    }
+
+    [McpServerTool, Description("Unfolds all headings in the active Obsidian note (expands all sections).")]
+    public async Task<string> unfold_all_headings()
+    {
+        var response = await bridge.SendRequestAsync("unfold-all-headings");
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return "[ok] All headings unfolded.";
+    }
+
+    [McpServerTool, Description(
+        "Returns Obsidian bridge status: whether the plugin is ready, the Obsidian and Kioku plugin versions, " +
+        "and the open vault's path and name.")]
+    public async Task<string> get_obsidian_status()
+    {
+        var ready = await bridge.SendRequestAsync("is-obsidian-ready");
+        if (!ready.Success)
+        {
+            return $"[error] Obsidian plugin error: {ready.Error}";
+        }
+
+        var version = await bridge.SendRequestAsync("get-app-version");
+        var vaultInfo = await bridge.SendRequestAsync("get-vault-path");
+
+        var obsidianVersion = version.Data?["obsidianVersion"]?.ToString() ?? "unknown";
+        var kiokuVersion = version.Data?["kiokuVersion"]?.ToString() ?? "unknown";
+        var vaultPath = vaultInfo.Data?["vaultPath"]?.ToString() ?? "unknown";
+        var vaultName = vaultInfo.Data?["vaultName"]?.ToString() ?? "unknown";
+
+        return "Obsidian bridge status:\n" +
+               "   Ready: true\n" +
+               $"   Obsidian version: {obsidianVersion}\n" +
+               $"   Kioku plugin version: {kiokuVersion}\n" +
+               $"   Vault: {vaultName} ({vaultPath})";
+    }
+
     // Private helper
 
     private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);

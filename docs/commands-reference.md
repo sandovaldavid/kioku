@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-03 01:10 UTC
+**Generated:** 2026-07-03 03:44 UTC
 
 ## Summary
 
@@ -85,6 +85,10 @@ Creates or updates a CSS snippet file in the Obsidian vault's .obsidian/snippets
 ### `list_css_snippets`
 
 Lists all CSS snippet files in the vault's .obsidian/snippets/ folder, showing their enabled/disabled status and a preview of their content.
+
+### `reload_css_snippets`
+
+Reloads CSS snippets in Obsidian so changes made with apply_css_snippet or remove_css_snippet take effect without restarting Obsidian.
 
 ### `remove_css_snippet`
 
@@ -512,13 +516,25 @@ Create a note and open it in Obsidian. Creates the file if it does not exist.
 |------|------|----------|-------------|
 | `path` | String | Yes | Vault-relative path of the note to create and open (e.g. 'Projects/NewNote.md'). |
 
+### `fold_all_headings`
+
+Folds all headings in the active Obsidian note (collapses all sections).
+
 ### `get_active_note_in_obsidian`
 
 Returns metadata of the note currently open in Obsidian.
 
+### `get_obsidian_status`
+
+Returns Obsidian bridge status: whether the plugin is ready, the Obsidian and Kioku plugin versions, and the open vault's path and name.
+
 ### `get_open_notes_in_obsidian`
 
 Returns the list of all notes currently open in Obsidian tabs.
+
+### `get_selection_in_obsidian`
+
+Returns the text currently selected in the active Obsidian note, if any.
 
 ### `insert_at_cursor`
 
@@ -570,6 +586,10 @@ Scroll the active Obsidian note to a specific block ID (e.g. '^blockid').
 |------|------|----------|-------------|
 | `block_id` | String | Yes | Block ID to scroll to (without the ^ prefix, e.g. 'abc123'). |
 
+### `toggle_reading_mode`
+
+Toggles the active Obsidian note between edit mode and reading (preview) mode.
+
 ### `trigger_obsidian_command`
 
 Triggers an internal Obsidian command by its unique identifier (command ID).
@@ -579,6 +599,10 @@ Triggers an internal Obsidian command by its unique identifier (command ID).
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `command_id` | String | Yes | Unique ID of the command (e.g., 'app:toggle-left-sidebar', 'workspace:close-others'). |
+
+### `unfold_all_headings`
+
+Unfolds all headings in the active Obsidian note (expands all sections).
 
 ## PluginIntegrationTools
 
@@ -1088,4 +1112,4 @@ Finds notes that are semantically related to a given note and appends wikilinks 
 
 ---
 
-**Total tools:** 102
+**Total tools:** 108
