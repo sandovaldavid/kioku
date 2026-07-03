@@ -6,6 +6,7 @@ import { PROTOCOL_VERSION } from "./types";
 export class BridgeServer {
   private wss: WebSocketServer | null = null;
   private clients = new Set<WebSocket>();
+  private authenticated = new Set<WebSocket>();
   private handlers: Record<string, CommandHandler> = {};
 
   constructor(
@@ -14,7 +15,8 @@ export class BridgeServer {
     private onProtocolMismatch?: (serverVersion: number, clientVersion: number) => void,
     private onClientConnected?: () => void,
     private onClientDisconnected?: () => void,
-    private onStateChange?: () => void
+    private onStateChange?: () => void,
+    private authToken?: string
   ) {}
 
   get clientCount(): number {
@@ -23,6 +25,10 @@ export class BridgeServer {
 
   get isRunning(): boolean {
     return this.wss !== null;
+  }
+
+  private get requiresAuth(): boolean {
+    return Boolean(this.authToken && this.authToken.length > 0);
   }
 
   registerHandlers(handlers: Record<string, CommandHandler>) {
@@ -55,7 +61,23 @@ export class BridgeServer {
               this.onProtocolMismatch?.(PROTOCOL_VERSION, msg.protocolVersion);
             }
 
+            if (this.requiresAuth && msg.command !== "auth" && !this.authenticated.has(ws)) {
+              this.rejectUnauthenticated(ws, msg.requestId);
+              return;
+            }
+
             const response = await this.dispatch(msg);
+
+            if (msg.command === "auth") {
+              if (response.success) {
+                this.authenticated.add(ws);
+              } else if (this.requiresAuth) {
+                ws.send(JSON.stringify(response));
+                ws.close(4401, "Unauthorized");
+                return;
+              }
+            }
+
             ws.send(JSON.stringify(response));
           } catch (err) {
             ws.send(
@@ -70,6 +92,7 @@ export class BridgeServer {
 
         ws.on("close", () => {
           this.clients.delete(ws);
+          this.authenticated.delete(ws);
           log.info(`Client disconnected. Clients: ${this.clients.size}`);
           this.onClientDisconnected?.();
         });
@@ -100,12 +123,24 @@ export class BridgeServer {
       client.close();
     }
     this.clients.clear();
+    this.authenticated.clear();
 
     if (this.wss) {
       this.wss.close();
       this.wss = null;
       this.onStateChange?.();
     }
+  }
+
+  private rejectUnauthenticated(ws: WebSocket, requestId?: string) {
+    const response: BridgeResponse = {
+      requestId,
+      success: false,
+      error: "[error] [UNAUTHORIZED] Authenticate first with the 'auth' command.",
+      protocolVersion: PROTOCOL_VERSION,
+    };
+    ws.send(JSON.stringify(response));
+    ws.close(4401, "Unauthorized");
   }
 
   private async dispatch(msg: BridgeMessage): Promise<BridgeResponse> {

@@ -148,6 +148,7 @@ Add to your MCP client configuration:
 | `KIOKU_EMBEDDING_MODEL` | No | nomic-embed-text | Embedding model name |
 | `KIOKU_MAX_RESULTS` | No | 20 | Maximum number of search results |
 | `KIOKU_OBSIDIAN_PORT` | No | 7765 | WebSocket bridge port |
+| `KIOKU_BRIDGE_TOKEN` | No | — | Shared secret for the WebSocket bridge. Must match the plugin's "Auth token" setting |
 | `KIOKU_GITHUB_TOKEN` | No | — | GitHub token for the `share_as_gist` tool |
 | `KIOKU_ENABLE_METRICS` | No | false | Opt-in anonymous tool-call counters |
 | `KIOKU_SENTRY_DSN` | No | — | Opt-in Sentry crash reporting DSN |

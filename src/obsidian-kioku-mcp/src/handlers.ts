@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { MarkdownView, Notice } from "obsidian";
 import type { App } from "obsidian";
 import type { BridgeResponse, KiokuDataAdapter, KiokuSettings, PluginManifest } from "./types";
@@ -34,6 +35,8 @@ function validatePayload(
 
 export function createHandlers(app: App, settings: KiokuSettings, pluginManifest: PluginManifest) {
   return {
+    auth: (p: Record<string, unknown> | undefined, requestId?: string) =>
+      cmdAuth(settings, p, requestId),
     "open-file": async (p: Record<string, unknown> | undefined, requestId?: string) => {
       const validation = validatePayload(p, ["path"], requestId);
       if (validation) return validation;
@@ -109,6 +112,36 @@ export function createHandlers(app: App, settings: KiokuSettings, pluginManifest
     "get-installed-plugins": (_p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdGetInstalledPlugins(app, requestId),
   };
+}
+
+function cmdAuth(
+  settings: KiokuSettings,
+  payload: Record<string, unknown> | undefined,
+  requestId?: string
+): BridgeResponse {
+  if (!settings.authToken) {
+    return { requestId, success: true, data: { authenticated: true } };
+  }
+
+  const token = typeof payload?.token === "string" ? payload.token : undefined;
+  if (token && isTokenValid(settings.authToken, token)) {
+    return { requestId, success: true, data: { authenticated: true } };
+  }
+
+  return {
+    requestId,
+    success: false,
+    error: "[error] [UNAUTHORIZED] Invalid or missing authentication token.",
+  };
+}
+
+function isTokenValid(expected: string, actual: string): boolean {
+  const expectedBuf = Buffer.from(expected, "utf8");
+  const actualBuf = Buffer.from(actual, "utf8");
+  if (expectedBuf.length !== actualBuf.length) {
+    return false;
+  }
+  return timingSafeEqual(expectedBuf, actualBuf);
 }
 
 async function cmdOpenFile(

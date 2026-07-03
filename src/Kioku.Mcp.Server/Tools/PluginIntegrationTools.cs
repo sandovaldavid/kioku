@@ -38,7 +38,7 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
 
         if (!result.Success)
         {
-            return $"[error] {result.Error}";
+            return result.IsUnauthorized() ? result.Error! : $"[error] {result.Error}";
         }
 
         var json = result.Data?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "null";
@@ -87,7 +87,7 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
 
         if (!result.Success)
         {
-            return $"[error] {result.Error}";
+            return result.IsUnauthorized() ? result.Error! : $"[error] {result.Error}";
         }
 
         var json = result.Data?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "null";
@@ -123,7 +123,7 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
 
         if (!result.Success)
         {
-            return $"[error] {result.Error}";
+            return result.IsUnauthorized() ? result.Error! : $"[error] {result.Error}";
         }
 
         var displayName = string.IsNullOrWhiteSpace(note) ? "active note" : (ResolveNote(note)?.VaultRelativePath ?? note);
@@ -142,7 +142,7 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
 
         if (!result.Success)
         {
-            return $"[error] {result.Error}";
+            return result.IsUnauthorized() ? result.Error! : $"[error] {result.Error}";
         }
 
         return "[ok] Vault-wide linter started. Check Obsidian for progress.";
@@ -160,7 +160,7 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
 
         if (!result.Success)
         {
-            return $"[error] {result.Error}";
+            return result.IsUnauthorized() ? result.Error! : $"[error] {result.Error}";
         }
 
         var json = result.Data?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "[]";

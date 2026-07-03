@@ -57,15 +57,17 @@ export interface KiokuSettings {
   bridgePort: number;
   showNotifications: boolean;
   showStatusBar: boolean;
+  authToken: string;
 }
 
 export const DEFAULT_SETTINGS: KiokuSettings = {
   bridgePort: 7765,
   showNotifications: true,
   showStatusBar: true,
+  authToken: "",
 };
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export interface BridgeMessage {
   command: string;

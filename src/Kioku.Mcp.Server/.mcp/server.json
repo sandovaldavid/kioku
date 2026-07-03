@@ -26,6 +26,10 @@
           "description": "WebSocket port for the Obsidian plugin bridge (default: 7765)"
         },
         {
+          "name": "KIOKU_BRIDGE_TOKEN",
+          "description": "Shared secret for the Obsidian bridge WebSocket; must match the plugin's Auth token setting"
+        },
+        {
           "name": "KIOKU_OLLAMA_URL",
           "description": "Ollama server URL for semantic embeddings (default: http://localhost:11434)"
         },

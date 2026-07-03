@@ -59,6 +59,20 @@ kill -9 <PID>
 3. Restart Obsidian
 4. Update your MCP client config to use the new port
 
+#### Bridge tools return "[error] [UNAUTHORIZED] ..."
+
+**Cause:** The plugin's "Auth token" setting is configured but the server's `KIOKU_BRIDGE_TOKEN`
+is missing, empty, or doesn't match — or vice versa.
+
+**Solution:**
+1. Open the Kioku plugin settings in Obsidian and copy the "Auth token" value (or click
+   "Generate" if none is set and you want to enable auth).
+2. Set `KIOKU_BRIDGE_TOKEN` in the server's environment to the exact same value.
+3. Restart both the bridge (plugin command "Restart Kioku MCP Bridge") and the MCP server.
+4. To disable auth again, clear the "Auth token" field in the plugin and unset
+   `KIOKU_BRIDGE_TOKEN` on the server — an empty token on either side falls back to the
+   pre-auth, unauthenticated behavior.
+
 ### Connection Issues
 
 #### MCP Client Can't Connect

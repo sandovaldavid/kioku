@@ -333,6 +333,7 @@ Para instalar el plugin localmente en tu Obsidian:
 | `KIOKU_EMBEDDING_MODEL` | ❌ | Modelo de Ollama utilizado para embeddings | `nomic-embed-text` |
 | `KIOKU_MAX_RESULTS` | ❌ | Máximo de resultados de búsqueda | `20` |
 | `KIOKU_OBSIDIAN_PORT` | ❌ | Puerto del WebSocket bridge con Obsidian | `7765` |
+| `KIOKU_BRIDGE_TOKEN` | ❌ | Token compartido del bridge WebSocket; debe coincidir con el setting "Auth token" del plugin | — |
 | `KIOKU_GITHUB_TOKEN` | ❌ | Token de GitHub para `share_as_gist` | — |
 | `KIOKU_ENABLE_METRICS` | ❌ | Contadores de uso de tools en memoria (opt-in) | `false` |
 | `KIOKU_SENTRY_DSN` | ❌ | DSN de Sentry para reporte de crashes (opt-in) | — |
