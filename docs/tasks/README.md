@@ -29,7 +29,7 @@ Convenciones de cada tarea:
 |----|-------|------|:------:|------|--------|
 | [P1-01](P1-01-bridge-latent-tools.md) | Exponer 8 comandos latentes del bridge como tools | `feat/bridge-latent-tools` | S | [01](../features/01-bridge-latent-tools.md) | ✅ Merged (#124) |
 | [P1-02](P1-02-wikilink-auto-update.md) | Auto-actualizar wikilinks en `move_note`/`rename_note` | `feat/wikilink-auto-update` | M | [02](../features/02-wikilink-auto-update.md) | Pendiente |
-| [P1-03](P1-03-plugin-status-ui.md) | Status bar + comandos de control del bridge (plugin) | `feat/plugin-status-ui` | S | [03](../features/03-plugin-status-ui.md) | Pendiente |
+| [P1-03](P1-03-plugin-status-ui.md) | Status bar + comandos de control del bridge (plugin) | `feat/plugin-status-ui` | S | [03](../features/03-plugin-status-ui.md) | ✅ Merged (#126) |
 | [P1-04](P1-04-bridge-auth-token.md) | Autenticación por token del bridge WebSocket | `feat/bridge-auth-token` | M | [04](../features/04-bridge-auth-token.md) | Pendiente |
 | [P1-05](P1-05-http-and-bridge-coverage.md) | Cobertura de tests: HTTP, ApiKeyMiddleware, bridge | `test/http-and-bridge-coverage` | M | — | Pendiente |
 
