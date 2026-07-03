@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-06-28 00:27 UTC
+**Generated:** 2026-07-03 00:33 UTC
 
 ## Summary
 
@@ -108,6 +108,16 @@ Commits all staged changes with the given message. Returns an informational mess
 |------|------|----------|-------------|
 | `message` | String | Yes | Commit message describing the changes. |
 
+### `fix_merge_conflicts`
+
+Scans all Markdown notes in the vault for Git merge conflict markers (<<<<<<<, =======, >>>>>>>). Returns a list of affected notes with the conflicting sections. Does not modify any files — use resolve_merge_conflict to resolve conflicts. Does not require Obsidian to be running.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scan (vault-relative). Leave empty to scan the entire vault. |
+
 ### `get_git_status`
 
 Shows the current git status of the vault repository (modified, added, deleted files).
@@ -121,6 +131,18 @@ Lists the most recent git commits in the repository.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `max_count` | Int32 | No | Maximum number of commits to return (default: 10) |
+
+### `resolve_merge_conflict`
+
+Resolves a specific Git merge conflict in a note by choosing one version. Use 'ours' to keep the HEAD version, 'theirs' to keep the incoming version, or 'both' to concatenate both versions. Does not require Obsidian to be running. The FileSystemWatcher will automatically re-index the note after resolution.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or vault-relative path of the note with conflicts. |
+| `conflict_index` | Int32 | No | Index of the conflict to resolve (0-based). Use -1 to resolve all conflicts at once. |
+| `version` | String | No | Which version to keep: 'ours' (HEAD), 'theirs' (incoming), or 'both'. |
 
 ### `stage_all`
 
@@ -246,7 +268,7 @@ Creates a new note in the Obsidian vault with frontmatter and content. If the no
 
 ### `delete_note`
 
-Deletes a note from the vault. Irreversible — use with caution. When dry_run is true, only reports what would be deleted without modifying the vault.
+Deletes a note from the vault by moving it to .trash folder (recoverable). Set permanent=true to delete immediately (irreversible). When dry_run is true, only reports what would be deleted without modifying the vault.
 
 **Parameters:**
 
@@ -254,6 +276,7 @@ Deletes a note from the vault. Irreversible — use with caution. When dry_run i
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note to delete. |
 | `dry_run` | Boolean | No | If true, only reports what would be deleted without modifying the vault. |
+| `permanent` | Boolean | No | If true, deletes permanently instead of moving to trash. Default: false (soft delete). |
 
 ### `move_note`
 
@@ -327,7 +350,7 @@ Replaces the body of an existing note keeping its YAML frontmatter intact.
 
 ### `filter_notes`
 
-Filters notes by YAML frontmatter metadata. All parameters are optional — combined with AND.
+Filters notes by YAML frontmatter metadata. All parameters are optional — combined with AND. Use format='json' to receive a structured response.
 
 **Parameters:**
 
@@ -338,6 +361,7 @@ Filters notes by YAML frontmatter metadata. All parameters are optional — comb
 | `type` | String | No | Filter by note type (e.g. 'note', 'project', 'area'). |
 | `date_from` | String | No | Minimum date in frontmatter (format: YYYY-MM-DD). |
 | `date_to` | String | No | Maximum date in frontmatter (format: YYYY-MM-DD). |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `find_similar_notes`
 
@@ -353,13 +377,14 @@ Finds notes conceptually similar to a given note using semantic embeddings. Unli
 
 ### `get_backlinks`
 
-Returns all notes linking to the specified note via [[wikilinks]].
+Returns all notes linking to the specified note via [[wikilinks]]. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note_name` | String | Yes | Name of the target note (without .md extension). |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `get_note_embedding`
 
@@ -373,51 +398,63 @@ Returns diagnostic information about the embedding vector of a note. Shows the v
 
 ### `get_note_metadata`
 
-Reads only the YAML frontmatter metadata of a note, without loading its full content. More efficient than read_note when only metadata is needed.
+Reads only the YAML frontmatter metadata of a note, without loading its full content. More efficient than read_note when only metadata is needed. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note. |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `get_outgoing_links`
 
-Returns all wikilinks outgoing from the specified note.
+Returns all wikilinks outgoing from the specified note. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note. |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `get_vault_stats`
 
-Returns general statistics of the vault: total notes, unique tags, folders, and index status.
+Returns general statistics of the vault: total notes, unique tags, folders, and index status. Use format='json' to receive a structured response.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `list_notes`
 
-Lists all notes in the vault or a specific folder. Returns name, relative path, tags, and modified date.
+Lists notes in the vault or a specific folder. Supports pagination via offset and limit. Returns name, relative path, tags, and modified date. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `folder` | String | No | Folder to list (relative to the vault). Leave empty to list the entire vault. |
+| `limit` | Int32 | No | Maximum number of notes to return (default: 50, capped by KIOKU_MAX_RESULTS). |
+| `offset` | Int32 | No | Number of notes to skip for pagination. |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `read_note`
 
-Reads the full content of an Obsidian note. Accepts note name (without extension), vault-relative path, or absolute path.
+Reads the full content of an Obsidian note. Accepts note name (without extension), vault-relative path, or absolute path. Use format='json' to receive a structured response.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note. E.g. 'My Note', 'Projects/Kioku', '/home/user/vault/note.md' |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `search_notes`
 
-Searches notes in the vault by text in title, content, and tags. Returns results ordered by relevance with a snippet of context.
+Searches notes in the vault by text in title, content, and tags. Returns results ordered by relevance with a snippet of context. Use format='json' to receive a structured response.
 
 **Parameters:**
 
@@ -425,6 +462,7 @@ Searches notes in the vault by text in title, content, and tags. Returns results
 |------|------|----------|-------------|
 | `query` | String | Yes | Text to search. Can include multiple keywords. |
 | `max_results` | Int32 | No | Maximum number of results to return (default: 10). |
+| `format` | String | No | Output format: 'text' (default) or 'json'. |
 
 ### `search_notes_hybrid`
 
@@ -555,16 +593,6 @@ Creates a new note from a Templater template via the Obsidian plugin bridge. Req
 | `template_path` | String | Yes | Vault-relative path to the Templater template file. Example: 'Templates/Daily Note.md' |
 | `target_note` | String | No | Optional: vault-relative path of an existing note to apply the template to. |
 
-### `fix_merge_conflicts`
-
-Scans all Markdown notes in the vault for Git merge conflict markers (<<<<<<<, =======, >>>>>>>). Returns a list of affected notes with the conflicting sections. Does not modify any files — use resolve_merge_conflict to resolve conflicts. Does not require Obsidian to be running.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `folder` | String | No | Folder to scan (vault-relative). Leave empty to scan the entire vault. |
-
 ### `get_installed_plugins`
 
 Returns a list of all installed Obsidian plugins with their ID, name, version, author, and enabled status. Requires Obsidian to be open with the Kioku plugin. Use this to check if a required plugin (e.g. 'dataview', 'templater-obsidian') is available before calling plugin-dependent tools.
@@ -592,18 +620,6 @@ Executes a Dataview DQL query via the Obsidian plugin bridge and returns results
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `query` | String | Yes | Dataview DQL query. Example: 'TABLE status, tags FROM "Projects" WHERE status = "active" SORT file.mtime DESC' |
-
-### `resolve_merge_conflict`
-
-Resolves a specific Git merge conflict in a note by choosing one version. Use 'ours' to keep the HEAD version, 'theirs' to keep the incoming version, or 'both' to concatenate both versions. Does not require Obsidian to be running. The FileSystemWatcher will automatically re-index the note after resolution.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `note` | String | Yes | Name or vault-relative path of the note with conflicts. |
-| `conflict_index` | Int32 | No | Index of the conflict to resolve (0-based). Use -1 to resolve all conflicts at once. |
-| `version` | String | No | Which version to keep: 'ours' (HEAD), 'theirs' (incoming), or 'both'. |
 
 ## ResearchTools
 
@@ -844,7 +860,7 @@ Reopens a completed task by changing '- [x]' back to '- [ ]'. Use list_tasks wit
 
 ### `get_index_status`
 
-Returns the current status of the in-memory index: number of notes, last update time, and whether the index is ready.
+Returns the current status of the in-memory index: number of notes, embeddings cached, Ollama availability, last update time, and whether the index is ready.
 
 ### `ping`
 

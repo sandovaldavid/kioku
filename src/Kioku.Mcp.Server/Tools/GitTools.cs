@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json.Nodes;
 using Kioku.Mcp.Server.Logging;
 using Kioku.Mcp.Server.Services;
@@ -9,8 +10,9 @@ using ModelContextProtocol.Server;
 namespace Kioku.Mcp.Server.Tools;
 
 /// <summary>
-/// MCP tools for interacting with Git repositories in the vault.
-/// Requires the vault to be a git repository.
+/// MCP tools for interacting with Git repositories in the vault, including merge conflict
+/// resolution. Requires the vault to be a git repository (except the merge-conflict tools,
+/// which only scan/edit files on disk).
 /// </summary>
 [McpServerToolType]
 public sealed class GitTools(KiokuConfiguration config, VaultIndexService vault, ILogger<GitTools> logger)
@@ -288,6 +290,245 @@ public sealed class GitTools(KiokuConfiguration config, VaultIndexService vault,
         }
 
         return Task.FromResult($"[ok] Changes committed: {message}");
+    }
+
+    // fix_merge_conflicts — reads from disk, no Obsidian required
+
+    [McpServerTool, Description(
+        "Scans all Markdown notes in the vault for Git merge conflict markers (<<<<<<<, =======, >>>>>>>). " +
+        "Returns a list of affected notes with the conflicting sections. " +
+        "Does not modify any files — use resolve_merge_conflict to resolve conflicts. " +
+        "Does not require Obsidian to be running.")]
+    public string fix_merge_conflicts(
+        [Description("Folder to scan (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        var notes = string.IsNullOrWhiteSpace(folder)
+            ? vault.GetAllNotes()
+            : vault.GetNotesInFolder(folder);
+
+        var conflicted = notes
+            .Where(n => n.RawContent.Contains("<<<<<<<", StringComparison.Ordinal))
+            .Select(n =>
+            {
+                var conflicts = ExtractConflicts(n.RawContent);
+                return (note: n, conflicts);
+            })
+            .Where(x => x.conflicts.Count > 0)
+            .ToList();
+
+        if (conflicted.Count == 0)
+        {
+            return "[ok] No Git merge conflicts found in the vault.";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"[ok] Found {conflicted.Count} notes with merge conflicts:");
+        sb.AppendLine();
+
+        foreach (var (note, conflicts) in conflicted)
+        {
+            sb.AppendLine($"## {note.VaultRelativePath} ({conflicts.Count} conflict{(conflicts.Count > 1 ? "s" : "")})");
+            sb.AppendLine();
+
+            for (var i = 0; i < conflicts.Count; i++)
+            {
+                var (ours, theirs) = conflicts[i];
+                sb.AppendLine($"### Conflict {i + 1} (index {i})");
+                sb.AppendLine("**Ours (HEAD):**");
+                sb.AppendLine("```");
+                sb.AppendLine(ours.Length > 500 ? ours[..500] + "..." : ours);
+                sb.AppendLine("```");
+                sb.AppendLine("**Theirs:**");
+                sb.AppendLine("```");
+                sb.AppendLine(theirs.Length > 500 ? theirs[..500] + "..." : theirs);
+                sb.AppendLine("```");
+                sb.AppendLine();
+            }
+        }
+
+        sb.AppendLine("Use `resolve_merge_conflict(note, conflict_index, version)` to resolve each conflict.");
+        return sb.ToString();
+    }
+
+    // resolve_merge_conflict — writes to disk, no Obsidian required
+
+    [McpServerTool, Description(
+        "Resolves a specific Git merge conflict in a note by choosing one version. " +
+        "Use 'ours' to keep the HEAD version, 'theirs' to keep the incoming version, " +
+        "or 'both' to concatenate both versions. " +
+        "Does not require Obsidian to be running. " +
+        "The FileSystemWatcher will automatically re-index the note after resolution.")]
+    public async Task<string> resolve_merge_conflict(
+        [Description("Name or vault-relative path of the note with conflicts.")] string note,
+        [Description("Index of the conflict to resolve (0-based). Use -1 to resolve all conflicts at once.")] int conflict_index = -1,
+        [Description("Which version to keep: 'ours' (HEAD), 'theirs' (incoming), or 'both'.")] string version = "ours")
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        if (version is not ("ours" or "theirs" or "both"))
+        {
+            return "[error] 'version' must be 'ours', 'theirs', or 'both'.";
+        }
+
+        var resolved = NoteHelpers.ResolveNote(note, vault);
+        if (resolved is null)
+        {
+            return $"[error] Note not found: '{note}'. Use fix_merge_conflicts to list affected notes.";
+        }
+
+        var content = await File.ReadAllTextAsync(resolved.FilePath);
+
+        if (!content.Contains("<<<<<<<", StringComparison.Ordinal))
+        {
+            return $"[ok] No merge conflicts found in '{resolved.Name}'.";
+        }
+
+        string newContent;
+        int resolvedCount;
+
+        if (conflict_index == -1)
+        {
+            (newContent, resolvedCount) = ResolveAllConflicts(content, version);
+        }
+        else
+        {
+            var conflicts = ExtractConflicts(content);
+            if (conflict_index < 0 || conflict_index >= conflicts.Count)
+            {
+                return $"[error] conflict_index {conflict_index} out of range (0–{conflicts.Count - 1}).";
+            }
+
+            (newContent, resolvedCount) = ResolveConflictAt(content, conflict_index, version);
+        }
+
+        await File.WriteAllTextAsync(resolved.FilePath, newContent);
+
+        return $"[ok] Resolved {resolvedCount} conflict(s) in '{resolved.Name}' using '{version}' version.";
+    }
+
+    // Helpers — merge conflict parsing
+
+    private static List<(string Ours, string Theirs)> ExtractConflicts(string content)
+    {
+        var conflicts = new List<(string, string)>();
+        var lines = content.Split('\n');
+
+        var state = 0; // 0=normal, 1=ours, 2=theirs
+        var ours = new StringBuilder();
+        var theirs = new StringBuilder();
+
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("<<<<<<<", StringComparison.Ordinal))
+            {
+                state = 1;
+                ours.Clear();
+                theirs.Clear();
+            }
+            else if (line.StartsWith("=======", StringComparison.Ordinal) && state == 1)
+            {
+                state = 2;
+            }
+            else if (line.StartsWith(">>>>>>>", StringComparison.Ordinal) && state == 2)
+            {
+                conflicts.Add((ours.ToString().TrimEnd('\n'), theirs.ToString().TrimEnd('\n')));
+                state = 0;
+                ours.Clear();
+                theirs.Clear();
+            }
+            else if (state == 1)
+            {
+                ours.AppendLine(line);
+            }
+            else if (state == 2)
+            {
+                theirs.AppendLine(line);
+            }
+        }
+
+        return conflicts;
+    }
+
+    private static (string NewContent, int Count) ResolveAllConflicts(string content, string version)
+    {
+        var count = 0;
+        var safetyLimit = 1000;
+
+        while (content.Contains("<<<<<<<", StringComparison.Ordinal) && safetyLimit-- > 0)
+        {
+            var (updated, resolved) = ResolveConflictAt(content, 0, version);
+            if (resolved == 0)
+            {
+                break;
+            }
+
+            content = updated;
+            count += resolved;
+        }
+
+        return (content, count);
+    }
+
+    private static (string NewContent, int Count) ResolveConflictAt(string content, int index, string version)
+    {
+        var lines = content.Split('\n').ToList();
+
+        var conflictStart = -1;
+        var separator = -1;
+        var conflictEnd = -1;
+        var conflictCount = -1;
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (lines[i].StartsWith("<<<<<<<", StringComparison.Ordinal))
+            {
+                conflictCount++;
+                if (conflictCount == index)
+                {
+                    conflictStart = i;
+                }
+            }
+            else if (lines[i].StartsWith("=======", StringComparison.Ordinal) &&
+                     conflictStart >= 0 && separator < 0 && conflictCount == index)
+            {
+                separator = i;
+            }
+            else if (lines[i].StartsWith(">>>>>>>", StringComparison.Ordinal) &&
+                     separator >= 0 && conflictCount == index)
+            {
+                conflictEnd = i;
+                break;
+            }
+        }
+
+        if (conflictStart < 0 || separator < 0 || conflictEnd < 0)
+        {
+            return (content, 0);
+        }
+
+        var oursLines = lines.GetRange(conflictStart + 1, separator - conflictStart - 1);
+        var theirsLines = lines.GetRange(separator + 1, conflictEnd - separator - 1);
+
+        List<string> replacement = version switch
+        {
+            "ours" => oursLines,
+            "theirs" => theirsLines,
+            "both" => [.. oursLines, .. theirsLines],
+            _ => oursLines
+        };
+
+        lines.RemoveRange(conflictStart, conflictEnd - conflictStart + 1);
+        lines.InsertRange(conflictStart, replacement);
+
+        return (string.Join('\n', lines), 1);
     }
 
     // Git utilities
