@@ -234,11 +234,16 @@ public sealed class NoteCommandTools(
     // move_note
 
     [McpServerTool, Description(
-        "Moves a note to another folder in the vault. " +
-        "Note: wikilinks pointing to this note are not updated automatically in v1.")]
+        "Moves a note to another folder in the vault. By default, rewrites inbound full-path " +
+        "wikilinks (e.g. [[Folder/Note]]) that reference the note's old location; bare-name links " +
+        "(e.g. [[Note]]) are left as-is since the note's name doesn't change and Obsidian resolves " +
+        "them across folders. Set update_links=false to skip rewriting. Set dry_run=true to preview " +
+        "the move and link updates without modifying any file.")]
     public async Task<string> move_note(
         [Description("Name or path of the note to move.")] string note,
-        [Description("Destination folder (relative to the vault). E.g. 'Archive/2024'")] string destination_folder)
+        [Description("Destination folder (relative to the vault). E.g. 'Archive/2024'")] string destination_folder,
+        [Description("If true (default), rewrites inbound full-path wikilinks to the note's new location.")] bool update_links = true,
+        [Description("If true, previews the move and link updates without modifying any file.")] bool dry_run = false)
     {
         Count(nameof(move_note), metrics);
         var found = ResolveNote(note);
@@ -250,7 +255,6 @@ public sealed class NoteCommandTools(
         var destDir = NoteHelpers.EnsureInsideVault(
             config.VaultPath,
             Path.Combine(config.VaultPath, destination_folder));
-        Directory.CreateDirectory(destDir);
 
         var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));
         if (File.Exists(destPath))
@@ -258,21 +262,46 @@ public sealed class NoteCommandTools(
             return KiokuError.InvalidArgument($"A note with that name already exists in '{destination_folder}'");
         }
 
+        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath).Replace('\\', '/');
+        var plan = new WikilinkRewriter.RewritePlan(
+            OldShortName: found.Name,
+            NewShortName: found.Name,
+            OldFullPath: StripMdExtension(found.VaultRelativePath.Replace('\\', '/')),
+            NewFullPath: StripMdExtension(newRelativePath),
+            RewriteShortNameLinks: false,
+            ShortNameAmbiguous: false);
+
+        var linkSummary = update_links
+            ? await UpdateInboundWikilinksAsync(plan, dry_run)
+            : LinkUpdateSummary.Empty;
+
+        if (dry_run)
+        {
+            return FormatDryRunResult("move", found.VaultRelativePath, newRelativePath, update_links, linkSummary);
+        }
+
+        Directory.CreateDirectory(destDir);
         var oldPath = found.FilePath;
         File.Move(oldPath, destPath);
         await vault.SynchronizeFileMoveAsync(oldPath, destPath);
-        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
 
-        return $"[ok] Note moved:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
+        return $"[ok] Note moved:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}" +
+               FormatLinkSummarySuffix(update_links, linkSummary);
     }
 
     // rename_note
 
     [McpServerTool, Description(
-        "Renames a note in the vault. The new name can include subfolders.")]
+        "Renames a note in the vault. The new name can include subfolders. By default, rewrites " +
+        "inbound wikilinks (bare name, full path, aliases, headings, block references, embeds) to " +
+        "point to the new name. Links whose bare name is shared by another note are left untouched " +
+        "and reported, since they can't be safely disambiguated. Set update_links=false to skip " +
+        "rewriting. Set dry_run=true to preview the rename and link updates without modifying any file.")]
     public async Task<string> rename_note(
         [Description("Name or path of the note to rename.")] string note,
-        [Description("New name of the note (without .md extension, e.g. 'New Folder/New Name').")] string new_name)
+        [Description("New name of the note (without .md extension, e.g. 'New Folder/New Name').")] string new_name,
+        [Description("If true (default), rewrites inbound wikilinks to the note's new name.")] bool update_links = true,
+        [Description("If true, previews the rename and link updates without modifying any file.")] bool dry_run = false)
     {
         Count(nameof(rename_note), metrics);
         var found = ResolveNote(note);
@@ -287,15 +316,34 @@ public sealed class NoteCommandTools(
             return KiokuError.InvalidArgument($"A note already exists at the destination path: {Path.GetRelativePath(config.VaultPath, destPath)}");
         }
 
+        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath).Replace('\\', '/');
+        var ambiguous = vault.GetAllNotes().Count(n => n.Name.Equals(found.Name, StringComparison.OrdinalIgnoreCase)) > 1;
+        var plan = new WikilinkRewriter.RewritePlan(
+            OldShortName: found.Name,
+            NewShortName: Path.GetFileNameWithoutExtension(destPath),
+            OldFullPath: StripMdExtension(found.VaultRelativePath.Replace('\\', '/')),
+            NewFullPath: StripMdExtension(newRelativePath),
+            RewriteShortNameLinks: true,
+            ShortNameAmbiguous: ambiguous);
+
+        var linkSummary = update_links
+            ? await UpdateInboundWikilinksAsync(plan, dry_run)
+            : LinkUpdateSummary.Empty;
+
+        if (dry_run)
+        {
+            return FormatDryRunResult("rename", found.VaultRelativePath, newRelativePath, update_links, linkSummary);
+        }
+
         var destDir = Path.GetDirectoryName(destPath)!;
         Directory.CreateDirectory(destDir);
 
         var oldPath = found.FilePath;
         File.Move(oldPath, destPath);
         await vault.SynchronizeFileMoveAsync(oldPath, destPath);
-        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
 
-        return $"[ok] Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
+        return $"[ok] Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}" +
+               FormatLinkSummarySuffix(update_links, linkSummary);
     }
 
     // delete_note
@@ -391,4 +439,126 @@ public sealed class NoteCommandTools(
         string? domain = null,
         IReadOnlyDictionary<string, string>? extraFields = null) =>
         NoteHelpers.BuildFrontmatter(tags, type, status, date, domain: domain, extraFields: extraFields);
+
+    // Wikilink auto-update helpers (move_note / rename_note)
+
+    private sealed record LinkUpdateSummary(
+        int LinksUpdated,
+        int NotesUpdated,
+        IReadOnlyList<string> AmbiguousLinks,
+        IReadOnlyList<(string Note, int Count)> Details)
+    {
+        public static readonly LinkUpdateSummary Empty = new(0, 0, [], []);
+    }
+
+    private async Task<LinkUpdateSummary> UpdateInboundWikilinksAsync(WikilinkRewriter.RewritePlan plan, bool dryRun)
+    {
+        var candidates = new Dictionary<string, Note>(StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in vault.GetBacklinks(plan.OldShortName))
+        {
+            candidates[candidate.FilePath] = candidate;
+        }
+
+        foreach (var candidate in vault.GetBacklinks(plan.OldFullPath))
+        {
+            candidates[candidate.FilePath] = candidate;
+        }
+
+        var linksUpdated = 0;
+        var notesUpdated = 0;
+        var ambiguous = new List<string>();
+        var details = new List<(string, int)>();
+
+        foreach (var source in candidates.Values.OrderBy(n => n.VaultRelativePath, StringComparer.OrdinalIgnoreCase))
+        {
+            var raw = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
+            var bodyStart = FrontmatterParser.GetBodyStart(raw);
+            var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
+
+            foreach (var link in result.AmbiguousMatches)
+            {
+                ambiguous.Add($"{source.VaultRelativePath}: [[{link}]]");
+            }
+
+            if (result.ReplacedCount == 0)
+            {
+                continue;
+            }
+
+            linksUpdated += result.ReplacedCount;
+            notesUpdated++;
+            details.Add((source.VaultRelativePath, result.ReplacedCount));
+
+            if (!dryRun)
+            {
+                await File.WriteAllTextAsync(source.FilePath, result.NewContent, Encoding.UTF8);
+                await vault.SynchronizeFileReindexAsync(source.FilePath);
+            }
+        }
+
+        return new LinkUpdateSummary(linksUpdated, notesUpdated, ambiguous, details);
+    }
+
+    private static string StripMdExtension(string path) =>
+        path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? path[..^3] : path;
+
+    private static string FormatLinkSummarySuffix(bool updateLinks, LinkUpdateSummary summary)
+    {
+        if (!updateLinks)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        sb.Append($"\n   Updated {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s).");
+
+        if (summary.AmbiguousLinks.Count > 0)
+        {
+            sb.Append($"\n   Skipped {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) (another note shares this name):");
+            foreach (var link in summary.AmbiguousLinks)
+            {
+                sb.Append($"\n     - {link}");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private static string FormatDryRunResult(
+        string action, string beforePath, string afterPath, bool updateLinks, LinkUpdateSummary summary)
+    {
+        var sb = new StringBuilder();
+        sb.Append("[info] Dry run — no files were modified.\n");
+        sb.Append($"   Would {action}: {beforePath} -> {afterPath}");
+
+        if (!updateLinks)
+        {
+            sb.Append("\n   Link updates disabled (update_links=false).");
+            return sb.ToString();
+        }
+
+        if (summary.Details.Count == 0)
+        {
+            sb.Append("\n   No inbound wikilinks require updates.");
+        }
+        else
+        {
+            sb.Append($"\n   Would update {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s):");
+            foreach (var (noteName, count) in summary.Details)
+            {
+                sb.Append($"\n     - {noteName}: {count} link(s)");
+            }
+        }
+
+        if (summary.AmbiguousLinks.Count > 0)
+        {
+            sb.Append($"\n   {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) would be skipped:");
+            foreach (var link in summary.AmbiguousLinks)
+            {
+                sb.Append($"\n     - {link}");
+            }
+        }
+
+        return sb.ToString();
+    }
 }
