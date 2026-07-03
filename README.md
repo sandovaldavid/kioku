@@ -2,9 +2,9 @@
 
 > **Kioku** (記憶) significa "memoria" en japonés.
 >
-> Versión actual: **1.8.0-beta.4** (`develop` · beta) · [Ver releases](https://github.com/sandovaldavid/kioku/releases)
+> Versión actual: **1.8.0-beta.8** (`develop` · beta) <!-- x-release-please-version --> · [Ver releases](https://github.com/sandovaldavid/kioku/releases)
 
-Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con más de 100 herramientas MCP en 17 clases y 16 comandos de plugin.
+Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 102 herramientas MCP en 17 clases y 22 comandos del bridge del plugin.
 
 ---
 
@@ -32,7 +32,7 @@ Agente de IA (Claude Code / agy)
     │
     ▼
 Kioku.Mcp.Server (C# .NET 10)
-    ├── 16 Tool Classes (~85 herramientas MCP)
+    ├── 17 Tool Classes (102 herramientas MCP)
     ├── Services: VaultIndex · Embedding(Ollama) · HybridSearch
     │            TaskService · ObsidianBridge · Persistence
     └── Middleware: ApiKeyMiddleware
@@ -326,32 +326,41 @@ Para instalar el plugin localmente en tu Obsidian:
 | Variable | Requerida | Descripción | Default |
 |---|---|---|---|
 | `KIOKU_VAULT_PATH` | ✅ | Ruta absoluta a la bóveda de Obsidian | — |
+| `KIOKU_TRANSPORT` | ❌ | Transporte MCP: `stdio` o `http` | `stdio` |
+| `KIOKU_HTTP_PORT` | ❌ | Puerto del transporte HTTP-SSE | `5173` |
+| `KIOKU_API_KEY` | ❌ | Bearer token para autenticar el transporte HTTP | — |
 | `KIOKU_OLLAMA_URL` | ❌ | URL base del cliente Ollama local | `http://localhost:11434` |
 | `KIOKU_EMBEDDING_MODEL` | ❌ | Modelo de Ollama utilizado para embeddings | `nomic-embed-text` |
 | `KIOKU_MAX_RESULTS` | ❌ | Máximo de resultados de búsqueda | `20` |
 | `KIOKU_OBSIDIAN_PORT` | ❌ | Puerto del WebSocket bridge con Obsidian | `7765` |
+| `KIOKU_GITHUB_TOKEN` | ❌ | Token de GitHub para `share_as_gist` | — |
+| `KIOKU_ENABLE_METRICS` | ❌ | Contadores de uso de tools en memoria (opt-in) | `false` |
+| `KIOKU_SENTRY_DSN` | ❌ | DSN de Sentry para reporte de crashes (opt-in) | — |
 
 ## MCP Tools Disponibles
 
-~85 herramientas organizadas en 16 categorías. Para el inventario completo con parámetros y estados, ver [`docs/commands-reference.md`](docs/commands-reference.md).
+102 herramientas organizadas en 17 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
+
+Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desactivan por **grupos de capacidades** en `{vault}/.kioku/config.yml` — ver [`docs/vault-config.md`](docs/vault-config.md).
 
 | Categoría | Tools clave |
 |---|---|
-| **Consulta** | `read_note`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_note_metadata`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes` |
-| **Escritura** | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note` |
-| **Tareas** | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks`, `extract_action_items` |
+| **Consulta** | `read_note`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_note_metadata`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `list_notes` |
+| **Escritura** | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note`, `delete_note` |
+| **Tareas** | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
 | **Zettelkasten** | `create_zettel`, `create_moc`, `create_literature_note`, `link_related_notes`, `create_folder_readme` |
-| **Templates** | `create_note_from_template`, `list_templates`, `create_template` |
-| **Organización** | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `audit_vault`, `reorder_notes_in_folder` |
-| **Sesiones** | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context` |
-| **Grafo** | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot`, `find_unlinked_notes`, `find_graph_islands` |
-| **Research** | `export_citations`, `get_literature_gap`, `validate_research_notes` |
+| **Workflows y Templates** | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items` |
+| **Organización** | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `find_broken_links`, `audit_vault` |
+| **Sesiones** | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context`, `list_work_sessions`, `get_session_activity` |
+| **Grafo de conocimiento** | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
+| **Análisis de grafo** | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
+| **Research** | `export_citations`, `export_note`, `get_literature_gap`, `share_as_gist`, `validate_research_notes` |
+| **Restore** | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
 | **CSS Theming** | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet` |
-| **Assets** | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names` |
-| **Git** | `get_git_status`, `list_git_commits`, `create_git_commit` |
-| **Plugin Bridge** | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts` |
-| **Workflows** | `process_inbox`, `sunday_hygiene` |
-| **Obsidian UI** (requiere plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command` |
+| **Assets** | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder`, `reorder_notes_in_folder` |
+| **Git** | `get_git_status`, `list_git_commits`, `stage_note`, `stage_all`, `unstage_note`, `commit_staged` |
+| **Plugin Bridge** | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts`, `resolve_merge_conflict` |
+| **Obsidian UI** (requiere plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split` |
 | **Utilidades** | `ping`, `get_vault_stats`, `get_index_status`, `rebuild_index` |
 
 ## Plugins de Obsidian Integrados (vía Plugin Bridge)
@@ -364,11 +373,11 @@ Para instalar el plugin localmente en tu Obsidian:
 
 ## Estado del Proyecto
 
-- **v1** (stdio): ✅ Completo — ~85 herramientas MCP + 16 comandos plugin
+- **v1** (stdio): ✅ Completo — herramientas core + 22 comandos del bridge del plugin
 - **v2** (HTTP-SSE): ✅ Completo — transporte dual, embeddings Ollama, auth Bearer Token, despliegue en VM
-- **v3** (Ecosystem Tools): ✅ Completo — templates, tareas, Zettelkasten, CSS theming, assets, Git, grafo
+- **v3** (Ecosystem Tools): ✅ Completo — 102 herramientas en 17 clases: templates, tareas, Zettelkasten, CSS theming, assets, Git, restore, grafo
 
-Ver [`docs/planning.md`](docs/planning.md) para el plan arquitectural completo.
+Ver [`docs/planning.md`](docs/planning.md) para el plan arquitectural completo, [`docs/features/`](docs/features/README.md) para los specs de las próximas features y [`docs/tasks/`](docs/tasks/README.md) para el desglose de trabajo priorizado.
 
 ## Licencia
 

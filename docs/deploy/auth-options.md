@@ -47,12 +47,12 @@ sudo tailscale up
 KIOKU_VAULT_PATH=/vault dotnet run ... --urls "http://$(tailscale ip -4):5173"
 ```
 
-**Configuración del cliente MCP:**
+**Configuración del cliente MCP** (formato Claude Code; en VS Code la clave raíz es `"servers"`):
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "kioku": {
-      "type": "http",
+      "type": "sse",
       "url": "http://100.x.x.x:5173/mcp"
     }
   }
@@ -76,7 +76,7 @@ KIOKU_VAULT_PATH=/vault dotnet run ... --urls "http://$(tailscale ip -4):5173"
 
 **Qué es:** El servidor valida un header `Authorization: Bearer <token>` en cada request. El token es una cadena aleatoria configurada por env var.
 
-**Implementación en `Program.cs`:**
+**Implementación** (hoy vive en `Middleware/ApiKeyMiddleware.cs`; lógica equivalente a):
 
 ```csharp
 // Middleware de autenticación por API key
@@ -109,7 +109,7 @@ app.Use(async (context, next) =>
 });
 ```
 
-**Añadir a `KiokuConfiguration.cs`:**
+**En `KiokuConfiguration.cs`:**
 ```csharp
 // Env var: KIOKU_API_KEY (vacío = sin autenticación, solo para localhost)
 public string? ApiKey { get; init; }
@@ -118,9 +118,9 @@ public string? ApiKey { get; init; }
 **Uso desde Claude Code:**
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "kioku": {
-      "type": "http",
+      "type": "sse",
       "url": "http://vm-ip:5173/mcp",
       "headers": {
         "Authorization": "Bearer tu-token-aqui-32chars-aleatorio"
@@ -268,12 +268,13 @@ flatpak install flathub me.kozec.syncthingtk
 
 ## Implementación del Bearer Token en Kioku
 
-Ver commits pendientes en `feat/v2-http-sse`.
+✅ **Implementado** (mergeado desde `feat/v2-http-sse`):
 
-Archivos a modificar:
-- `KiokuConfiguration.cs`: añadir `ApiKey`
-- `Program.cs`: añadir middleware de auth antes de `app.MapMcp()`
-- `CLAUDE.md`: añadir `KIOKU_API_KEY` a la tabla de env vars
+- `KiokuConfiguration.cs` lee `KIOKU_API_KEY`
+- `Middleware/ApiKeyMiddleware.cs` valida `Authorization: Bearer <token>` antes de `app.MapMcp()`
+  (`/health` queda exento; sin clave configurada, acceso abierto — solo para desarrollo local)
+
+Ver [v2-http-sse-spec.md](../v2-http-sse-spec.md) §2 para el detalle del middleware.
 
 ---
 

@@ -16,11 +16,11 @@
 | FileSystemWatcher + debounce | ✅ Implementado | 500ms debounce |
 | Dot-directory exclusion | ✅ Implementado | `.obsidian`, `.trash`, `.agents` excluidos |
 | EmbeddingService (Ollama) | ✅ Implementado | `nomic-embed-text`, 768-dim |
-| EmbeddingPersistence (binary cache) | ✅ Implementado | `vault/.kioku/embeddings.bin`, formato v2 |
+| EmbeddingPersistence (binary cache) | ✅ Implementado | `vault/.kioku/embeddings.bin`, formato v3 |
 | `search_notes_semantic` | ✅ Implementado | Con `min_score`, snippets, frontmatter en embedding |
 | Frontmatter en embeddings | ✅ Implementado | Tags, status, type, date, ExtraFields |
 | KiokuLogger / Logger TypeScript | ✅ Implementado | Sin emojis, extensiones ILogger<T> |
-| 18 MCP tools | ✅ Implementado | Query + Command + Bridge + Utility |
+| MCP tools | ✅ Implementado | Hoy 102 tools en 17 clases — ver [commands-reference.md](./commands-reference.md) |
 
 ### Lo que ya está implementado (v2 completo)
 
@@ -114,6 +114,10 @@ else
 }
 ```
 
+> **Nota:** El ejemplo anterior es ilustrativo. El código real de `Program.cs` registra las
+> 17 tool classes mediante `ConfigureKiokuTools()`, filtrando por los grupos de capacidades
+> habilitados en `.kioku/config.yml`.
+
 ### Nueva env var y configuración
 
 ```csharp
@@ -131,12 +135,16 @@ public string Transport { get; init; } = "stdio"; // KIOKU_TRANSPORT: "stdio" | 
 
 ### Configuración del cliente MCP
 
+> La clave raíz depende del cliente: **`"mcpServers"`** en Claude Code/Claude Desktop/Cursor
+> (`.mcp.json`), **`"servers"`** en VS Code (`.vscode/mcp.json`). Los ejemplos siguientes usan
+> el formato de Claude Code.
+
 ```json
 // .mcp.json — versión HTTP (v2)
 {
-  "servers": {
+  "mcpServers": {
     "kioku": {
-      "type": "http",
+      "type": "sse",
       "url": "http://100.x.x.x:5173/mcp",
       "headers": {
         "Authorization": "Bearer <KIOKU_API_KEY>"
@@ -149,7 +157,7 @@ public string Transport { get; init; } = "stdio"; // KIOKU_TRANSPORT: "stdio" | 
 ```json
 // .mcp.json — versión stdio (v1, sigue funcionando sin cambios)
 {
-  "servers": {
+  "mcpServers": {
     "kioku": {
       "type": "stdio",
       "command": "dotnet",
@@ -267,9 +275,11 @@ server {
 
 ---
 
-## 4. Búsqueda Híbrida (futuro — v2.1)
+## 4. Búsqueda Híbrida ✅ Implementado
 
-Combinar `search_notes` (keyword) + `search_notes_semantic` (embeddings) con Reciprocal Rank Fusion:
+`search_notes_hybrid` combina `search_notes` (keyword) + `search_notes_semantic` (embeddings)
+con Reciprocal Rank Fusion (`HybridSearchService`). Si Ollama no está disponible, degrada a
+solo-keyword:
 
 ```
 query: "tickets de atena resueltos en enero"
@@ -285,7 +295,7 @@ RRF: score = Σ 1 / (k + rank_i)    (k=60 es el valor estándar)
 Top-K unificados, sin duplicados
 ```
 
-Nuevo tool: `search_notes_hybrid(query, max_results, min_score, keyword_weight, semantic_weight)`
+Firma: `search_notes_hybrid(query, max_results, min_score, keyword_weight, semantic_weight)`
 
 ---
 

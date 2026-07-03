@@ -1,8 +1,8 @@
 # Kioku MCP Server
 
-> Versión: **1.6.2** — [Release notes](https://github.com/sandovaldavid/kioku/releases)
+> Versión: **1.8.0-beta.8** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
 
-Servidor MCP en C# .NET 10 que expone ~85 herramientas para que agentes de IA lean, escriban y organicen una bóveda de Obsidian.
+Servidor MCP en C# .NET 10 que expone 102 herramientas en 17 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
 
 ## Arquitectura
 
@@ -12,32 +12,35 @@ MCP Transport (stdio / HTTP-SSE)
         ▼
   Program.cs — entry point dual (stdio | http)
         │
-        ├── Tools/        ← 16 [McpServerTool] classes
+        ├── Tools/        ← 17 [McpServerTool] classes
         ├── Services/     ← VaultIndex, Embedding, HybridSearch, etc.
         ├── Middleware/   ← ApiKeyMiddleware
         └── Domain/       ← Note, NoteMetadata, SearchResult
 ```
 
+Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre. Las 14 clases restantes se activan por **grupos de capacidades** definidos en `{vault}/.kioku/config.yml` (por defecto todos habilitados) — ver [`docs/vault-config.md`](../../docs/vault-config.md).
+
 ## Tool Classes
 
-| Class | Tools |
-|---|---|
-| `NoteQueryTools` | `read_note`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `get_note_metadata`, `list_notes` |
-| `NoteCommandTools` | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note` |
-| `ObsidianBridgeTools` | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command` |
-| `TaskManagementTools` | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks`, `extract_action_items` |
-| `ZettelkastenTools` | `create_zettel`, `create_moc`, `create_literature_note`, `link_related_notes`, `create_folder_readme` |
-| `VaultOrganizationTools` | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `audit_vault`, `reorder_notes_in_folder`, `find_broken_links` |
-| `SessionContextTools` | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context` |
-| `WorkflowTools` | `create_note_from_template`, `list_templates`, `create_template`, `process_inbox`, `sunday_hygiene` |
-| `CssThemingTools` | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet` |
-| `KnowledgeGraphTools` | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
-| `ResearchTools` | `export_citations`, `get_literature_gap`, `validate_research_notes` |
-| `PluginIntegrationTools` | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts`, `resolve_merge_conflict` |
-| `GraphAnalysisTools` | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
-| `GitTools` | `get_git_status`, `list_git_commits`, `create_git_commit` |
-| `AssetTools` | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder` |
-| `UtilityTools` | `ping`, `get_vault_stats`, `get_index_status`, `rebuild_index` |
+| Class | Grupo | Tools |
+|---|---|---|
+| `NoteQueryTools` | core | `read_note`, `list_notes`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `get_note_metadata`, `get_note_embedding`, `get_vault_stats`, `suggest_tags` |
+| `NoteCommandTools` | core | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note`, `delete_note` |
+| `UtilityTools` | core | `ping`, `get_index_status`, `rebuild_index` |
+| `TaskManagementTools` | `tasks` | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
+| `ZettelkastenTools` | `zettelkasten` | `create_zettel`, `create_moc`, `create_literature_note`, `link_related_notes`, `create_folder_readme` |
+| `VaultOrganizationTools` | `organization` | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `audit_vault`, `find_broken_links` |
+| `SessionContextTools` | `sessions` | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context`, `list_work_sessions`, `get_session_activity` |
+| `WorkflowTools` | `workflows` | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items` |
+| `CssThemingTools` | `css` | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet` |
+| `KnowledgeGraphTools` | `graph` | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
+| `GraphAnalysisTools` | `graph-analysis` | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
+| `ResearchTools` | `research` | `export_citations`, `export_note`, `get_literature_gap`, `share_as_gist`, `validate_research_notes` |
+| `PluginIntegrationTools` | `plugin` | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts`, `resolve_merge_conflict` |
+| `GitTools` | `git` | `get_git_status`, `list_git_commits`, `stage_note`, `stage_all`, `unstage_note`, `commit_staged` |
+| `RestoreTools` | `restore` | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
+| `AssetTools` | `assets` | `reorder_notes_in_folder`, `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder` |
+| `ObsidianBridgeTools` | `bridge` | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split` |
 
 ## Services
 
@@ -49,6 +52,8 @@ MCP Transport (stdio / HTTP-SSE)
 | `HybridSearchService` | Combina keyword + semántico con Reciprocal Rank Fusion (k=60). |
 | `TaskService` | Escanea checkboxes nativos de Obsidian (`[ ]`, `[x]`) con soporte para fechas de vencimiento. |
 | `ObsidianBridgeService` | Cliente WebSocket hacia el plugin de Obsidian (`ws://localhost:{port}`). Reconexión automática. |
+| `VaultConfigService` | Carga `{vault}/.kioku/config.yml`: carpetas, dominios, defaults, exclusiones, herencia de tags y gating de grupos de capacidades. |
+| `MetricsService` | Contadores en memoria de llamadas a tools (opt-in vía `KIOKU_ENABLE_METRICS`). |
 
 ## Configuración
 
@@ -62,6 +67,9 @@ MCP Transport (stdio / HTTP-SSE)
 | `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Modelo de embeddings |
 | `KIOKU_OBSIDIAN_PORT` | no | `7765` | Puerto WebSocket del plugin |
 | `KIOKU_MAX_RESULTS` | no | `20` | Máximo de resultados |
+| `KIOKU_GITHUB_TOKEN` | no | — | Token de GitHub para `share_as_gist` |
+| `KIOKU_ENABLE_METRICS` | no | `false` | Contadores de uso de tools (opt-in) |
+| `KIOKU_SENTRY_DSN` | no | — | DSN de Sentry para reporte de crashes (opt-in) |
 
 ## Desarrollo
 
@@ -91,6 +99,8 @@ _logger.Error(ex, "Failed to process note");
 
 ## Dependencias
 
-- `ModelContextProtocol` — SDK MCP oficial (stdio y HTTP-SSE)
-- `System.Numerics.Tensors` — Cosine similarity para embeddings
-- Sin dependencias de reflexión (parser YAML manual con `Span<char>`)
+- `ModelContextProtocol` + `ModelContextProtocol.AspNetCore` — SDK MCP oficial (stdio y HTTP-SSE)
+- `Markdig` — render Markdown → HTML para `export_note`
+- `YamlDotNet` — solo para `{vault}/.kioku/config.yml`
+- `Sentry.AspNetCore` — reporte de crashes opt-in (`KIOKU_SENTRY_DSN`)
+- El frontmatter se parsea con un parser manual `Span<char>` sin reflexión (`FrontmatterParser`); la similitud coseno usa SIMD (`Vector<float>`)
