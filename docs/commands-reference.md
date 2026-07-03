@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-03 00:29 UTC
+**Generated:** 2026-07-03 01:10 UTC
 
 ## Summary
 
@@ -108,6 +108,16 @@ Commits all staged changes with the given message. Returns an informational mess
 |------|------|----------|-------------|
 | `message` | String | Yes | Commit message describing the changes. |
 
+### `fix_merge_conflicts`
+
+Scans all Markdown notes in the vault for Git merge conflict markers (<<<<<<<, =======, >>>>>>>). Returns a list of affected notes with the conflicting sections. Does not modify any files — use resolve_merge_conflict to resolve conflicts. Does not require Obsidian to be running.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scan (vault-relative). Leave empty to scan the entire vault. |
+
 ### `get_git_status`
 
 Shows the current git status of the vault repository (modified, added, deleted files).
@@ -121,6 +131,18 @@ Lists the most recent git commits in the repository.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `max_count` | Int32 | No | Maximum number of commits to return (default: 10) |
+
+### `resolve_merge_conflict`
+
+Resolves a specific Git merge conflict in a note by choosing one version. Use 'ours' to keep the HEAD version, 'theirs' to keep the incoming version, or 'both' to concatenate both versions. Does not require Obsidian to be running. The FileSystemWatcher will automatically re-index the note after resolution.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or vault-relative path of the note with conflicts. |
+| `conflict_index` | Int32 | No | Index of the conflict to resolve (0-based). Use -1 to resolve all conflicts at once. |
+| `version` | String | No | Which version to keep: 'ours' (HEAD), 'theirs' (incoming), or 'both'. |
 
 ### `stage_all`
 
@@ -571,16 +593,6 @@ Creates a new note from a Templater template via the Obsidian plugin bridge. Req
 | `template_path` | String | Yes | Vault-relative path to the Templater template file. Example: 'Templates/Daily Note.md' |
 | `target_note` | String | No | Optional: vault-relative path of an existing note to apply the template to. |
 
-### `fix_merge_conflicts`
-
-Scans all Markdown notes in the vault for Git merge conflict markers (<<<<<<<, =======, >>>>>>>). Returns a list of affected notes with the conflicting sections. Does not modify any files — use resolve_merge_conflict to resolve conflicts. Does not require Obsidian to be running.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `folder` | String | No | Folder to scan (vault-relative). Leave empty to scan the entire vault. |
-
 ### `get_installed_plugins`
 
 Returns a list of all installed Obsidian plugins with their ID, name, version, author, and enabled status. Requires Obsidian to be open with the Kioku plugin. Use this to check if a required plugin (e.g. 'dataview', 'templater-obsidian') is available before calling plugin-dependent tools.
@@ -608,18 +620,6 @@ Executes a Dataview DQL query via the Obsidian plugin bridge and returns results
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `query` | String | Yes | Dataview DQL query. Example: 'TABLE status, tags FROM "Projects" WHERE status = "active" SORT file.mtime DESC' |
-
-### `resolve_merge_conflict`
-
-Resolves a specific Git merge conflict in a note by choosing one version. Use 'ours' to keep the HEAD version, 'theirs' to keep the incoming version, or 'both' to concatenate both versions. Does not require Obsidian to be running. The FileSystemWatcher will automatically re-index the note after resolution.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `note` | String | Yes | Name or vault-relative path of the note with conflicts. |
-| `conflict_index` | Int32 | No | Index of the conflict to resolve (0-based). Use -1 to resolve all conflicts at once. |
-| `version` | String | No | Which version to keep: 'ours' (HEAD), 'theirs' (incoming), or 'both'. |
 
 ## ResearchTools
 
