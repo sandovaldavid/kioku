@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-03 00:33 UTC
+**Generated:** 2026-07-03 01:10 UTC
 
 ## Summary
 
@@ -428,6 +428,16 @@ Returns general statistics of the vault: total notes, unique tags, folders, and 
 |------|------|----------|-------------|
 | `format` | String | No | Output format: 'text' (default) or 'json'. |
 
+### `inspect_note_tags`
+
+Returns the current tag state of a note to help an AI agent decide which new tags to add. Reports existing tags, folder-inherited tags from config.yml auto_tags, and frontmatter fields that must not be duplicated as tags. After reading this, the AI agent should call add_tag with any missing semantic tags.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or vault-relative path of the note. |
+
 ### `list_notes`
 
 Lists notes in the vault or a specific folder. Supports pagination via offset and limit. Returns name, relative path, tags, and modified date. Use format='json' to receive a structured response.
@@ -489,16 +499,6 @@ Searches notes by semantic meaning using Ollama embeddings. Finds notes conceptu
 | `query` | String | Yes | Natural language query. E.g. 'notes about stress and burnout'. |
 | `max_results` | Int32 | No | Maximum number of results to return (default: 10). |
 | `min_score` | Single | No | Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches. |
-
-### `suggest_tags`
-
-Returns the current tag state of a note to help an AI agent decide which new tags to add. Reports existing tags, folder-inherited tags from config.yml auto_tags, and frontmatter fields that must not be duplicated as tags. After reading this, the AI agent should call add_tag with any missing semantic tags.
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `note` | String | Yes | Name or vault-relative path of the note. |
 
 ## ObsidianBridgeTools
 
