@@ -9,11 +9,11 @@ namespace Kioku.Mcp.Server.Tools;
 /// <summary>
 /// MCP tools for Obsidian CSS snippet management.
 /// Writes to .obsidian/snippets/ — does NOT use app.customCss (private API).
-/// After creating/updating a snippet, call the plugin command 'reload-snippets' via
-/// ObsidianBridgeTools.trigger_obsidian_command to apply changes without restarting Obsidian.
+/// After creating/updating a snippet, call reload_css_snippets to apply changes without
+/// restarting Obsidian.
 /// </summary>
 [McpServerToolType]
-public sealed class CssThemingTools(KiokuConfiguration config)
+public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeService bridge)
 {
     private string SnippetsFolder => Path.Combine(config.VaultPath, ".obsidian", "snippets");
     private string AppJsonPath => Path.Combine(config.VaultPath, ".obsidian", "app.json");
@@ -168,6 +168,20 @@ public sealed class CssThemingTools(KiokuConfiguration config)
         {
             return $"[error] Failed to delete snippet: {ex.Message}";
         }
+    }
+
+    [McpServerTool, Description(
+        "Reloads CSS snippets in Obsidian so changes made with apply_css_snippet or " +
+        "remove_css_snippet take effect without restarting Obsidian.")]
+    public async Task<string> reload_css_snippets()
+    {
+        var response = await bridge.SendRequestAsync("reload-snippets");
+        if (!response.Success)
+        {
+            return $"[error] Obsidian plugin error: {response.Error}";
+        }
+
+        return "[ok] CSS snippets reloaded.";
     }
 
     // Private helpers
