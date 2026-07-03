@@ -17,11 +17,11 @@ Convenciones de cada tarea:
 
 | ID | Tarea | Rama | Tamaño | Estado |
 |----|-------|------|:------:|--------|
-| [P0-01](P0-01-suggest-tags-collision.md) | Resolver colisión de nombre `suggest_tags` | `fix/suggest-tags-collision` | S | Pendiente |
+| [P0-01](P0-01-suggest-tags-collision.md) | Resolver colisión de nombre `suggest_tags` | `fix/suggest-tags-collision` | S | ✅ Merged (#120) |
 | P0-02 | Actualizar `.mcp/server.json` (versión + env vars) | — | S | ✅ Resuelto en el PR de esta revisión de docs |
-| [P0-03](P0-03-merge-tools-group.md) | Re-agrupar tools de merge-conflict fuera de `plugin` | `fix/merge-tools-group` | S | Pendiente |
-| [P0-04](P0-04-readme-version-sync.md) | Sincronizar versiones de README/server.json con release-please | `chore/readme-version-sync` | S | Pendiente |
-| [P0-05](P0-05-add-license.md) | Añadir archivo LICENSE (README lo referencia pero no existe) | `chore/add-license` | S | Pendiente — requiere confirmación del autor |
+| [P0-03](P0-03-merge-tools-group.md) | Re-agrupar tools de merge-conflict fuera de `plugin` | `fix/merge-tools-group` | S | ✅ Merged (#121) |
+| [P0-04](P0-04-readme-version-sync.md) | Sincronizar versiones de README/server.json con release-please | `chore/readme-version-sync` | S | ✅ Merged (#123) |
+| [P0-05](P0-05-add-license.md) | Añadir archivo LICENSE (README lo referencia pero no existe) | `chore/add-license` | S | ✅ Merged (#122) |
 
 ## P1 — Alto valor, contenido
 
