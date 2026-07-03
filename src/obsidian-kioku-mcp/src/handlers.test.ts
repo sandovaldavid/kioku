@@ -12,7 +12,7 @@ const manifest = {
   description: "Obsidian plugin bridge for Kioku MCP Server",
 };
 
-const settings = { bridgePort: 7765, showNotifications: false };
+const settings = { bridgePort: 7765, showNotifications: false, showStatusBar: true };
 
 function makeApp(options: Parameters<typeof createMockApp>[0] = {}) {
   return createMockApp(options) as unknown as App;

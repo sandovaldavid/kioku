@@ -4,24 +4,58 @@ import { log } from "./logger";
 import { BridgeServer } from "./bridge";
 import { createHandlers } from "./handlers";
 import type { KiokuSettings } from "./types";
-import { DEFAULT_SETTINGS } from "./types";
+import { DEFAULT_SETTINGS, PROTOCOL_VERSION } from "./types";
+import type { BridgeStatus } from "./status";
+import { formatStatusBarText, statusBarCssClass } from "./status";
 
 export default class KiokuPlugin extends Plugin {
   declare settings: KiokuSettings;
   private bridge: BridgeServer | null = null;
+  private statusBarItem: HTMLElement | null = null;
 
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new KiokuSettingTab(this.app, this));
     this.startBridge();
+    this.refreshStatusBarVisibility();
 
     this.addCommand({
       id: "kioku-restart-bridge",
       name: "Restart Kioku MCP Bridge",
+      callback: () => this.restartBridge(),
+    });
+
+    this.addCommand({
+      id: "kioku-stop-bridge",
+      name: "Stop Kioku MCP Bridge",
       callback: () => {
         this.stopBridge();
+        new Notice("Kioku MCP Bridge stopped.");
+      },
+    });
+
+    this.addCommand({
+      id: "kioku-start-bridge",
+      name: "Start Kioku MCP Bridge",
+      callback: () => {
         this.startBridge();
-        new Notice("Kioku MCP Bridge restarted on port " + this.settings.bridgePort);
+        new Notice("Kioku MCP Bridge started on port " + this.settings.bridgePort);
+      },
+    });
+
+    this.addCommand({
+      id: "kioku-copy-status",
+      name: "Copy Kioku bridge status",
+      callback: async () => {
+        const status: BridgeStatus = {
+          running: this.bridge?.isRunning ?? false,
+          port: this.settings.bridgePort,
+          clients: this.bridge?.clientCount ?? 0,
+          protocolVersion: PROTOCOL_VERSION,
+          pluginVersion: this.manifest.version,
+        };
+        await navigator.clipboard.writeText(JSON.stringify(status, null, 2));
+        new Notice("Kioku bridge status copied to clipboard.");
       },
     });
 
@@ -29,8 +63,15 @@ export default class KiokuPlugin extends Plugin {
   }
 
   onunload() {
+    this.teardownStatusBar();
     this.stopBridge();
     log.info("Plugin unloaded.");
+  }
+
+  private restartBridge() {
+    this.stopBridge();
+    this.startBridge();
+    new Notice("Kioku MCP Bridge restarted on port " + this.settings.bridgePort);
   }
 
   private startBridge() {
@@ -48,7 +89,10 @@ export default class KiokuPlugin extends Plugin {
               `Please update the Kioku plugin or server.`
           );
         }
-      }
+      },
+      () => this.updateStatusBar(),
+      () => this.updateStatusBar(),
+      () => this.updateStatusBar()
     );
     this.bridge.registerHandlers(createHandlers(this.app, this.settings, this.manifest));
     this.bridge.start();
@@ -57,6 +101,38 @@ export default class KiokuPlugin extends Plugin {
   private stopBridge() {
     this.bridge?.stop();
     this.bridge = null;
+  }
+
+  refreshStatusBarVisibility() {
+    if (this.settings.showStatusBar) {
+      if (!this.statusBarItem) {
+        this.statusBarItem = this.addStatusBarItem();
+        this.statusBarItem.addClass("kioku-status");
+        this.registerDomEvent(this.statusBarItem, "click", () => this.restartBridge());
+      }
+      this.updateStatusBar();
+    } else {
+      this.teardownStatusBar();
+    }
+  }
+
+  private teardownStatusBar() {
+    this.statusBarItem?.remove();
+    this.statusBarItem = null;
+  }
+
+  private updateStatusBar() {
+    if (!this.statusBarItem) {
+      return;
+    }
+
+    const running = this.bridge?.isRunning ?? false;
+    const clients = this.bridge?.clientCount ?? 0;
+
+    this.statusBarItem.setText(formatStatusBarText(running, this.settings.bridgePort, clients));
+    this.statusBarItem.removeClass("kioku-status-online");
+    this.statusBarItem.removeClass("kioku-status-offline");
+    this.statusBarItem.addClass(statusBarCssClass(running));
   }
 
   async loadSettings() {
@@ -115,6 +191,20 @@ class KiokuSettingTab extends PluginSettingTab {
         toggle.setValue(this.plugin.settings.showNotifications).onChange(async (value) => {
           this.plugin.settings.showNotifications = value;
           await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Show status bar")
+      .setDesc(
+        "Shows the Kioku bridge status ([online]/[offline]) in the status bar. " +
+          "Click it to restart the bridge."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showStatusBar).onChange(async (value) => {
+          this.plugin.settings.showStatusBar = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshStatusBarVisibility();
         })
       );
   }

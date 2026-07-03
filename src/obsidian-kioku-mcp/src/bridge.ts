@@ -11,8 +11,19 @@ export class BridgeServer {
   constructor(
     private port: number,
     private onStartupError?: (message: string) => void,
-    private onProtocolMismatch?: (serverVersion: number, clientVersion: number) => void
+    private onProtocolMismatch?: (serverVersion: number, clientVersion: number) => void,
+    private onClientConnected?: () => void,
+    private onClientDisconnected?: () => void,
+    private onStateChange?: () => void
   ) {}
+
+  get clientCount(): number {
+    return this.clients.size;
+  }
+
+  get isRunning(): boolean {
+    return this.wss !== null;
+  }
 
   registerHandlers(handlers: Record<string, CommandHandler>) {
     this.handlers = handlers;
@@ -28,6 +39,7 @@ export class BridgeServer {
       this.wss.on("connection", (ws) => {
         this.clients.add(ws);
         log.info(`Kioku MCP Server connected. Clients: ${this.clients.size}`);
+        this.onClientConnected?.();
 
         ws.on("message", async (data) => {
           try {
@@ -59,6 +71,7 @@ export class BridgeServer {
         ws.on("close", () => {
           this.clients.delete(ws);
           log.info(`Client disconnected. Clients: ${this.clients.size}`);
+          this.onClientDisconnected?.();
         });
 
         ws.on("error", (err) => {
@@ -66,12 +79,17 @@ export class BridgeServer {
         });
       });
 
-      this.wss.on("error", (err) => {
-        log.error(`Could not start the bridge: ${err.message}`);
-        this.onStartupError?.(err.message);
+      this.wss.on("listening", () => {
+        log.info(`Bridge listening on 127.0.0.1:${this.port}`);
+        this.onStateChange?.();
       });
 
-      log.info(`Bridge listening on 127.0.0.1:${this.port}`);
+      this.wss.on("error", (err) => {
+        log.error(`Could not start the bridge: ${err.message}`);
+        this.wss = null;
+        this.onStartupError?.(err.message);
+        this.onStateChange?.();
+      });
     } catch (err) {
       log.error("Error starting bridge:", err);
     }
@@ -86,6 +104,7 @@ export class BridgeServer {
     if (this.wss) {
       this.wss.close();
       this.wss = null;
+      this.onStateChange?.();
     }
   }
 

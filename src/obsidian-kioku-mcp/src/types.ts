@@ -56,11 +56,13 @@ export interface KiokuDataAdapter {
 export interface KiokuSettings {
   bridgePort: number;
   showNotifications: boolean;
+  showStatusBar: boolean;
 }
 
 export const DEFAULT_SETTINGS: KiokuSettings = {
   bridgePort: 7765,
   showNotifications: true,
+  showStatusBar: true,
 };
 
 export const PROTOCOL_VERSION = 1;
