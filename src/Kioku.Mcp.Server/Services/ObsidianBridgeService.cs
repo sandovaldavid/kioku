@@ -13,6 +13,7 @@ public sealed class ObsidianBridgeService : IDisposable
 {
     private readonly ILogger<ObsidianBridgeService> _logger;
     private readonly int _port;
+    private readonly string? _bridgeToken;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<BridgeResponse>> _pendingRequests = new();
     private ClientWebSocket? _webSocket;
     private CancellationTokenSource? _loopCts;
@@ -23,6 +24,7 @@ public sealed class ObsidianBridgeService : IDisposable
     {
         _logger = logger;
         _port = config.ObsidianBridgePort;
+        _bridgeToken = config.BridgeToken;
     }
 
     public async Task<BridgeResponse> SendRequestAsync(string command, JsonNode? payload = null, CancellationToken cancellationToken = default)
@@ -34,13 +36,17 @@ public sealed class ObsidianBridgeService : IDisposable
         catch (Exception ex)
         {
             _logger.Warn("Could not establish connection to Obsidian: {Message}", ex.Message);
-            return new BridgeResponse
-            {
-                Success = false,
-                Error = $"Could not connect to Obsidian. Make sure Obsidian is open and the Kioku MCP plugin is activated on port {_port}. Details: {ex.Message}"
-            };
+            var error = ex.Message.Contains("[UNAUTHORIZED]", StringComparison.Ordinal)
+                ? ex.Message
+                : $"Could not connect to Obsidian. Make sure Obsidian is open and the Kioku MCP plugin is activated on port {_port}. Details: {ex.Message}";
+            return new BridgeResponse { Success = false, Error = error };
         }
 
+        return await SendOverExistingConnectionAsync(command, payload, cancellationToken);
+    }
+
+    private async Task<BridgeResponse> SendOverExistingConnectionAsync(string command, JsonNode? payload, CancellationToken cancellationToken)
+    {
         var requestId = Guid.NewGuid().ToString("N");
         var tcs = new TaskCompletionSource<BridgeResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingRequests[requestId] = tcs;
@@ -126,10 +132,34 @@ public sealed class ObsidianBridgeService : IDisposable
 
             _loopCts = new CancellationTokenSource();
             _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(_loopCts.Token));
+
+            await AuthenticateAsync(cancellationToken);
         }
         finally
         {
             _connectionSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Sends the "auth" handshake as the first message on a freshly established connection.
+    /// Required on every (re)connection — the plugin tracks authentication per WebSocket
+    /// connection, not per token. A no-op on the plugin side when no token is configured there.
+    /// </summary>
+    private async Task AuthenticateAsync(CancellationToken cancellationToken)
+    {
+        var payload = new JsonObject();
+        if (!string.IsNullOrEmpty(_bridgeToken))
+        {
+            payload["token"] = _bridgeToken;
+        }
+
+        var response = await SendOverExistingConnectionAsync("auth", payload, cancellationToken);
+        if (!response.Success)
+        {
+            await CloseAndResetAsync();
+            throw new InvalidOperationException(
+                response.Error ?? "[error] [UNAUTHORIZED] Obsidian bridge authentication failed.");
         }
     }
 
@@ -247,7 +277,7 @@ public sealed class ObsidianBridgeService : IDisposable
 
 public static class BridgeProtocol
 {
-    public const int Version = 1;
+    public const int Version = 2;
 }
 
 public sealed class BridgeMessage
@@ -281,6 +311,13 @@ public sealed class BridgeResponse
 
     [JsonPropertyName("protocolVersion")]
     public int? ProtocolVersion { get; set; }
+
+    /// <summary>
+    /// True when this failed response represents an authentication failure (invalid/missing
+    /// bridge token, or auth required but never sent). Lets tool code surface a distinct
+    /// [UNAUTHORIZED] error instead of a generic "Obsidian plugin error".
+    /// </summary>
+    public bool IsUnauthorized() => Error?.Contains("[UNAUTHORIZED]", StringComparison.Ordinal) == true;
 }
 
 [JsonSerializable(typeof(BridgeMessage))]

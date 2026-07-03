@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Plugin, PluginSettingTab, Setting, Notice } from "obsidian";
 import type { App } from "obsidian";
 import { log } from "./logger";
@@ -92,7 +93,8 @@ export default class KiokuPlugin extends Plugin {
       },
       () => this.updateStatusBar(),
       () => this.updateStatusBar(),
-      () => this.updateStatusBar()
+      () => this.updateStatusBar(),
+      this.settings.authToken
     );
     this.bridge.registerHandlers(createHandlers(this.app, this.settings, this.manifest));
     this.bridge.start();
@@ -192,6 +194,34 @@ class KiokuSettingTab extends PluginSettingTab {
           this.plugin.settings.showNotifications = value;
           await this.plugin.saveSettings();
         })
+      );
+
+    new Setting(containerEl)
+      .setName("Auth token")
+      .setDesc(
+        "Optional shared secret required to connect to the bridge. Leave empty to allow " +
+          "connections without authentication (default). Must match KIOKU_BRIDGE_TOKEN on the " +
+          "server. Restart the bridge after changing this for it to take effect."
+      )
+      .addText((text) => {
+        text.inputEl.type = "password";
+        text
+          .setPlaceholder("(no token — bridge is open)")
+          .setValue(this.plugin.settings.authToken)
+          .onChange(async (value) => {
+            this.plugin.settings.authToken = value.trim();
+            await this.plugin.saveSettings();
+          });
+      })
+      .addButton((button) =>
+        button
+          .setButtonText("Generate")
+          .setTooltip("Generate a random 32-byte token")
+          .onClick(async () => {
+            this.plugin.settings.authToken = randomBytes(32).toString("hex");
+            await this.plugin.saveSettings();
+            this.display();
+          })
       );
 
     new Setting(containerEl)

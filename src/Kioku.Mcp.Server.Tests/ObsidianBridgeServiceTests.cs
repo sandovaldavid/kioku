@@ -18,6 +18,10 @@ namespace Kioku.Mcp.Server.Tests;
 /// Exercises ObsidianBridgeService's WebSocket client against a real (Kestrel-hosted) fake
 /// Obsidian server on an ephemeral port, mirroring the plugin side's protocol.contract.test.ts
 /// approach of using a real socket instead of a mocked one.
+///
+/// Since PROTOCOL_VERSION 2, the client always sends an "auth" handshake as the first message
+/// on every (re)connection, so every test here must answer it before answering the real command
+/// — see FakeObsidianServer.AcceptAuthenticatedConnectionAsync/ExpectAuthAsync.
 /// </summary>
 public class ObsidianBridgeServiceTests
 {
@@ -30,12 +34,12 @@ public class ObsidianBridgeServiceTests
 
         var serverSide = Task.Run(async () =>
         {
-            var socket = await server.AcceptConnectionAsync();
+            var socket = await server.AcceptAuthenticatedConnectionAsync();
             var raw = await server.ReceiveAsync(socket);
             var message = JsonDocument.Parse(raw).RootElement;
 
             Assert.Equal("ping", message.GetProperty("command").GetString());
-            Assert.Equal(1, message.GetProperty("protocolVersion").GetInt32());
+            Assert.Equal(2, message.GetProperty("protocolVersion").GetInt32());
             var requestId = message.GetProperty("requestId").GetString();
 
             var response = JsonSerializer.Serialize(new
@@ -44,7 +48,7 @@ public class ObsidianBridgeServiceTests
                 success = true,
                 data = new { pong = true },
                 error = (string?)null,
-                protocolVersion = 1
+                protocolVersion = 2
             });
             await server.SendAsync(socket, response);
         });
@@ -65,7 +69,7 @@ public class ObsidianBridgeServiceTests
 
         var serverSide = Task.Run(async () =>
         {
-            var socket = await server.AcceptConnectionAsync();
+            var socket = await server.AcceptAuthenticatedConnectionAsync();
             var raw = await server.ReceiveAsync(socket);
             var requestId = JsonDocument.Parse(raw).RootElement.GetProperty("requestId").GetString();
 
@@ -75,7 +79,7 @@ public class ObsidianBridgeServiceTests
                 success = false,
                 data = (object?)null,
                 error = "Unknown command: does-not-exist",
-                protocolVersion = 1
+                protocolVersion = 2
             });
             await server.SendAsync(socket, response);
         });
@@ -96,7 +100,7 @@ public class ObsidianBridgeServiceTests
 
         var serverSide = Task.Run(async () =>
         {
-            var socket = await server.AcceptConnectionAsync();
+            var socket = await server.AcceptAuthenticatedConnectionAsync();
             await server.ReceiveAsync(socket);
             server.DropConnection(socket);
         });
@@ -109,7 +113,7 @@ public class ObsidianBridgeServiceTests
     }
 
     [Fact]
-    public async Task SendRequestAsync_ReconnectsAfterServerClosesConnection()
+    public async Task SendRequestAsync_ReconnectsAndReAuthenticatesAfterServerClosesConnection()
     {
         await using var server = await FakeObsidianServer.StartAsync();
         var config = new KiokuConfiguration { VaultPath = "/tmp", ObsidianBridgePort = server.Port };
@@ -117,7 +121,7 @@ public class ObsidianBridgeServiceTests
 
         var firstConnection = Task.Run(async () =>
         {
-            var socket = await server.AcceptConnectionAsync();
+            var socket = await server.AcceptAuthenticatedConnectionAsync();
             await server.ReceiveAsync(socket);
             await server.CloseConnectionAsync(socket);
         });
@@ -133,7 +137,9 @@ public class ObsidianBridgeServiceTests
 
         var secondConnection = Task.Run(async () =>
         {
-            var socket = await server.AcceptConnectionAsync();
+            // A fresh connection must re-authenticate on its own — the client doesn't
+            // remember it already authenticated on the previous (now-closed) connection.
+            var socket = await server.AcceptAuthenticatedConnectionAsync();
             var raw = await server.ReceiveAsync(socket);
             var requestId = JsonDocument.Parse(raw).RootElement.GetProperty("requestId").GetString();
 
@@ -143,7 +149,7 @@ public class ObsidianBridgeServiceTests
                 success = true,
                 data = new { pong = true },
                 error = (string?)null,
-                protocolVersion = 1
+                protocolVersion = 2
             });
             await server.SendAsync(socket, response);
         });
@@ -164,7 +170,7 @@ public class ObsidianBridgeServiceTests
 
         var serverSide = Task.Run(async () =>
         {
-            var socket = await server.AcceptConnectionAsync();
+            var socket = await server.AcceptAuthenticatedConnectionAsync();
             await server.ReceiveAsync(socket);
             // Deliberately never respond, holding the connection open past the client's timeout.
         });
@@ -176,6 +182,89 @@ public class ObsidianBridgeServiceTests
 
         await server.CloseAllAsync();
         await serverSide;
+    }
+
+    [Fact]
+    public async Task SendRequestAsync_WithConfiguredToken_SendsAuthWithTokenAsFirstMessage()
+    {
+        await using var server = await FakeObsidianServer.StartAsync();
+        var config = new KiokuConfiguration
+        {
+            VaultPath = "/tmp",
+            ObsidianBridgePort = server.Port,
+            BridgeToken = "s3cr3t-token"
+        };
+        using var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
+
+        string? receivedToken = null;
+        var serverSide = Task.Run(async () =>
+        {
+            var socket = await server.AcceptConnectionAsync();
+            var raw = await server.ReceiveAsync(socket);
+            var authMessage = JsonDocument.Parse(raw).RootElement;
+            Assert.Equal("auth", authMessage.GetProperty("command").GetString());
+            receivedToken = authMessage.GetProperty("payload").GetProperty("token").GetString();
+
+            var authRequestId = authMessage.GetProperty("requestId").GetString();
+            var authResponse = JsonSerializer.Serialize(new
+            {
+                requestId = authRequestId,
+                success = true,
+                data = (object?)null,
+                error = (string?)null,
+                protocolVersion = 2
+            });
+            await server.SendAsync(socket, authResponse);
+
+            var raw2 = await server.ReceiveAsync(socket);
+            var pingMessage = JsonDocument.Parse(raw2).RootElement;
+            var pingRequestId = pingMessage.GetProperty("requestId").GetString();
+            var pingResponse = JsonSerializer.Serialize(new
+            {
+                requestId = pingRequestId,
+                success = true,
+                data = new { pong = true },
+                error = (string?)null,
+                protocolVersion = 2
+            });
+            await server.SendAsync(socket, pingResponse);
+        });
+
+        var result = await bridge.SendRequestAsync("ping");
+        await serverSide;
+
+        Assert.True(result.Success);
+        Assert.Equal("s3cr3t-token", receivedToken);
+    }
+
+    [Fact]
+    public async Task SendRequestAsync_AuthRejectedByServer_ReturnsUnauthorizedError()
+    {
+        await using var server = await FakeObsidianServer.StartAsync();
+        var config = new KiokuConfiguration
+        {
+            VaultPath = "/tmp",
+            ObsidianBridgePort = server.Port,
+            BridgeToken = "wrong-token"
+        };
+        using var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
+
+        var serverSide = Task.Run(async () =>
+        {
+            var socket = await server.AcceptConnectionAsync();
+            await server.ExpectAuthAsync(socket, success: false);
+            // No explicit close here: the client itself tears down the connection once it
+            // sees the failed auth response (see ObsidianBridgeService.AuthenticateAsync).
+            // Racing a server-side close/abort against that teardown is exactly what caused
+            // this test to be flaky — let FakeObsidianServer's disposal clean up instead.
+        });
+
+        var result = await bridge.SendRequestAsync("ping");
+        await serverSide;
+
+        Assert.False(result.Success);
+        Assert.True(result.IsUnauthorized());
+        Assert.Contains("[UNAUTHORIZED]", result.Error);
     }
 }
 
@@ -235,6 +324,35 @@ internal sealed class FakeObsidianServer : IAsyncDisposable
 
     public async Task<WebSocket> AcceptConnectionAsync(CancellationToken cancellationToken = default) =>
         await _acceptedSockets.Reader.ReadAsync(cancellationToken);
+
+    /// <summary>Accepts a connection and answers its "auth" handshake with success:true.</summary>
+    public async Task<WebSocket> AcceptAuthenticatedConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        var socket = await AcceptConnectionAsync(cancellationToken);
+        await ExpectAuthAsync(socket, success: true, cancellationToken: cancellationToken);
+        return socket;
+    }
+
+    /// <summary>Reads the next message (expected to be "auth") and answers it with the given outcome.</summary>
+    public async Task<JsonElement> ExpectAuthAsync(
+        WebSocket socket, bool success, string? error = null, CancellationToken cancellationToken = default)
+    {
+        var raw = await ReceiveAsync(socket, cancellationToken);
+        var message = JsonDocument.Parse(raw).RootElement;
+        Assert.Equal("auth", message.GetProperty("command").GetString());
+        var requestId = message.GetProperty("requestId").GetString();
+
+        var response = JsonSerializer.Serialize(new
+        {
+            requestId,
+            success,
+            data = (object?)null,
+            error = success ? null : (error ?? "[error] [UNAUTHORIZED] Invalid or missing authentication token."),
+            protocolVersion = 2
+        });
+        await SendAsync(socket, response, cancellationToken);
+        return message;
+    }
 
     public async Task SendAsync(WebSocket socket, string json, CancellationToken cancellationToken = default)
     {

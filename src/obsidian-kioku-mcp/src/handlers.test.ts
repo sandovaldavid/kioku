@@ -12,7 +12,7 @@ const manifest = {
   description: "Obsidian plugin bridge for Kioku MCP Server",
 };
 
-const settings = { bridgePort: 7765, showNotifications: false, showStatusBar: true };
+const settings = { bridgePort: 7765, showNotifications: false, showStatusBar: true, authToken: "" };
 
 function makeApp(options: Parameters<typeof createMockApp>[0] = {}) {
   return createMockApp(options) as unknown as App;
@@ -99,6 +99,47 @@ describe("createHandlers", () => {
       const result = handlers["get-vault-path"](undefined, "req-1");
       expect(result.success).toBe(true);
       expect(result.data).toEqual({ vaultPath: "/home/user/vault", vaultName: "TestVault" });
+    });
+  });
+
+  describe("auth", () => {
+    it("succeeds as a no-op when no token is configured", () => {
+      const handlers = createHandlers(makeApp(), settings, manifest);
+      const result = handlers.auth(undefined, "req-1");
+      expect(result.success).toBe(true);
+    });
+
+    it("succeeds as a no-op even with a payload when no token is configured", () => {
+      const handlers = createHandlers(makeApp(), settings, manifest);
+      const result = handlers.auth({ token: "anything" }, "req-1");
+      expect(result.success).toBe(true);
+    });
+
+    it("succeeds when the token matches", () => {
+      const handlers = createHandlers(makeApp(), { ...settings, authToken: "s3cr3t" }, manifest);
+      const result = handlers.auth({ token: "s3cr3t" }, "req-1");
+      expect(result.success).toBe(true);
+      expect(result.requestId).toBe("req-1");
+    });
+
+    it("fails when the token does not match", () => {
+      const handlers = createHandlers(makeApp(), { ...settings, authToken: "s3cr3t" }, manifest);
+      const result = handlers.auth({ token: "wrong" }, "req-1");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("[UNAUTHORIZED]");
+    });
+
+    it("fails when no payload is provided but a token is required", () => {
+      const handlers = createHandlers(makeApp(), { ...settings, authToken: "s3cr3t" }, manifest);
+      const result = handlers.auth(undefined, "req-1");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("[UNAUTHORIZED]");
+    });
+
+    it("fails when the token has a different length than expected", () => {
+      const handlers = createHandlers(makeApp(), { ...settings, authToken: "s3cr3t" }, manifest);
+      const result = handlers.auth({ token: "s3cr3t-but-longer" }, "req-1");
+      expect(result.success).toBe(false);
     });
   });
 

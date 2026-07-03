@@ -25,6 +25,14 @@ public sealed class KiokuConfiguration
     public int ObsidianBridgePort { get; init; } = 7765;
 
     /// <summary>
+    /// Shared secret required to authenticate with the Obsidian bridge WebSocket.
+    /// Must match the "Auth token" setting in the Kioku Obsidian plugin.
+    /// If null or empty, the bridge handshake is a no-op (matches pre-auth behavior).
+    /// Environment variable: KIOKU_BRIDGE_TOKEN
+    /// </summary>
+    public string? BridgeToken { get; init; }
+
+    /// <summary>
     /// Base URL of the Ollama server for embedding generation.
     /// Default: http://localhost:11434. Environment variable: KIOKU_OLLAMA_URL
     /// </summary>
@@ -98,6 +106,8 @@ public sealed class KiokuConfiguration
         var port = int.TryParse(
             Environment.GetEnvironmentVariable("KIOKU_OBSIDIAN_PORT"), out var p) ? p : 7765;
 
+        var bridgeToken = Environment.GetEnvironmentVariable("KIOKU_BRIDGE_TOKEN");
+
         var ollamaUrl = Environment.GetEnvironmentVariable("KIOKU_OLLAMA_URL")
             ?? "http://localhost:11434";
 
@@ -121,6 +131,7 @@ public sealed class KiokuConfiguration
             VaultPath = Path.GetFullPath(vaultPath),
             MaxSearchResults = maxResults,
             ObsidianBridgePort = port,
+            BridgeToken = bridgeToken,
             OllamaUrl = ollamaUrl,
             EmbeddingModel = embeddingModel,
             Transport = transport,

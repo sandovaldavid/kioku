@@ -31,7 +31,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("open-file", payload);
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return $"[ok] Note opened in Obsidian: '{found.Name}' ({found.VaultRelativePath})";
@@ -44,7 +44,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("get-active-note");
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         var data = response.Data;
@@ -84,7 +84,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("get-open-notes");
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         var data = response.Data;
@@ -122,7 +122,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("trigger-command", payload);
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return $"[ok] Command '{command_id}' executed successfully in Obsidian.";
@@ -145,7 +145,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("insert-at-cursor", payload);
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return "[ok] Text inserted at cursor.";
@@ -168,7 +168,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("replace-selection", payload);
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return "[ok] Selection replaced.";
@@ -191,7 +191,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("create-note-ui", payload);
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return $"[ok] Note created and opened in Obsidian: '{path}'.";
@@ -214,7 +214,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("scroll-to-block", payload);
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return $"[ok] Scrolled to block '^{block_id}'.";
@@ -238,7 +238,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("open-in-split", payload);
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return $"[ok] Note opened in split pane: '{found.Name}'.";
@@ -250,7 +250,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("get-selection");
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         var data = response.Data;
@@ -271,7 +271,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("toggle-reading-mode");
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return "[ok] Reading mode toggled.";
@@ -283,7 +283,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("fold-all-headings");
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return "[ok] All headings folded.";
@@ -295,7 +295,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var response = await bridge.SendRequestAsync("unfold-all-headings");
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return "[ok] All headings unfolded.";
@@ -309,7 +309,7 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var ready = await bridge.SendRequestAsync("is-obsidian-ready");
         if (!ready.Success)
         {
-            return $"[error] Obsidian plugin error: {ready.Error}";
+            return ready.IsUnauthorized() ? ready.Error! : $"[error] Obsidian plugin error: {ready.Error}";
         }
 
         var version = await bridge.SendRequestAsync("get-app-version");

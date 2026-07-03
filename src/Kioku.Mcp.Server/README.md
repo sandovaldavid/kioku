@@ -66,6 +66,7 @@ Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre.
 | `KIOKU_OLLAMA_URL` | no | `http://localhost:11434` | URL de Ollama |
 | `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Modelo de embeddings |
 | `KIOKU_OBSIDIAN_PORT` | no | `7765` | Puerto WebSocket del plugin |
+| `KIOKU_BRIDGE_TOKEN` | no | — | Token compartido del bridge WebSocket; debe coincidir con el setting "Auth token" del plugin |
 | `KIOKU_MAX_RESULTS` | no | `20` | Máximo de resultados |
 | `KIOKU_GITHUB_TOKEN` | no | — | Token de GitHub para `share_as_gist` |
 | `KIOKU_ENABLE_METRICS` | no | `false` | Contadores de uso de tools (opt-in) |

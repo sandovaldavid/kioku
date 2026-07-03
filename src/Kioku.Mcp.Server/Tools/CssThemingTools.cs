@@ -178,7 +178,7 @@ public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeSer
         var response = await bridge.SendRequestAsync("reload-snippets");
         if (!response.Success)
         {
-            return $"[error] Obsidian plugin error: {response.Error}";
+            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
         }
 
         return "[ok] CSS snippets reloaded.";
