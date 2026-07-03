@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-03 03:44 UTC
+**Generated:** 2026-07-03 15:13 UTC
 
 ## Summary
 
@@ -284,7 +284,7 @@ Deletes a note from the vault by moving it to .trash folder (recoverable). Set p
 
 ### `move_note`
 
-Moves a note to another folder in the vault. Note: wikilinks pointing to this note are not updated automatically in v1.
+Moves a note to another folder in the vault. By default, rewrites inbound full-path wikilinks (e.g. [[Folder/Note]]) that reference the note's old location; bare-name links (e.g. [[Note]]) are left as-is since the note's name doesn't change and Obsidian resolves them across folders. Set update_links=false to skip rewriting. Set dry_run=true to preview the move and link updates without modifying any file.
 
 **Parameters:**
 
@@ -292,6 +292,8 @@ Moves a note to another folder in the vault. Note: wikilinks pointing to this no
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note to move. |
 | `destination_folder` | String | Yes | Destination folder (relative to the vault). E.g. 'Archive/2024' |
+| `update_links` | Boolean | No | If true (default), rewrites inbound full-path wikilinks to the note's new location. |
+| `dry_run` | Boolean | No | If true, previews the move and link updates without modifying any file. |
 
 ### `prepend_to_note`
 
@@ -317,7 +319,7 @@ Removes one or more tags from an existing note.
 
 ### `rename_note`
 
-Renames a note in the vault. The new name can include subfolders.
+Renames a note in the vault. The new name can include subfolders. By default, rewrites inbound wikilinks (bare name, full path, aliases, headings, block references, embeds) to point to the new name. Links whose bare name is shared by another note are left untouched and reported, since they can't be safely disambiguated. Set update_links=false to skip rewriting. Set dry_run=true to preview the rename and link updates without modifying any file.
 
 **Parameters:**
 
@@ -325,6 +327,8 @@ Renames a note in the vault. The new name can include subfolders.
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note to rename. |
 | `new_name` | String | Yes | New name of the note (without .md extension, e.g. 'New Folder/New Name'). |
+| `update_links` | Boolean | No | If true (default), rewrites inbound wikilinks to the note's new name. |
+| `dry_run` | Boolean | No | If true, previews the rename and link updates without modifying any file. |
 
 ### `update_frontmatter`
 
