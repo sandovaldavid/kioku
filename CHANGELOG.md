@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-beta.10](https://github.com/sandovaldavid/kioku/compare/v2.0.0-beta.9...v2.0.0-beta.10) (2026-07-04)
+
+
+### Bug Fixes
+
+* **server:** pack real LICENSE file and enable deterministic builds ([#183](https://github.com/sandovaldavid/kioku/issues/183)) ([319c8b2](https://github.com/sandovaldavid/kioku/commit/319c8b25de467218edfe7c899b6eb271641c20fe))
+
 ## [2.0.0-beta.9](https://github.com/sandovaldavid/kioku/compare/v2.0.0-beta.8...v2.0.0-beta.9) (2026-07-04)
 
 
