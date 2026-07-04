@@ -139,7 +139,27 @@ ollama list | grep nomic-embed-text
 
 #### Slow Startup
 
-**Cause:** Large vault with many files to index.
+**Cause:** Large vault with many files to index, or a large embedding backlog (first run,
+or after a cache invalidation from an embedding model change).
+
+Keyword indexing itself is fast and never blocked by embeddings — the server reports
+`Status: [ok] Ready` and answers `search_notes`/`list_notes`/etc. as soon as the vault's
+file index is built. Semantic search (`search_notes_semantic`) is what's degraded while a
+re-embedding backlog is being processed: it silently returns fewer or no semantic results
+until the backlog clears (keyword-only tools are unaffected).
+
+Re-embedding runs in the background with limited concurrency (2 requests to Ollama at a
+time, to avoid saturating a CPU-only machine) and never blocks the server from starting or
+serving keyword search. A note whose content hasn't changed since the last run is never
+re-embedded — only new or edited notes enter the backlog.
+
+**Check progress** with `get_index_status`:
+```
+Embedding backlog: 42
+Embedded this session: 158
+Embedding rate: 24.3 notes/min
+Estimated remaining: 1.7m
+```
 
 **Solutions:**
 1. Exclude large folders in `.kioku/config.yml`:
@@ -149,7 +169,8 @@ ollama list | grep nomic-embed-text
      - .trash
      - Attachments
    ```
-2. Wait for initial index (subsequent starts are faster)
+2. Let the backlog drain in the background (subsequent starts are faster since unchanged
+   notes are skipped — see `get_index_status`)
 3. Consider splitting into multiple vaults
 
 #### High Memory Usage

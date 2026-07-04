@@ -36,7 +36,8 @@ public sealed class UtilityTools(
     [McpServerTool, Description(
         "Returns the current status of the in-memory index: " +
         "number of notes, embeddings cached, Ollama availability, " +
-        "last update time, and whether the index is ready.")]
+        "last update time, whether the index is ready, and — if a re-embedding backlog " +
+        "is being processed in the background — its progress (backlog, rate, ETA).")]
     public string get_index_status()
     {
         var result = $"Kioku Index Status\n" +
@@ -48,12 +49,36 @@ public sealed class UtilityTools(
                      $"   Status: {(vault.IsReady ? "[ok] Ready" : "[loading] Loading...")}\n" +
                      $"   Vault: {config.VaultPath}";
 
+        if (embedding?.IsAvailable == true)
+        {
+            result += $"\n   Embedding backlog: {embedding.EmbeddingBacklog}\n" +
+                      $"   Embedded this session: {embedding.EmbeddedThisSession}\n" +
+                      $"   Embedding rate: {embedding.EmbeddingRatePerMinute:F1} notes/min\n" +
+                      $"   Estimated remaining: {FormatEstimatedRemaining(embedding.EstimatedTimeRemaining)}";
+        }
+
         if (metrics?.Enabled == true)
         {
             result += $"\n   Metrics: enabled, total tool calls: {metrics.TotalCalls}";
         }
 
         return result;
+    }
+
+    private static string FormatEstimatedRemaining(TimeSpan? remaining)
+    {
+        if (remaining is null)
+        {
+            return "unknown (still measuring rate)";
+        }
+
+        var ts = remaining.Value;
+        if (ts <= TimeSpan.Zero)
+        {
+            return "0s (backlog clear)";
+        }
+
+        return ts.TotalHours >= 1 ? $"{ts.TotalHours:F1}h" : ts.TotalMinutes >= 1 ? $"{ts.TotalMinutes:F1}m" : $"{ts.TotalSeconds:F0}s";
     }
 
     [McpServerTool, Description(

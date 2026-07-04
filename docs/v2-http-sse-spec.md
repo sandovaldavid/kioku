@@ -16,9 +16,10 @@
 | FileSystemWatcher + debounce | ✅ Implementado | 500ms debounce |
 | Dot-directory exclusion | ✅ Implementado | `.obsidian`, `.trash`, `.agents` excluidos |
 | EmbeddingService (Ollama) | ✅ Implementado | `nomic-embed-text`, 768-dim |
-| EmbeddingPersistence (binary cache) | ✅ Implementado | `vault/.kioku/embeddings.bin`, formato v3 |
+| EmbeddingPersistence (binary cache) | ✅ Implementado | `vault/.kioku/embeddings.bin`, formato v3 (con hash de contenido por entrada) |
 | `search_notes_semantic` | ✅ Implementado | Con `min_score`, snippets, frontmatter en embedding |
 | Frontmatter en embeddings | ✅ Implementado | Tags, status, type, date, ExtraFields |
+| Re-embedding incremental en background | ✅ Implementado ([P3-03](tasks/P3-03-incremental-reembedding.md)) | El backlog de notas nuevas/cambiadas se procesa en background con paralelismo limitado (2 requests concurrentes a Ollama); el arranque nunca espera a que termine — keyword search está disponible de inmediato. Progreso visible en `get_index_status` (`embedding_backlog`, `embedded this session`, `embedding rate`, `estimated remaining`). |
 | KiokuLogger / Logger TypeScript | ✅ Implementado | Sin emojis, extensiones ILogger<T> |
 | MCP tools | ✅ Implementado | Hoy 102 tools en 17 clases — ver [commands-reference.md](./commands-reference.md) |
 
