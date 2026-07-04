@@ -7,11 +7,17 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
+    <!-- Reproducible builds: embeds CI-relative paths instead of the build machine's
+         absolute paths, so the compiled DLL is byte-for-byte deterministic across runs.
+         Scoped to GitHub Actions (set automatically for every job) so local dev builds
+         keep absolute paths for a nicer debugging experience. -->
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
     <!-- API-only server: no wwwroot/Razor content, so static web assets add nothing but
          RID-path complications for `dotnet pack`. -->
     <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
 
-    <!-- Self-Contained: binario portable, no requiere .NET instalado.
+    <!-- Self-Contained: portable binary, doesn't require .NET to be installed.
          Scoped to an explicit runtime publish only (matches the release workflow's
          self-contained, per-RID "dotnet publish" calls); unscoped, these forced
          "dotnet pack" (a framework-dependent PackAsTool package) to try bundling all 4
@@ -20,7 +26,7 @@
     <PublishSelfContained Condition="'$(RuntimeIdentifier)' != ''">true</PublishSelfContained>
     <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
 
-    <!-- Metadatos del paquete Kioku -->
+    <!-- Kioku package metadata -->
     <IsPackable>true</IsPackable>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>kioku</ToolCommandName>
@@ -28,23 +34,24 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>kioku-mcp-server</PackageId>
     <PackageVersion>2.0.0-beta.9</PackageVersion>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageTags>AI; MCP; obsidian; notes; server; stdio; http-sse</PackageTags>
     <Description>Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read and write notes via the Model Context Protocol.</Description>
     <Authors>sandovaldavid</Authors>
     <Copyright>Copyright © 2026 sandovaldavid</Copyright>
 
-    <!-- Análisis de trimming para preparar v3 (Native AOT) -->
+    <!-- Trimming analysis to prepare for v3 (Native AOT) -->
     <TrimmerRootDescriptor>TrimmerRoots.xml</TrimmerRootDescriptor>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/"/>
     <None Include="README.md" Pack="true" PackagePath="/"/>
+    <None Include="../../LICENSE" Pack="true" PackagePath="/"/>
   </ItemGroup>
 
   <ItemGroup>
-    <!-- SDK MCP oficial de Microsoft -->
+    <!-- Official Microsoft MCP SDK -->
     <!-- v1: stdio transport -->
     <PackageReference Include="Markdig" Version="1.3.2"/>
     <PackageReference Include="ModelContextProtocol" Version="1.4.0"/>
