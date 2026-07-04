@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/sandovaldavid/kioku/compare/v2.0.1...v2.0.2) (2026-07-04)
+
+
+### Bug Fixes
+
+* **server:** pack real LICENSE file and enable deterministic builds ([#184](https://github.com/sandovaldavid/kioku/issues/184)) ([f047a65](https://github.com/sandovaldavid/kioku/commit/f047a65e450bf22fa48414e50c718c5d2b0612b8))
+
 ## [2.0.1](https://github.com/sandovaldavid/kioku/compare/v2.0.0...v2.0.1) (2026-07-04)
 
 
