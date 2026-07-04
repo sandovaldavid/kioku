@@ -100,7 +100,7 @@ jobs:
             --output-certificate ${{ matrix.artifact-name }}.spdx.json.pem \
             ${{ matrix.artifact-name }}.spdx.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact-name }}
           path: |
@@ -147,7 +147,7 @@ jobs:
              kioku-mcp/
           zip -r kioku-mcp-plugin.zip kioku-mcp/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: obsidian-plugin
           path: kioku-mcp-plugin.zip
