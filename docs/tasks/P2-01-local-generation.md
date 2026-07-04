@@ -1,39 +1,39 @@
-# P2-01 — Generación local con Ollama (enabler)
+# P2-01 — Local generation with Ollama (enabler)
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P2 (primera del bloque — desbloquea P2-03 mejorado y P3-02) |
-| Rama | `feat/local-generation` |
+| Priority | P2 (first in the block — unblocks improved P2-03 and P3-02) |
+| Branch | `feat/local-generation` |
 | Commit | `feat(server): add local text generation service with KIOKU_GEN_MODEL` |
-| Tamaño | M |
+| Size | M |
 | Spec | [features/05-local-generation.md](../features/05-local-generation.md) |
-| Dependencias | Ninguna |
+| Dependencies | None |
 
-## Objetivo
+## Objective
 
-`Services/GenerationService.cs` (patrón `EmbeddingService`: init con ping, degradación
-graciosa, HttpClient `"ollama"`, JSON source-generated) + env var `KIOKU_GEN_MODEL`
-(default deshabilitado) + primer tool `summarize_note` en una clase nueva `GenerationTools`
-(grupo de capabilities nuevo `generation`).
+`Services/GenerationService.cs` (`EmbeddingService` pattern: ping-based init, graceful
+degradation, `"ollama"` HttpClient, source-generated JSON) + new `KIOKU_GEN_MODEL` env var
+(disabled by default) + first tool `summarize_note` in a new `GenerationTools` class
+(new `generation` capability group).
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] Sin `KIOKU_GEN_MODEL`: el grupo se registra pero `summarize_note` devuelve
-  `[error] [DEPENDENCY_UNAVAILABLE]` con instrucciones de setup; el resto del server no
-  se ve afectado.
-- [ ] Con Ollama + modelo: `summarize_note` devuelve resumen en los 3 estilos
-  (`bullets`/`paragraph`/`eli5`) con nota `[info] Generated locally with {model}`.
-- [ ] Entrada truncada (~4k chars) y timeout de 120s verificados por test.
-- [ ] Grupo `generation` gateable: `capabilities.disabled: [generation]` lo desregistra.
-- [ ] Tests con HttpClient mockeado (éxito, timeout, Ollama caído, modelo no descargado).
-- [ ] Docs en el mismo PR: env var en README raíz, server README, `install.md`,
-  `.mcp/server.json`; grupo nuevo en `vault-config.md` + `vault-config.example.yml`;
-  `commands-reference.md` regenerado.
+- [ ] Without `KIOKU_GEN_MODEL`: the group is registered but `summarize_note` returns
+  `[error] [DEPENDENCY_UNAVAILABLE]` with setup instructions; the rest of the server is
+  unaffected.
+- [ ] With Ollama + model: `summarize_note` returns a summary in all 3 styles
+  (`bullets`/`paragraph`/`eli5`) with the note `[info] Generated locally with {model}`.
+- [ ] Truncated input (~4k chars) and 120s timeout verified by test.
+- [ ] `generation` group is gateable: `capabilities.disabled: [generation]` deregisters it.
+- [ ] Tests with a mocked HttpClient (success, timeout, Ollama down, model not pulled).
+- [ ] Docs in the same PR: env var in root README, server README, `install.md`,
+  `.mcp/server.json`; new group in `vault-config.md` + `vault-config.example.yml`;
+  `commands-reference.md` regenerated.
 
-## Archivos
+## Files
 
-- `src/Kioku.Mcp.Server/Services/GenerationService.cs` (nuevo)
-- `src/Kioku.Mcp.Server/Tools/GenerationTools.cs` (nuevo)
+- `src/Kioku.Mcp.Server/Services/GenerationService.cs` (new)
+- `src/Kioku.Mcp.Server/Tools/GenerationTools.cs` (new)
 - `src/Kioku.Mcp.Server/KiokuConfiguration.cs`, `Program.cs`,
-  `Services/VaultConfigService.cs` (si el gating necesita registro del nombre)
-- Tests nuevos + docs listadas
+  `Services/VaultConfigService.cs` (if gating needs the name registered)
+- New tests + docs listed

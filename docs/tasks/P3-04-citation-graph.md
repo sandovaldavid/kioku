@@ -1,39 +1,39 @@
-# P3-04 — Grafo de citas
+# P3-04 — Citation graph
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P3 |
-| Rama | `feat/citation-graph` |
+| Priority | P3 |
+| Branch | `feat/citation-graph` |
 | Commit | `feat(server): add citation graph analysis for literature notes` |
-| Tamaño | M |
-| Spec | — (derivado de [review/05-feature-roadmap.md](../review/05-feature-roadmap.md); escribir spec corto en `docs/features/` al iniciar) |
-| Dependencias | Mejor después de [P3-01](P3-01-zotero-bibtex.md) (usa `citekey` en frontmatter) |
+| Size | M |
+| Spec | — (derived from [review/05-feature-roadmap.md](../review/05-feature-roadmap.md); write a short spec in `docs/features/` before starting) |
+| Dependencies | Best after [P3-01](P3-01-zotero-bibtex.md) (uses `citekey` in frontmatter) |
 
-## Objetivo
+## Objective
 
-Analizar qué notas citan qué fuentes (literature notes con `citekey`): fuentes más citadas,
-fuentes huérfanas (importadas y nunca citadas), y notas de trabajo sin respaldo
-bibliográfico. Complementa `get_literature_gap`.
+Analyze which notes cite which sources (literature notes with `citekey`): most-cited
+sources, orphan sources (imported but never cited), and working notes with no
+bibliographic backing. Complements `get_literature_gap`.
 
-## Alcance propuesto
+## Proposed scope
 
-- `get_citation_graph(folder = "")` en `ResearchTools` o `GraphAnalysisTools`: construye el
-  bipartito nota↔fuente a partir de backlinks hacia literature notes; salida con top citadas,
-  huérfanas y métricas básicas.
-- Reuso: índice de backlinks de `VaultIndexService`, frontmatter `citekey`.
-- Antes de implementar: escribir `docs/features/13-citation-graph.md` con el diseño fino
-  (mismo formato que los specs existentes) y enlazarlo aquí.
+- `get_citation_graph(folder = "")` in `ResearchTools` or `GraphAnalysisTools`: builds the
+  note↔source bipartite graph from backlinks to literature notes; output with top cited,
+  orphans and basic metrics.
+- Reuse: `VaultIndexService`'s backlinks index, `citekey` frontmatter.
+- Before implementing: write `docs/features/13-citation-graph.md` with the detailed design
+  (same format as existing specs) and link it here.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] Spec 13 escrito y revisado antes del código.
-- [ ] Fuentes citadas/huérfanas correctas con fixture de literature notes + notas que las
-  referencian.
-- [ ] Sin literature notes → mensaje claro, no error.
-- [ ] `commands-reference.md` regenerado.
+- [ ] Spec 13 written and reviewed before the code.
+- [ ] Correct cited/orphan sources with a fixture of literature notes + notes referencing
+  them.
+- [ ] No literature notes → clear message, not an error.
+- [ ] `commands-reference.md` regenerated.
 
-## Archivos
+## Files
 
-- `docs/features/13-citation-graph.md` (nuevo, primero)
-- `src/Kioku.Mcp.Server/Tools/ResearchTools.cs` o `GraphAnalysisTools.cs`
+- `docs/features/13-citation-graph.md` (new, first)
+- `src/Kioku.Mcp.Server/Tools/ResearchTools.cs` or `GraphAnalysisTools.cs`
 - Tests + docs

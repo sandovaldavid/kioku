@@ -1,65 +1,67 @@
 # 13 — Citation graph
 
-> Área: server · Tarea: [P3-04](../tasks/P3-04-citation-graph.md) · Impacto ★★ · Esfuerzo M
+> Area: server · Task: [P3-04](../tasks/P3-04-citation-graph.md) · Impact ★★ · Effort M
 
-## Motivación
+## Motivation
 
-Kioku ya sabe *qué* fuentes existen (literature notes con `citekey`, ver
-[10 — Zotero/BibTeX](10-zotero-bibtex.md)) y *qué citekeys faltan* (`get_literature_gap`).
-Falta la vista inversa: de las fuentes que **sí** tienen una nota, ¿cuáles se están usando
-realmente en el resto del vault, y cuáles se importaron y nunca se citaron? Para el persona
-investigador esto es la diferencia entre una biblioteca viva y un cementerio de referencias
-importadas por inercia.
+Kioku already knows *what* sources exist (literature notes with a `citekey`, see
+[10 — Zotero/BibTeX](10-zotero-bibtex.md)) and *which citekeys are missing*
+(`get_literature_gap`). What's missing is the reverse view: of the sources that **do**
+have a note, which are actually being used elsewhere in the vault, and which were
+imported and never cited? For the researcher persona, this is the difference between a
+living library and a graveyard of references imported out of inertia.
 
-## Diseño
+## Design
 
-### `get_citation_graph(folder = "")` en `ResearchTools`
+### `get_citation_graph(folder = "")` in `ResearchTools`
 
-Construye un grafo bipartito **nota-de-trabajo → fuente** a partir de dos señales, combinadas
-sin duplicar:
+Builds a bipartite **working-note → source** graph from two signals, merged without
+duplication:
 
-1. **Backlinks** (`VaultIndexService.GetBacklinks(note.Name)`): cualquier nota que enlaza
-   `[[Nombre de la Literature Note]]` cuenta como cita.
-2. **Citekeys inline** (mismo patrón `[@citekey]` / `@citekey` que ya usa
-   `get_literature_gap`, vía `InlineCitePattern`): cualquier nota que menciona `@citekey` en
-   su cuerpo, aunque no haya wikilink a la literature note.
+1. **Backlinks** (`VaultIndexService.GetBacklinks(note.Name)`): any note that links
+   `[[Literature Note Name]]` counts as a citation.
+2. **Inline citekeys** (the same `[@citekey]` / `@citekey` pattern already used by
+   `get_literature_gap`, via `InlineCitePattern`): any note that mentions `@citekey`
+   in its body, even without a wikilink to the literature note.
 
-Ambas señales se fusionan por nota citante (una nota que hace ambas cosas cuenta una sola
-vez). Esto reutiliza exactamente los dos mecanismos de citación que el resto del código ya
-reconoce — no se introduce un tercer formato de cita.
+Both signals are merged per citing note (a note that does both only counts once).
+This reuses exactly the two citation mechanisms the rest of the code already
+recognizes — no third citation format is introduced.
 
-**Fuentes** = notas con `citekey` en frontmatter (mismo criterio que `export_citations` /
-`export_bibtex`: `ExtraFields["citekey"]`, con fallback a `citation-key` / `key` para no
-romper vaults que no usan `import_bibtex`).
+**Sources** = notes with a `citekey` in frontmatter (same criterion as
+`export_citations` / `export_bibtex`: `ExtraFields["citekey"]`, falling back to
+`citation-key` / `key` so as not to break vaults that don't use `import_bibtex`).
 
-**Salida** (texto, mismo estilo que el resto de `ResearchTools`):
-- Top fuentes más citadas (citekey, título, conteo de notas citantes), ordenadas descendente.
-- Fuentes huérfanas: tienen `citekey` pero cero notas citantes (candidatas a revisar o borrar).
-- Notas de trabajo sin ninguna cita a una fuente conocida — *fuera de alcance de esta
-  primera versión*: ya lo cubre `get_literature_gap` desde el ángulo opuesto (citekeys
-  citados sin nota), y listar "toda nota sin citas" sería ruidoso para notas que
-  legítimamente no son de investigación (zettels, tareas, etc.). Se puede añadir después si
-  se pide explícitamente.
-- Vault sin literature notes (`citekey`): mensaje `[ok]` claro, no error — mismo patrón que
-  `export_bibtex`/`export_citations` cuando no encuentran citekeys.
+**Output** (text, same style as the rest of `ResearchTools`):
+- Top most-cited sources (citekey, title, count of citing notes), sorted descending.
+- Orphan sources: have a `citekey` but zero citing notes (candidates for review or
+  deletion).
+- Working notes with no citation to a known source — *out of scope for this first
+  version*: `get_literature_gap` already covers this from the opposite angle (cited
+  citekeys with no note), and listing "every note without citations" would be noisy
+  for notes that legitimately aren't research notes (zettels, tasks, etc.). Can be
+  added later if explicitly requested.
+- Vault with no literature notes (`citekey`): a clear `[ok]` message, not an error —
+  same pattern as `export_bibtex`/`export_citations` when they find no citekeys.
 
-### Parámetro `folder`
+### `folder` parameter
 
-Igual que en el resto de `ResearchTools`: si se pasa, solo se consideran fuentes dentro de
-ese folder (las notas *citantes* pueden estar en cualquier parte del vault — el filtro es
-sobre qué fuentes se reportan, no sobre quién puede citarlas).
+Same as the rest of `ResearchTools`: if passed, only sources within that folder are
+considered (the *citing* notes can be anywhere in the vault — the filter applies to
+which sources are reported, not to who can cite them).
 
-## Archivos afectados
+## Affected files
 
-- `src/Kioku.Mcp.Server/Tools/ResearchTools.cs` (+1 tool, reutiliza `InlineCitePattern` ya
-  existente en el archivo)
-- Tests: fixture con literature notes + notas que las citan (por wikilink y por `@citekey`),
-  fuente huérfana, vault sin citekeys
-- `docs/commands-reference.md` (regenerar)
+- `src/Kioku.Mcp.Server/Tools/ResearchTools.cs` (+1 tool, reuses the `InlineCitePattern`
+  already in the file)
+- Tests: fixture with literature notes + notes citing them (via wikilink and via
+  `@citekey`), orphan source, vault with no citekeys
+- `docs/commands-reference.md` (regenerate)
 
-## Riesgos
+## Risks
 
-- Doble conteo si una nota cita la misma fuente por wikilink **y** por `@citekey` — mitigado
-  fusionando ambas señales en un `HashSet` por nota citante antes de contar.
-- Nombres de literature notes con caracteres especiales rompiendo el backlink lookup — ya
-  mitigado por `VaultIndexService`'s índice de backlinks existente (usado sin cambios).
+- Double counting if a note cites the same source both by wikilink **and** by
+  `@citekey` — mitigated by merging both signals into a `HashSet` per citing note
+  before counting.
+- Literature note names with special characters breaking the backlink lookup —
+  already mitigated by `VaultIndexService`'s existing backlink index (used unchanged).

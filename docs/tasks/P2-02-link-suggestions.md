@@ -1,35 +1,35 @@
-# P2-02 — Sugerencias de enlaces
+# P2-02 — Link suggestions
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P2 |
-| Rama | `feat/link-suggestions` |
+| Priority | P2 |
+| Branch | `feat/link-suggestions` |
 | Commit | `feat(server): add suggest_links and apply_link_suggestions tools` |
-| Tamaño | M |
+| Size | M |
 | Spec | [features/06-link-suggestions.md](../features/06-link-suggestions.md) |
-| Dependencias | Ninguna dura (usa embeddings existentes); mejora P2-04 |
+| Dependencies | No hard dependency (uses existing embeddings); improves P2-04 |
 
-## Objetivo
+## Objective
 
-`suggest_links(note?, max_suggestions, min_similarity)` (candidatos semánticos no enlazados;
-modo vault prioriza huérfanas/islas) y `apply_link_suggestions(note, targets, section)`
-(sección `## Relacionados`, idempotente, con `dry_run`) en `GraphAnalysisTools`.
+`suggest_links(note?, max_suggestions, min_similarity)` (unlinked semantic candidates;
+vault mode prioritizes orphans/islands) and `apply_link_suggestions(note, targets, section)`
+(`## Related` section, idempotent, with `dry_run`) in `GraphAnalysisTools`.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] `suggest_links` nunca propone pares ya enlazados (en cualquier dirección) ni la nota
-  consigo misma; salida con score, snippet y razón.
-- [ ] Sin Ollama: modo por nota devuelve `[error] [DEPENDENCY_UNAVAILABLE]`; modo vault
-  degrada al análisis estructural (huérfanas/islas) con aviso.
-- [ ] `apply_link_suggestions` es idempotente (segunda ejecución no duplica) y respeta
+- [ ] `suggest_links` never proposes pairs that are already linked (in either direction) nor
+  a note linked to itself; output includes score, snippet and reason.
+- [ ] Without Ollama: per-note mode returns `[error] [DEPENDENCY_UNAVAILABLE]`; vault mode
+  degrades to structural analysis (orphans/islands) with a warning.
+- [ ] `apply_link_suggestions` is idempotent (a second run doesn't duplicate) and respects
   `dry_run`.
-- [ ] Reuso verificado: no duplicar la lógica de inserción de `link_related_notes`
-  (extraer helper compartido si hace falta).
-- [ ] Tests con `VaultFixture` (filtrado, idempotencia, degradación) verdes.
-- [ ] `commands-reference.md` regenerado + tablas de README actualizadas.
+- [ ] Reuse verified: don't duplicate `link_related_notes`'s insertion logic
+  (extract a shared helper if needed).
+- [ ] Tests with `VaultFixture` (filtering, idempotency, degradation) green.
+- [ ] `commands-reference.md` regenerated + README tables updated.
 
-## Archivos
+## Files
 
 - `src/Kioku.Mcp.Server/Tools/GraphAnalysisTools.cs`
-- `src/Kioku.Mcp.Server/Tools/ZettelkastenTools.cs` (si se extrae helper)
+- `src/Kioku.Mcp.Server/Tools/ZettelkastenTools.cs` (if a helper is extracted)
 - Tests + docs

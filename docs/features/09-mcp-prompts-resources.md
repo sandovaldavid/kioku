@@ -1,55 +1,55 @@
 # 09 — MCP Prompts & Resources
 
-> Área: server · Tarea: [P2-05](../tasks/P2-05-mcp-prompts-resources.md) · Impacto ★★★ · Esfuerzo M
+> Area: server · Task: [P2-05](../tasks/P2-05-mcp-prompts-resources.md) · Impact ★★★ · Effort M
 
-## Motivación
+## Motivation
 
-Kioku solo expone **tools**. El protocolo MCP tiene dos primitivas más que el SDK
-(`ModelContextProtocol 1.4.0`) ya soporta:
+Kioku only exposes **tools**. The MCP protocol has two more primitives that the SDK
+(`ModelContextProtocol 1.4.0`) already supports:
 
-- **Resources** — el cliente puede montar notas como contexto sin gastar un tool-call.
-- **Prompts** — workflows curados que cualquier cliente MCP (Claude Code, Cursor, VS Code)
-  muestra como slash commands nativos.
+- **Resources** — the client can mount notes as context without spending a tool call.
+- **Prompts** — curated workflows that any MCP client (Claude Code, Cursor, VS Code)
+  shows as native slash commands.
 
-Es la vía de distribución más barata: los workflows empaquetados aparecen automáticamente
-en todos los clientes.
+It's the cheapest distribution channel: packaged workflows appear automatically in
+every client.
 
-## Diseño
+## Design
 
 ### Resources (`[McpServerResource]`)
 
-- `kioku://note/{vault-relative-path}` — contenido de una nota (URI template).
-- `kioku://vault/stats` — snapshot del vault (equivalente a `get_vault_stats`).
-- **No** listar las ~5000 notas como resources estáticos: usar *resource templates* para
-  resolución por URI y limitar `resources/list` a un top-N de notas recientes (p. ej. 20,
-  vía `VaultIndexService`) para no inundar los pickers de los clientes.
+- `kioku://note/{vault-relative-path}` — a note's content (URI template).
+- `kioku://vault/stats` — a vault snapshot (equivalent to `get_vault_stats`).
+- **Don't** list all ~5000 notes as static resources: use *resource templates* for
+  URI-based resolution and cap `resources/list` to the top-N recent notes (e.g. 20,
+  via `VaultIndexService`) so client pickers don't get flooded.
 
 ### Prompts (`[McpServerPrompt]`)
 
-Primer set (clase nueva `KiokuPrompts`):
+First set (new `KiokuPrompts` class):
 
-| Prompt | Argumentos | Contenido |
+| Prompt | Arguments | Content |
 |---|---|---|
-| `research_digest` | `folder?` | Instrucciones para resumir lecturas recientes con `get_recent_activity` + `search_notes_semantic`, listando preguntas abiertas |
-| `process_inbox` | `inbox?` | Guía del flujo smart-inbox (spec 08): proponer → confirmar → aplicar |
-| `weekly_review` | — | Revisión semanal: digest + tareas vencidas + huérfanas + sugerencias de enlaces |
-| `literature_review` | `topic` | Recolectar evidencia con búsqueda híbrida y sintetizar con citas `[[wikilink]]` |
+| `research_digest` | `folder?` | Instructions to summarize recent reading with `get_recent_activity` + `search_notes_semantic`, listing open questions |
+| `process_inbox` | `inbox?` | Guide for the smart-inbox flow (spec 08): propose → confirm → apply |
+| `weekly_review` | — | Weekly review: digest + overdue tasks + orphans + link suggestions |
+| `literature_review` | `topic` | Gather evidence via hybrid search and synthesize with `[[wikilink]]` citations |
 
-Los prompts referencian tools existentes por nombre — mantenerlos sincronizados con
+Prompts reference existing tools by name — keep them in sync with
 `commands-reference.md`.
 
-## Archivos afectados
+## Affected files
 
-- `src/Kioku.Mcp.Server/Prompts/KiokuPrompts.cs` (nuevo)
-- `src/Kioku.Mcp.Server/Resources/` o `Tools/` (resources; según convención del SDK)
+- `src/Kioku.Mcp.Server/Prompts/KiokuPrompts.cs` (new)
+- `src/Kioku.Mcp.Server/Resources/` or `Tools/` (resources; per SDK convention)
 - `src/Kioku.Mcp.Server/Program.cs` (`.WithPrompts<>()` / `.WithResources<>()`)
-- Tests: shape de prompts/resources; resolución de URI template con vault fixture
-- Docs: sección nueva en README raíz + `commands-reference.md` (evaluar si el generador
-  `scripts/GenerateCommandsRef` debe cubrir prompts/resources)
+- Tests: prompt/resource shape; URI template resolution with a vault fixture
+- Docs: new section in the root README + `commands-reference.md` (evaluate whether the
+  `scripts/GenerateCommandsRef` generator should cover prompts/resources)
 
-## Riesgos
+## Risks
 
-- Verificar el soporte exacto de resource templates / subscribe en `ModelContextProtocol
-  1.4.0` (si `subscribe` no está disponible, lanzarlo sin notificaciones de cambio).
-- Los prompts son texto mantenido a mano — riesgo de deriva con los tools; mitigar
-  añadiendo un check al generador de commands-reference.
+- Verify the exact resource template / subscribe support in `ModelContextProtocol
+  1.4.0` (if `subscribe` isn't available, ship without change notifications).
+- Prompts are hand-maintained text — risk of drift with the tools; mitigate by adding
+  a check to the commands-reference generator.

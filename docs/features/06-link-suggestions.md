@@ -1,51 +1,51 @@
-# 06 — Sugerencias de enlaces entre notas
+# 06 — Link suggestions between notes
 
-> Área: server · Tarea: [P2-02](../tasks/P2-02-link-suggestions.md) · Impacto ★★★ · Esfuerzo M
+> Area: server · Task: [P2-02](../tasks/P2-02-link-suggestions.md) · Impact ★★★ · Effort M
 
-## Motivación
+## Motivation
 
-El valor de un vault es su **grafo**. Ya existen `link_related_notes` (escribe una sección
-de relacionados en una nota) y `find_graph_islands`/`find_unlinked_notes` (diagnóstico), pero
-no hay un flujo de "propón enlaces y aplícalos con un click" a nivel vault. Es la feature ★★★
-del bloque cross-cutting del roadmap.
+The value of a vault is its **graph**. `link_related_notes` (writes a related-notes
+section into a note) and `find_graph_islands`/`find_unlinked_notes` (diagnostics)
+already exist, but there's no vault-level "propose links and apply them with a click"
+flow. It's the ★★★ feature of the roadmap's cross-cutting block.
 
-## Diseño
+## Design
 
 ### `suggest_links(note = "", max_suggestions = 10, min_similarity = 0.7)`
 
-En `GraphAnalysisTools` (grupo `graph-analysis`):
+In `GraphAnalysisTools` (group `graph-analysis`):
 
-- Con `note`: candidatos por similitud semántica (`HybridSearchService.FindSimilar`) que
-  **aún no estén enlazados** en ninguna dirección (filtrar con backlinks + outgoing del
-  índice).
-- Sin `note` (modo vault): prioriza notas huérfanas (`find_unlinked_notes`) e islas
-  (`find_graph_islands`), devolviendo pares `(origen, destino, score, razón)`.
-- Salida: lista numerada con score, snippet de contexto y la razón
+- With `note`: candidates by semantic similarity (`HybridSearchService.FindSimilar`)
+  that **aren't linked yet** in either direction (filtered against backlinks +
+  outgoing links from the index).
+- Without `note` (vault mode): prioritizes orphan notes (`find_unlinked_notes`) and
+  islands (`find_graph_islands`), returning `(source, target, score, reason)` pairs.
+- Output: numbered list with score, context snippet, and the reason
   (`semantic-similarity` | `orphan-rescue` | `island-bridge`).
 
-### `apply_link_suggestions(note, targets, section = "Relacionados")`
+### `apply_link_suggestions(note, targets, section = "Related")`
 
-En el mismo grupo:
+In the same group:
 
-- `targets`: lista de nombres/rutas (las sugerencias aceptadas por el usuario/agente).
-- Añade (o extiende) una sección `## Relacionados` al final de la nota con
-  `- [[target]] — razón` por entrada. No toca el cuerpo existente; idempotente (no duplica
-  enlaces ya presentes).
-- `dry_run` para previsualizar.
+- `targets`: list of names/paths (the suggestions accepted by the user/agent).
+- Adds (or extends) a `## Related` section at the end of the note with
+  `- [[target]] — reason` per entry. Doesn't touch the existing body; idempotent
+  (doesn't duplicate links already present).
+- `dry_run` for previewing.
 
-Reutiliza la lógica de inserción de `link_related_notes` (extraer helper común si aplica)
-en lugar de duplicarla.
+Reuses the insertion logic from `link_related_notes` (extract a common helper if
+appropriate) instead of duplicating it.
 
-## Archivos afectados
+## Affected files
 
 - `src/Kioku.Mcp.Server/Tools/GraphAnalysisTools.cs` (+2 tools)
-- `src/Kioku.Mcp.Server/Services/HybridSearchService.cs` (reuso de `FindSimilar`)
-- Posible helper compartido con `ZettelkastenTools.link_related_notes`
-- Tests: filtrado de ya-enlazados, idempotencia de apply, huérfanos/islas
-- `docs/commands-reference.md` (regenerar)
+- `src/Kioku.Mcp.Server/Services/HybridSearchService.cs` (reuse of `FindSimilar`)
+- Possible shared helper with `ZettelkastenTools.link_related_notes`
+- Tests: filtering of already-linked notes, apply idempotency, orphans/islands
+- `docs/commands-reference.md` (regenerate)
 
-## Riesgos
+## Risks
 
-- Requiere embeddings (Ollama) — degradar con mensaje claro si `EmbeddingService` no está
-  disponible (sin Ollama solo funciona el modo `island-bridge` estructural).
-- Sugerencias de baja calidad con `min_similarity` bajo → default conservador (0.7).
+- Requires embeddings (Ollama) — degrade with a clear message if `EmbeddingService`
+  isn't available (without Ollama, only the structural `island-bridge` mode works).
+- Low-quality suggestions with a low `min_similarity` → conservative default (0.7).
