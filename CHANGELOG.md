@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.0.0-beta.8](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.8...v2.0.0-beta.8) (2026-07-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **server:** the MCP tool suggest_tags in NoteQueryTools (core, always registered) is renamed to inspect_note_tags. Agents calling the read-only diagnostic variant by name must update to inspect_note_tags.
+
+### Features
+
+* **plugin:** add bridge status bar item and control commands ([#126](https://github.com/sandovaldavid/kioku/issues/126)) ([c03127f](https://github.com/sandovaldavid/kioku/commit/c03127f26aef557c1588dd9be1b8b5f8c62a9d25))
+* **server:** add bibtex import and export for literature notes ([#145](https://github.com/sandovaldavid/kioku/issues/145)) ([8a98632](https://github.com/sandovaldavid/kioku/commit/8a986326a61e64d0cb0774eefa9b2954348f2bfa))
+* **server:** add citation graph analysis for literature notes ([#147](https://github.com/sandovaldavid/kioku/issues/147)) ([8abbbd6](https://github.com/sandovaldavid/kioku/commit/8abbbd677fd737f9042d1eedef6db6db4a6dc9aa))
+* **server:** add generate_digest tool for daily and weekly reviews ([#137](https://github.com/sandovaldavid/kioku/issues/137)) ([623c50e](https://github.com/sandovaldavid/kioku/commit/623c50ea09b7de8d8c004ed15fa331fe4c728d55))
+* **server:** add generate_flashcards tool with spaced-repetition and anki output ([#149](https://github.com/sandovaldavid/kioku/issues/149)) ([7c602bb](https://github.com/sandovaldavid/kioku/commit/7c602bb54121b9c4ae2e0d16d4322b363a7bda5a))
+* **server:** add local text generation service with KIOKU_GEN_MODEL ([#135](https://github.com/sandovaldavid/kioku/issues/135)) ([94c6d37](https://github.com/sandovaldavid/kioku/commit/94c6d37ace7ca050de6033c09d2d302ee2aa0813))
+* **server:** add optional shared-token auth to the obsidian bridge ([#132](https://github.com/sandovaldavid/kioku/issues/132)) ([86b3a39](https://github.com/sandovaldavid/kioku/commit/86b3a3945f51cd0ed691fccc878f95edc79a3788))
+* **server:** add process_inbox batch triage tool ([#139](https://github.com/sandovaldavid/kioku/issues/139)) ([0ad00b6](https://github.com/sandovaldavid/kioku/commit/0ad00b68105df08a743ec419873d153e2746ec1d))
+* **server:** add suggest_links and apply_link_suggestions tools ([#141](https://github.com/sandovaldavid/kioku/issues/141)) ([377ab66](https://github.com/sandovaldavid/kioku/commit/377ab6635ef3042038ab291568efff7e594d4bd5))
+* **server:** expose latent bridge commands as MCP tools ([#124](https://github.com/sandovaldavid/kioku/issues/124)) ([f38cc80](https://github.com/sandovaldavid/kioku/commit/f38cc80cf527822f9e28e02109b09fbc76a03eaa))
+* **server:** expose mcp prompts and note resources ([#143](https://github.com/sandovaldavid/kioku/issues/143)) ([e3eb0f2](https://github.com/sandovaldavid/kioku/commit/e3eb0f2625afeba0ae829f953128efc3ac3a0468))
+* **server:** incremental re-embedding with content hashes and progress ([#151](https://github.com/sandovaldavid/kioku/issues/151)) ([3ac0289](https://github.com/sandovaldavid/kioku/commit/3ac02892ac8a20a664ef959d41b38dc31ab79a4c))
+* **server:** update inbound wikilinks on move_note and rename_note ([#130](https://github.com/sandovaldavid/kioku/issues/130)) ([46480fd](https://github.com/sandovaldavid/kioku/commit/46480fd900f4a60f4e8c8e20d6becf14fa8a3a40))
+
+
+### Bug Fixes
+
+* **ci:** extract main.js from ZIP artifact for BRAT upload ([50dbf55](https://github.com/sandovaldavid/kioku/commit/50dbf552179005a90037d175b49d4531eae38040))
+* **server:** make ObsidianBridgeService's connection teardown reentrant-safe ([#134](https://github.com/sandovaldavid/kioku/issues/134)) ([f949c26](https://github.com/sandovaldavid/kioku/commit/f949c2668b3a5864d196c37e5b004b2cf89f8e07))
+* **server:** move merge-conflict tools out of the plugin capability group ([#121](https://github.com/sandovaldavid/kioku/issues/121)) ([7fcbec9](https://github.com/sandovaldavid/kioku/commit/7fcbec9fed87588cbbde67d92edb3ecf20e95e23))
+* **server:** rename duplicate suggest_tags query tool to inspect_note_tags ([#120](https://github.com/sandovaldavid/kioku/issues/120)) ([e62d7fd](https://github.com/sandovaldavid/kioku/commit/e62d7fd92252b8a8e7d5f897e1a06ba0de655f34))
+
 ## [1.8.0-beta.8](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.7...v1.8.0-beta.8) (2026-06-29)
 
 
