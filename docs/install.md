@@ -213,6 +213,31 @@ ollama list
 ollama pull nomic-embed-text
 ```
 
+## Zotero / BibTeX
+
+Kioku can import a BibTeX library as literature notes (`import_bibtex`) and reconstruct a
+`.bib` file from them later (`export_bibtex`), both in `ResearchTools` (group `research`).
+There's no live network integration with Zotero yet — the recommended flow is via
+**Better BibTeX**, which keeps a `.bib` file on disk in sync with your Zotero library:
+
+1. Install the [Better BibTeX](https://retorque.re/zotero-better-bibtex/) Zotero plugin.
+2. In Zotero, right-click a collection → **Export Collection…** → format
+   **Better BibLaTeX** (or **Better BibTeX**) → check **Keep updated** so Zotero
+   auto-rewrites the `.bib` file whenever the collection changes.
+3. Save the export somewhere your agent can read (inside the vault, or any local path), then
+   ask your agent to run `import_bibtex` on it — e.g. "import my Zotero library from
+   `~/Zotero/my-library.bib`".
+4. Whenever Zotero re-exports the file, re-run `import_bibtex` with the same source: entries
+   are deduplicated by `citekey`, so already-imported notes are left untouched. Pass
+   `update_existing=true` if you want Zotero-side metadata edits to also refresh the note's
+   frontmatter (the note body — your summary, key ideas, quotes — is never overwritten).
+5. Use `dry_run=true` first if you want to preview what would be created/updated before
+   writing anything.
+
+A future integration with Zotero's local HTTP API (`localhost:23119`) is possible but adds
+network coupling that the file-based Better BibTeX flow avoids — it isn't planned unless
+this file-based flow proves insufficient.
+
 ## Next Steps
 
 - Read the [Architecture Plan](planning.md) to understand how Kioku works

@@ -13,8 +13,376 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations are read-only and require no external dependencies.
 /// </summary>
 [McpServerToolType]
-public sealed partial class ResearchTools(VaultIndexService vault, KiokuConfiguration config, IHttpClientFactory httpClientFactory)
+public sealed partial class ResearchTools(
+    VaultIndexService vault,
+    KiokuConfiguration config,
+    IHttpClientFactory httpClientFactory,
+    VaultConfigService vaultConfig)
 {
+    // -------------------------------------------------------------------------
+    // import_bibtex
+    // -------------------------------------------------------------------------
+
+    [McpServerTool, Description(
+        "Imports a BibTeX (.bib) file or raw BibTeX content as literature notes, one per entry. " +
+        "Parses tolerantly: malformed entries are reported individually rather than aborting the " +
+        "whole import. Deduplicates by 'citekey' — re-importing the same file never creates " +
+        "duplicates. All BibTeX fields are stored in frontmatter, so export_bibtex can reconstruct " +
+        "the original entries losslessly. Use dry_run=true to preview before writing.")]
+    public async Task<string> import_bibtex(
+        [Description("Path to a .bib file (absolute, vault-relative, or CWD-relative), or raw BibTeX content.")] string source,
+        [Description("Folder to create literature notes in. Default: the configured 'literature' folder, or 'Literature'.")] string folder = "",
+        [Description("If a note with the same citekey already exists, refresh its frontmatter fields (body is left untouched). Default: skip existing entries.")] bool update_existing = false,
+        [Description("Preview what would be created/updated/skipped without writing any files.")] bool dry_run = false)
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        string content;
+        var sourcePath = ResolveSourcePath(source);
+        if (sourcePath is not null)
+        {
+            content = await File.ReadAllTextAsync(sourcePath, Encoding.UTF8);
+        }
+        else
+        {
+            content = source;
+        }
+
+        var parsed = BibtexParser.Parse(content);
+        if (parsed.Entries.Count == 0 && parsed.Errors.Count == 0)
+        {
+            return "[error] No BibTeX entries found in the given source.";
+        }
+
+        var targetFolder = string.IsNullOrWhiteSpace(folder)
+            ? (vaultConfig.GetFolder("literature") ?? "Literature")
+            : folder;
+
+        var existingByCitekey = BuildCitekeyIndex();
+        var usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var created = new List<string>();
+        var updatedEntries = new List<string>();
+        var skipped = new List<string>();
+
+        foreach (var entry in parsed.Entries)
+        {
+            if (existingByCitekey.TryGetValue(entry.CiteKey, out var existingNote))
+            {
+                if (!update_existing)
+                {
+                    skipped.Add($"`{entry.CiteKey}` — already exists at {existingNote.VaultRelativePath}");
+                    continue;
+                }
+
+                if (!dry_run)
+                {
+                    await UpdateLiteratureNoteFrontmatterAsync(existingNote, entry);
+                }
+
+                updatedEntries.Add($"`{entry.CiteKey}` — {existingNote.VaultRelativePath}");
+                continue;
+            }
+
+            var fileName = BuildUniqueFileName(entry, targetFolder, usedFileNames);
+            usedFileNames.Add(fileName);
+
+            if (!dry_run)
+            {
+                await CreateLiteratureNoteFromBibtexAsync(entry, targetFolder, fileName);
+            }
+
+            created.Add($"`{entry.CiteKey}` — {targetFolder.TrimEnd('/')}/{fileName}.md");
+        }
+
+        return FormatImportReport(dry_run, created, updatedEntries, skipped, parsed.Errors);
+    }
+
+    // -------------------------------------------------------------------------
+    // export_bibtex
+    // -------------------------------------------------------------------------
+
+    [McpServerTool, Description(
+        "Reconstructs a BibTeX (.bib) document from literature notes that carry a 'citekey' in " +
+        "frontmatter, including notes originally created by import_bibtex. Complements " +
+        "export_citations (which exports Markdown/BibTeX stubs) with a full round-trip-capable export.")]
+    public string export_bibtex(
+        [Description("Folder to scan (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        var notes = string.IsNullOrWhiteSpace(folder)
+            ? vault.GetAllNotes()
+            : vault.GetNotesInFolder(folder);
+
+        var withCitekey = notes
+            .Where(n => n.Metadata.ExtraFields.ContainsKey("citekey"))
+            .OrderBy(n => n.Metadata.ExtraFields["citekey"], StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (withCitekey.Count == 0)
+        {
+            return "[ok] No notes with 'citekey' found in the vault. Import a .bib file with import_bibtex first.";
+        }
+
+        var sb = new StringBuilder();
+        foreach (var note in withCitekey)
+        {
+            AppendBibtexEntry(sb, note.Metadata.ExtraFields);
+        }
+
+        return $"[ok] Exported {withCitekey.Count} BibTeX entries:\n\n{sb}";
+    }
+
+    // -------------------------------------------------------------------------
+    // BibTeX helpers
+    // -------------------------------------------------------------------------
+
+    private string? ResolveSourcePath(string source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return null;
+        }
+
+        if (Path.IsPathRooted(source) && File.Exists(source))
+        {
+            return source;
+        }
+
+        var vaultRelative = Path.Combine(config.VaultPath, source);
+        if (File.Exists(vaultRelative))
+        {
+            return vaultRelative;
+        }
+
+        if (File.Exists(source))
+        {
+            return Path.GetFullPath(source);
+        }
+
+        return null;
+    }
+
+    private Dictionary<string, Note> BuildCitekeyIndex()
+    {
+        var index = new Dictionary<string, Note>(StringComparer.OrdinalIgnoreCase);
+        foreach (var note in vault.GetAllNotes())
+        {
+            if (note.Metadata.ExtraFields.TryGetValue("citekey", out var citekey) &&
+                !string.IsNullOrWhiteSpace(citekey) &&
+                !index.ContainsKey(citekey))
+            {
+                index[citekey] = note;
+            }
+        }
+
+        return index;
+    }
+
+    private string BuildUniqueFileName(BibtexEntry entry, string folder, HashSet<string> usedInBatch)
+    {
+        entry.Fields.TryGetValue("title", out var title);
+        entry.Fields.TryGetValue("year", out var year);
+
+        var baseName = $"{year ?? "n.d."}-{NoteHelpers.SanitizeFileName(title ?? entry.CiteKey)}";
+        var withCitekeySuffix = $"{baseName}-{NoteHelpers.SanitizeFileName(entry.CiteKey)}";
+
+        if (usedInBatch.Contains(baseName) || File.Exists(BuildFilePath(folder, baseName)))
+        {
+            return withCitekeySuffix;
+        }
+
+        return baseName;
+    }
+
+    private string BuildFilePath(string folder, string fileName) =>
+        NoteHelpers.BuildFilePath($"{folder.TrimEnd('/')}/{fileName}", config.VaultPath);
+
+    private async Task CreateLiteratureNoteFromBibtexAsync(BibtexEntry entry, string folder, string fileName)
+    {
+        var filePath = BuildFilePath(folder, fileName);
+        var extraFields = BuildExtraFields(entry);
+        var body = BuildBibtexNoteBody(entry);
+
+        var frontmatter = NoteHelpers.BuildFrontmatter(
+            ["literature"], "literature", "draft",
+            DateOnly.FromDateTime(DateTime.Today), extraFields: extraFields);
+
+        var dir = Path.GetDirectoryName(filePath)!;
+        Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
+    }
+
+    private async Task UpdateLiteratureNoteFrontmatterAsync(Note existingNote, BibtexEntry entry)
+    {
+        var rawContent = await File.ReadAllTextAsync(existingNote.FilePath, Encoding.UTF8);
+        var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
+        var body = rawContent[bodyStart..];
+
+        var existingMeta = existingNote.Metadata;
+        var extraFields = BuildExtraFields(entry);
+
+        var frontmatter = NoteHelpers.BuildFrontmatter(
+            existingMeta.Tags, existingMeta.NoteType, existingMeta.Status,
+            existingMeta.Date, domain: existingMeta.Domain, extraFields: extraFields);
+
+        await File.WriteAllTextAsync(existingNote.FilePath, frontmatter + body, Encoding.UTF8);
+    }
+
+    private static Dictionary<string, string> BuildExtraFields(BibtexEntry entry)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["citekey"] = FormatFrontmatterValue(entry.CiteKey),
+            ["bibtex-type"] = FormatFrontmatterValue(entry.Type),
+        };
+
+        foreach (var (name, value) in entry.Fields)
+        {
+            fields[name] = FormatFrontmatterValue(value);
+        }
+
+        return fields;
+    }
+
+    private static string FormatFrontmatterValue(string value)
+    {
+        var singleLine = value.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return $"\"{singleLine}\"";
+    }
+
+    private static string BuildBibtexNoteBody(BibtexEntry entry)
+    {
+        entry.Fields.TryGetValue("title", out var title);
+        entry.Fields.TryGetValue("author", out var author);
+        entry.Fields.TryGetValue("year", out var year);
+        entry.Fields.TryGetValue("journal", out var journal);
+        entry.Fields.TryGetValue("booktitle", out var booktitle);
+        entry.Fields.TryGetValue("doi", out var doi);
+        entry.Fields.TryGetValue("url", out var url);
+        entry.Fields.TryGetValue("abstract", out var abstractText);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {title ?? entry.CiteKey}\n");
+        sb.AppendLine("## Metadata\n");
+        sb.AppendLine($"- **Author:** {author ?? "Unknown"}");
+        sb.AppendLine($"- **Year:** {year ?? "n.d."}");
+
+        var venue = !string.IsNullOrWhiteSpace(journal) ? journal : booktitle;
+        if (!string.IsNullOrWhiteSpace(venue))
+        {
+            sb.AppendLine($"- **Venue:** {venue}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(doi))
+        {
+            sb.AppendLine($"- **DOI:** {doi}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            sb.AppendLine($"- **URL:** {url}");
+        }
+
+        sb.AppendLine("\n## Summary\n");
+        sb.AppendLine(!string.IsNullOrWhiteSpace(abstractText) ? abstractText : "*Add your summary here.*");
+        sb.AppendLine("\n## Key Ideas\n");
+        sb.AppendLine("- ");
+        sb.AppendLine("\n## Quotes\n");
+        sb.AppendLine("> ");
+        sb.AppendLine("\n## My Notes\n");
+        sb.AppendLine("*Add your personal reflections here.*");
+
+        return sb.ToString();
+    }
+
+    private static void AppendBibtexEntry(StringBuilder sb, IReadOnlyDictionary<string, string> extraFields)
+    {
+        var citekey = extraFields.GetValueOrDefault("citekey", "unknown");
+        var type = extraFields.GetValueOrDefault("bibtex-type", "misc");
+
+        sb.AppendLine($"@{type}{{{citekey},");
+
+        foreach (var (name, value) in extraFields)
+        {
+            if (name.Equals("citekey", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("bibtex-type", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            sb.AppendLine($"  {name} = {{{value}}},");
+        }
+
+        sb.AppendLine("}");
+        sb.AppendLine();
+    }
+
+    private static string FormatImportReport(
+        bool dryRun,
+        List<string> created,
+        List<string> updated,
+        List<string> skipped,
+        IReadOnlyList<string> parseErrors)
+    {
+        var sb = new StringBuilder();
+        var verb = dryRun ? "[dry-run] Would import" : "[ok] Imported";
+        sb.AppendLine($"{verb} {created.Count + updated.Count} entries " +
+                      $"({created.Count} new, {updated.Count} updated, {skipped.Count} skipped, {parseErrors.Count} failed to parse):");
+        sb.AppendLine();
+
+        if (created.Count > 0)
+        {
+            sb.AppendLine(dryRun ? "**Would create:**" : "**Created:**");
+            foreach (var line in created)
+            {
+                sb.AppendLine($"- {line}");
+            }
+
+            sb.AppendLine();
+        }
+
+        if (updated.Count > 0)
+        {
+            sb.AppendLine(dryRun ? "**Would update:**" : "**Updated:**");
+            foreach (var line in updated)
+            {
+                sb.AppendLine($"- {line}");
+            }
+
+            sb.AppendLine();
+        }
+
+        if (skipped.Count > 0)
+        {
+            sb.AppendLine("**Skipped (already exist):**");
+            foreach (var line in skipped)
+            {
+                sb.AppendLine($"- {line}");
+            }
+
+            sb.AppendLine();
+        }
+
+        if (parseErrors.Count > 0)
+        {
+            sb.AppendLine("**Parse errors:**");
+            foreach (var error in parseErrors)
+            {
+                sb.AppendLine($"- {error}");
+            }
+        }
+
+        return sb.ToString();
+    }
+
     // -------------------------------------------------------------------------
     // export_citations
     // -------------------------------------------------------------------------
