@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 02:14 UTC
+**Generated:** 2026-07-04 05:21 UTC
 
 ## Summary
 
@@ -694,6 +694,16 @@ Executes a Dataview DQL query via the Obsidian plugin bridge and returns results
 
 ## ResearchTools
 
+### `export_bibtex`
+
+Reconstructs a BibTeX (.bib) document from literature notes that carry a 'citekey' in frontmatter, including notes originally created by import_bibtex. Complements export_citations (which exports Markdown/BibTeX stubs) with a full round-trip-capable export.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scan (vault-relative). Leave empty to scan the entire vault. |
+
 ### `export_citations`
 
 Exports citation keys found in note frontmatter ('citekey' field) as a BibTeX stub list or Markdown table. Useful for building a bibliography from your literature notes. Each note with a 'citekey' in its extra frontmatter fields is included.
@@ -725,6 +735,19 @@ Identifies citekeys referenced inline in notes (as [@citekey] or @citekey) that 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `folder` | String | No | Folder to scan for literature notes (vault-relative). Leave empty to scan the entire vault. |
+
+### `import_bibtex`
+
+Imports a BibTeX (.bib) file or raw BibTeX content as literature notes, one per entry. Parses tolerantly: malformed entries are reported individually rather than aborting the whole import. Deduplicates by 'citekey' — re-importing the same file never creates duplicates. All BibTeX fields are stored in frontmatter, so export_bibtex can reconstruct the original entries losslessly. Use dry_run=true to preview before writing.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `source` | String | Yes | Path to a .bib file (absolute, vault-relative, or CWD-relative), or raw BibTeX content. |
+| `folder` | String | No | Folder to create literature notes in. Default: the configured 'literature' folder, or 'Literature'. |
+| `update_existing` | Boolean | No | If a note with the same citekey already exists, refresh its frontmatter fields (body is left untouched). Default: skip existing entries. |
+| `dry_run` | Boolean | No | Preview what would be created/updated/skipped without writing any files. |
 
 ### `share_as_gist`
 
@@ -1233,7 +1256,7 @@ MIME type: `application/json`
 
 ---
 
-**Total tools:** 113
+**Total tools:** 115
 
 **Total prompts:** 4
 
