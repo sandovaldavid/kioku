@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest a new tool, capability, or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! Please check [open issues](https://github.com/sandovaldavid/kioku/issues) and [docs/tasks/](https://github.com/sandovaldavid/kioku/tree/develop/docs/tasks) first to avoid duplicates — there's a good chance it's already planned.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - MCP server (new tool / capability)
+        - Obsidian plugin
+        - Both / bridge between them
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do that Kioku doesn't support today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? A new MCP tool, a config option, a plugin command, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you're using today, or other approaches you considered.
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else — links to similar features in other tools, example vault structures, etc.
