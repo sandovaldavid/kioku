@@ -18,8 +18,8 @@ Informational only; shown in logs and status tools.
 ## `folders` — Where notes are created
 
 Maps a folder *role* to a vault-relative path. Tools like `create_zettel`,
-`create_literature_note`, `start_work_session` and the template tools consult this map
-when the caller does not pass an explicit folder.
+`create_literature_note`, `start_work_session`, `generate_digest` and the template tools
+consult this map when the caller does not pass an explicit folder.
 
 ```yaml
 folders:

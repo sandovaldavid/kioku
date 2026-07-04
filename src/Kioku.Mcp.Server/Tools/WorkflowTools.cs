@@ -14,7 +14,12 @@ namespace Kioku.Mcp.Server.Tools;
 /// and action item extraction from note content.
 /// </summary>
 [McpServerToolType]
-public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfiguration config)
+public sealed partial class WorkflowTools(
+    VaultIndexService vault,
+    KiokuConfiguration config,
+    TaskService tasks,
+    VaultConfigService vaultConfig,
+    GenerationService generation)
 {
     private static readonly string[] TemplateFolderCandidates =
         ["Templates", "99_System/Templates", "_templates", "System/Templates"];
@@ -281,7 +286,174 @@ public sealed partial class WorkflowTools(VaultIndexService vault, KiokuConfigur
         return sb.ToString();
     }
 
+    // generate_digest
+
+    [McpServerTool, Description(
+        "Generates a digest note summarizing recent vault activity: notes created or modified, " +
+        "overdue and upcoming tasks, newly orphaned notes, and draft/inbox notes awaiting review. " +
+        "period='day' (default) covers today since local midnight; period='week' covers the last " +
+        "7 days. Written as 'Digest {yyyy-MM-dd}.md' in the 'daily' folder (folders.daily in " +
+        ".kioku/config.yml, falling back to target_folder, then the vault root) — re-running on " +
+        "the same day replaces the note, since it's fully regenerated each time. If local " +
+        "generation (KIOKU_GEN_MODEL) is available, adds a short AI-generated Summary section; " +
+        "otherwise the digest is purely structural. Set dry_run=true to preview the markdown " +
+        "without writing anything.")]
+    public async Task<string> generate_digest(
+        [Description("Digest period: 'day' (default, since local midnight) or 'week' (last 7 days).")] string period = "day",
+        [Description("Destination folder (relative to vault root) used only if folders.daily isn't configured. Leave empty for the vault root.")] string target_folder = "",
+        [Description("If true, returns the digest markdown without writing any file.")] bool dry_run = false)
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        var isWeek = period.Trim().Equals("week", StringComparison.OrdinalIgnoreCase);
+        var periodDays = isWeek ? 7 : 1;
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var periodStart = DateTime.Now.Date.AddDays(-(periodDays - 1));
+
+        var recentNotes = vault.GetAllNotes()
+            .Where(n => n.LastModified.LocalDateTime >= periodStart)
+            .OrderByDescending(n => n.LastModified)
+            .ToList();
+
+        var allTasks = await tasks.GetAllTasksAsync();
+        var overdueTasks = allTasks.Where(t => t.IsOverdue).OrderBy(t => t.DueDate).ToList();
+        var dueSoonTasks = allTasks
+            .Where(t => !t.IsCompleted && t.DueDate.HasValue &&
+                        t.DueDate.Value >= today && t.DueDate.Value <= today.AddDays(periodDays))
+            .OrderBy(t => t.DueDate)
+            .ToList();
+
+        var orphanNotes = recentNotes
+            .Where(n => !n.OutgoingLinks.Any() && !vault.GetBacklinks(n.Name).Any())
+            .ToList();
+
+        var reviewNotes = recentNotes
+            .Where(n => n.Metadata.Status is not null &&
+                        (n.Metadata.Status.Equals("draft", StringComparison.OrdinalIgnoreCase) ||
+                         n.Metadata.Status.Equals("inbox", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        var aiSummary = await GenerateDigestSummaryAsync(recentNotes);
+
+        var markdown = BuildDigestMarkdown(
+            isWeek, periodStart, today, recentNotes, overdueTasks, dueSoonTasks, orphanNotes, reviewNotes, aiSummary);
+
+        if (dry_run)
+        {
+            return $"[info] Dry run — digest not written.\n\n{markdown}";
+        }
+
+        var folder = vaultConfig.GetFolder("daily")
+            ?? (string.IsNullOrWhiteSpace(target_folder) ? null : target_folder);
+        var folderPath = string.IsNullOrWhiteSpace(folder)
+            ? config.VaultPath
+            : NoteHelpers.EnsureInsideVault(config.VaultPath, Path.Combine(config.VaultPath, folder));
+        Directory.CreateDirectory(folderPath);
+
+        var fileName = $"Digest {today:yyyy-MM-dd}.md";
+        var filePath = Path.Combine(folderPath, fileName);
+        var replaced = File.Exists(filePath);
+
+        var frontmatter = NoteHelpers.BuildFrontmatter(tags: ["digest"], type: "log", status: null, date: today);
+        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + markdown, Encoding.UTF8);
+
+        var relPath = Path.GetRelativePath(config.VaultPath, filePath);
+        return $"[ok] Digest {(replaced ? "regenerated" : "generated")}: {relPath}";
+    }
+
     // Private helpers
+
+    private async Task<string?> GenerateDigestSummaryAsync(IReadOnlyList<Note> recentNotes)
+    {
+        if (!generation.IsAvailable || recentNotes.Count == 0)
+        {
+            return null;
+        }
+
+        var snippets = recentNotes
+            .Take(15)
+            .Select(n => $"- {n.Name}: {Truncate(n.PlainText, 200)}");
+
+        var prompt = "Summarize the recent vault activity below in 3-4 short lines, highlighting " +
+                     "themes and notable items. Plain prose, no headings or bullet points.\n\n" +
+                     string.Join("\n", snippets);
+
+        return await generation.GenerateAsync(prompt);
+    }
+
+    private static string Truncate(string text, int maxLength) =>
+        text.Length <= maxLength ? text : text[..maxLength] + "...";
+
+    private static string BuildDigestMarkdown(
+        bool isWeek,
+        DateTime periodStart,
+        DateOnly today,
+        IReadOnlyList<Note> recentNotes,
+        IReadOnlyList<TaskItem> overdueTasks,
+        IReadOnlyList<TaskItem> dueSoonTasks,
+        IReadOnlyList<Note> orphanNotes,
+        IReadOnlyList<Note> reviewNotes,
+        string? aiSummary)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {(isWeek ? "Weekly" : "Daily")} Digest — {today:yyyy-MM-dd}");
+        sb.AppendLine();
+        sb.AppendLine(isWeek
+            ? $"> Covers the last 7 days ({DateOnly.FromDateTime(periodStart):yyyy-MM-dd} to {today:yyyy-MM-dd})."
+            : $"> Covers today, since local midnight ({periodStart:yyyy-MM-dd HH:mm}).");
+        sb.AppendLine();
+
+        if (aiSummary is not null)
+        {
+            sb.AppendLine("## Summary");
+            sb.AppendLine();
+            sb.AppendLine(aiSummary.Trim());
+            sb.AppendLine();
+        }
+
+        AppendSection(sb, "Activity", 2, recentNotes
+            .Select(n => $"- [[{n.Name}]] (modified: {n.LastModified.LocalDateTime:yyyy-MM-dd HH:mm})"));
+
+        sb.AppendLine("## Tasks");
+        sb.AppendLine();
+        AppendSection(sb, "Overdue", 3, overdueTasks
+            .Select(t => $"- [ ] {t.Text} (due: {t.DueDate:yyyy-MM-dd}) — [[{t.NoteName}]]"));
+        AppendSection(sb, "Due soon", 3, dueSoonTasks
+            .Select(t => $"- [ ] {t.Text} (due: {t.DueDate:yyyy-MM-dd}) — [[{t.NoteName}]]"));
+
+        AppendSection(sb, "New orphaned notes", 2, orphanNotes
+            .Select(n => $"- [[{n.Name}]]"));
+
+        AppendSection(sb, "To review", 2, reviewNotes
+            .Select(n => $"- [[{n.Name}]] (status: {n.Metadata.Status})"));
+
+        return sb.ToString();
+    }
+
+    private static void AppendSection(StringBuilder sb, string heading, int level, IEnumerable<string> lines)
+    {
+        sb.AppendLine($"{new string('#', level)} {heading}");
+        sb.AppendLine();
+
+        var items = lines.ToList();
+        if (items.Count == 0)
+        {
+            sb.AppendLine("_Nothing to report._");
+        }
+        else
+        {
+            foreach (var line in items)
+            {
+                sb.AppendLine(line);
+            }
+        }
+
+        sb.AppendLine();
+    }
 
     private string? ResolveTemplatesFolder(string? overrideFolder)
     {

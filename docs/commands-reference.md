@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 00:26 UTC
+**Generated:** 2026-07-04 00:59 UTC
 
 ## Summary
 
@@ -1051,6 +1051,18 @@ Extracts all unchecked task checkboxes from a note and optionally consolidates t
 | `output_note` | String | No | If provided, creates a new note at this path containing the extracted action items. |
 | `dry_run` | Boolean | No | If true, only reports found action items without creating the output note. |
 
+### `generate_digest`
+
+Generates a digest note summarizing recent vault activity: notes created or modified, overdue and upcoming tasks, newly orphaned notes, and draft/inbox notes awaiting review. period='day' (default) covers today since local midnight; period='week' covers the last 7 days. Written as 'Digest {yyyy-MM-dd}.md' in the 'daily' folder (folders.daily in .kioku/config.yml, falling back to target_folder, then the vault root) — re-running on the same day replaces the note, since it's fully regenerated each time. If local generation (KIOKU_GEN_MODEL) is available, adds a short AI-generated Summary section; otherwise the digest is purely structural. Set dry_run=true to preview the markdown without writing anything.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `period` | String | No | Digest period: 'day' (default, since local midnight) or 'week' (last 7 days). |
+| `target_folder` | String | No | Destination folder (relative to vault root) used only if folders.daily isn't configured. Leave empty for the vault root. |
+| `dry_run` | Boolean | No | If true, returns the digest markdown without writing any file. |
+
 ### `list_templates`
 
 Lists all available note templates in the vault's templates folder. Returns template names and the variables they accept ({{ variable }} syntax).
@@ -1130,4 +1142,4 @@ Finds notes that are semantically related to a given note and appends wikilinks 
 
 ---
 
-**Total tools:** 109
+**Total tools:** 110
