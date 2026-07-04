@@ -1,45 +1,45 @@
-# P1-02 — Auto-actualización de wikilinks en move/rename
+# P1-02 — Auto-update wikilinks on move/rename
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P1 |
-| Rama | `feat/wikilink-auto-update` |
+| Priority | P1 |
+| Branch | `feat/wikilink-auto-update` |
 | Commit | `feat(server): update inbound wikilinks on move_note and rename_note` |
-| Tamaño | M |
+| Size | M |
 | Spec | [features/02-wikilink-auto-update.md](../features/02-wikilink-auto-update.md) |
-| Dependencias | Ninguna |
+| Dependencies | None |
 
-## Objetivo
+## Objective
 
-Que `move_note` y `rename_note` reescriban los wikilinks entrantes (`[[x]]`, `[[x|alias]]`,
-`[[x#h]]`, `![[x]]`) usando el índice de backlinks, con `update_links=true` por defecto y
-`dry_run` de previsualización. Elimina la limitación declarada de v1.
+Make `move_note` and `rename_note` rewrite inbound wikilinks (`[[x]]`, `[[x|alias]]`,
+`[[x#h]]`, `![[x]]`) using the backlinks index, with `update_links=true` by default and a
+`dry_run` preview. Removes the limitation documented in v1.
 
-## Alcance
+## Scope
 
-- Nuevo `Services/WikilinkRewriter.cs` (localización de enlaces reutilizando la lógica de
-  `MarkdownTextExtractor`, reemplazo por spans, exclusión de code blocks/frontmatter).
-- `NoteCommandTools.move_note` / `rename_note`: params nuevos, reporte
-  `updated N wikilinks in M notes`, reindexado de notas tocadas.
-- Regla de ambigüedad: si existe otra nota homónima, no tocar enlaces por nombre corto y
-  reportarlos.
+- New `Services/WikilinkRewriter.cs` (link location reusing `MarkdownTextExtractor`'s
+  logic, span-based replacement, excluding code blocks/frontmatter).
+- `NoteCommandTools.move_note` / `rename_note`: new params, report
+  `updated N wikilinks in M notes`, reindexing of touched notes.
+- Ambiguity rule: if another note with the same name exists, don't touch short-name links
+  and report them.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] Tests de reescritura: nombre simple, alias, heading, block-ref, embed, enlaces en
-  code blocks (no tocar), nombres homónimos (no tocar + reportar), rutas completas en move.
-- [ ] Test de integración round-trip con `VaultFixture`: rename → backlinks siguen resolviendo.
-- [ ] `dry_run=true` no modifica ningún archivo y lista el plan completo.
-- [ ] `update_links=false` reproduce el comportamiento actual.
-- [ ] `docs/commands-reference.md` regenerado; descripciones de ambos tools ya no declaran
-  la limitación.
-- [ ] Verificación end-to-end en un vault real: renombrar una nota con varios backlinks y
-  comprobar en Obsidian que los enlaces siguen vivos.
+- [ ] Rewrite tests: simple name, alias, heading, block-ref, embed, links inside
+  code blocks (don't touch), notes sharing a name (don't touch + report), full paths on move.
+- [ ] Round-trip integration test with `VaultFixture`: rename → backlinks still resolve.
+- [ ] `dry_run=true` doesn't modify any file and lists the full plan.
+- [ ] `update_links=false` reproduces current behavior.
+- [ ] `docs/commands-reference.md` regenerated; both tools' descriptions no longer state
+  the limitation.
+- [ ] End-to-end verification in a real vault: rename a note with several backlinks and
+  confirm in Obsidian that the links still resolve.
 
-## Archivos
+## Files
 
-- `src/Kioku.Mcp.Server/Services/WikilinkRewriter.cs` (nuevo)
+- `src/Kioku.Mcp.Server/Services/WikilinkRewriter.cs` (new)
 - `src/Kioku.Mcp.Server/Tools/NoteCommandTools.cs`
-- `src/Kioku.Mcp.Server/Services/MarkdownTextExtractor.cs` (si hay que exponer posiciones)
-- `src/Kioku.Mcp.Server.Tests/WikilinkRewriterTests.cs` (nuevo) + integración
+- `src/Kioku.Mcp.Server/Services/MarkdownTextExtractor.cs` (if positions need to be exposed)
+- `src/Kioku.Mcp.Server.Tests/WikilinkRewriterTests.cs` (new) + integration
 - `docs/commands-reference.md`

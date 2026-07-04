@@ -1,44 +1,45 @@
-# P1-05 — Cobertura de tests: transporte HTTP, ApiKeyMiddleware y bridge
+# P1-05 — Test coverage: HTTP transport, ApiKeyMiddleware and bridge
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P1 |
-| Rama | `test/http-and-bridge-coverage` |
+| Priority | P1 |
+| Branch | `test/http-and-bridge-coverage` |
 | Commit | `test(server): cover http transport, api key middleware and bridge service` |
-| Tamaño | M |
-| Spec | — (gap señalado en [review/06-testing-strategy.md](../review/06-testing-strategy.md)) |
-| Dependencias | Ninguna; recomendado **antes** de P1-04 |
+| Size | M |
+| Spec | — (gap flagged in [review/06-testing-strategy.md](../review/06-testing-strategy.md)) |
+| Dependencies | None; recommended **before** P1-04 |
 
-## Contexto
+## Context
 
-Los ~122 tests actuales cubren parsers/helpers/write-tools, pero **cero cobertura** de:
-transporte HTTP (`RunHttpAsync`, `/health`, CORS), `Middleware/ApiKeyMiddleware.cs` y
-`Services/ObsidianBridgeService.cs` (correlación por requestId, timeouts, reconexión,
-mismatch de versión de protocolo).
+The ~122 current tests cover parsers/helpers/write-tools, but there is **zero coverage**
+of: HTTP transport (`RunHttpAsync`, `/health`, CORS), `Middleware/ApiKeyMiddleware.cs` and
+`Services/ObsidianBridgeService.cs` (requestId correlation, timeouts, reconnection,
+protocol version mismatch).
 
-## Alcance
+## Scope
 
-1. **ApiKeyMiddleware** (unit, prioridad máxima — es la frontera de seguridad):
-   sin clave → pasa; `/health` exento; Bearer correcto/incorrecto/ausente/case; espacios.
-2. **HTTP transport** (integración con `WebApplicationFactory` o arranque en puerto
-   efímero): `/health` 200, `/mcp` responde initialize, 401 sin token cuando
-   `KIOKU_API_KEY` está configurada.
-3. **ObsidianBridgeService** (unit/integración con un WebSocket server fake en proceso,
-   espejo del enfoque del plugin en `protocol.contract.test.ts`): request/response con
-   requestId, timeout de 10s, comando desconocido, reconexión tras caída del server fake,
-   `protocolVersion` estampado.
+1. **ApiKeyMiddleware** (unit, top priority — it's the security boundary):
+   no key → passes; `/health` exempt; correct/incorrect/missing/case-mismatched Bearer;
+   whitespace.
+2. **HTTP transport** (integration with `WebApplicationFactory` or startup on an
+   ephemeral port): `/health` 200, `/mcp` responds to initialize, 401 without a token when
+   `KIOKU_API_KEY` is configured.
+3. **ObsidianBridgeService** (unit/integration with an in-process fake WebSocket server,
+   mirroring the plugin's approach in `protocol.contract.test.ts`): request/response with
+   requestId, 10s timeout, unknown command, reconnection after the fake server drops,
+   `protocolVersion` stamping.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] Cobertura nueva visible en Codecov (flag `server`) para los 3 componentes.
-- [ ] Los tests corren en CI sin red externa (todo en loopback/efímero) y sin flakiness
-  (timeouts generosos, puertos dinámicos).
-- [ ] `dotnet test` verde en linux y osx-arm64 (matriz de CI existente).
+- [ ] New coverage visible in Codecov (`server` flag) for the 3 components.
+- [ ] Tests run in CI with no external network (all on loopback/ephemeral) and no flakiness
+  (generous timeouts, dynamic ports).
+- [ ] `dotnet test` green on linux and osx-arm64 (existing CI matrix).
 
-## Archivos
+## Files
 
-- `src/Kioku.Mcp.Server.Tests/ApiKeyMiddlewareTests.cs` (nuevo)
-- `src/Kioku.Mcp.Server.Tests/HttpTransportTests.cs` (nuevo)
-- `src/Kioku.Mcp.Server.Tests/ObsidianBridgeServiceTests.cs` (nuevo, con fake WS server)
-- Posible `Microsoft.AspNetCore.Mvc.Testing` en el csproj de tests (scope `deps` si va en
-  commit aparte)
+- `src/Kioku.Mcp.Server.Tests/ApiKeyMiddlewareTests.cs` (new)
+- `src/Kioku.Mcp.Server.Tests/HttpTransportTests.cs` (new)
+- `src/Kioku.Mcp.Server.Tests/ObsidianBridgeServiceTests.cs` (new, with fake WS server)
+- Possibly `Microsoft.AspNetCore.Mvc.Testing` in the tests csproj (`deps` scope if done as
+  a separate commit)

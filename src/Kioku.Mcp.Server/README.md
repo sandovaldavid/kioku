@@ -1,16 +1,16 @@
 # Kioku MCP Server
 
-> Versión: **2.0.2** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
+> Version: **2.0.2** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
 
-Servidor MCP en C# .NET 10 que expone 117 herramientas en 18 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
+MCP server in C# .NET 10 that exposes 117 tools across 18 classes for AI agents to read, write, and organize an Obsidian vault. The full inventory with parameters lives in [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generated).
 
-## Arquitectura
+## Architecture
 
 ```
 MCP Transport (stdio / HTTP-SSE)
         │
         ▼
-  Program.cs — entry point dual (stdio | http)
+  Program.cs — dual entry point (stdio | http)
         │
         ├── Tools/        ← 17 [McpServerTool] classes
         ├── Services/     ← VaultIndex, Embedding, HybridSearch, etc.
@@ -18,11 +18,11 @@ MCP Transport (stdio / HTTP-SSE)
         └── Domain/       ← Note, NoteMetadata, SearchResult
 ```
 
-Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre. Las 14 clases restantes se activan por **grupos de capacidades** definidos en `{vault}/.kioku/config.yml` (por defecto todos habilitados) — ver [`docs/vault-config.md`](../../docs/vault-config.md).
+Only `NoteQueryTools`, `NoteCommandTools`, and `UtilityTools` are always registered. The remaining 14 classes are enabled by **capability groups** defined in `{vault}/.kioku/config.yml` (all enabled by default) — see [`docs/vault-config.md`](../../docs/vault-config.md).
 
 ## Tool Classes
 
-| Class | Grupo | Tools |
+| Class | Group | Tools |
 |---|---|---|
 | `NoteQueryTools` | core | `read_note`, `list_notes`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `get_note_metadata`, `get_note_embedding`, `get_vault_stats`, `inspect_note_tags` |
 | `NoteCommandTools` | core | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note`, `delete_note` |
@@ -45,54 +45,54 @@ Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre.
 
 ## Services
 
-| Service | Descripción |
+| Service | Description |
 |---|---|
-| `VaultIndexService` | FileSystemWatcher con debounce (500ms). Índice invertido en memoria para búsqueda full-text. Excluye `.obsidian/`, `.trash/`, `.agents/`. |
-| `EmbeddingService` | Cliente HTTP hacia Ollama (`nomic-embed-text`, 768-dim). Degradación grácil si Ollama no está disponible. |
-| `EmbeddingPersistence` | Caché binaria en `{vault}/.kioku/embeddings.bin` (~15MB para 5000 notas). Carga en <100ms. |
-| `HybridSearchService` | Combina keyword + semántico con Reciprocal Rank Fusion (k=60). |
-| `TaskService` | Escanea checkboxes nativos de Obsidian (`[ ]`, `[x]`) con soporte para fechas de vencimiento. |
-| `ObsidianBridgeService` | Cliente WebSocket hacia el plugin de Obsidian (`ws://localhost:{port}`). Reconexión automática. |
-| `VaultConfigService` | Carga `{vault}/.kioku/config.yml`: carpetas, dominios, defaults, exclusiones, herencia de tags y gating de grupos de capacidades. |
-| `MetricsService` | Contadores en memoria de llamadas a tools (opt-in vía `KIOKU_ENABLE_METRICS`). |
+| `VaultIndexService` | FileSystemWatcher with debounce (500ms). In-memory inverted index for full-text search. Excludes `.obsidian/`, `.trash/`, `.agents/`. |
+| `EmbeddingService` | HTTP client to Ollama (`nomic-embed-text`, 768-dim). Graceful degradation if Ollama is unavailable. |
+| `EmbeddingPersistence` | Binary cache at `{vault}/.kioku/embeddings.bin` (~15MB for 5000 notes). Loads in <100ms. |
+| `HybridSearchService` | Combines keyword + semantic with Reciprocal Rank Fusion (k=60). |
+| `TaskService` | Scans native Obsidian checkboxes (`[ ]`, `[x]`) with support for due dates. |
+| `ObsidianBridgeService` | WebSocket client to the Obsidian plugin (`ws://localhost:{port}`). Automatic reconnection. |
+| `VaultConfigService` | Loads `{vault}/.kioku/config.yml`: folders, domains, defaults, exclusions, tag inheritance, and capability group gating. |
+| `MetricsService` | In-memory tool call counters (opt-in via `KIOKU_ENABLE_METRICS`). |
 
-## Configuración
+## Configuration
 
-| Variable | Requerida | Default | Descripción |
+| Variable | Required | Default | Description |
 |---|---|---|---|
-| `KIOKU_VAULT_PATH` | ✅ | — | Ruta absoluta a la bóveda de Obsidian |
-| `KIOKU_TRANSPORT` | no | `stdio` | `stdio` o `http` |
-| `KIOKU_HTTP_PORT` | no | `5173` | Puerto HTTP-SSE |
-| `KIOKU_API_KEY` | no | — | Bearer token para auth HTTP |
-| `KIOKU_OLLAMA_URL` | no | `http://localhost:11434` | URL de Ollama |
-| `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Modelo de embeddings |
-| `KIOKU_GEN_MODEL` | no | — (deshabilitado) | Modelo de Ollama para generación local (`summarize_note`), ej. `llama3.2` |
-| `KIOKU_OBSIDIAN_PORT` | no | `7765` | Puerto WebSocket del plugin |
-| `KIOKU_BRIDGE_TOKEN` | no | — | Token compartido del bridge WebSocket; debe coincidir con el setting "Auth token" del plugin |
-| `KIOKU_MAX_RESULTS` | no | `20` | Máximo de resultados |
-| `KIOKU_GITHUB_TOKEN` | no | — | Token de GitHub para `share_as_gist` |
-| `KIOKU_ENABLE_METRICS` | no | `false` | Contadores de uso de tools (opt-in) |
-| `KIOKU_SENTRY_DSN` | no | — | DSN de Sentry para reporte de crashes (opt-in) |
+| `KIOKU_VAULT_PATH` | ✅ | — | Absolute path to the Obsidian vault |
+| `KIOKU_TRANSPORT` | no | `stdio` | `stdio` or `http` |
+| `KIOKU_HTTP_PORT` | no | `5173` | HTTP-SSE port |
+| `KIOKU_API_KEY` | no | — | Bearer token for HTTP auth |
+| `KIOKU_OLLAMA_URL` | no | `http://localhost:11434` | Ollama URL |
+| `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Embedding model |
+| `KIOKU_GEN_MODEL` | no | — (disabled) | Ollama model for local generation (`summarize_note`), e.g. `llama3.2` |
+| `KIOKU_OBSIDIAN_PORT` | no | `7765` | Plugin WebSocket port |
+| `KIOKU_BRIDGE_TOKEN` | no | — | Shared token for the WebSocket bridge; must match the plugin's "Auth token" setting |
+| `KIOKU_MAX_RESULTS` | no | `20` | Maximum number of results |
+| `KIOKU_GITHUB_TOKEN` | no | — | GitHub token for `share_as_gist` |
+| `KIOKU_ENABLE_METRICS` | no | `false` | Tool usage counters (opt-in) |
+| `KIOKU_SENTRY_DSN` | no | — | Sentry DSN for crash reporting (opt-in) |
 
-## Desarrollo
+## Development
 
 ```bash
 # Build
 dotnet build src/Kioku.Mcp.Server/
 
-# Publicar como self-contained
+# Publish as self-contained
 dotnet publish src/Kioku.Mcp.Server/ -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true
 
-# Ejecutar en modo stdio (default)
+# Run in stdio mode (default)
 KIOKU_VAULT_PATH=/path/to/vault dotnet run --project src/Kioku.Mcp.Server/
 
-# Ejecutar en modo HTTP-SSE
+# Run in HTTP-SSE mode
 KIOKU_VAULT_PATH=/path/to/vault dotnet run --project src/Kioku.Mcp.Server/ -- --http
 ```
 
 ## Logging
 
-Los logs se escriben a **stderr** (stdout está reservado para el protocolo MCP). Usar extensiones `ILogger<T>`:
+Logs are written to **stderr** (stdout is reserved for the MCP protocol). Use the `ILogger<T>` extensions:
 
 ```csharp
 _logger.Info("Indexing vault at {Path}", vaultPath);
@@ -100,10 +100,10 @@ _logger.Warn("Ollama unavailable: {Message}", ex.Message);
 _logger.Error(ex, "Failed to process note");
 ```
 
-## Dependencias
+## Dependencies
 
-- `ModelContextProtocol` + `ModelContextProtocol.AspNetCore` — SDK MCP oficial (stdio y HTTP-SSE)
-- `Markdig` — render Markdown → HTML para `export_note`
-- `YamlDotNet` — solo para `{vault}/.kioku/config.yml`
-- `Sentry.AspNetCore` — reporte de crashes opt-in (`KIOKU_SENTRY_DSN`)
-- El frontmatter se parsea con un parser manual `Span<char>` sin reflexión (`FrontmatterParser`); la similitud coseno usa SIMD (`Vector<float>`)
+- `ModelContextProtocol` + `ModelContextProtocol.AspNetCore` — official MCP SDK (stdio and HTTP-SSE)
+- `Markdig` — renders Markdown → HTML for `export_note`
+- `YamlDotNet` — only for `{vault}/.kioku/config.yml`
+- `Sentry.AspNetCore` — opt-in crash reporting (`KIOKU_SENTRY_DSN`)
+- Frontmatter is parsed with a manual `Span<char>` parser with no reflection (`FrontmatterParser`); cosine similarity uses SIMD (`Vector<float>`)
