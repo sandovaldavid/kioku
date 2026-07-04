@@ -40,7 +40,7 @@ Convenciones de cada tarea:
 | [P2-01](P2-01-local-generation.md) | Generación local con Ollama (`KIOKU_GEN_MODEL`) — **enabler** | `feat/local-generation` | M | [05](../features/05-local-generation.md) | ✅ Merged (#135) |
 | [P2-02](P2-02-link-suggestions.md) | Sugerencias de enlaces (`suggest_links` + apply) | `feat/link-suggestions` | M | [06](../features/06-link-suggestions.md) | Pendiente |
 | [P2-03](P2-03-daily-digest.md) | Daily digest (`generate_digest`) | `feat/daily-digest` | S | [07](../features/07-daily-digest.md) | ✅ Merged (#137) |
-| [P2-04](P2-04-smart-inbox.md) | Smart inbox (`process_inbox`) | `feat/smart-inbox` | S | [08](../features/08-smart-inbox.md) | Pendiente |
+| [P2-04](P2-04-smart-inbox.md) | Smart inbox (`process_inbox`) | `feat/smart-inbox` | S | [08](../features/08-smart-inbox.md) | ✅ Merged (#139) |
 | [P2-05](P2-05-mcp-prompts-resources.md) | MCP Prompts & Resources | `feat/mcp-prompts-resources` | M | [09](../features/09-mcp-prompts-resources.md) | Pendiente |
 
 ## P3 — Horizonte Next (investigación)
