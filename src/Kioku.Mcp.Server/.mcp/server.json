@@ -38,6 +38,10 @@
           "description": "Ollama embedding model name (default: nomic-embed-text)"
         },
         {
+          "name": "KIOKU_GEN_MODEL",
+          "description": "Ollama model for local text generation used by summarize_note (default: disabled), e.g. llama3.2"
+        },
+        {
           "name": "KIOKU_TRANSPORT",
           "description": "MCP transport: stdio or http (default: stdio)"
         },

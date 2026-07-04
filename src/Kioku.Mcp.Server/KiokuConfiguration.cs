@@ -45,6 +45,14 @@ public sealed class KiokuConfiguration
     public string EmbeddingModel { get; init; } = "nomic-embed-text";
 
     /// <summary>
+    /// Ollama model used for local text generation (summarize_note, etc.), e.g. "llama3.2".
+    /// If null or empty, local generation is disabled and its tools report
+    /// [error] [DEPENDENCY_UNAVAILABLE] with setup instructions.
+    /// Environment variable: KIOKU_GEN_MODEL
+    /// </summary>
+    public string? GenerationModel { get; init; }
+
+    /// <summary>
     /// Transport mode: "stdio" (default, v1) or "http" (v2 HTTP-SSE).
     /// Environment variable: KIOKU_TRANSPORT
     /// </summary>
@@ -114,6 +122,8 @@ public sealed class KiokuConfiguration
         var embeddingModel = Environment.GetEnvironmentVariable("KIOKU_EMBEDDING_MODEL")
             ?? "nomic-embed-text";
 
+        var generationModel = Environment.GetEnvironmentVariable("KIOKU_GEN_MODEL");
+
         var transport = Environment.GetEnvironmentVariable("KIOKU_TRANSPORT")
             ?? "stdio";
 
@@ -134,6 +144,7 @@ public sealed class KiokuConfiguration
             BridgeToken = bridgeToken,
             OllamaUrl = ollamaUrl,
             EmbeddingModel = embeddingModel,
+            GenerationModel = generationModel,
             Transport = transport,
             HttpPort = httpPort,
             ApiKey = apiKey,

@@ -3,11 +3,11 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-03 15:59 UTC
+**Generated:** 2026-07-04 00:26 UTC
 
 ## Summary
 
-Total tool classes: **17**
+Total tool classes: **18**
 
 ## AssetTools
 
@@ -99,6 +99,20 @@ Removes a CSS snippet file from the Obsidian vault's .obsidian/snippets/ folder.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `name` | String | Yes | Snippet name without .css extension (e.g. 'sepia-editor'). |
+
+## GenerationTools
+
+### `summarize_note`
+
+Summarizes a note locally using Ollama (no cloud calls). Styles: 'bullets' (default), 'paragraph', or 'eli5' (explain like I'm 5). Requires KIOKU_GEN_MODEL configured and Ollama running with that model pulled. Treat the output as a local draft, not a final answer — quality depends on the configured model.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to summarize. |
+| `style` | String | No | Summary style: 'bullets' (default), 'paragraph', or 'eli5'. |
+| `max_words` | Int32 | No | Approximate maximum word count for the summary (default: 150). |
 
 ## GitTools
 
@@ -1116,4 +1130,4 @@ Finds notes that are semantically related to a given note and appends wikilinks 
 
 ---
 
-**Total tools:** 108
+**Total tools:** 109

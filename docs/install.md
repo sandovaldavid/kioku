@@ -146,6 +146,7 @@ Add to your MCP client configuration:
 | `KIOKU_API_KEY` | No | — | Bearer token for HTTP authentication |
 | `KIOKU_OLLAMA_URL` | No | http://localhost:11434 | Ollama server URL |
 | `KIOKU_EMBEDDING_MODEL` | No | nomic-embed-text | Embedding model name |
+| `KIOKU_GEN_MODEL` | No | — (disabled) | Ollama model for local text generation (`summarize_note`), e.g. `llama3.2` |
 | `KIOKU_MAX_RESULTS` | No | 20 | Maximum number of search results |
 | `KIOKU_OBSIDIAN_PORT` | No | 7765 | WebSocket bridge port |
 | `KIOKU_BRIDGE_TOKEN` | No | — | Shared secret for the WebSocket bridge. Must match the plugin's "Auth token" setting |

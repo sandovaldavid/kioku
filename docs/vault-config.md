@@ -105,7 +105,7 @@ templates:
 ## `capabilities` — Enable/disable tool groups
 
 The core groups (`NoteQueryTools`, `NoteCommandTools`, `UtilityTools`) are always
-registered. The 14 optional groups can be gated:
+registered. The 15 optional groups can be gated:
 
 | Group | Tool class |
 |---|---|
@@ -123,6 +123,7 @@ registered. The 14 optional groups can be gated:
 | `git` | GitTools |
 | `restore` | RestoreTools |
 | `assets` | AssetTools |
+| `generation` | GenerationTools — requires `KIOKU_GEN_MODEL` (see [install.md](install.md)) |
 
 Semantics:
 

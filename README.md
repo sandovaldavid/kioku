@@ -4,7 +4,7 @@
 >
 > Versión actual: **1.8.0-beta.8** (`develop` · beta) <!-- x-release-please-version --> · [Ver releases](https://github.com/sandovaldavid/kioku/releases)
 
-Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 108 herramientas MCP en 17 clases y 22 comandos del bridge del plugin.
+Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 109 herramientas MCP en 18 clases y 22 comandos del bridge del plugin.
 
 ---
 
@@ -32,7 +32,7 @@ Agente de IA (Claude Code / agy)
     │
     ▼
 Kioku.Mcp.Server (C# .NET 10)
-    ├── 17 Tool Classes (108 herramientas MCP)
+    ├── 18 Tool Classes (109 herramientas MCP)
     ├── Services: VaultIndex · Embedding(Ollama) · HybridSearch
     │            TaskService · ObsidianBridge · Persistence
     └── Middleware: ApiKeyMiddleware
@@ -331,6 +331,7 @@ Para instalar el plugin localmente en tu Obsidian:
 | `KIOKU_API_KEY` | ❌ | Bearer token para autenticar el transporte HTTP | — |
 | `KIOKU_OLLAMA_URL` | ❌ | URL base del cliente Ollama local | `http://localhost:11434` |
 | `KIOKU_EMBEDDING_MODEL` | ❌ | Modelo de Ollama utilizado para embeddings | `nomic-embed-text` |
+| `KIOKU_GEN_MODEL` | ❌ | Modelo de Ollama para generación local (`summarize_note`), ej. `llama3.2` | — (deshabilitado) |
 | `KIOKU_MAX_RESULTS` | ❌ | Máximo de resultados de búsqueda | `20` |
 | `KIOKU_OBSIDIAN_PORT` | ❌ | Puerto del WebSocket bridge con Obsidian | `7765` |
 | `KIOKU_BRIDGE_TOKEN` | ❌ | Token compartido del bridge WebSocket; debe coincidir con el setting "Auth token" del plugin | — |
@@ -340,7 +341,7 @@ Para instalar el plugin localmente en tu Obsidian:
 
 ## MCP Tools Disponibles
 
-108 herramientas organizadas en 17 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
+109 herramientas organizadas en 18 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
 
 Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desactivan por **grupos de capacidades** en `{vault}/.kioku/config.yml` — ver [`docs/vault-config.md`](docs/vault-config.md).
 

@@ -34,6 +34,7 @@ static void ConfigureKiokuServices(IServiceCollection services, KiokuConfigurati
 {
     services.AddSingleton(config);
     services.AddSingleton<EmbeddingService>();
+    services.AddSingleton<GenerationService>();
     services.AddSingleton<VaultIndexService>();
     services.AddSingleton<ObsidianBridgeService>();
     services.AddSingleton<HybridSearchService>();
@@ -140,6 +141,11 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
     {
         builder.WithTools<AssetTools>();
     }
+
+    if (vaultConfig.IsGroupEnabled("generation"))
+    {
+        builder.WithTools<GenerationTools>();
+    }
 }
 
 static void ConfigureLogging(ILoggingBuilder logging)
@@ -235,6 +241,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     // Initialize vault index before accepting connections
     var vaultIndex = webApp.Services.GetRequiredService<VaultIndexService>();
     var embedding = webApp.Services.GetRequiredService<EmbeddingService>();
+    var generation = webApp.Services.GetRequiredService<GenerationService>();
     var lifetime = webApp.Services.GetRequiredService<IHostApplicationLifetime>();
     try
     {
@@ -244,6 +251,8 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     {
         return 2;
     }
+
+    await generation.InitializeAsync();
 
     lifetime.ApplicationStopping.Register(() =>
     {
@@ -280,6 +289,7 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
 
     var vaultIndex = host.Services.GetRequiredService<VaultIndexService>();
     var embedding = host.Services.GetRequiredService<EmbeddingService>();
+    var generation = host.Services.GetRequiredService<GenerationService>();
     var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
@@ -294,6 +304,8 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
     {
         return 2;
     }
+
+    await generation.InitializeAsync();
 
     lifetime.ApplicationStopping.Register(() =>
     {
