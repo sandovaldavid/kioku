@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.0.0](https://github.com/sandovaldavid/kioku/compare/v1.0.0...v2.0.0) (2026-07-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **release:** the MCP tool suggest_tags in NoteQueryTools (core, always registered) is renamed to inspect_note_tags. Agents calling the read-only diagnostic variant by name must update to inspect_note_tags.
+
+### Features
+
+* **plugin:** add Obsidian WebSocket bridge plugin ([c7f25cc](https://github.com/sandovaldavid/kioku/commit/c7f25ccf1c24959a854b63466b7bdafba0f710bb))
+* **server:** add MCP server with vault indexing and note tools ([83475c2](https://github.com/sandovaldavid/kioku/commit/83475c2a2986a2c711b03f7d3b11e2e70de4b6b8))
+
+
+### Bug Fixes
+
+* **ci:** pass explicit target-branch to release-please action ([#156](https://github.com/sandovaldavid/kioku/issues/156)) ([8b7aa8d](https://github.com/sandovaldavid/kioku/commit/8b7aa8d2d16601b9388ffd5f58476e84f979988d))
+
+
+### Miscellaneous Chores
+
+* **release:** sync develop into main — P0 through P3 backlog complete ([#153](https://github.com/sandovaldavid/kioku/issues/153)) ([5a09001](https://github.com/sandovaldavid/kioku/commit/5a09001103b77dd3b3b9f05e594ba58fde09bcc5))
+
 ## [2.0.0-beta.8](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.8...v2.0.0-beta.8) (2026-07-04)
 
 
