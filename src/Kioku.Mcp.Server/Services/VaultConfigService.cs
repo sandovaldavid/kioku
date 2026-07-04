@@ -146,7 +146,8 @@ public sealed class CapabilitiesConfig
 {
     /// <summary>
     /// Tool groups that should be disabled. Use '*' to disable all optional groups.
-    /// Known groups: git, css, assets, research, graph, zettelkasten, workflows, sessions, bridge, tasks.
+    /// Known groups: git, css, assets, research, graph, zettelkasten, workflows, sessions, bridge, tasks,
+    /// generation.
     /// </summary>
     public List<string>? Disabled { get; init; }
 
