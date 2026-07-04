@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 01:17 UTC
+**Generated:** 2026-07-04 01:37 UTC
 
 ## Summary
 
@@ -195,6 +195,19 @@ Unstages a previously staged note using git restore --staged. Removes the file f
 
 ## GraphAnalysisTools
 
+### `apply_link_suggestions`
+
+Applies accepted link suggestions: appends (or extends) a section at the end of a note with wikilinks to the given targets. Idempotent — targets already linked from the note are skipped, so running it again with the same targets adds nothing new. Set dry_run=true to preview without writing.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to add links to. |
+| `targets` | String | Yes | Comma-separated list of target note names/paths to link. |
+| `section` | String | No | Heading for the links section (default: 'Related'). |
+| `dry_run` | Boolean | No | If true, previews the change without writing any file. |
+
 ### `find_graph_islands`
 
 Finds connected components in the graph smaller than a threshold (graph islands). Small isolated clusters often indicate notes that should be linked to the main graph.
@@ -212,6 +225,18 @@ Finds all notes with no outgoing links and no backlinks (completely isolated fro
 ### `measure_vault_density`
 
 Computes vault graph density metrics: average links per note, percentage of notes with backlinks, connectivity profile.
+
+### `suggest_links`
+
+Suggests wikilinks that don't exist yet. With 'note': semantic candidates for that note, excluding any pair already linked in either direction. Without 'note' (vault-wide mode): prioritizes orphaned notes and small graph islands, proposing a bridge for each. Requires Ollama for semantic scoring — per-note mode fails without it; vault-wide mode degrades to a structural report of orphans/islands with no specific targets.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | No | Name or path of a note to suggest links for. Leave empty for vault-wide mode (orphans + islands). |
+| `max_suggestions` | Int32 | No | Maximum number of suggestions to return. |
+| `min_similarity` | Single | No | Minimum similarity score 0.0–1.0 (default: 0.7). |
 
 ## KnowledgeGraphTools
 
@@ -1154,4 +1179,4 @@ Finds notes that are semantically related to a given note and appends wikilinks 
 
 ---
 
-**Total tools:** 111
+**Total tools:** 113

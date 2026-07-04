@@ -2,7 +2,7 @@
 
 > Versión: **1.8.0-beta.8** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
 
-Servidor MCP en C# .NET 10 que expone 111 herramientas en 18 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
+Servidor MCP en C# .NET 10 que expone 113 herramientas en 18 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
 
 ## Arquitectura
 
@@ -34,7 +34,7 @@ Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre.
 | `WorkflowTools` | `workflows` | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items`, `generate_digest` |
 | `CssThemingTools` | `css` | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet`, `reload_css_snippets` |
 | `KnowledgeGraphTools` | `graph` | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
-| `GraphAnalysisTools` | `graph-analysis` | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
+| `GraphAnalysisTools` | `graph-analysis` | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density`, `suggest_links`, `apply_link_suggestions` |
 | `ResearchTools` | `research` | `export_citations`, `export_note`, `get_literature_gap`, `share_as_gist`, `validate_research_notes` |
 | `PluginIntegrationTools` | `plugin` | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins` |
 | `GitTools` | `git` | `get_git_status`, `list_git_commits`, `stage_note`, `stage_all`, `unstage_note`, `commit_staged`, `fix_merge_conflicts`, `resolve_merge_conflict` |
