@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.1](https://github.com/sandovaldavid/kioku/compare/v2.0.0...v2.0.1) (2026-07-04)
+
+
+### Bug Fixes
+
+* **ci:** fix publish-nuget job and rename installed tool command to kioku ([c595e94](https://github.com/sandovaldavid/kioku/commit/c595e941893ebe6d8c57e0fcc1e791c1f015ec17))
+* **ci:** fix publish-nuget job and rename installed tool command to kioku ([ca8eff7](https://github.com/sandovaldavid/kioku/commit/ca8eff78a937ddd5420227e6634afc8f6dfa1c07))
+
 ## [2.0.0](https://github.com/sandovaldavid/kioku/compare/v1.0.0...v2.0.0) (2026-07-04)
 
 
