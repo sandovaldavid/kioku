@@ -1,263 +1,141 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice } from "obsidian";
-import WebSocket, { WebSocketServer } from "ws";
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface KiokuSettings {
-  /** Port where the plugin's WebSocket server listens. */
-  bridgePort: number;
-  /** If true, shows notifications in Obsidian when the agent performs actions. */
-  showNotifications: boolean;
-}
-
-const DEFAULT_SETTINGS: KiokuSettings = {
-  bridgePort: 7765,
-  showNotifications: true,
-};
-
-interface BridgeMessage {
-  command: string;
-  payload?: Record<string, unknown>;
-  requestId?: string;
-}
-
-interface BridgeResponse {
-  requestId?: string;
-  success: boolean;
-  data?: unknown;
-  error?: string;
-}
-
-// ── Main Plugin ──────────────────────────────────────────────────────────
+import { randomBytes } from "node:crypto";
+import { Plugin, PluginSettingTab, Setting, Notice } from "obsidian";
+import type { App } from "obsidian";
+import { log } from "./logger";
+import { BridgeServer } from "./bridge";
+import { createHandlers } from "./handlers";
+import type { KiokuSettings } from "./types";
+import { DEFAULT_SETTINGS, PROTOCOL_VERSION } from "./types";
+import type { BridgeStatus } from "./status";
+import { formatStatusBarText, statusBarCssClass } from "./status";
 
 export default class KiokuPlugin extends Plugin {
   declare settings: KiokuSettings;
-  private wss: WebSocketServer | null = null;
-  private clients = new Set<WebSocket>();
+  private bridge: BridgeServer | null = null;
+  private statusBarItem: HTMLElement | null = null;
 
   async onload() {
     await this.loadSettings();
-
-    // Add settings tab
     this.addSettingTab(new KiokuSettingTab(this.app, this));
+    this.startBridge();
+    this.refreshStatusBarVisibility();
 
-    // Start WebSocket server
-    this.startBridgeServer();
-
-    // Palette command: restart bridge
     this.addCommand({
       id: "kioku-restart-bridge",
       name: "Restart Kioku MCP Bridge",
+      callback: () => this.restartBridge(),
+    });
+
+    this.addCommand({
+      id: "kioku-stop-bridge",
+      name: "Stop Kioku MCP Bridge",
       callback: () => {
-        this.stopBridgeServer();
-        this.startBridgeServer();
-        new Notice("Kioku MCP Bridge restarted on port " + this.settings.bridgePort);
+        this.stopBridge();
+        new Notice("Kioku MCP Bridge stopped.");
       },
     });
 
-    console.log(`[Kioku] Plugin loaded. Bridge on port ${this.settings.bridgePort}`);
+    this.addCommand({
+      id: "kioku-start-bridge",
+      name: "Start Kioku MCP Bridge",
+      callback: () => {
+        this.startBridge();
+        new Notice("Kioku MCP Bridge started on port " + this.settings.bridgePort);
+      },
+    });
+
+    this.addCommand({
+      id: "kioku-copy-status",
+      name: "Copy Kioku bridge status",
+      callback: async () => {
+        const status: BridgeStatus = {
+          running: this.bridge?.isRunning ?? false,
+          port: this.settings.bridgePort,
+          clients: this.bridge?.clientCount ?? 0,
+          protocolVersion: PROTOCOL_VERSION,
+          pluginVersion: this.manifest.version,
+        };
+        await navigator.clipboard.writeText(JSON.stringify(status, null, 2));
+        new Notice("Kioku bridge status copied to clipboard.");
+      },
+    });
+
+    log.info(`Plugin loaded. Bridge on port ${this.settings.bridgePort}`);
   }
 
   onunload() {
-    this.stopBridgeServer();
-    console.log("[Kioku] Plugin unloaded.");
+    this.teardownStatusBar();
+    this.stopBridge();
+    log.info("Plugin unloaded.");
   }
 
-  // ── WebSocket Bridge ────────────────────────────────────────────────────────
+  private restartBridge() {
+    this.stopBridge();
+    this.startBridge();
+    new Notice("Kioku MCP Bridge restarted on port " + this.settings.bridgePort);
+  }
 
-  private startBridgeServer() {
-    try {
-      this.wss = new WebSocketServer({
-        host: "127.0.0.1", // Localhost only — never expose externally
-        port: this.settings.bridgePort,
-      });
-
-      this.wss.on("connection", (ws) => {
-        this.clients.add(ws);
-        console.log(`[Kioku] Kioku MCP Server connected. Clients: ${this.clients.size}`);
-
-        ws.on("message", async (data) => {
-          try {
-            const raw = Buffer.isBuffer(data)
-              ? data.toString("utf8")
-              : Array.isArray(data)
-                ? Buffer.concat(data).toString("utf8")
-                : Buffer.from(data).toString("utf8");
-            const msg = JSON.parse(raw) as BridgeMessage;
-            const response = await this.handleCommand(msg);
-            ws.send(JSON.stringify(response));
-          } catch (err) {
-            ws.send(JSON.stringify({ success: false, error: String(err) }));
-          }
-        });
-
-        ws.on("close", () => {
-          this.clients.delete(ws);
-          console.log(`[Kioku] Client disconnected. Clients: ${this.clients.size}`);
-        });
-
-        ws.on("error", (err) => {
-          console.error("[Kioku] WebSocket error:", err.message);
-        });
-      });
-
-      this.wss.on("error", (err) => {
-        console.error(`[Kioku] Could not start the bridge: ${err.message}`);
+  private startBridge() {
+    this.bridge = new BridgeServer(
+      this.settings.bridgePort,
+      (message) => {
         if (this.settings.showNotifications) {
-          new Notice(`❌ Kioku MCP Bridge error: ${err.message}`);
+          new Notice(`[Kioku] Bridge error: ${message}`);
         }
-      });
-
-      console.log(`[Kioku] Bridge listening on 127.0.0.1:${this.settings.bridgePort}`);
-    } catch (err) {
-      console.error("[Kioku] Error starting bridge:", err);
-    }
-  }
-
-  private stopBridgeServer() {
-    for (const client of this.clients) {
-      client.close();
-    }
-    this.clients.clear();
-
-    if (this.wss) {
-      this.wss.close();
-      this.wss = null;
-    }
-  }
-
-  // ── Command Handler ─────────────────────────────────────────────────────────
-
-  private async handleCommand(msg: BridgeMessage): Promise<BridgeResponse> {
-    const { command, payload, requestId } = msg;
-
-    try {
-      switch (command) {
-        case "open-file":
-          return await this.cmdOpenFile(payload as { path: string }, requestId);
-
-        case "get-active-note":
-          return this.cmdGetActiveNote(requestId);
-
-        case "get-vault-path":
-          return this.cmdGetVaultPath(requestId);
-
-        case "is-obsidian-ready":
-          return { requestId, success: true, data: { ready: true } };
-
-        case "get-app-version":
-          return {
-            requestId,
-            success: true,
-            data: {
-              obsidianVersion: (this.app as any).version ?? "unknown",
-              kiokuVersion: this.manifest.version,
-            },
-          };
-
-        case "get-open-notes":
-          return this.cmdGetOpenNotes(requestId);
-
-        case "trigger-command":
-          return this.cmdTriggerCommand(payload as { commandId: string }, requestId);
-
-        default:
-          return { requestId, success: false, error: `Unknown command: ${command}` };
-      }
-    } catch (err) {
-      return { requestId, success: false, error: String(err) };
-    }
-  }
-
-  // ── Command Implementation ─────────────────────────────────────────────
-
-  private async cmdOpenFile(
-    payload: { path: string },
-    requestId?: string
-  ): Promise<BridgeResponse> {
-    const { path } = payload;
-    const file = this.app.vault.getFileByPath(path);
-
-    if (!file) {
-      return { requestId, success: false, error: `File not found: ${path}` };
-    }
-
-    await this.app.workspace.openLinkText(path, "", false);
-
-    if (this.settings.showNotifications) {
-      new Notice(`📝 Kioku opened: ${file.basename}`);
-    }
-
-    return { requestId, success: true, data: { path, name: file.basename } };
-  }
-
-  private cmdGetActiveNote(requestId?: string): BridgeResponse {
-    const activeFile = this.app.workspace.getActiveFile();
-
-    if (!activeFile) {
-      return { requestId, success: true, data: null };
-    }
-
-    const cache = this.app.metadataCache.getFileCache(activeFile);
-    return {
-      requestId,
-      success: true,
-      data: {
-        path: activeFile.path,
-        name: activeFile.basename,
-        tags: cache?.frontmatter?.tags ?? [],
-        status: cache?.frontmatter?.status ?? null,
       },
-    };
-  }
-
-  private cmdGetVaultPath(requestId?: string): BridgeResponse {
-    const adapter = this.app.vault.adapter;
-    const vaultPath = (adapter as any).basePath ?? this.app.vault.getName();
-
-    return {
-      requestId,
-      success: true,
-      data: { vaultPath, vaultName: this.app.vault.getName() },
-    };
-  }
-
-  private cmdGetOpenNotes(requestId?: string): BridgeResponse {
-    const openFiles: Array<{ path: string; name: string }> = [];
-
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if (leaf.view.getViewType() === "markdown") {
-        const file = (leaf.view as any).file;
-        if (file) {
-          openFiles.push({ path: file.path, name: file.basename });
+      (pluginVersion, serverVersion) => {
+        if (this.settings.showNotifications) {
+          new Notice(
+            `[Kioku] Protocol version mismatch. Plugin: v${pluginVersion}, Server: v${serverVersion}. ` +
+              `Please update the Kioku plugin or server.`
+          );
         }
+      },
+      () => this.updateStatusBar(),
+      () => this.updateStatusBar(),
+      () => this.updateStatusBar(),
+      this.settings.authToken
+    );
+    this.bridge.registerHandlers(createHandlers(this.app, this.settings, this.manifest));
+    this.bridge.start();
+  }
+
+  private stopBridge() {
+    this.bridge?.stop();
+    this.bridge = null;
+  }
+
+  refreshStatusBarVisibility() {
+    if (this.settings.showStatusBar) {
+      if (!this.statusBarItem) {
+        this.statusBarItem = this.addStatusBarItem();
+        this.statusBarItem.addClass("kioku-status");
+        this.registerDomEvent(this.statusBarItem, "click", () => this.restartBridge());
       }
-    });
-
-    return { requestId, success: true, data: openFiles };
+      this.updateStatusBar();
+    } else {
+      this.teardownStatusBar();
+    }
   }
 
-  private cmdTriggerCommand(payload: { commandId: string }, requestId?: string): BridgeResponse {
-    const { commandId } = payload;
-    const commands = (this.app as any).commands;
-
-    if (!commands || !commands.executeCommandById) {
-      return { requestId, success: false, error: "The Obsidian command API is not available." };
-    }
-
-    const executed = commands.executeCommandById(commandId);
-    if (!executed) {
-      return {
-        requestId,
-        success: false,
-        error: `Command not found or not executable: '${commandId}'`,
-      };
-    }
-
-    return { requestId, success: true, data: { commandId } };
+  private teardownStatusBar() {
+    this.statusBarItem?.remove();
+    this.statusBarItem = null;
   }
 
-  // ── Configuration ───────────────────────────────────────────────────────────
+  private updateStatusBar() {
+    if (!this.statusBarItem) {
+      return;
+    }
+
+    const running = this.bridge?.isRunning ?? false;
+    const clients = this.bridge?.clientCount ?? 0;
+
+    this.statusBarItem.setText(formatStatusBarText(running, this.settings.bridgePort, clients));
+    this.statusBarItem.removeClass("kioku-status-online");
+    this.statusBarItem.removeClass("kioku-status-offline");
+    this.statusBarItem.addClass(statusBarCssClass(running));
+  }
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -267,8 +145,6 @@ export default class KiokuPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 }
-
-// ── Configuration Settings Tab ────────────────────────────────────────────────
 
 class KiokuSettingTab extends PluginSettingTab {
   plugin: KiokuPlugin;
@@ -317,6 +193,48 @@ class KiokuSettingTab extends PluginSettingTab {
         toggle.setValue(this.plugin.settings.showNotifications).onChange(async (value) => {
           this.plugin.settings.showNotifications = value;
           await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Auth token")
+      .setDesc(
+        "Optional shared secret required to connect to the bridge. Leave empty to allow " +
+          "connections without authentication (default). Must match KIOKU_BRIDGE_TOKEN on the " +
+          "server. Restart the bridge after changing this for it to take effect."
+      )
+      .addText((text) => {
+        text.inputEl.type = "password";
+        text
+          .setPlaceholder("(no token — bridge is open)")
+          .setValue(this.plugin.settings.authToken)
+          .onChange(async (value) => {
+            this.plugin.settings.authToken = value.trim();
+            await this.plugin.saveSettings();
+          });
+      })
+      .addButton((button) =>
+        button
+          .setButtonText("Generate")
+          .setTooltip("Generate a random 32-byte token")
+          .onClick(async () => {
+            this.plugin.settings.authToken = randomBytes(32).toString("hex");
+            await this.plugin.saveSettings();
+            this.display();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Show status bar")
+      .setDesc(
+        "Shows the Kioku bridge status ([online]/[offline]) in the status bar. " +
+          "Click it to restart the bridge."
+      )
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.showStatusBar).onChange(async (value) => {
+          this.plugin.settings.showStatusBar = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshStatusBarVisibility();
         })
       );
   }

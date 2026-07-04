@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
@@ -12,6 +13,7 @@ public sealed class ObsidianBridgeService : IDisposable
 {
     private readonly ILogger<ObsidianBridgeService> _logger;
     private readonly int _port;
+    private readonly string? _bridgeToken;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<BridgeResponse>> _pendingRequests = new();
     private ClientWebSocket? _webSocket;
     private CancellationTokenSource? _loopCts;
@@ -22,6 +24,7 @@ public sealed class ObsidianBridgeService : IDisposable
     {
         _logger = logger;
         _port = config.ObsidianBridgePort;
+        _bridgeToken = config.BridgeToken;
     }
 
     public async Task<BridgeResponse> SendRequestAsync(string command, JsonNode? payload = null, CancellationToken cancellationToken = default)
@@ -32,14 +35,18 @@ public sealed class ObsidianBridgeService : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Could not establish connection to Obsidian: {Message}", ex.Message);
-            return new BridgeResponse
-            {
-                Success = false,
-                Error = $"Could not connect to Obsidian. Make sure Obsidian is open and the Kioku MCP plugin is activated on port {_port}. Details: {ex.Message}"
-            };
+            _logger.Warn("Could not establish connection to Obsidian: {Message}", ex.Message);
+            var error = ex.Message.Contains("[UNAUTHORIZED]", StringComparison.Ordinal)
+                ? ex.Message
+                : $"Could not connect to Obsidian. Make sure Obsidian is open and the Kioku MCP plugin is activated on port {_port}. Details: {ex.Message}";
+            return new BridgeResponse { Success = false, Error = error };
         }
 
+        return await SendOverExistingConnectionAsync(command, payload, cancellationToken);
+    }
+
+    private async Task<BridgeResponse> SendOverExistingConnectionAsync(string command, JsonNode? payload, CancellationToken cancellationToken)
+    {
         var requestId = Guid.NewGuid().ToString("N");
         var tcs = new TaskCompletionSource<BridgeResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingRequests[requestId] = tcs;
@@ -48,7 +55,8 @@ public sealed class ObsidianBridgeService : IDisposable
         {
             Command = command,
             Payload = payload,
-            RequestId = requestId
+            RequestId = requestId,
+            ProtocolVersion = BridgeProtocol.Version
         };
 
         try
@@ -65,7 +73,7 @@ public sealed class ObsidianBridgeService : IDisposable
         catch (Exception ex)
         {
             _pendingRequests.TryRemove(requestId, out _);
-            _logger.LogError(ex, "Error sending message over WebSocket");
+            _logger.Error(ex, "Error sending message over WebSocket");
             await CloseAndResetAsync();
             return new BridgeResponse { Success = false, Error = $"Communication error: {ex.Message}" };
         }
@@ -114,20 +122,44 @@ public sealed class ObsidianBridgeService : IDisposable
             _webSocket.Options.KeepAliveInterval = TimeSpan.FromSeconds(5);
 
             var uri = new Uri($"ws://127.0.0.1:{_port}/");
-            _logger.LogInformation("Connecting to Obsidian bridge at {Uri}...", uri);
+            _logger.Info("Connecting to Obsidian bridge at {Uri}...", uri);
 
             using var connectTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connectTimeoutCts.Token);
 
             await _webSocket.ConnectAsync(uri, linkedCts.Token);
-            _logger.LogInformation("Connected to Obsidian bridge successfully!");
+            _logger.Info("Connected to Obsidian bridge successfully.");
 
             _loopCts = new CancellationTokenSource();
             _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(_loopCts.Token));
+
+            await AuthenticateAsync(cancellationToken);
         }
         finally
         {
             _connectionSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// Sends the "auth" handshake as the first message on a freshly established connection.
+    /// Required on every (re)connection — the plugin tracks authentication per WebSocket
+    /// connection, not per token. A no-op on the plugin side when no token is configured there.
+    /// </summary>
+    private async Task AuthenticateAsync(CancellationToken cancellationToken)
+    {
+        var payload = new JsonObject();
+        if (!string.IsNullOrEmpty(_bridgeToken))
+        {
+            payload["token"] = _bridgeToken;
+        }
+
+        var response = await SendOverExistingConnectionAsync("auth", payload, cancellationToken);
+        if (!response.Success)
+        {
+            await CloseAndResetAsync();
+            throw new InvalidOperationException(
+                response.Error ?? "[error] [UNAUTHORIZED] Obsidian bridge authentication failed.");
         }
     }
 
@@ -168,13 +200,21 @@ public sealed class ObsidianBridgeService : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning("Error deserializing bridge response: {Error}. Raw: {Raw}", ex.Message, responseJson);
+                    _logger.Warn("Error deserializing bridge response: {Error}. Raw: {Raw}", ex.Message, responseJson);
                 }
             }
         }
-        catch (Exception ex) when (ex is OperationCanceledException or WebSocketException)
+        catch (OperationCanceledException)
         {
-            _logger.LogDebug("Receive loop terminated: {Message}", ex.Message);
+            _logger.Debug("Receive loop cancelled.");
+        }
+        catch (WebSocketException ex)
+        {
+            _logger.Debug("WebSocket error in receive loop: {Message}", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn("Unexpected error in receive loop: {Type}: {Message}", ex.GetType().Name, ex.Message);
         }
         finally
         {
@@ -182,23 +222,32 @@ public sealed class ObsidianBridgeService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Tears down the current connection. Safe to call concurrently/reentrantly — it's invoked
+    /// both explicitly (e.g. after a failed auth handshake) and from ReceiveLoopAsync's own
+    /// teardown, which runs as an independent background task and isn't serialized by
+    /// _connectionSemaphore. Each field is atomically claimed via Interlocked.Exchange so only
+    /// one concurrent caller ever disposes it — otherwise a second caller could hit an
+    /// ObjectDisposedException disposing an already-disposed CancellationTokenSource/WebSocket.
+    /// </summary>
     private async Task CloseAndResetAsync()
     {
-        if (_loopCts is not null)
+        var loopCts = Interlocked.Exchange(ref _loopCts, null);
+        if (loopCts is not null)
         {
-            await _loopCts.CancelAsync();
-            _loopCts.Dispose();
-            _loopCts = null;
+            await loopCts.CancelAsync();
+            loopCts.Dispose();
         }
 
-        if (_webSocket is not null)
+        var webSocket = Interlocked.Exchange(ref _webSocket, null);
+        if (webSocket is not null)
         {
             try
             {
-                if (_webSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+                if (webSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
                 {
                     using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-                    await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnecting", closeCts.Token);
+                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnecting", closeCts.Token);
                 }
             }
             catch
@@ -207,8 +256,7 @@ public sealed class ObsidianBridgeService : IDisposable
             }
             finally
             {
-                _webSocket.Dispose();
-                _webSocket = null;
+                webSocket.Dispose();
             }
         }
 
@@ -233,7 +281,12 @@ public sealed class ObsidianBridgeService : IDisposable
     }
 }
 
-// ── Bridge Protocol Types (AOT Safe) ──────────────────────────────────────
+// Bridge Protocol Types (AOT Safe)
+
+public static class BridgeProtocol
+{
+    public const int Version = 2;
+}
 
 public sealed class BridgeMessage
 {
@@ -245,6 +298,9 @@ public sealed class BridgeMessage
 
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
+
+    [JsonPropertyName("protocolVersion")]
+    public int? ProtocolVersion { get; set; }
 }
 
 public sealed class BridgeResponse
@@ -260,6 +316,16 @@ public sealed class BridgeResponse
 
     [JsonPropertyName("error")]
     public string? Error { get; set; }
+
+    [JsonPropertyName("protocolVersion")]
+    public int? ProtocolVersion { get; set; }
+
+    /// <summary>
+    /// True when this failed response represents an authentication failure (invalid/missing
+    /// bridge token, or auth required but never sent). Lets tool code surface a distinct
+    /// [UNAUTHORIZED] error instead of a generic "Obsidian plugin error".
+    /// </summary>
+    public bool IsUnauthorized() => Error?.Contains("[UNAUTHORIZED]", StringComparison.Ordinal) == true;
 }
 
 [JsonSerializable(typeof(BridgeMessage))]

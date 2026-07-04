@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   build-server:
+    name: build-server (ubuntu-latest)
     runs-on: ubuntu-latest
 
     steps:
@@ -32,13 +33,58 @@ jobs:
             --no-restore \
             --runtime linux-x64
 
+      - name: Build (osx-arm64 cross-check)
+        run: |
+          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-restore \
+            --runtime osx-arm64
+
       - name: Format check
         run: |
           dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
             --verify-no-changes \
             --verbosity diagnostic
 
+      - name: Vulnerability check
+        run: |
+          dotnet list src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj package --vulnerable
+
+  test-server:
+    name: test-server (ubuntu-latest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+
+      - name: Test with coverage
+        run: |
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/**/coverage.cobertura.xml
+          flags: server
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   build-plugin:
+    name: build-plugin (ubuntu-latest)
     runs-on: ubuntu-latest
 
     steps:
@@ -60,6 +106,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high
+
       - name: Type-check
         run: pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json
 
@@ -68,6 +117,9 @@ jobs:
 
       - name: Format check
         run: pnpm --filter obsidian-kioku-mcp run format:check
+
+      - name: Test
+        run: pnpm --filter obsidian-kioku-mcp run test
 
       - name: Build
         run: pnpm --filter obsidian-kioku-mcp run build

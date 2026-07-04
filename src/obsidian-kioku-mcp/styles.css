@@ -5,3 +5,15 @@
   font-size: 0.9em;
   margin-bottom: 1rem;
 }
+
+.kioku-status {
+  cursor: pointer;
+}
+
+.kioku-status-online {
+  color: var(--text-success);
+}
+
+.kioku-status-offline {
+  color: var(--text-error);
+}

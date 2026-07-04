@@ -1,0 +1,101 @@
+using System.Net;
+using System.Net.Http.Json;
+using Kioku.Mcp.Server.Services;
+using Kioku.Mcp.Server.Tools;
+using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
+
+namespace Kioku.Mcp.Server.Tests;
+
+public class UtilityToolsTests : IClassFixture<VaultFixture>
+{
+    private readonly VaultFixture _fixture;
+
+    public UtilityToolsTests(VaultFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    private static async Task WaitForBacklogToClearAsync(EmbeddingService service, TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
+        while (service.EmbeddingBacklog > 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+    }
+
+    [Fact]
+    public void GetIndexStatus_NoEmbeddingService_OmitsEmbeddingProgressFields()
+    {
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
+        var tools = new UtilityTools(_fixture.Index, config);
+
+        var result = tools.get_index_status();
+
+        Assert.DoesNotContain("Embedding backlog", result);
+    }
+
+    [Fact]
+    public async Task GetIndexStatus_OllamaUnavailable_OmitsEmbeddingProgressFields()
+    {
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath, EmbeddingModel = "nomic-embed-text" };
+        var embedding = new EmbeddingService(config, NullLogger<EmbeddingService>.Instance,
+            new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)))));
+        await embedding.InitializeAsync([]);
+
+        var tools = new UtilityTools(_fixture.Index, config, embedding);
+
+        var result = tools.get_index_status();
+
+        Assert.DoesNotContain("Embedding backlog", result);
+        Assert.Contains("[info] Unavailable", result);
+    }
+
+    [Fact]
+    public async Task GetIndexStatus_OllamaAvailableWithNoBacklog_ShowsZeroBacklog()
+    {
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath, EmbeddingModel = "nomic-embed-text" };
+        var embedding = new EmbeddingService(config, NullLogger<EmbeddingService>.Instance,
+            new FakeHttpClientFactory(new FakeHttpMessageHandler((req, _) => req.Method == HttpMethod.Get
+                ? Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))
+                : Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { embedding = new[] { 0.1f, 0.2f } }) }))));
+        await embedding.InitializeAsync([]);
+
+        var tools = new UtilityTools(_fixture.Index, config, embedding);
+
+        var result = tools.get_index_status();
+
+        Assert.Contains("Embedding backlog: 0", result);
+        Assert.Contains("Embedding rate:", result);
+        Assert.Contains("Estimated remaining: 0s (backlog clear)", result);
+    }
+
+    [Fact]
+    public async Task GetIndexStatus_BacklogInProgress_ShowsNonZeroBacklog()
+    {
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath, EmbeddingModel = "nomic-embed-text" };
+        var embedding = new EmbeddingService(config, NullLogger<EmbeddingService>.Instance,
+            new FakeHttpClientFactory(new FakeHttpMessageHandler(async (req, ct) =>
+            {
+                if (req.Method == HttpMethod.Get)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.OK);
+                }
+
+                await Task.Delay(200, ct);
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { embedding = new[] { 0.1f, 0.2f } }) };
+            })));
+
+        // A brand-new EmbeddingService has an empty cache, so every note in the fixture is
+        // "new" and gets queued for background embedding.
+        await embedding.InitializeAsync(_fixture.Index.GetAllNotes());
+
+        var tools = new UtilityTools(_fixture.Index, config, embedding);
+        var result = tools.get_index_status();
+
+        Assert.Matches(@"Embedding backlog: [1-9]\d*", result);
+
+        await WaitForBacklogToClearAsync(embedding);
+    }
+}

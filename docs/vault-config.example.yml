@@ -1,0 +1,123 @@
+# ============================================
+# Kioku Vault Configuration — Example
+# ============================================
+# Copia este archivo a .kioku/config.yml dentro
+# de tu vault y ajusta los valores según tu
+# estructura de carpetas.
+#
+# Todas las secciones son OPCIONALES. Si el
+# archivo no existe o una sección falta, Kioku
+# usa los valores por defecto documentados.
+#
+# Guía completa del esquema: docs/vault-config.md
+# ============================================
+
+# --- Identidad del vault ---
+# Solo informativo, se muestra en logs.
+vault:
+  name: "Mi Bóveda"
+
+# --- Mapeo de carpetas ---
+# Define dónde se crean las notas según su tipo.
+# Cada tool (create_zettel, start_work_session,
+# create_template, etc.) consulta esta sección
+# cuando el usuario no especifica una carpeta.
+folders:
+  inbox: "Inbox"
+  zettel: "Zettelkasten"
+  daily: "Inbox/Daily"
+  literature: "Literature"
+  sessions: "Sessions"
+  templates: "System/Templates"
+  assets: "System/Attachments"
+
+# --- Dominios por carpeta ---
+# Asigna automáticamente el campo `domain:` en
+# el frontmatter de cualquier nota creada en
+# esa carpeta (o subcarpeta).
+#
+# Precedencia:
+#   1. Carpeta exacta
+#   2. Prefijo de carpeta más largo
+#   3. default.{type}.domain
+domains:
+  "Inbox": "general/inbox"
+  "Projects": "work/projects"
+  "Zettelkasten": "tech/general"
+  "Literature": "academic/research"
+  "Archive": "general/archive"
+  "System": "general/system"
+
+# --- Defaults por tipo de nota ---
+# Valores de frontmatter que se aplican según
+# el `type:` de la nota. Se fusionan con los
+# valores explícitos pasados por el tool call.
+defaults:
+  note:
+    type: capture
+    status: inbox
+  zettel:
+    type: concept
+    status: active
+    domain: tech/general
+  daily:
+    type: log
+    status: active
+    domain: general/inbox
+  literature:
+    type: source
+    status: draft
+    domain: academic/research
+  session:
+    type: log
+    status: active
+    domain: general/system
+    tags: [session, work-log]
+  moc:
+    type: guide
+    status: published
+    domain: general/system
+    tags: [meta/moc]
+
+# --- Carpetas excluidas del índice ---
+# Además de las carpetas ocultas (las que
+# empiezan con `.`), puedes excluir carpetas
+# adicionales de la búsqueda y el índice.
+exclude:
+  - "Archive"
+
+# --- Herencia de tags por carpeta ---
+# Las notas creadas bajo una carpeta heredan sus
+# tags (gana el prefijo más largo).
+# exclude_from_tags: campos de frontmatter que
+# nunca se convierten en tags
+# (default: domain, type, status).
+auto_tags:
+  inherit:
+    "Literature": [research]
+    "Literature/Papers": [research, paper]
+  exclude_from_tags: [domain, type, status]
+
+# --- Templates de cuerpo por tipo de nota ---
+# Reemplaza el cuerpo por defecto al crear notas
+# de un tipo. Soporta variables como {{title}},
+# {{date}} y {{uid}}.
+templates:
+  zettel: |
+    ## {{title}}
+
+    - Creada: {{date}}
+
+# --- Grupos de capacidades (tool groups) ---
+# Los grupos core (query, command, utility) siempre
+# se registran. Los 15 grupos opcionales se pueden
+# desactivar aquí:
+#   tasks, zettelkasten, organization, sessions,
+#   workflows, css, graph, graph-analysis, research,
+#   bridge, plugin, git, restore, assets, generation
+#
+# Sin esta sección: todos habilitados.
+capabilities:
+  disabled: []          # p. ej. [git, css] — o ["*"] para desactivar todos
+  # require_explicit: true   # modo allowlist:
+  # enabled: [tasks, zettelkasten]

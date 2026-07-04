@@ -1,0 +1,18 @@
+% One well-formed entry followed by two malformed ones — the parser must report
+% each bad entry individually and still return the good one.
+
+@article{good2022entry,
+  author = {Doe, Jane},
+  title  = {A Perfectly Fine Entry},
+  year   = {2022},
+}
+
+@article{missingequals,
+  author {Smith, John},
+  title  = {Field Name Without Equals Sign},
+  year   = {2023},
+}
+
+@book{unterminated2024,
+  author = {Roe, Richard},
+  title  = {This Entry Never Closes

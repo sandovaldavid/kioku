@@ -6,6 +6,7 @@
       "changelog-path": "CHANGELOG.md",
       "prerelease": true,
       "prerelease-type": "beta",
+      "versioning": "prerelease",
       "bump-minor-pre-major": true,
       "extra-files": [
         {
@@ -22,6 +23,24 @@
           "type": "json",
           "path": "src/obsidian-kioku-mcp/package.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "generic",
+          "path": "README.md"
+        },
+        {
+          "type": "generic",
+          "path": "src/Kioku.Mcp.Server/README.md"
+        },
+        {
+          "type": "json",
+          "path": "src/Kioku.Mcp.Server/.mcp/server.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "src/Kioku.Mcp.Server/.mcp/server.json",
+          "jsonpath": "$.packages[0].version"
         }
       ]
     }

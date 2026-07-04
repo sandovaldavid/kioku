@@ -37,6 +37,9 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
 
     strategy:
       matrix:
@@ -46,6 +49,12 @@ jobs:
             binary: Kioku.Mcp.Server.exe
           - rid: linux-x64
             artifact-name: kioku-server-linux-x64
+            binary: Kioku.Mcp.Server
+          - rid: osx-x64
+            artifact-name: kioku-server-osx-x64
+            binary: Kioku.Mcp.Server
+          - rid: osx-arm64
+            artifact-name: kioku-server-osx-arm64
             binary: Kioku.Mcp.Server
 
     steps:
@@ -67,10 +76,39 @@ jobs:
       - name: Rename artifact
         run: mv publish/${{ matrix.rid }}/${{ matrix.binary }} ${{ matrix.artifact-name }}
 
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: publish/${{ matrix.rid }}
+          format: spdx-json
+          output-file: ${{ matrix.artifact-name }}.spdx.json
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign binary and SBOM
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign sign-blob --yes \
+            --output-signature ${{ matrix.artifact-name }}.sig \
+            --output-certificate ${{ matrix.artifact-name }}.pem \
+            ${{ matrix.artifact-name }}
+          cosign sign-blob --yes \
+            --output-signature ${{ matrix.artifact-name }}.spdx.json.sig \
+            --output-certificate ${{ matrix.artifact-name }}.spdx.json.pem \
+            ${{ matrix.artifact-name }}.spdx.json
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: ${{ matrix.artifact-name }}
+          path: |
+            ${{ matrix.artifact-name }}
+            ${{ matrix.artifact-name }}.sig
+            ${{ matrix.artifact-name }}.pem
+            ${{ matrix.artifact-name }}.spdx.json
+            ${{ matrix.artifact-name }}.spdx.json.sig
+            ${{ matrix.artifact-name }}.spdx.json.pem
 
   build-plugin:
     needs: release-please
@@ -99,13 +137,19 @@ jobs:
       - name: Build plugin
         run: pnpm --filter obsidian-kioku-mcp run build
 
+      - name: Package plugin as ZIP
+        run: |
+          mkdir -p kioku-mcp
+          cp src/obsidian-kioku-mcp/main.js \
+             src/obsidian-kioku-mcp/manifest.json \
+             src/obsidian-kioku-mcp/styles.css \
+             kioku-mcp/
+          zip -r kioku-mcp-plugin.zip kioku-mcp/
+
       - uses: actions/upload-artifact@v4
         with:
           name: obsidian-plugin
-          path: |
-            src/obsidian-kioku-mcp/main.js
-            src/obsidian-kioku-mcp/manifest.json
-            src/obsidian-kioku-mcp/styles.css
+          path: kioku-mcp-plugin.zip
 
   attach-artifacts:
     needs: [release-please, build-server, build-plugin]
@@ -113,6 +157,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           path: artifacts/
@@ -123,7 +169,75 @@ jobs:
         run: |
           gh release upload "${{ needs.release-please.outputs.tag_name }}" \
             artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe \
+            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.sig \
+            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.pem \
+            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.spdx.json \
+            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.spdx.json.sig \
+            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.spdx.json.pem \
             artifacts/kioku-server-linux-x64/kioku-server-linux-x64 \
-            artifacts/obsidian-plugin/main.js \
-            artifacts/obsidian-plugin/manifest.json \
-            artifacts/obsidian-plugin/styles.css
+            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.sig \
+            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.pem \
+            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.spdx.json \
+            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.spdx.json.sig \
+            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.spdx.json.pem \
+            artifacts/kioku-server-osx-x64/kioku-server-osx-x64 \
+            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.sig \
+            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.pem \
+            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.spdx.json \
+            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.spdx.json.sig \
+            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.spdx.json.pem \
+            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64 \
+            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.sig \
+            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.pem \
+            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.spdx.json \
+            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.spdx.json.sig \
+            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.spdx.json.pem \
+            artifacts/obsidian-plugin/kioku-mcp-plugin.zip
+
+      - name: Upload plugin files for BRAT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          unzip -o artifacts/obsidian-plugin/kioku-mcp-plugin.zip -d /tmp/brat
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            /tmp/brat/kioku-mcp/main.js \
+            src/obsidian-kioku-mcp/manifest.json \
+            src/obsidian-kioku-mcp/styles.css
+
+  publish-nuget:
+    needs: [release-please, attach-artifacts]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore dependencies
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+
+      - name: Build
+        run: |
+          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-restore
+
+      - name: Pack NuGet package
+        run: |
+          dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-build \
+            --output ./nupkg
+
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push ./nupkg/*.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate

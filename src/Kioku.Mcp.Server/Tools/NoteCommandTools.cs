@@ -11,9 +11,15 @@ namespace Kioku.Mcp.Server.Tools;
 /// All operations here modify files on disk.
 /// </summary>
 [McpServerToolType]
-public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration config)
+public sealed class NoteCommandTools(
+    VaultIndexService vault,
+    KiokuConfiguration config,
+    VaultConfigService vaultConfig,
+    MetricsService? metrics = null)
 {
-    // ── create_note ────────────────────────────────────────────────────────────
+    private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
+
+    // create_note
 
     [McpServerTool, Description(
         "Creates a new note in the Obsidian vault with frontmatter and content. " +
@@ -25,26 +31,28 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Note type for frontmatter (e.g. 'note', 'project', 'area', 'resource').")] string type = "",
         [Description("Status of the note (e.g. 'draft', 'published').")] string status = "draft")
     {
+        Count(nameof(create_note), metrics);
         var filePath = BuildFilePath(name);
 
         if (File.Exists(filePath))
         {
-            return $"❌ Note '{name}' already exists at: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
-                   "Use update_note_content to modify an existing note.";
+            return KiokuError.InvalidArgument(
+                $"Note '{name}' already exists at: {Path.GetRelativePath(config.VaultPath, filePath)}. " +
+                "Use update_note_content to modify an existing note.");
         }
 
         // Ensure directory exists
         var dir = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(dir);
 
-        var noteContent = BuildNoteContent(content, tags, type, status);
+        var noteContent = BuildNoteContent(content, tags, type, status, name);
         await File.WriteAllTextAsync(filePath, noteContent, Encoding.UTF8);
 
-        return $"✅ Note created: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
-               $"📁 Path: {filePath}";
+        return $"[ok] Note created: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
+               $"Path: {filePath}";
     }
 
-    // ── update_note_content ────────────────────────────────────────────────────
+    // update_note_content
 
     [McpServerTool, Description(
         "Replaces the body of an existing note keeping its YAML frontmatter intact.")]
@@ -52,10 +60,11 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Name or path of the note.")] string note,
         [Description("New content of the body of the note.")] string content)
     {
+        Count(nameof(update_note_content), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -65,10 +74,10 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var newContent = frontmatter + content;
         await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
 
-        return $"✅ Content updated in '{found.Name}'";
+        return $"[ok] Content updated in '{found.Name}'";
     }
 
-    // ── prepend_to_note ────────────────────────────────────────────────────────
+    // prepend_to_note
 
     [McpServerTool, Description(
         "Prepends text to the beginning of a note body (just after the YAML frontmatter).")]
@@ -76,10 +85,11 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Name or path of the note.")] string note,
         [Description("Text to prepend (in Markdown).")] string content)
     {
+        Count(nameof(prepend_to_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -87,13 +97,13 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         var frontmatter = rawContent[..bodyStart];
         var body = rawContent[bodyStart..];
 
-        var newContent = frontmatter + content + "\n" + body;
+        var newContent = frontmatter + content.Replace("\\n", "\n") + "\n" + body;
         await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
 
-        return $"✅ Content prepended to the start of '{found.Name}'";
+        return $"[ok] Content prepended to the start of '{found.Name}'";
     }
 
-    // ── append_to_note ─────────────────────────────────────────────────────────
+    // append_to_note
 
     [McpServerTool, Description(
         "Appends text to the end of an existing note. " +
@@ -103,10 +113,11 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("Text to append to the end of the note (in Markdown).")] string content,
         [Description("If true, appends a horizontal separator (---) before the new content.")] bool add_separator = false)
     {
+        Count(nameof(append_to_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var toAppend = new StringBuilder("\n");
@@ -115,13 +126,13 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
             toAppend.AppendLine("\n---");
         }
 
-        toAppend.AppendLine(content);
+        toAppend.AppendLine(content.Replace("\\n", "\n"));
 
         await File.AppendAllTextAsync(found.FilePath, toAppend.ToString(), Encoding.UTF8);
-        return $"✅ Content appended to '{found.Name}' ({content.Length} characters)";
+        return $"[ok] Content appended to '{found.Name}' ({content.Length} characters)";
     }
 
-    // ── update_frontmatter ─────────────────────────────────────────────────────
+    // update_frontmatter
 
     [McpServerTool, Description(
         "Updates or adds fields in the YAML frontmatter of an existing note. " +
@@ -132,10 +143,11 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
         [Description("New status (e.g. 'published', 'draft', 'archived'). Leave empty to not modify.")] string status = "",
         [Description("New note type. Leave empty to not modify.")] string type = "")
     {
+        Count(nameof(update_frontmatter), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
@@ -150,25 +162,29 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
         var newStatus = !string.IsNullOrWhiteSpace(status) ? status : existingMeta.Status;
         var newType = !string.IsNullOrWhiteSpace(type) ? type : existingMeta.NoteType;
+        var newDomain = existingMeta.Domain ?? vaultConfig.GetDomainForFolder(
+            Path.GetDirectoryName(found.VaultRelativePath) ?? "");
 
-        var frontmatter = BuildFrontmatter(newTags, newType ?? "", newStatus ?? "", existingMeta.Date, existingMeta.ExtraFields);
+        var frontmatter = BuildFrontmatter(newTags, newType ?? "", newStatus ?? "",
+            existingMeta.Date, domain: newDomain, extraFields: existingMeta.ExtraFields);
         var newContent = frontmatter + body;
 
         await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
-        return $"✅ Frontmatter updated in '{found.Name}'";
+        return $"[ok] Frontmatter updated in '{found.Name}'";
     }
 
-    // ── add_tag ────────────────────────────────────────────────────────────────
+    // add_tag
 
     [McpServerTool, Description("Adds one or more tags to an existing note.")]
     public async Task<string> add_tag(
         [Description("Name or path of the note.")] string note,
         [Description("Tag(s) to add (comma-separated).")] string tags)
     {
+        Count(nameof(add_tag), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var newTags = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -185,23 +201,24 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
 
         if (added.Count == 0)
         {
-            return $"ℹ️ Tags already exist in '{found.Name}': #{string.Join(", #", newTags)}";
+            return $"[info] Tags already exist in '{found.Name}': #{string.Join(", #", newTags)}";
         }
 
-        return await update_frontmatter(note, string.Join(", ", existingTags));
+        return await update_frontmatter(found.Name, string.Join(", ", existingTags));
     }
 
-    // ── remove_tag ─────────────────────────────────────────────────────────────
+    // remove_tag
 
     [McpServerTool, Description("Removes one or more tags from an existing note.")]
     public async Task<string> remove_tag(
         [Description("Name or path of the note.")] string note,
         [Description("Tag(s) to remove (comma-separated).")] string tags)
     {
+        Count(nameof(remove_tag), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var toRemove = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -211,147 +228,337 @@ public sealed class NoteCommandTools(VaultIndexService vault, KiokuConfiguration
             .Where(t => !toRemove.Contains(t))
             .ToList();
 
-        return await update_frontmatter(note, string.Join(", ", remaining));
+        return await update_frontmatter(found.Name, string.Join(", ", remaining));
     }
 
-    // ── move_note ──────────────────────────────────────────────────────────────
+    // move_note
 
     [McpServerTool, Description(
-        "Moves a note to another folder in the vault. " +
-        "Note: wikilinks pointing to this note are not updated automatically in v1.")]
+        "Moves a note to another folder in the vault. By default, rewrites inbound full-path " +
+        "wikilinks (e.g. [[Folder/Note]]) that reference the note's old location; bare-name links " +
+        "(e.g. [[Note]]) are left as-is since the note's name doesn't change and Obsidian resolves " +
+        "them across folders. Set update_links=false to skip rewriting. Set dry_run=true to preview " +
+        "the move and link updates without modifying any file.")]
     public async Task<string> move_note(
         [Description("Name or path of the note to move.")] string note,
-        [Description("Destination folder (relative to the vault). E.g. 'Archive/2024'")] string destination_folder)
+        [Description("Destination folder (relative to the vault). E.g. 'Archive/2024'")] string destination_folder,
+        [Description("If true (default), rewrites inbound full-path wikilinks to the note's new location.")] bool update_links = true,
+        [Description("If true, previews the move and link updates without modifying any file.")] bool dry_run = false)
     {
+        Count(nameof(move_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
-        var destDir = Path.Combine(config.VaultPath, destination_folder);
-        Directory.CreateDirectory(destDir);
+        var destDir = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, destination_folder));
 
         var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));
         if (File.Exists(destPath))
         {
-            return $"❌ A note with that name already exists in '{destination_folder}'";
+            return KiokuError.InvalidArgument($"A note with that name already exists in '{destination_folder}'");
         }
 
-        File.Move(found.FilePath, destPath);
-        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
+        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath).Replace('\\', '/');
+        var plan = new WikilinkRewriter.RewritePlan(
+            OldShortName: found.Name,
+            NewShortName: found.Name,
+            OldFullPath: StripMdExtension(found.VaultRelativePath.Replace('\\', '/')),
+            NewFullPath: StripMdExtension(newRelativePath),
+            RewriteShortNameLinks: false,
+            ShortNameAmbiguous: false);
 
-        return $"✅ Note moved:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
+        var linkSummary = update_links
+            ? await UpdateInboundWikilinksAsync(plan, dry_run)
+            : LinkUpdateSummary.Empty;
+
+        if (dry_run)
+        {
+            return FormatDryRunResult("move", found.VaultRelativePath, newRelativePath, update_links, linkSummary);
+        }
+
+        Directory.CreateDirectory(destDir);
+        var oldPath = found.FilePath;
+        File.Move(oldPath, destPath);
+        await vault.SynchronizeFileMoveAsync(oldPath, destPath);
+
+        return $"[ok] Note moved:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}" +
+               FormatLinkSummarySuffix(update_links, linkSummary);
     }
 
-    // ── rename_note ────────────────────────────────────────────────────────────
+    // rename_note
 
     [McpServerTool, Description(
-        "Renames a note in the vault. The new name can include subfolders.")]
+        "Renames a note in the vault. The new name can include subfolders. By default, rewrites " +
+        "inbound wikilinks (bare name, full path, aliases, headings, block references, embeds) to " +
+        "point to the new name. Links whose bare name is shared by another note are left untouched " +
+        "and reported, since they can't be safely disambiguated. Set update_links=false to skip " +
+        "rewriting. Set dry_run=true to preview the rename and link updates without modifying any file.")]
     public async Task<string> rename_note(
         [Description("Name or path of the note to rename.")] string note,
-        [Description("New name of the note (without .md extension, e.g. 'New Folder/New Name').")] string new_name)
+        [Description("New name of the note (without .md extension, e.g. 'New Folder/New Name').")] string new_name,
+        [Description("If true (default), rewrites inbound wikilinks to the note's new name.")] bool update_links = true,
+        [Description("If true, previews the rename and link updates without modifying any file.")] bool dry_run = false)
     {
+        Count(nameof(rename_note), metrics);
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"❌ Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var destPath = BuildFilePath(new_name);
         if (File.Exists(destPath))
         {
-            return $"❌ A note already exists at the destination path: {Path.GetRelativePath(config.VaultPath, destPath)}";
+            return KiokuError.InvalidArgument($"A note already exists at the destination path: {Path.GetRelativePath(config.VaultPath, destPath)}");
+        }
+
+        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath).Replace('\\', '/');
+        var ambiguous = vault.GetAllNotes().Count(n => n.Name.Equals(found.Name, StringComparison.OrdinalIgnoreCase)) > 1;
+        var plan = new WikilinkRewriter.RewritePlan(
+            OldShortName: found.Name,
+            NewShortName: Path.GetFileNameWithoutExtension(destPath),
+            OldFullPath: StripMdExtension(found.VaultRelativePath.Replace('\\', '/')),
+            NewFullPath: StripMdExtension(newRelativePath),
+            RewriteShortNameLinks: true,
+            ShortNameAmbiguous: ambiguous);
+
+        var linkSummary = update_links
+            ? await UpdateInboundWikilinksAsync(plan, dry_run)
+            : LinkUpdateSummary.Empty;
+
+        if (dry_run)
+        {
+            return FormatDryRunResult("rename", found.VaultRelativePath, newRelativePath, update_links, linkSummary);
         }
 
         var destDir = Path.GetDirectoryName(destPath)!;
         Directory.CreateDirectory(destDir);
 
-        File.Move(found.FilePath, destPath);
-        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
+        var oldPath = found.FilePath;
+        File.Move(oldPath, destPath);
+        await vault.SynchronizeFileMoveAsync(oldPath, destPath);
 
-        return $"✅ Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}";
+        return $"[ok] Note renamed:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}" +
+               FormatLinkSummarySuffix(update_links, linkSummary);
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────
+    // delete_note
 
-    private string BuildFilePath(string name)
+    [McpServerTool, Description(
+        "Deletes a note from the vault by moving it to .trash folder (recoverable). " +
+        "Set permanent=true to delete immediately (irreversible). " +
+        "When dry_run is true, only reports what would be deleted without modifying the vault.")]
+    public async Task<string> delete_note(
+        [Description("Name or path of the note to delete.")] string note,
+        [Description("If true, only reports what would be deleted without modifying the vault.")] bool dry_run = false,
+        [Description("If true, deletes permanently instead of moving to trash. Default: false (soft delete).")] bool permanent = false)
     {
-        var normalized = name.Replace('/', Path.DirectorySeparatorChar)
-                             .Replace('\\', Path.DirectorySeparatorChar);
-        if (!normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        Count(nameof(delete_note), metrics);
+        var found = ResolveNote(note);
+        if (found is null)
         {
-            normalized += ".md";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
-        return Path.Combine(config.VaultPath, normalized);
+        if (dry_run)
+        {
+            var action = permanent ? "permanently delete" : "move to trash";
+            return $"[info] Would {action}: {found.VaultRelativePath}";
+        }
+
+        var filePath = found.FilePath;
+
+        if (permanent)
+        {
+            // Permanent delete
+            File.Delete(filePath);
+            vault.SynchronizeFileDelete(filePath);
+            return $"[ok] Note permanently deleted: {found.VaultRelativePath}";
+        }
+        else
+        {
+            // Soft delete: move to .trash
+            var trashDir = Path.Combine(config.VaultPath, ".trash");
+            if (!Directory.Exists(trashDir))
+            {
+                Directory.CreateDirectory(trashDir);
+            }
+
+            // Generate unique filename in trash to avoid conflicts
+            var fileName = Path.GetFileName(filePath);
+            var trashPath = Path.Combine(trashDir, fileName);
+            var counter = 1;
+            while (File.Exists(trashPath))
+            {
+                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                var ext = Path.GetExtension(fileName);
+                trashPath = Path.Combine(trashDir, $"{nameWithoutExt}_{counter}{ext}");
+                counter++;
+            }
+
+            File.Move(filePath, trashPath);
+            vault.SynchronizeFileDelete(filePath);
+
+            var trashRelativePath = Path.GetRelativePath(config.VaultPath, trashPath);
+            return $"[ok] Note moved to trash: {found.VaultRelativePath} → {trashRelativePath}\n" +
+                   "Use restore_note_from_trash to recover if needed.";
+        }
     }
 
-    private static string BuildNoteContent(string body, string tags, string type, string status)
-    {
-        var tagList = string.IsNullOrWhiteSpace(tags)
-            ? []
-            : tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    // Private helpers
 
-        var frontmatter = BuildFrontmatter(tagList, type, status, DateOnly.FromDateTime(DateTime.Today));
+    private string BuildNoteContent(string body, string tags, string type, string status, string name)
+    {
+        // Resolve domain from the note's folder path (if name includes a subfolder)
+        var folder = Path.GetDirectoryName(name.Replace('\\', '/')) ?? "";
+        var userTags = NoteHelpers.ParseTags(tags);
+        var inherited = vaultConfig.GetInheritedTags(folder);
+        var tagList = NoteHelpers.MergeTagsWithInheritance(userTags, inherited, vaultConfig.ExcludeFromTags);
+
+        var domain = vaultConfig.GetDomainForFolder(folder)
+                  ?? vaultConfig.GetDefaults(type.ToLowerInvariant())?.Domain;
+
+        var frontmatter = NoteHelpers.BuildFrontmatter(tagList, type, status,
+            DateOnly.FromDateTime(DateTime.Today), domain: domain);
         return frontmatter + "\n" + body;
     }
 
+    private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
+
+    private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
+
     private static string BuildFrontmatter(
         IEnumerable<string> tags,
-        string type,
-        string status,
+        string? type,
+        string? status,
         DateOnly? date = null,
-        IReadOnlyDictionary<string, string>? extraFields = null)
+        string? domain = null,
+        IReadOnlyDictionary<string, string>? extraFields = null) =>
+        NoteHelpers.BuildFrontmatter(tags, type, status, date, domain: domain, extraFields: extraFields);
+
+    // Wikilink auto-update helpers (move_note / rename_note)
+
+    private sealed record LinkUpdateSummary(
+        int LinksUpdated,
+        int NotesUpdated,
+        IReadOnlyList<string> AmbiguousLinks,
+        IReadOnlyList<(string Note, int Count)> Details)
     {
-        var sb = new StringBuilder("---\n");
+        public static readonly LinkUpdateSummary Empty = new(0, 0, [], []);
+    }
 
-        var tagList = tags.ToList();
-        if (tagList.Count > 0)
+    private async Task<LinkUpdateSummary> UpdateInboundWikilinksAsync(WikilinkRewriter.RewritePlan plan, bool dryRun)
+    {
+        var candidates = new Dictionary<string, Note>(StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in vault.GetBacklinks(plan.OldShortName))
         {
-            sb.AppendLine("tags:");
-            foreach (var tag in tagList)
+            candidates[candidate.FilePath] = candidate;
+        }
+
+        foreach (var candidate in vault.GetBacklinks(plan.OldFullPath))
+        {
+            candidates[candidate.FilePath] = candidate;
+        }
+
+        var linksUpdated = 0;
+        var notesUpdated = 0;
+        var ambiguous = new List<string>();
+        var details = new List<(string, int)>();
+
+        foreach (var source in candidates.Values.OrderBy(n => n.VaultRelativePath, StringComparer.OrdinalIgnoreCase))
+        {
+            var raw = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
+            var bodyStart = FrontmatterParser.GetBodyStart(raw);
+            var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
+
+            foreach (var link in result.AmbiguousMatches)
             {
-                sb.AppendLine($"  - {tag}");
+                ambiguous.Add($"{source.VaultRelativePath}: [[{link}]]");
+            }
+
+            if (result.ReplacedCount == 0)
+            {
+                continue;
+            }
+
+            linksUpdated += result.ReplacedCount;
+            notesUpdated++;
+            details.Add((source.VaultRelativePath, result.ReplacedCount));
+
+            if (!dryRun)
+            {
+                await File.WriteAllTextAsync(source.FilePath, result.NewContent, Encoding.UTF8);
+                await vault.SynchronizeFileReindexAsync(source.FilePath);
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(type))
+        return new LinkUpdateSummary(linksUpdated, notesUpdated, ambiguous, details);
+    }
+
+    private static string StripMdExtension(string path) =>
+        path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? path[..^3] : path;
+
+    private static string FormatLinkSummarySuffix(bool updateLinks, LinkUpdateSummary summary)
+    {
+        if (!updateLinks)
         {
-            sb.AppendLine($"type: {type}");
+            return string.Empty;
         }
 
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            sb.AppendLine($"status: {status}");
-        }
+        var sb = new StringBuilder();
+        sb.Append($"\n   Updated {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s).");
 
-        if (date.HasValue)
+        if (summary.AmbiguousLinks.Count > 0)
         {
-            sb.AppendLine($"date: {date:yyyy-MM-dd}");
-        }
-
-        // Preserve extra fields from the original frontmatter
-        if (extraFields is not null)
-        {
-            foreach (var (k, v) in extraFields)
+            sb.Append($"\n   Skipped {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) (another note shares this name):");
+            foreach (var link in summary.AmbiguousLinks)
             {
-                sb.AppendLine($"{k}: {v}");
+                sb.Append($"\n     - {link}");
             }
         }
 
-        sb.AppendLine("---");
         return sb.ToString();
     }
 
-    private Domain.Note? ResolveNote(string nameOrPath)
+    private static string FormatDryRunResult(
+        string action, string beforePath, string afterPath, bool updateLinks, LinkUpdateSummary summary)
     {
-        var byPath = vault.GetNote(nameOrPath);
-        if (byPath is not null)
+        var sb = new StringBuilder();
+        sb.Append("[info] Dry run — no files were modified.\n");
+        sb.Append($"   Would {action}: {beforePath} -> {afterPath}");
+
+        if (!updateLinks)
         {
-            return byPath;
+            sb.Append("\n   Link updates disabled (update_links=false).");
+            return sb.ToString();
         }
 
-        return vault.GetNoteByName(nameOrPath);
+        if (summary.Details.Count == 0)
+        {
+            sb.Append("\n   No inbound wikilinks require updates.");
+        }
+        else
+        {
+            sb.Append($"\n   Would update {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s):");
+            foreach (var (noteName, count) in summary.Details)
+            {
+                sb.Append($"\n     - {noteName}: {count} link(s)");
+            }
+        }
+
+        if (summary.AmbiguousLinks.Count > 0)
+        {
+            sb.Append($"\n   {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) would be skipped:");
+            foreach (var link in summary.AmbiguousLinks)
+            {
+                sb.Append($"\n     - {link}");
+            }
+        }
+
+        return sb.ToString();
     }
 }

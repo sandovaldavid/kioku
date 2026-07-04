@@ -1,22 +1,75 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
-  "description": "<your description here>",
-  "name": "io.github.<your GitHub username here>/<your repo name>",
-  "version": "0.1.0-beta",
+  "description": "Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read and write notes via the Model Context Protocol.",
+  "name": "io.github.sandovaldavid/kioku",
+  "version": "2.0.0-beta.8",
   "packages": [
     {
       "registryType": "nuget",
-      "identifier": "<your package ID here>",
-      "version": "0.1.0-beta",
+      "identifier": "kioku-mcp-server",
+      "version": "2.0.0-beta.8",
       "transport": {
         "type": "stdio"
       },
       "packageArguments": [],
-      "environmentVariables": []
+      "environmentVariables": [
+        {
+          "name": "KIOKU_VAULT_PATH",
+          "description": "Absolute path to the Obsidian vault root directory"
+        },
+        {
+          "name": "KIOKU_MAX_RESULTS",
+          "description": "Maximum number of search results (default: 20)"
+        },
+        {
+          "name": "KIOKU_OBSIDIAN_PORT",
+          "description": "WebSocket port for the Obsidian plugin bridge (default: 7765)"
+        },
+        {
+          "name": "KIOKU_BRIDGE_TOKEN",
+          "description": "Shared secret for the Obsidian bridge WebSocket; must match the plugin's Auth token setting"
+        },
+        {
+          "name": "KIOKU_OLLAMA_URL",
+          "description": "Ollama server URL for semantic embeddings (default: http://localhost:11434)"
+        },
+        {
+          "name": "KIOKU_EMBEDDING_MODEL",
+          "description": "Ollama embedding model name (default: nomic-embed-text)"
+        },
+        {
+          "name": "KIOKU_GEN_MODEL",
+          "description": "Ollama model for local text generation used by summarize_note (default: disabled), e.g. llama3.2"
+        },
+        {
+          "name": "KIOKU_TRANSPORT",
+          "description": "MCP transport: stdio or http (default: stdio)"
+        },
+        {
+          "name": "KIOKU_HTTP_PORT",
+          "description": "HTTP-SSE transport port when KIOKU_TRANSPORT=http (default: 5173)"
+        },
+        {
+          "name": "KIOKU_API_KEY",
+          "description": "Bearer token required by the HTTP transport when set"
+        },
+        {
+          "name": "KIOKU_GITHUB_TOKEN",
+          "description": "GitHub token used by the share_as_gist tool"
+        },
+        {
+          "name": "KIOKU_ENABLE_METRICS",
+          "description": "Opt-in in-memory tool-call counters (default: false)"
+        },
+        {
+          "name": "KIOKU_SENTRY_DSN",
+          "description": "Opt-in Sentry crash reporting DSN"
+        }
+      ]
     }
   ],
   "repository": {
-    "url": "https://github.com/<your GitHub username here>/<your repo name>",
+    "url": "https://github.com/sandovaldavid/kioku",
     "source": "github"
   }
 }
