@@ -1,44 +1,45 @@
-# P0-04 — Sincronizar versiones de README y server.json con release-please
+# P0-04 — Sync README and server.json versions with release-please
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P0 |
-| Rama | `chore/readme-version-sync` |
+| Priority | P0 |
+| Branch | `chore/readme-version-sync` |
 | Commit | `chore(release): bump README and server.json versions via release-please extra-files` |
-| Tamaño | S |
-| Dependencias | Ninguna |
+| Size | S |
+| Dependencies | None |
 
-## Contexto
+## Context
 
-release-please solo actualiza `csproj`, `manifest.json` y `package.json` del plugin
-(`extra-files`). Las versiones escritas a mano en `README.md`,
-`src/Kioku.Mcp.Server/README.md` y `src/Kioku.Mcp.Server/.mcp/server.json` derivan en cada
-release (el README llegó a decir beta.4 y el server README 1.6.2 con el repo en beta.8).
-La revisión de docs de 2026-07-02 las corrigió y dejó anotaciones
-`<!-- x-release-please-version -->` en ambos README, pero **sin registrar los archivos en la
-config, release-please no los toca**.
+release-please only updates the plugin's `csproj`, `manifest.json` and `package.json`
+(`extra-files`). The versions hand-written in `README.md`,
+`src/Kioku.Mcp.Server/README.md` and `src/Kioku.Mcp.Server/.mcp/server.json` drift on every
+release (the README once said beta.4 and the server README 1.6.2 while the repo was on
+beta.8). The 2026-07-02 docs revision fixed them and left
+`<!-- x-release-please-version -->` annotations in both READMEs, but **without registering
+the files in the config, release-please won't touch them**.
 
-## Alcance
+## Scope
 
-1. Añadir a `extra-files` en **ambas** configs (`release-please-config.json` y
+1. Add to `extra-files` in **both** configs (`release-please-config.json` and
    `release-please-config.beta.json`):
-   - `README.md` (updater `generic` — usa la anotación `x-release-please-version` ya presente)
-   - `src/Kioku.Mcp.Server/README.md` (ídem)
-   - `src/Kioku.Mcp.Server/.mcp/server.json` (updater `json`, jsonpaths `$.version` y
+   - `README.md` (`generic` updater — uses the `x-release-please-version` annotation
+     already present)
+   - `src/Kioku.Mcp.Server/README.md` (same)
+   - `src/Kioku.Mcp.Server/.mcp/server.json` (`json` updater, jsonpaths `$.version` and
      `$.packages[0].version`)
-2. Verificar la sintaxis de updaters genéricos de `release-please-action@v4` para archivos
-   markdown/json (documentación oficial de release-please "Updating arbitrary files").
+2. Verify the generic updater syntax for `release-please-action@v4` for markdown/json
+   files (official release-please "Updating arbitrary files" documentation).
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] El siguiente release PR de release-please en `develop` actualiza la versión en los
-  3 archivos (verificable en el diff del PR automático).
-- [ ] Las anotaciones en los README quedan en la misma línea que la versión.
-- [ ] No se rompe el pipeline `release-please.yml` (dry-run local o revisión del PR bot).
+- [ ] The next release-please release PR on `develop` updates the version in all
+  3 files (verifiable in the automated PR's diff).
+- [ ] The annotations in the READMEs stay on the same line as the version.
+- [ ] The `release-please.yml` pipeline isn't broken (local dry-run or bot PR review).
 
-## Archivos
+## Files
 
 - `release-please-config.json`
 - `release-please-config.beta.json`
 - `README.md`, `src/Kioku.Mcp.Server/README.md`,
-  `src/Kioku.Mcp.Server/.mcp/server.json` (solo si la sintaxis de anotación requiere ajuste)
+  `src/Kioku.Mcp.Server/.mcp/server.json` (only if the annotation syntax needs adjusting)

@@ -1,31 +1,31 @@
-# P0-05 — Añadir archivo LICENSE
+# P0-05 — Add LICENSE file
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P0 |
-| Rama | `chore/add-license` |
+| Priority | P0 |
+| Branch | `chore/add-license` |
 | Commit | `chore(config): add MIT license file and metadata` |
-| Tamaño | S |
-| Dependencias | **Decisión del autor**: confirmar que la licencia es MIT |
+| Size | S |
+| Dependencies | **Author's decision**: confirm the license is MIT |
 
-## Contexto
+## Context
 
-Detectado en la revisión de 2026-07-02: el README raíz declara "MIT — ver `LICENSE`"
-pero **el archivo `LICENSE` no existe** en la raíz del repo, y ninguna metadata lo
-declara (`package.json` sin campo `license`, csproj sin `PackageLicenseExpression`). El
-paquete se publica en NuGet.org (`publish-nuget` en `release-please.yml`) y el plugin aspira
-a la Community Store — ambos requieren licencia explícita.
+Found during the 2026-07-02 review: the root README states "MIT — see `LICENSE`"
+but **the `LICENSE` file does not exist** at the repo root, and no metadata declares it
+(`package.json` has no `license` field, csproj has no `PackageLicenseExpression`). The
+package is published on NuGet.org (`publish-nuget` in `release-please.yml`) and the plugin
+aims for the Community Store — both require an explicit license.
 
-## Alcance
+## Scope
 
-1. Confirmar la licencia (el README dice MIT).
-2. Crear `LICENSE` en la raíz (texto MIT, copyright David Sandoval).
-3. Declararla en metadatos:
+1. Confirm the license (the README says MIT).
+2. Create `LICENSE` at the root (MIT text, copyright David Sandoval).
+3. Declare it in metadata:
    - `src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj`: `<PackageLicenseExpression>MIT</PackageLicenseExpression>`
-   - `package.json` raíz y `src/obsidian-kioku-mcp/package.json`: `"license": "MIT"`
+   - Root `package.json` and `src/obsidian-kioku-mcp/package.json`: `"license": "MIT"`
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] `LICENSE` existe y el link del README resuelve.
-- [ ] `dotnet pack` incluye la licencia sin warnings.
-- [ ] GitHub detecta la licencia en la página del repo.
+- [ ] `LICENSE` exists and the README link resolves.
+- [ ] `dotnet pack` includes the license with no warnings.
+- [ ] GitHub detects the license on the repo page.

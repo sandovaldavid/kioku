@@ -1,38 +1,37 @@
-# P3-01 — Import/export BibTeX
+# P3-01 — BibTeX import/export
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P3 |
-| Rama | `feat/zotero-bibtex` |
+| Priority | P3 |
+| Branch | `feat/zotero-bibtex` |
 | Commit | `feat(server): add bibtex import and export for literature notes` |
-| Tamaño | M |
+| Size | M |
 | Spec | [features/10-zotero-bibtex.md](../features/10-zotero-bibtex.md) |
-| Dependencias | Ninguna |
+| Dependencies | None |
 
-## Objetivo
+## Objective
 
-`import_bibtex(source, folder, update_existing, dry_run)` (parser BibTeX propio, literature
-notes con `citekey`/`doi` en frontmatter, dedup por citekey) y `export_bibtex(folder)`
-(inverso desde las notas con citekey) en `ResearchTools`. La integración con Zotero vivo
-queda para una fase 2 vía Better BibTeX auto-export (documentar el flujo).
+`import_bibtex(source, folder, update_existing, dry_run)` (custom BibTeX parser, literature
+notes with `citekey`/`doi` in frontmatter, dedup by citekey) and `export_bibtex(folder)`
+(the reverse, from notes with a citekey) in `ResearchTools`. Live integration with Zotero is
+left for a phase 2 via Better BibTeX auto-export (document the flow).
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] Parser tolerante: entradas malformadas se reportan por entrada sin abortar la
-  importación; escapes LaTeX comunes (`{\'e}`, `--`) normalizados; campos no reconocidos
-  conservados.
-- [ ] Dedup: reimportar el mismo `.bib` no crea duplicados; `update_existing=true` refresca
-  solo frontmatter.
-- [ ] Round-trip: `import_bibtex` → `export_bibtex` conserva las entradas (test).
-- [ ] Colisiones de nombre de archivo resueltas con sufijo de citekey.
-- [ ] `dry_run` lista crear/saltar/actualizar sin escribir.
-- [ ] Tests del parser con fixtures `.bib` reales (unicode, llaves anidadas, comentarios).
-- [ ] `commands-reference.md` regenerado + guía corta del flujo Zotero → Better BibTeX →
-  Kioku en `docs/` (sección en install.md o doc nuevo).
+- [ ] Tolerant parser: malformed entries are reported per entry without aborting the
+  import; common LaTeX escapes (`{\'e}`, `--`) normalized; unrecognized fields preserved.
+- [ ] Dedup: reimporting the same `.bib` doesn't create duplicates; `update_existing=true`
+  refreshes only frontmatter.
+- [ ] Round-trip: `import_bibtex` → `export_bibtex` preserves entries (test).
+- [ ] Filename collisions resolved with a citekey suffix.
+- [ ] `dry_run` lists create/skip/update without writing.
+- [ ] Parser tests with real `.bib` fixtures (unicode, nested braces, comments).
+- [ ] `commands-reference.md` regenerated + a short guide for the Zotero → Better BibTeX →
+  Kioku flow in `docs/` (section in install.md or new doc).
 
-## Archivos
+## Files
 
-- `src/Kioku.Mcp.Server/Services/BibtexParser.cs` (nuevo)
+- `src/Kioku.Mcp.Server/Services/BibtexParser.cs` (new)
 - `src/Kioku.Mcp.Server/Tools/ResearchTools.cs`
-- `src/Kioku.Mcp.Server.Tests/BibtexParserTests.cs` (nuevo) + fixtures
+- `src/Kioku.Mcp.Server.Tests/BibtexParserTests.cs` (new) + fixtures
 - Docs

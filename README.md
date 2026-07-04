@@ -1,63 +1,63 @@
 # Kioku — MCP Server for Obsidian
 
-> **Kioku** (記憶) significa "memoria" en japonés.
+> **Kioku** (記憶) means "memory" in Japanese.
 >
-> Versión actual: **2.0.0-beta.9** (`develop` · beta) <!-- x-release-please-version --> · [Ver releases](https://github.com/sandovaldavid/kioku/releases)
+> Current version: **2.0.0-beta.9** (`develop` · beta) <!-- x-release-please-version --> · [View releases](https://github.com/sandovaldavid/kioku/releases)
 
-Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 117 herramientas MCP en 18 clases y 22 comandos del bridge del plugin.
+Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claude Code** and **Antigravity CLI** read, search, write, and organize your Obsidian vault natively, fast, and privately — with 117 MCP tools across 18 classes and 22 plugin bridge commands.
 
 ---
 
-## Capacidades
+## Capabilities
 
-- **Búsqueda híbrida** — full-text + semántica (embeddings con Ollama) + RRF
-- **Lectura/escritura** de notas, frontmatter y metadatos
-- **Gestión de tags** y organización taxonómica
-- **Navegación de wikilinks** — backlinks, enlaces salientes, grafo de conocimiento
-- **Gestión de tareas** — checkboxes nativos con filtros por tag, fecha, vencimiento
-- **Zettelkasten** — creación atómica, MOCs, templates, literatura
-- **CSS Theming** — snippets y temas completos desde el agente
-- **Assets** — Excalidraw, imágenes, archivos huérfanos
-- **Bridge con Obsidian** — abrir notas, ejecutar comandos, consultar estado (opcional)
-- **Inicio bajo demanda** — no consume recursos cuando no se usa
-- **Transporte dual** — stdio (v1, local) y HTTP-SSE (v2, múltiples agentes/VM)
+- **Hybrid search** — full-text + semantic (Ollama embeddings) + RRF
+- **Read/write** notes, frontmatter, and metadata
+- **Tag management** and taxonomic organization
+- **Wikilink navigation** — backlinks, outgoing links, knowledge graph
+- **Task management** — native checkboxes with filters by tag, date, due date
+- **Zettelkasten** — atomic note creation, MOCs, templates, literature notes
+- **CSS Theming** — snippets and full themes from the agent
+- **Assets** — Excalidraw, images, orphaned files
+- **Obsidian bridge** — open notes, run commands, query status (optional)
+- **On-demand startup** — consumes no resources when not in use
+- **Dual transport** — stdio (v1, local) and HTTP-SSE (v2, multiple agents/VM)
 
-## Arquitectura
+## Architecture
 
 ```
-Agente de IA (Claude Code / agy)
+AI Agent (Claude Code / agy)
     │
-    ├── stdio (v1 — local, bajo demanda)
-    └── HTTP-SSE (v2 — VM, múltiples agentes)
+    ├── stdio (v1 — local, on-demand)
+    └── HTTP-SSE (v2 — VM, multiple agents)
     │
     ▼
 Kioku.Mcp.Server (C# .NET 10)
-    ├── 18 Tool Classes (117 herramientas MCP)
+    ├── 18 Tool Classes (117 MCP tools)
     ├── Services: VaultIndex · Embedding(Ollama) · HybridSearch
     │            TaskService · ObsidianBridge · Persistence
     └── Middleware: ApiKeyMiddleware
     │
-    │ WebSocket (opcional, solo si Obsidian está abierto)
+    │ WebSocket (optional, only if Obsidian is open)
     ▼
-Plugin Obsidian (TypeScript) — WebSocket Server :7765
+Obsidian Plugin (TypeScript) — WebSocket Server :7765
     │
     ▼
 Obsidian App
 ```
 
-## Inicio Rápido (Uso Local)
+## Quick Start (Local Use)
 
-### Requisitos
+### Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Obsidian](https://obsidian.md) instalado con tu bóveda de notas
-- [Ollama](https://ollama.com) (opcional, necesario para búsqueda semántica con `nomic-embed-text`)
+- [Obsidian](https://obsidian.md) installed with your vault of notes
+- [Ollama](https://ollama.com) (optional, required for semantic search with `nomic-embed-text`)
 
-### 1. Compilación del Servidor
+### 1. Building the Server
 
-Para el mejor rendimiento, se recomienda compilar Kioku como un **único archivo ejecutable autónomo (Self-Contained)**. Así no dependerás de la ejecución mediante el SDK de dotnet.
+For best performance, it's recommended to build Kioku as a **single self-contained executable**. This way you won't depend on running it through the dotnet SDK.
 
-Ejecuta el comando correspondiente a tu sistema operativo desde la raíz del proyecto:
+Run the command matching your operating system from the project root:
 
 * **Linux:**
   ```bash
@@ -76,19 +76,19 @@ Ejecuta el comando correspondiente a tu sistema operativo desde la raíz del pro
   dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj -c Release -r osx-arm64 --self-contained -p:PublishSingleFile=true
   ```
 
-Esto generará el binario ejecutable `Kioku.Mcp.Server` (o `Kioku.Mcp.Server.exe` en Windows) en el directorio:
+This will generate the executable binary `Kioku.Mcp.Server` (or `Kioku.Mcp.Server.exe` on Windows) in the directory:
 `src/Kioku.Mcp.Server/bin/Release/net10.0/<runtime>/publish/`
 
-### 2. Registro en Clientes MCP
+### 2. Registering with MCP Clients
 
-Compila el servidor (paso 1) y luego agrega Kioku a tu cliente MCP favorito:
+Build the server (step 1) and then add Kioku to your favorite MCP client:
 
 > [!TIP]
-> Usa `<RUTA_AL_BINARIO>` como `dotnet run --project /ruta/a/kioku/src/Kioku.Mcp.Server/` para desarrollo, o la ruta al binario compilado del paso 1.
+> Use `<PATH_TO_BINARY>` as `dotnet run --project /path/to/kioku/src/Kioku.Mcp.Server/` for development, or the path to the compiled binary from step 1.
 
 #### OpenCode
 
-Archivo: `~/.config/opencode/opencode.jsonc` o `./opencode.jsonc` (proyecto)
+File: `~/.config/opencode/opencode.jsonc` or `./opencode.jsonc` (project)
 
 ```jsonc
 {
@@ -96,9 +96,9 @@ Archivo: `~/.config/opencode/opencode.jsonc` o `./opencode.jsonc` (proyecto)
   "mcp": {
     "kioku": {
       "type": "local",
-      "command": ["<RUTA_AL_BINARIO>"],
+      "command": ["<PATH_TO_BINARY>"],
       "environment": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       },
       "enabled": true
     }
@@ -108,16 +108,16 @@ Archivo: `~/.config/opencode/opencode.jsonc` o `./opencode.jsonc` (proyecto)
 
 #### Claude Code
 
-Archivo: `.mcp.json` (raíz del proyecto) o `~/.claude.json` (global)
+File: `.mcp.json` (project root) or `~/.claude.json` (global)
 
 ```json
 {
   "mcpServers": {
     "kioku": {
       "type": "stdio",
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
@@ -126,7 +126,7 @@ Archivo: `.mcp.json` (raíz del proyecto) o `~/.claude.json` (global)
 
 #### Claude Desktop
 
-Archivo:
+File:
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux:** `~/.config/Claude/claude_desktop_config.json`
@@ -135,10 +135,10 @@ Archivo:
 {
   "mcpServers": {
     "kioku": {
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
@@ -147,17 +147,17 @@ Archivo:
 
 #### VS Code
 
-Archivo: `.vscode/mcp.json` (workspace)
+File: `.vscode/mcp.json` (workspace)
 
 ```json
 {
   "servers": {
     "kioku": {
       "type": "stdio",
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
@@ -166,16 +166,16 @@ Archivo: `.vscode/mcp.json` (workspace)
 
 #### Cursor
 
-Archivo: `.cursor/mcp.json` (raíz del proyecto)
+File: `.cursor/mcp.json` (project root)
 
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
@@ -184,16 +184,16 @@ Archivo: `.cursor/mcp.json` (raíz del proyecto)
 
 #### Zed
 
-Archivo: `.zed/settings.json` (proyecto) o `~/.config/zed/settings.json` (global)
+File: `.zed/settings.json` (project) or `~/.config/zed/settings.json` (global)
 
 ```json
 {
   "context_servers": {
     "kioku": {
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
@@ -202,21 +202,21 @@ Archivo: `.zed/settings.json` (proyecto) o `~/.config/zed/settings.json` (global
 
 #### JetBrains IDEs (IntelliJ, PyCharm, WebStorm, etc.)
 
-Archivo:
+File:
 - **macOS:** `~/Library/Application Support/JetBrains/AIAssistant/mcp.json`
 - **Windows:** `%APPDATA%\JetBrains\AIAssistant\mcp.json`
 - **Linux:** `~/.config/JetBrains/AIAssistant/mcp.json`
 
-O desde Settings → Tools → AI Assistant → MCP.
+Or from Settings → Tools → AI Assistant → MCP.
 
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
@@ -225,16 +225,16 @@ O desde Settings → Tools → AI Assistant → MCP.
 
 #### Warp
 
-Configuración gráfica desde Warp Settings → MCP Servers. Alternativamente, en el archivo de configuración del agente local:
+Graphical configuration from Warp Settings → MCP Servers. Alternatively, in the local agent's configuration file:
 
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
@@ -243,16 +243,16 @@ Configuración gráfica desde Warp Settings → MCP Servers. Alternativamente, e
 
 #### GitHub Copilot CLI
 
-Archivo: `.mcp.json` (raíz del proyecto) o `.vscode/mcp.json`.
+File: `.mcp.json` (project root) or `.vscode/mcp.json`.
 
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
@@ -261,149 +261,149 @@ Archivo: `.mcp.json` (raíz del proyecto) o `.vscode/mcp.json`.
 
 #### Codex CLI (OpenAI)
 
-Archivo: `config.toml` (raíz del proyecto o `~/.codex/`)
+File: `config.toml` (project root or `~/.codex/`)
 
 ```toml
 [mcp_servers.kioku]
-command = "<RUTA_AL_BINARIO>"
+command = "<PATH_TO_BINARY>"
 args = []
-env = { KIOKU_VAULT_PATH = "/ruta/a/tu/boveda" }
+env = { KIOKU_VAULT_PATH = "/path/to/your/vault" }
 ```
 
-#### Antigravity CLI e IDE
+#### Antigravity CLI and IDE
 
-Archivo: `.antigravity/mcp.json` (raíz del proyecto)
+File: `.antigravity/mcp.json` (project root)
 
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "command": "<RUTA_AL_BINARIO>",
+      "command": "<PATH_TO_BINARY>",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "/ruta/a/tu/boveda"
+        "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
     }
   }
 }
 ```
 
-### 3. Instalación del Plugin de Obsidian (Opcional)
+### 3. Installing the Obsidian Plugin (Optional)
 
 > [!NOTE]
-> El plugin de Obsidian **solo es necesario si deseas usar las herramientas del Bridge de la interfaz de usuario** (como abrir notas automáticamente en el editor, ver qué nota está activa o ejecutar comandos de Obsidian). Todas las demás funciones de lectura, escritura y búsqueda semántica funcionan directamente sobre los archivos, incluso con Obsidian cerrado.
+> The Obsidian plugin **is only needed if you want to use the UI Bridge tools** (such as automatically opening notes in the editor, seeing which note is active, or running Obsidian commands). All other read, write, and semantic search features work directly against the files, even with Obsidian closed.
 
-Para instalar el plugin localmente en tu Obsidian:
+To install the plugin locally in your Obsidian vault:
 
-1. **Instalar dependencias y compilar el plugin:**
-   En la raíz del proyecto, ejecuta:
+1. **Install dependencies and build the plugin:**
+   From the project root, run:
    ```bash
    pnpm install
    pnpm build:plugin
    ```
-   Esto generará los archivos `main.js`, `manifest.json` y `styles.css` en la carpeta `src/obsidian-kioku-mcp/`.
+   This will generate the `main.js`, `manifest.json`, and `styles.css` files in the `src/obsidian-kioku-mcp/` folder.
 
-2. **Copiar los archivos a tu bóveda:**
-   Crea una carpeta llamada `kioku` dentro de la carpeta oculta de complementos de tu bóveda de Obsidian (`.obsidian/plugins/`):
+2. **Copy the files to your vault:**
+   Create a folder named `kioku` inside your Obsidian vault's hidden plugins folder (`.obsidian/plugins/`):
    ```bash
-   # Crear directorio del plugin
-   mkdir -p /ruta/a/tu/boveda/.obsidian/plugins/kioku
+   # Create the plugin directory
+   mkdir -p /path/to/your/vault/.obsidian/plugins/kioku
    
-   # Copiar archivos compilados
-   cp src/obsidian-kioku-mcp/{main.js,manifest.json,styles.css} /ruta/a/tu/boveda/.obsidian/plugins/kioku/
+   # Copy the built files
+   cp src/obsidian-kioku-mcp/{main.js,manifest.json,styles.css} /path/to/your/vault/.obsidian/plugins/kioku/
    ```
 
-3. **Habilitar el plugin en Obsidian:**
-   * Abre Obsidian.
-   * Ve a **Ajustes** -> **Complementos de la comunidad** (Community Plugins).
-   * Haz clic en **Recargar** (Reload icon) para detectar el nuevo plugin.
-   * Activa el interruptor junto a **Kioku MCP Bridge**.
+3. **Enable the plugin in Obsidian:**
+   * Open Obsidian.
+   * Go to **Settings** -> **Community plugins**.
+   * Click **Reload** (Reload icon) to detect the new plugin.
+   * Toggle the switch next to **Kioku MCP Bridge**.
 
 ---
 
-### Variables de entorno
+### Environment Variables
 
-| Variable | Requerida | Descripción | Default |
+| Variable | Required | Description | Default |
 |---|---|---|---|
-| `KIOKU_VAULT_PATH` | ✅ | Ruta absoluta a la bóveda de Obsidian | — |
-| `KIOKU_TRANSPORT` | ❌ | Transporte MCP: `stdio` o `http` | `stdio` |
-| `KIOKU_HTTP_PORT` | ❌ | Puerto del transporte HTTP-SSE | `5173` |
-| `KIOKU_API_KEY` | ❌ | Bearer token para autenticar el transporte HTTP | — |
-| `KIOKU_OLLAMA_URL` | ❌ | URL base del cliente Ollama local | `http://localhost:11434` |
-| `KIOKU_EMBEDDING_MODEL` | ❌ | Modelo de Ollama utilizado para embeddings | `nomic-embed-text` |
-| `KIOKU_GEN_MODEL` | ❌ | Modelo de Ollama para generación local (`summarize_note`), ej. `llama3.2` | — (deshabilitado) |
-| `KIOKU_MAX_RESULTS` | ❌ | Máximo de resultados de búsqueda | `20` |
-| `KIOKU_OBSIDIAN_PORT` | ❌ | Puerto del WebSocket bridge con Obsidian | `7765` |
-| `KIOKU_BRIDGE_TOKEN` | ❌ | Token compartido del bridge WebSocket; debe coincidir con el setting "Auth token" del plugin | — |
-| `KIOKU_GITHUB_TOKEN` | ❌ | Token de GitHub para `share_as_gist` | — |
-| `KIOKU_ENABLE_METRICS` | ❌ | Contadores de uso de tools en memoria (opt-in) | `false` |
-| `KIOKU_SENTRY_DSN` | ❌ | DSN de Sentry para reporte de crashes (opt-in) | — |
+| `KIOKU_VAULT_PATH` | ✅ | Absolute path to the Obsidian vault | — |
+| `KIOKU_TRANSPORT` | ❌ | MCP transport: `stdio` or `http` | `stdio` |
+| `KIOKU_HTTP_PORT` | ❌ | HTTP-SSE transport port | `5173` |
+| `KIOKU_API_KEY` | ❌ | Bearer token to authenticate the HTTP transport | — |
+| `KIOKU_OLLAMA_URL` | ❌ | Base URL of the local Ollama client | `http://localhost:11434` |
+| `KIOKU_EMBEDDING_MODEL` | ❌ | Ollama model used for embeddings | `nomic-embed-text` |
+| `KIOKU_GEN_MODEL` | ❌ | Ollama model for local generation (`summarize_note`), e.g. `llama3.2` | — (disabled) |
+| `KIOKU_MAX_RESULTS` | ❌ | Maximum number of search results | `20` |
+| `KIOKU_OBSIDIAN_PORT` | ❌ | WebSocket port for the Obsidian bridge | `7765` |
+| `KIOKU_BRIDGE_TOKEN` | ❌ | Shared token for the WebSocket bridge; must match the plugin's "Auth token" setting | — |
+| `KIOKU_GITHUB_TOKEN` | ❌ | GitHub token for `share_as_gist` | — |
+| `KIOKU_ENABLE_METRICS` | ❌ | In-memory tool usage counters (opt-in) | `false` |
+| `KIOKU_SENTRY_DSN` | ❌ | Sentry DSN for crash reporting (opt-in) | — |
 
-## MCP Tools Disponibles
+## Available MCP Tools
 
-117 herramientas organizadas en 18 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
+117 tools organized into 18 classes. For the full inventory with parameters, see [`docs/commands-reference.md`](docs/commands-reference.md).
 
-Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desactivan por **grupos de capacidades** en `{vault}/.kioku/config.yml` — ver [`docs/vault-config.md`](docs/vault-config.md).
+Classes outside the core (query, write, utilities) are enabled or disabled by **capability groups** in `{vault}/.kioku/config.yml` — see [`docs/vault-config.md`](docs/vault-config.md).
 
-| Categoría | Tools clave |
+| Category | Key Tools |
 |---|---|
-| **Consulta** | `read_note`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_note_metadata`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `list_notes` |
-| **Escritura** | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note`, `delete_note` |
-| **Tareas** | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
+| **Query** | `read_note`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_note_metadata`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `list_notes` |
+| **Write** | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note`, `delete_note` |
+| **Tasks** | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
 | **Zettelkasten** | `create_zettel`, `create_moc`, `create_literature_note`, `link_related_notes`, `create_folder_readme` |
-| **Workflows y Templates** | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items` |
-| **Organización** | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `find_broken_links`, `audit_vault` |
-| **Sesiones** | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context`, `list_work_sessions`, `get_session_activity` |
-| **Grafo de conocimiento** | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
-| **Análisis de grafo** | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
+| **Workflows and Templates** | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items` |
+| **Organization** | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `find_broken_links`, `audit_vault` |
+| **Sessions** | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context`, `list_work_sessions`, `get_session_activity` |
+| **Knowledge graph** | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
+| **Graph analysis** | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
 | **Research** | `export_citations`, `export_note`, `get_literature_gap`, `get_citation_graph`, `import_bibtex`, `export_bibtex`, `share_as_gist`, `validate_research_notes` |
-| **Generación local** (requiere Ollama) | `summarize_note`, `generate_flashcards` |
+| **Local generation** (requires Ollama) | `summarize_note`, `generate_flashcards` |
 | **Restore** | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
 | **CSS Theming** | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet`, `reload_css_snippets` |
 | **Assets** | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder`, `reorder_notes_in_folder` |
 | **Git** | `get_git_status`, `list_git_commits`, `stage_note`, `stage_all`, `unstage_note`, `commit_staged`, `fix_merge_conflicts`, `resolve_merge_conflict` |
 | **Plugin Bridge** | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins` |
-| **Obsidian UI** (requiere plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split`, `get_selection_in_obsidian`, `toggle_reading_mode`, `fold_all_headings`, `unfold_all_headings`, `get_obsidian_status` |
-| **Utilidades** | `ping`, `get_vault_stats`, `get_index_status`, `rebuild_index` |
+| **Obsidian UI** (requires plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split`, `get_selection_in_obsidian`, `toggle_reading_mode`, `fold_all_headings`, `unfold_all_headings`, `get_obsidian_status` |
+| **Utilities** | `ping`, `get_vault_stats`, `get_index_status`, `rebuild_index` |
 
 ## MCP Prompts & Resources
 
-Además de las 116 tools, Kioku expone las otras dos primitivas de MCP (SDK `ModelContextProtocol` 1.4.0). El inventario completo vive junto al de tools en [`docs/commands-reference.md`](docs/commands-reference.md).
+Besides the 116 tools, Kioku exposes the other two MCP primitives (SDK `ModelContextProtocol` 1.4.0). The full inventory lives alongside the tools inventory in [`docs/commands-reference.md`](docs/commands-reference.md).
 
-**Prompts** — workflows curados que aparecen como slash commands nativos en cualquier cliente MCP (Claude Code, Cursor, VS Code):
+**Prompts** — curated workflows that appear as native slash commands in any MCP client (Claude Code, Cursor, VS Code):
 
-| Prompt | Argumentos | Descripción |
+| Prompt | Arguments | Description |
 |---|---|---|
-| `research_digest` | `folder?` | Resume actividad de lectura/investigación reciente y lista preguntas abiertas |
-| `process_inbox` | `inbox?` | Guía el flujo propón → confirma → aplica de `process_inbox` |
-| `weekly_review` | — | Revisión semanal: digest + tareas vencidas + huérfanas + sugerencias de enlaces |
-| `literature_review` | `topic` | Recolecta evidencia existente sobre un tema y la sintetiza con citas `[[wikilink]]` |
+| `research_digest` | `folder?` | Summarizes recent reading/research activity and lists open questions |
+| `process_inbox` | `inbox?` | Guides the propose → confirm → apply flow of `process_inbox` |
+| `weekly_review` | — | Weekly review: digest + overdue tasks + orphans + link suggestions |
+| `literature_review` | `topic` | Gathers existing evidence on a topic and synthesizes it with `[[wikilink]]` citations |
 
-**Resources** — permiten montar contenido del vault como contexto sin gastar una tool-call:
+**Resources** — allow mounting vault content as context without spending a tool call:
 
-| Resource | Tipo | Descripción |
+| Resource | Type | Description |
 |---|---|---|
-| `kioku://note/{path}` | Template | Contenido completo (con frontmatter) de una nota por ruta relativa al vault |
-| `kioku://vault/stats` | Directo | Snapshot de estadísticas del vault (notas, tags, carpetas, estado del índice) |
+| `kioku://note/{path}` | Template | Full content (with frontmatter) of a note by its path relative to the vault |
+| `kioku://vault/stats` | Direct | Snapshot of vault statistics (notes, tags, folders, index status) |
 
-`resources/list` devuelve solo las ~20 notas más recientes (no las 5000+ del vault) — usa el resource template `kioku://note/{path}` para leer cualquier nota por su ruta.
+`resources/list` returns only the ~20 most recent notes (not all 5000+ in the vault) — use the `kioku://note/{path}` resource template to read any note by its path.
 
-## Plugins de Obsidian Integrados (vía Plugin Bridge)
+## Integrated Obsidian Plugins (via Plugin Bridge)
 
-| Plugin | Comandos |
+| Plugin | Commands |
 |---|---|
-| **Dataview** | `query_dataview` — ejecuta queries DQL sobre la bóveda |
-| **Templater** | `apply_template` — aplica templates con variables |
-| **Linter** | `lint_note`, `lint_vault` — formatea y corrige notas |
+| **Dataview** | `query_dataview` — runs DQL queries over the vault |
+| **Templater** | `apply_template` — applies templates with variables |
+| **Linter** | `lint_note`, `lint_vault` — formats and fixes notes |
 
-## Estado del Proyecto
+## Project Status
 
-- **v1** (stdio): ✅ Completo — herramientas core + 22 comandos del bridge del plugin
-- **v2** (HTTP-SSE): ✅ Completo — transporte dual, embeddings Ollama, auth Bearer Token, despliegue en VM
-- **v3** (Ecosystem Tools): ✅ Completo — 102 herramientas en 17 clases: templates, tareas, Zettelkasten, CSS theming, assets, Git, restore, grafo
+- **v1** (stdio): ✅ Complete — core tools + 22 plugin bridge commands
+- **v2** (HTTP-SSE): ✅ Complete — dual transport, Ollama embeddings, Bearer Token auth, VM deployment
+- **v3** (Ecosystem Tools): ✅ Complete — 102 tools across 17 classes: templates, tasks, Zettelkasten, CSS theming, assets, Git, restore, graph
 
-Ver [`docs/planning.md`](docs/planning.md) para el plan arquitectural completo, [`docs/features/`](docs/features/README.md) para los specs de las próximas features y [`docs/tasks/`](docs/tasks/README.md) para el desglose de trabajo priorizado.
+See [`docs/planning.md`](docs/planning.md) for the full architectural plan, [`docs/features/`](docs/features/README.md) for upcoming feature specs, and [`docs/tasks/`](docs/tasks/README.md) for the prioritized work breakdown.
 
-## Licencia
+## License
 
-MIT — ver [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)

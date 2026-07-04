@@ -1,62 +1,63 @@
-# 03 — UI de estado del plugin (status bar + comandos)
+# 03 — Plugin status UI (status bar + commands)
 
-> Área: plugin · Tarea: [P1-03](../tasks/P1-03-plugin-status-ui.md) · Impacto ★★ · Esfuerzo S
+> Area: plugin · Task: [P1-03](../tasks/P1-03-plugin-status-ui.md) · Impact ★★ · Effort S
 
-## Motivación
+## Motivation
 
-El plugin corre un servidor WebSocket de larga vida pero **no tiene ninguna señal visual de
-estado**: ni status bar, ni ribbon, ni indicador de clientes conectados. Hoy la única forma de
-saber si el bridge está vivo es abrir la consola de desarrollador. Único comando existente:
+The plugin runs a long-lived WebSocket server but has **no visual status signal** at
+all: no status bar, no ribbon, no indicator of connected clients. Today the only way to
+know whether the bridge is alive is to open the developer console. Only existing command:
 `kioku-restart-bridge`.
 
-## Diseño
+## Design
 
-### Status bar (principal)
+### Status bar (primary)
 
-`main.ts` registra un status bar item (`addStatusBarItem()`):
+`main.ts` registers a status bar item (`addStatusBarItem()`):
 
-- `[online] Kioku :7765 (1)` — bridge escuchando, 1 cliente conectado
-- `[online] Kioku :7765` — escuchando, sin clientes
-- `[offline] Kioku` — bridge detenido o error de arranque (p. ej. puerto ocupado)
+- `[online] Kioku :7765 (1)` — bridge listening, 1 client connected
+- `[online] Kioku :7765` — listening, no clients
+- `[offline] Kioku` — bridge stopped or startup error (e.g. port in use)
 
-Sin emojis (regla del repo); prefijos `[online]`/`[offline]` + clase CSS `.kioku-status`
-(variantes `.kioku-status-online` / `.kioku-status-offline` en `styles.css`). Click en el
-item → ejecuta el comando de reinicio.
+No emojis (repo rule); `[online]`/`[offline]` prefixes + CSS class `.kioku-status`
+(variants `.kioku-status-online` / `.kioku-status-offline` in `styles.css`). Clicking
+the item → runs the restart command.
 
-### Cambios en `bridge.ts`
+### Changes in `bridge.ts`
 
-`BridgeServer` expone lo necesario para la UI:
+`BridgeServer` exposes what the UI needs:
 
-- `get clientCount(): number` (tamaño del set de clientes existente)
+- `get clientCount(): number` (size of the existing client set)
 - `get isRunning(): boolean`
-- Callbacks `onClientConnected` / `onClientDisconnected` / `onStateChange` que `main.ts`
-  usa para refrescar el status bar (mismo patrón que `onStartupError` /
-  `onProtocolMismatch` actuales).
+- `onClientConnected` / `onClientDisconnected` / `onStateChange` callbacks that
+  `main.ts` uses to refresh the status bar (same pattern as the current
+  `onStartupError` / `onProtocolMismatch`).
 
-### Comandos nuevos
+### New commands
 
-| ID | Nombre | Acción |
+| ID | Name | Action |
 |---|---|---|
-| `kioku-stop-bridge` | Stop Kioku MCP Bridge | `bridge.stop()` + refresco de status |
-| `kioku-start-bridge` | Start Kioku MCP Bridge | `bridge.start()` + refresco |
-| `kioku-copy-status` | Copy Kioku bridge status | Copia al clipboard JSON `{running, port, clients, protocolVersion, pluginVersion}` para reportes de bugs |
+| `kioku-stop-bridge` | Stop Kioku MCP Bridge | `bridge.stop()` + status refresh |
+| `kioku-start-bridge` | Start Kioku MCP Bridge | `bridge.start()` + refresh |
+| `kioku-copy-status` | Copy Kioku bridge status | Copies JSON `{running, port, clients, protocolVersion, pluginVersion}` to the clipboard for bug reports |
 
-(`kioku-restart-bridge` se mantiene.)
+(`kioku-restart-bridge` is kept.)
 
-### Setting nuevo
+### New setting
 
-- `showStatusBar: boolean` (default `true`) en `KiokuSettings` + toggle en `KiokuSettingTab`.
+- `showStatusBar: boolean` (default `true`) in `KiokuSettings` + toggle in `KiokuSettingTab`.
 
-## Archivos afectados
+## Affected files
 
-- `src/obsidian-kioku-mcp/src/main.ts` (status bar, comandos, setting)
+- `src/obsidian-kioku-mcp/src/main.ts` (status bar, commands, setting)
 - `src/obsidian-kioku-mcp/src/bridge.ts` (getters + callbacks)
 - `src/obsidian-kioku-mcp/src/types.ts` (`KiokuSettings`, `DEFAULT_SETTINGS`)
 - `src/obsidian-kioku-mcp/styles.css` (`.kioku-status*`)
-- `src/obsidian-kioku-mcp/src/__mocks__/obsidian.ts` + tests (mock de `addStatusBarItem`)
+- `src/obsidian-kioku-mcp/src/__mocks__/obsidian.ts` + tests (mock for `addStatusBarItem`)
 
-## Riesgos
+## Risks
 
-- Bajo. Cuidar el ciclo de vida: limpiar callbacks y el item en `onunload` (requisito de la
-  Community Store). `main.ts` está excluido de cobertura — mover la lógica de formato de
-  estado a una función pura testeable (p. ej. en `types.ts` o un `status.ts` nuevo).
+- Low. Watch the lifecycle: clean up callbacks and the item in `onunload` (a
+  Community Store requirement). `main.ts` is excluded from coverage — move the status
+  formatting logic into a pure, testable function (e.g. in `types.ts` or a new
+  `status.ts`).

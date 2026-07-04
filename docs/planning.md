@@ -1,87 +1,87 @@
-# Plan Maestro de Arquitectura: Kioku MCP Ecosystem
+# Master Architecture Plan: Kioku MCP Ecosystem
 
-> **Última revisión:** 2026-07-02 — v2 completado, v3 en producción. Este documento refleja el estado actual de la arquitectura tras la implementación de las 17 tool classes (102 herramientas MCP) y el transporte HTTP-SSE. Los specs de las próximas features viven en [`docs/features/`](./features/README.md) y el desglose de trabajo en [`docs/tasks/`](./tasks/README.md).
+> **Last revised:** 2026-07-02 — v2 complete, v3 in production. This document reflects the current state of the architecture after implementing the 17 tool classes (102 MCP tools) and the HTTP-SSE transport. Specs for upcoming features live in [`docs/features/`](./features/README.md) and the work breakdown in [`docs/tasks/`](./tasks/README.md).
 
-Este documento describe la estrategia de diseño, la selección tecnológica y los conceptos clave para construir un ecosistema de acceso a notas de alto rendimiento, optimizado para ser consumido por agentes de IA como Claude Code y Antigravity CLI en entornos multiplataforma (Windows 11 / Fedora 43).
+This document describes the design strategy, technology selection, and key concepts for building a high-performance note access ecosystem, optimized for consumption by AI agents like Claude Code and Antigravity CLI in cross-platform environments (Windows 11 / Fedora 43).
 
 ---
 
-## 1. Recomendación Tecnológica y Lenguajes
+## 1. Technology and Language Recommendation
 
-Para lograr el máximo rendimiento, eficiencia y mantenibilidad en este sistema híbrido, se propone una arquitectura de **"Doble Componente"** utilizando las versiones más recientes del stack tecnológico:
+To achieve maximum performance, efficiency, and maintainability in this hybrid system, a **"Dual Component"** architecture is proposed, using the most recent versions of the technology stack:
 
-### A. Para el Servidor MCP (Motor de Procesamiento): C# (.NET 10) — Self-Contained
+### A. For the MCP Server (Processing Engine): C# (.NET 10) — Self-Contained
 
-- **¿Por qué .NET 10?:** .NET 10 introduce mejoras sustanciales en rendimiento, soporte oficial para el SDK MCP (`Microsoft.McpServer.ProjectTemplates`), y el modo **Self-Contained** que publica un ejecutable portátil sin requerir .NET instalado en la máquina destino — portabilidad total sin las restricciones de Native AOT. (.NET 10 ya instalado en Fedora 43 ✅)
+- **Why .NET 10?:** .NET 10 introduces substantial performance improvements, official support for the MCP SDK (`Microsoft.McpServer.ProjectTemplates`), and **Self-Contained** mode, which publishes a portable executable without requiring .NET to be installed on the target machine — full portability without the restrictions of Native AOT. (.NET 10 already installed on Fedora 43 ✅)
 
-- **Template oficial de Microsoft:** Existe el template `Microsoft.McpServer.ProjectTemplates` (preview para .NET 10) que genera el esqueleto completo del servidor MCP con soporte de transporte stdio/HTTP y configuración AOT automática:
+- **Official Microsoft template:** The `Microsoft.McpServer.ProjectTemplates` template exists (preview for .NET 10) and generates the complete MCP server skeleton with stdio/HTTP transport support and automatic AOT configuration:
   ```bash
   dotnet new install Microsoft.McpServer.ProjectTemplates
   dotnet new mcpserver -n Kioku.Mcp.Server
   ```
 
-- **Modelo de compilación elegido — Self-Contained:** Publica un ejecutable único que incluye el runtime de .NET. No requiere que .NET esté instalado en la máquina donde corra. Startup ~200ms — perfectamente aceptable para una herramienta local bajo demanda. Se evalúa Native AOT como optimización opcional en v3.
+- **Chosen build model — Self-Contained:** Publishes a single executable that includes the .NET runtime. It doesn't require .NET to be installed on the machine where it runs. Startup ~200ms — perfectly acceptable for a local on-demand tool. Native AOT is evaluated as an optional optimization in v3.
 
-- **Portabilidad:** Un único código fuente, dos compilaciones — `linux-x64` para Fedora 43 y `win-x64` para Windows 11.
+- **Portability:** A single source code base, two builds — `linux-x64` for Fedora 43 and `win-x64` for Windows 11.
 
-- **Inicio bajo demanda:** El servidor arranca únicamente cuando un agente de IA lo invoca. No requiere servicio de sistema ni autoarranque.
+- **On-demand startup:** The server starts only when an AI agent invokes it. It requires no system service or auto-start.
 
-### B. Para el Plugin de Obsidian (Puente de Interfaz): TypeScript (JS Nativo)
+### B. For the Obsidian Plugin (Interface Bridge): TypeScript (Native JS)
 
-- **¿Por qué?:** Obsidian está construido sobre Electron (Chromium + Node.js), por lo que **TypeScript** es el único lenguaje soportado nativamente para interactuar con su API interna.
+- **Why?:** Obsidian is built on Electron (Chromium + Node.js), so **TypeScript** is the only natively supported language for interacting with its internal API.
 
-- **Estándares de publicación:** El plugin seguirá los **estándares oficiales del Community Plugin Store de Obsidian** desde el inicio, permitiendo su publicación futura sin refactorización.
+- **Publishing standards:** The plugin will follow the **official standards of the Obsidian Community Plugin Store** from the start, allowing future publication without refactoring.
 
-- **Rol del Plugin:** Se mantendrá al mínimo absoluto de su peso (_Thin Client_). No realizará procesamiento pesado ni indexación de archivos; solo actuará como un receptor de comandos visuales que se comunica con el servidor de C#.
+- **Plugin role:** It will be kept to an absolute minimum weight (_Thin Client_). It won't perform heavy processing or file indexing; it will only act as a receiver of visual commands that communicates with the C# server.
 
 ---
 
-## 2. Contexto de la Bóveda
+## 2. Vault Context
 
-| Característica | Detalle |
+| Characteristic | Detail |
 |---|---|
-| **Notas Markdown** | ~500 archivos `.md` |
-| **Assets visuales** | Imágenes, diagramas Excalidraw (`.excalidraw`) |
-| **Bases de datos** | Tablas nativas de Obsidian (Dataview/DB Folder) |
-| **Búsqueda requerida** | Texto plano **+** Semántica (vectores) |
-| **Audiencia** | Personal, con posibilidad de publicación comunitaria |
+| **Markdown notes** | ~500 `.md` files |
+| **Visual assets** | Images, Excalidraw diagrams (`.excalidraw`) |
+| **Databases** | Native Obsidian tables (Dataview/DB Folder) |
+| **Search required** | Plain text **+** Semantic (vectors) |
+| **Audience** | Personal, with potential for community publication |
 
 ---
 
-## 2.1 Entorno de Desarrollo
+## 2.1 Development Environment
 
-Ambos entornos (Fedora 43 y Windows 11) están operativos: .NET 10 SDK, Ollama con `nomic-embed-text` (768-dim) en `localhost:11434`, Obsidian y el monorepo `kioku`. Los pre-requisitos de instalación para usuarios finales están documentados en [`docs/install.md`](./install.md).
+Both environments (Fedora 43 and Windows 11) are operational: .NET 10 SDK, Ollama with `nomic-embed-text` (768-dim) on `localhost:11434`, Obsidian, and the `kioku` monorepo. Installation prerequisites for end users are documented in [`docs/install.md`](./install.md).
 
 ---
 
-## 3. Estructura de Proyectos (Monorepo Kioku)
+## 3. Project Structure (Kioku Monorepo)
 
-Aunque son dos proyectos con tecnologías totalmente distintas, se organizan en un único repositorio Git llamado `kioku` para simplificar el despliegue, control de versiones y pruebas locales.
+Although these are two projects with completely different technologies, they are organized into a single Git repository called `kioku` to simplify deployment, version control, and local testing.
 
-### Estructura de Carpetas
+### Folder Structure
 
 ```
-kioku/                              ← Carpeta raíz del repositorio (Monorepo)
+kioku/                              ← Repository root folder (Monorepo)
 ├── .git/
 ├── README.md
-├── AGENTS.md                       ← Contexto para agentes de IA (Kioku mismo)
+├── AGENTS.md                       ← Context for AI agents (Kioku itself)
 ├── .gitignore
 ├── docs/
-│   ├── planning.md                 ← Este archivo
-│   ├── commands-reference.md       ← Inventario de comandos (MCP Tools + Plugin)
-│   ├── v2-http-sse-spec.md         ← Especificaciones HTTP-SSE para v2
+│   ├── planning.md                 ← This file
+│   ├── commands-reference.md       ← Command inventory (MCP Tools + Plugin)
+│   ├── v2-http-sse-spec.md         ← HTTP-SSE specs for v2
 │   └── deploy/
-│       ├── auth-options.md         ← Opciones de autenticación para despliegue
-│       ├── kioku.service           ← systemd unit para VM
-│       └── nginx.conf              ← Reverse proxy nginx
+│       ├── auth-options.md         ← Authentication options for deployment
+│       ├── kioku.service           ← systemd unit for VM
+│       └── nginx.conf              ← nginx reverse proxy
 └── src/
-    ├── Kioku.Mcp.Server/           ← Proyecto C# (.NET 10)
+    ├── Kioku.Mcp.Server/           ← C# project (.NET 10)
     │   ├── Kioku.Mcp.Server.csproj
-    │   ├── Program.cs              ← Punto de entrada (stdio y HTTP-SSE)
-    │   ├── KiokuConfiguration.cs   ← Variables de entorno
+    │   ├── Program.cs              ← Entry point (stdio and HTTP-SSE)
+    │   ├── KiokuConfiguration.cs   ← Environment variables
     │   ├── Middleware/
     │   │   └── ApiKeyMiddleware.cs ← Bearer token auth
-    │   ├── Tools/                  ← 17 tool classes registradas
+    │   ├── Tools/                  ← 17 registered tool classes
     │   │   ├── NoteQueryTools.cs   ← search, read, list, filter
     │   │   ├── NoteCommandTools.cs ← create, update, append, delete
     │   │   ├── ObsidianBridgeTools.cs ← open-file, get-active-note, etc.
@@ -99,18 +99,18 @@ kioku/                              ← Carpeta raíz del repositorio (Monorepo)
     │   │   ├── RestoreTools.cs        ← revert_note, restore_note_from_trash, etc.
     │   │   ├── AssetTools.cs          ← list_excalidraw_files, etc.
     │   │   └── UtilityTools.cs        ← ping, rebuild_index, etc.
-    │   ├── Services/               ← Lógica interna (no expuesta como MCP tools)
-    │   │   ├── VaultIndexService.cs   ← FileSystemWatcher + índice invertido
-    │   │   ├── EmbeddingService.cs    ← Ollama embeddings vía HTTP
-    │   │   ├── EmbeddingPersistence.cs ← Caché binaria (.kioku/embeddings.bin, formato v3)
-    │   │   ├── HybridSearchService.cs ← Búsqueda combinada (keyword + semántica)
-    │   │   ├── TaskService.cs         ← Parseo de checkboxes nativos
-    │   │   ├── ObsidianBridgeService.cs ← WebSocket client hacia plugin
+    │   ├── Services/               ← Internal logic (not exposed as MCP tools)
+    │   │   ├── VaultIndexService.cs   ← FileSystemWatcher + inverted index
+    │   │   ├── EmbeddingService.cs    ← Ollama embeddings via HTTP
+    │   │   ├── EmbeddingPersistence.cs ← Binary cache (.kioku/embeddings.bin, format v3)
+    │   │   ├── HybridSearchService.cs ← Combined search (keyword + semantic)
+    │   │   ├── TaskService.cs         ← Native checkbox parsing
+    │   │   ├── ObsidianBridgeService.cs ← WebSocket client to the plugin
     │   │   ├── VaultConfigService.cs  ← .kioku/config.yml + capability groups
-    │   │   ├── FrontmatterParser.cs   ← Parser YAML manual (Span<char>)
-    │   │   ├── MarkdownTextExtractor.cs ← Markdown → texto plano + wikilinks
-    │   │   ├── MetricsService.cs      ← Contadores de tools (opt-in)
-    │   │   └── FolderRanker.cs        ← Ranking de carpetas (suggest_folder)
+    │   │   ├── FrontmatterParser.cs   ← Manual YAML parser (Span<char>)
+    │   │   ├── MarkdownTextExtractor.cs ← Markdown → plain text + wikilinks
+    │   │   ├── MetricsService.cs      ← Tool counters (opt-in)
+    │   │   └── FolderRanker.cs        ← Folder ranking (suggest_folder)
     │   └── Domain/
     │       ├── Note.cs
     │       ├── NoteMetadata.cs
@@ -119,29 +119,29 @@ kioku/                              ← Carpeta raíz del repositorio (Monorepo)
     │       ├── KiokuError.cs
     │       └── EmbeddingModelRegistry.cs
     │
-    └── obsidian-kioku-mcp/         ← Proyecto TypeScript (Obsidian Plugin)
+    └── obsidian-kioku-mcp/         ← TypeScript project (Obsidian Plugin)
         ├── package.json
         ├── tsconfig.json
-        ├── manifest.json           ← Metadatos del plugin para Obsidian
+        ├── manifest.json           ← Plugin metadata for Obsidian
         ├── styles.css
         └── src/
             ├── main.ts             ← Entry point (KiokuPlugin + settings tab)
-            ├── bridge.ts           ← WebSocket server local (BridgeServer)
-            ├── handlers.ts         ← 22 comandos del bridge
-            ├── types.ts            ← Protocolo compartido (PROTOCOL_VERSION)
-            ├── logger.ts           ← Logger tipado
-            └── protocol-schema.json ← JSON-Schema del wire format
+            ├── bridge.ts           ← Local WebSocket server (BridgeServer)
+            ├── handlers.ts         ← 22 bridge commands
+            ├── types.ts            ← Shared protocol (PROTOCOL_VERSION)
+            ├── logger.ts           ← Typed logger
+            └── protocol-schema.json ← JSON-Schema of the wire format
 ```
 
 ---
 
-## 4. Arquitectura del Sistema (Estrategia del Puente IPC)
+## 4. System Architecture (IPC Bridge Strategy)
 
-El sistema opera bajo un modelo descentralizado de comunicación local:
+The system operates under a decentralized local communication model:
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│              AGENTE DE IA (Claude Code / agy)                  │
+│              AI AGENT (Claude Code / agy)                     │
 └───┬───────────────────────────────────────────────────┬───────┘
     │ Stdio (v1 — JSON-RPC / MCP)                        │ HTTP-SSE (v2)
     ▼                                                     ▼
@@ -165,8 +165,8 @@ El sistema opera bajo un modelo descentralizado de comunicación local:
                            │ WebSocket :7765 (localhost)
                            ▼
 ┌───────────────────────────────────────────────────────────────┐
-│      Plugin Obsidian (TypeScript — Thin Client)               │
-│         WebSocket Server Local (KIOKU_OBSIDIAN_PORT)           │
+│      Obsidian Plugin (TypeScript — Thin Client)                │
+│         Local WebSocket Server (KIOKU_OBSIDIAN_PORT)           │
 └───────────────────────────┬───────────────────────────────────┘
                             │ Obsidian Plugin API
                             ▼
@@ -176,119 +176,119 @@ El sistema opera bajo un modelo descentralizado de comunicación local:
 └───────────────────────────────────────────────────────────────┘
 ```
 
-- **Desacoplamiento Total:** Si Obsidian está cerrado, el Agente de IA aún puede buscar, leer y escribir notas porque el Motor de C# procesa los archivos Markdown directamente en disco.
+- **Full decoupling:** If Obsidian is closed, the AI agent can still search, read, and write notes because the C# engine processes Markdown files directly on disk.
 
-- **Sincronización en Vivo:** Si Obsidian está abierto, el motor de C# envía notificaciones vía WebSockets al plugin para reflejar inmediatamente los cambios visuales en la pantalla.
+- **Live synchronization:** If Obsidian is open, the C# engine sends notifications via WebSockets to the plugin to immediately reflect visual changes on screen.
 
-- **Inicio bajo demanda:** El servidor no corre como servicio de sistema. Arranca cuando el agente de IA lo invoca vía stdio y termina cuando la sesión del agente finaliza.
+- **On-demand startup:** The server doesn't run as a system service. It starts when the AI agent invokes it via stdio and terminates when the agent's session ends.
 
 ---
 
-## 5. Puntos Clave para el Servidor MCP (Kioku.Mcp.Server)
+## 5. Key Points for the MCP Server (Kioku.Mcp.Server)
 
-### Procesamiento de Bajo Costo (Zero-Allocation) con .NET 10
+### Low-Cost Processing (Zero-Allocation) with .NET 10
 
-- Utilizar las optimizaciones de `System.Text.Json` para leer y escribir los mensajes JSON-RPC del protocolo MCP directamente sobre buffers de memoria (`Span<T>` / `ReadOnlySpan<T>`), evitando la instanciación de strings innecesarias en el Heap.
+- Use `System.Text.Json` optimizations to read and write the MCP protocol's JSON-RPC messages directly over memory buffers (`Span<T>` / `ReadOnlySpan<T>`), avoiding unnecessary string instantiation on the heap.
 
-- Para parsear frontmatter YAML: preferir parseo manual con `Span<char>` en lugar de librerías que usen reflexión internamente (incompatibles con AOT).
+- To parse YAML frontmatter: prefer manual parsing with `Span<char>` over libraries that use reflection internally (incompatible with AOT).
 
-### Generadores de Código de Serialización (AOT Safe)
+### Serialization Code Generators (AOT Safe)
 
-- Dado que Native AOT deshabilita la reflexión dinámica, usar obligatoriamente `JsonSerializableAttribute` y `JsonSourceGenerationOptions` para generar los serializadores en tiempo de compilación.
+- Since Native AOT disables dynamic reflection, `JsonSerializableAttribute` and `JsonSourceGenerationOptions` must be used to generate serializers at compile time.
 
-- **No usar MediatR** (usa reflexión internamente). Usar el patrón nativo `[McpServerToolType]` + `[McpServerTool]` del SDK oficial.
+- **Don't use MediatR** (it uses reflection internally). Use the native `[McpServerToolType]` + `[McpServerTool]` pattern from the official SDK.
 
-### Patrón de Tools (CQRS Simplificado con SDK MCP)
+### Tools Pattern (Simplified CQRS with MCP SDK)
 
-- **Queries** → `NoteQueryTools.cs`: buscar, leer, listar, filtrar notas
-- **Commands** → `NoteCommandTools.cs`: crear, actualizar, añadir, reordenar
-- **Bridge** → `ObsidianBridgeTools.cs`: interacción con la UI de Obsidian
+- **Queries** → `NoteQueryTools.cs`: search, read, list, filter notes
+- **Commands** → `NoteCommandTools.cs`: create, update, append, reorder
+- **Bridge** → `ObsidianBridgeTools.cs`: interaction with the Obsidian UI
 
-### Indexador en Tiempo Real con Debouncing
+### Real-Time Indexer with Debouncing
 
 ```csharp
-watcher.Filter = "*.md";                          // Solo archivos Markdown
+watcher.Filter = "*.md";                          // Only Markdown files
 watcher.NotifyFilter = NotifyFilters.LastWrite
                      | NotifyFilters.FileName;
 watcher.IncludeSubdirectories = true;
-watcher.InternalBufferSize = 65536;               // 64KB máximo recomendado
+watcher.InternalBufferSize = 65536;               // 64KB max recommended
 watcher.EnableRaisingEvents = true;
-// En Fedora si el FS no notifica: DOTNET_USE_POLLING_FILE_WATCHER=1
+// On Fedora if the FS doesn't notify: DOTNET_USE_POLLING_FILE_WATCHER=1
 ```
 
-> **Nota:** FileSystemWatcher puede perder eventos si el buffer se desborda en vaults activos. Implementar debouncing de ~500ms para agrupar ráfagas de cambios.
+> **Note:** FileSystemWatcher can miss events if the buffer overflows on active vaults. Implement ~500ms debouncing to group bursts of changes.
 
-### Búsqueda Dual (Texto + Semántica)
+### Dual Search (Text + Semantic)
 
-Para una bóveda de ~500 notas con imágenes y Excalidraw:
+For a vault of ~500 notes with images and Excalidraw:
 
-| Fase | Tipo | Tecnología | Estado |
+| Phase | Type | Technology | Status |
 |---|---|---|---|
-| v1 | Texto plano | Índice invertido en memoria (`Dictionary<string, HashSet<string>>`) | ✅ Implementado (`VaultIndexService`) |
-| v1 | Texto plano | Parser manual con `Span<char>` para frontmatter YAML | ✅ Implementado (`FrontmatterParser`) |
-| v2 | Semántica | **Ollama** (`nomic-embed-text`) vía HTTP `localhost:11434` | ✅ Implementado (`EmbeddingService`) |
-| v2 | Semántica | Embeddings persistidos en caché binaria `.kioku/embeddings.bin` (formato v3) | ✅ Implementado (SQLite descartado — `EmbeddingPersistence`) |
+| v1 | Plain text | In-memory inverted index (`Dictionary<string, HashSet<string>>`) | ✅ Implemented (`VaultIndexService`) |
+| v1 | Plain text | Manual parser with `Span<char>` for YAML frontmatter | ✅ Implemented (`FrontmatterParser`) |
+| v2 | Semantic | **Ollama** (`nomic-embed-text`) via HTTP `localhost:11434` | ✅ Implemented (`EmbeddingService`) |
+| v2 | Semantic | Embeddings persisted in binary cache `.kioku/embeddings.bin` (format v3) | ✅ Implemented (SQLite discarded — `EmbeddingPersistence`) |
 
-**Cómo usar Ollama para embeddings desde C#:**
+**How to use Ollama for embeddings from C#:**
 ```bash
-# Verificar que el modelo está disponible
+# Verify the model is available
 ollama list
-# Debe mostrar: nomic-embed-text
+# Should show: nomic-embed-text
 
-# Prueba manual del endpoint (desde terminal)
+# Manual endpoint test (from terminal)
 curl http://localhost:11434/api/embed -d '{"model":"nomic-embed-text","input":"hola mundo"}'
-# Responde: {"embeddings": [[0.123, -0.456, ...]]}
+# Responds: {"embeddings": [[0.123, -0.456, ...]]}
 ```
 
 ---
 
-## 6. Puntos Clave para el Plugin de Obsidian (obsidian-kioku-mcp)
+## 6. Key Points for the Obsidian Plugin (obsidian-kioku-mcp)
 
-### Estándares de Publicación en Community Store
+### Community Store Publishing Standards
 
-El plugin seguirá desde el inicio las guías oficiales de Obsidian para plugins de comunidad:
-- `manifest.json` con `minAppVersion`, `version`, `author`, `authorUrl`
-- Sin dependencias externas no aprobadas por la tienda
-- Manejo correcto del ciclo de vida (`onload` / `onunload`)
-- Sin acceso a APIs no documentadas de Obsidian
+The plugin will follow Obsidian's official guidelines for community plugins from the start:
+- `manifest.json` with `minAppVersion`, `version`, `author`, `authorUrl`
+- No external dependencies not approved by the store
+- Proper lifecycle handling (`onload` / `onunload`)
+- No access to undocumented Obsidian APIs
 
-### No Interferencia con el Hilo Principal
+### No Interference with the Main Thread
 
-Toda la comunicación de red (WebSockets) debe ser asíncrona y no bloqueante. Obsidian no debe congelarse ni perder FPS en pantallas de alta tasa de refresco (144Hz / 165Hz) mientras el agente realiza búsquedas.
+All network communication (WebSockets) must be asynchronous and non-blocking. Obsidian must not freeze or drop FPS on high refresh-rate displays (144Hz / 165Hz) while the agent performs searches.
 
-### Comandos del Plugin
+### Plugin Commands
 
-Ver [`docs/commands-reference.md`](./commands-reference.md) para el inventario completo de comandos del plugin y del servidor MCP.
+See [`docs/commands-reference.md`](./commands-reference.md) for the full inventory of plugin and MCP server commands.
 
 ---
 
-## 7. Versiones y Hoja de Ruta
+## 7. Versions and Roadmap
 
-### v1 — MVP (Transporte Stdio) ✅ COMPLETADO
+### v1 — MVP (Stdio Transport) ✅ COMPLETE
 
-**Objetivo:** Servidor MCP funcional que el agente de IA puede usar sin Obsidian.
+**Goal:** Functional MCP server that the AI agent can use without Obsidian.
 
-- 11 herramientas core (lectura, escritura, utilidades)
-- Plugin TypeScript con WebSocket bridge
-- FileSystemWatcher + índice invertido en memoria
+- 11 core tools (read, write, utilities)
+- TypeScript plugin with WebSocket bridge
+- FileSystemWatcher + in-memory inverted index
 
-### v2 — HTTP-SSE + Búsqueda Semántica ✅ COMPLETADO
+### v2 — HTTP-SSE + Semantic Search ✅ COMPLETE
 
-Ver especificaciones completas en [`docs/v2-http-sse-spec.md`](./v2-http-sse-spec.md).
+See full specs in [`docs/v2-http-sse-spec.md`](./v2-http-sse-spec.md).
 
-**Resumen:**
-- Transporte HTTP-SSE adicional al stdio (múltiples agentes simultáneos)
-- Búsqueda semántica con Ollama (`nomic-embed-text`, 768-dim)
-- Caché binaria persistente en `vault/.kioku/embeddings.bin`
+**Summary:**
+- HTTP-SSE transport in addition to stdio (multiple simultaneous agents)
+- Semantic search with Ollama (`nomic-embed-text`, 768-dim)
+- Persistent binary cache in `vault/.kioku/embeddings.bin`
 - Bearer Token auth (ApiKeyMiddleware)
-- Búsqueda híbrida (keyword + semántica con RRF)
-- Despliegue en VM con systemd + nginx
+- Hybrid search (keyword + semantic with RRF)
+- VM deployment with systemd + nginx
 
-### v3 — Ecosystem Tools ✅ COMPLETADO
+### v3 — Ecosystem Tools ✅ COMPLETE
 
-**102 herramientas implementadas en 17 tool classes:**
+**102 tools implemented across 17 tool classes:**
 
-| Categoría | Tools |
+| Category | Tools |
 |---|---|
 | Session & Context | `get_recent_activity`, `get_work_context`, `start/end_work_session`, `list_work_sessions`, `get_session_activity` |
 | Task Management | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
@@ -304,123 +304,123 @@ Ver especificaciones completas en [`docs/v2-http-sse-spec.md`](./v2-http-sse-spe
 | Assets | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder`, `reorder_notes_in_folder` |
 | Plugin Integration | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins`, `fix_merge_conflicts`, `resolve_merge_conflict` |
 
-Las clases fuera del núcleo se activan por grupos de capacidades en `.kioku/config.yml`
-(ver [`docs/vault-config.md`](./vault-config.md)). Inventario completo en
+Classes outside the core are enabled by capability groups in `.kioku/config.yml`
+(see [`docs/vault-config.md`](./vault-config.md)). Full inventory in
 [`docs/commands-reference.md`](./commands-reference.md).
 
-### v4 — Futuro (Propuesto)
+### v4 — Future (Proposed)
 
-Los specs detallados de la siguiente ola de features viven en [`docs/features/`](./features/README.md),
-con su desglose de trabajo priorizado en [`docs/tasks/`](./tasks/README.md). Líneas principales:
+Detailed specs for the next wave of features live in [`docs/features/`](./features/README.md),
+with their prioritized work breakdown in [`docs/tasks/`](./tasks/README.md). Main lines of work:
 
-- Generación local con Ollama (`KIOKU_GEN_MODEL`) — enabler de digest, flashcards y síntesis
-- Sugerencias de enlaces, smart inbox y daily digest (fortalecer el grafo)
-- MCP Prompts & Resources (workflows empaquetados para cualquier cliente MCP)
-- Autenticación del bridge WebSocket y UI de estado en el plugin
-- Zotero/BibTeX, flashcards/Anki, re-embedding incremental
-- Native AOT optimization para startups más rápidos
-- Publicación en Obsidian Community Plugin Store
-- Streaming de cambios en tiempo real (SSE server-sent events)
+- Local generation with Ollama (`KIOKU_GEN_MODEL`) — enabler for digest, flashcards, and synthesis
+- Link suggestions, smart inbox, and daily digest (strengthen the graph)
+- MCP Prompts & Resources (packaged workflows for any MCP client)
+- WebSocket bridge authentication and status UI in the plugin
+- Zotero/BibTeX, flashcards/Anki, incremental re-embedding
+- Native AOT optimization for faster startup
+- Publication on the Obsidian Community Plugin Store
+- Real-time change streaming (SSE server-sent events)
 
 ---
 
-## 8. Dependencias NuGet — Decisiones Finales
+## 8. NuGet Dependencies — Final Decisions
 
-### Contexto de la Decisión de Compilación
+### Build Decision Context
 
-El servidor Kioku **NO es un microservicio en la nube**. Es una herramienta local de escritorio que:
-- Arranca bajo demanda cuando el agente de IA lo invoca.
-- Corre exclusivamente en las máquinas del desarrollador (Windows 11 + Fedora 43).
-- Tiene .NET 10 instalado en ambos entornos.
+The Kioku server is **not a cloud microservice**. It's a local desktop tool that:
+- Starts on demand when invoked by the AI agent.
+- Runs exclusively on the developer's machines (Windows 11 + Fedora 43).
+- Has .NET 10 installed in both environments.
 
-Por esto, la estrategia de compilación óptima es **Self-Contained** (no AOT estricto), al menos para v1 y v2:
+For this reason, the optimal build strategy is **Self-Contained** (not strict AOT), at least for v1 and v2:
 
-| Modelo | Startup | RAM | Restricciones | Uso ideal |
+| Model | Startup | RAM | Restrictions | Ideal use |
 |---|---|---|---|---|
-| **Self-Contained** ✅ | ~200ms | Normal | Ninguna | v1, v2 — herramienta local |
-| Native AOT | ~50ms | Muy bajo | Sin reflexión, sin ONNX | v3 — opcional si startup importa |
-| Framework-Dependent | ~150ms | Normal | Requiere .NET instalado | Desarrollo solamente |
+| **Self-Contained** ✅ | ~200ms | Normal | None | v1, v2 — local tool |
+| Native AOT | ~50ms | Very low | No reflection, no ONNX | v3 — optional if startup matters |
+| Framework-Dependent | ~150ms | Normal | Requires .NET installed | Development only |
 
-> **Decisión:** Usar **Self-Contained** para v1 y v2. Evaluar Native AOT en v3 solo si el tiempo de arranque es un problema medible.
-> Self-Contained publica un ejecutable que NO requiere .NET instalado en la máquina destino — portabilidad sin las restricciones de AOT.
+> **Decision:** Use **Self-Contained** for v1 and v2. Evaluate Native AOT in v3 only if startup time is a measurable problem.
+> Self-Contained publishes an executable that does NOT require .NET installed on the target machine — portability without AOT restrictions.
 
 ---
 
-### Dependencias NuGet — Estado Actual
+### NuGet Dependencies — Current Status
 
-| Paquete | Propósito | Estado |
+| Package | Purpose | Status |
 |---|---|---|
-| `ModelContextProtocol` | SDK MCP oficial (stdio) | ✅ En uso |
-| `ModelContextProtocol.AspNetCore` | Transporte HTTP-SSE (v2) | ✅ En uso |
-| `System.Numerics.Tensors` | Cosine similarity (vectores) | ✅ En uso |
-| `YamlDotNet` | Parseo YAML | ✅ En uso (VaultConfigService para config.yml) |
-| `Markdig` | Parseo/Render Markdown | ✅ En uso (export HTML, text extraction) |
-| `Microsoft.ML.OnnxRuntime` | Embeddings locales ONNX | ❌ Reemplazado por Ollama |
-| `OllamaSharp` _(opcional)_ | Cliente Ollama tipado | ❌ `HttpClient` nativo es suficiente |
+| `ModelContextProtocol` | Official MCP SDK (stdio) | ✅ In use |
+| `ModelContextProtocol.AspNetCore` | HTTP-SSE transport (v2) | ✅ In use |
+| `System.Numerics.Tensors` | Cosine similarity (vectors) | ✅ In use |
+| `YamlDotNet` | YAML parsing | ✅ In use (VaultConfigService for config.yml) |
+| `Markdig` | Markdown parsing/rendering | ✅ In use (HTML export, text extraction) |
+| `Microsoft.ML.OnnxRuntime` | Local ONNX embeddings | ❌ Replaced by Ollama |
+| `OllamaSharp` _(optional)_ | Typed Ollama client | ❌ Native `HttpClient` is sufficient |
 
 ---
 
-### Alternativas Implementadas (Verificadas en Producción)
+### Implemented Alternatives (Verified in Production)
 
-#### ✅ YAML → Parser Manual para frontmatter + YamlDotNet para config
+#### ✅ YAML → Manual Parser for frontmatter + YamlDotNet for config
 
-El frontmatter de Obsidian es **extremadamente predecible**. Siempre sigue el formato:
+Obsidian's frontmatter is **extremely predictable**. It always follows the format:
 ```
 ---
-clave: valor
+key: value
 tags: [tag1, tag2]
-fecha: 2024-01-15
+date: 2024-01-15
 ---
 ```
-No se necesita una librería completa para el frontmatter. Un parser de 100-150 líneas con `ReadOnlySpan<char>` es suficiente, más rápido y totalmente AOT-safe:
+A full library isn't needed for frontmatter. A 100-150 line parser with `ReadOnlySpan<char>` is sufficient, faster, and fully AOT-safe:
 
 ```csharp
-// FrontmatterParser.cs — Zero-allocation, sin dependencias externas
+// FrontmatterParser.cs — Zero-allocation, no external dependencies
 public static class FrontmatterParser
 {
     public static NoteMetadata Parse(ReadOnlySpan<char> content)
     {
         if (!content.StartsWith("---")) return NoteMetadata.Empty;
-        // Iterar línea a línea con MemoryExtensions.Split()
-        // sin crear strings intermedios en el Heap
+        // Iterate line by line with MemoryExtensions.Split()
+        // without creating intermediate strings on the heap
     }
 }
 ```
 
-**Nota:** `YamlDotNet` se añadió posteriormente para `VaultConfigService` (config.yml),
-que requiere parseo YAML más complejo. El parser manual sigue usándose para frontmatter.
+**Note:** `YamlDotNet` was added later for `VaultConfigService` (config.yml),
+which requires more complex YAML parsing. The manual parser is still used for frontmatter.
 
-#### ✅ Markdig — Extractor de Texto + Renderizado HTML
+#### ✅ Markdig — Text Extractor + HTML Rendering
 
-Para la indexación de búsqueda, solo necesitamos **texto limpio** (sin sintaxis Markdown). `MarkdownTextExtractor` elimina:
-- `#` de encabezados
-- `**bold**`, `_italic_` de énfasis
-- `[[wikilinks]]` y `[text](url)` de enlaces
-- ` ```code``` ` de bloques de código
-- Bloques de frontmatter YAML
+For search indexing, we only need **clean text** (without Markdown syntax). `MarkdownTextExtractor` removes:
+- `#` from headings
+- `**bold**`, `_italic_` emphasis
+- `[[wikilinks]]` and `[text](url)` links
+- ` ```code``` ` code blocks
+- YAML frontmatter blocks
 
-`Markdig` se usa además para renderizado HTML completo (export de notas, herramientas de investigación).
+`Markdig` is also used for full HTML rendering (note export, research tools).
 
-#### ✅ ONNX Runtime → Ollama (Embeddings vía HTTP local)
+#### ✅ ONNX Runtime → Ollama (Embeddings via local HTTP)
 
-`Microsoft.ML.OnnxRuntime` es un wrapper nativo sobre una DLL de C++. **No es compatible con Native AOT** y es complejo de distribuir.
+`Microsoft.ML.OnnxRuntime` is a native wrapper over a C++ DLL. **It is not compatible with Native AOT** and is complex to distribute.
 
-**Solución: Ollama** — servicio local de modelos de IA que expone una API HTTP compatible con OpenAI:
+**Solution: Ollama** — a local AI model service that exposes an OpenAI-compatible HTTP API:
 
 ```csharp
-// EmbeddingService.cs — AOT-safe: solo HttpClient + System.Text.Json
+// EmbeddingService.cs — AOT-safe: only HttpClient + System.Text.Json
 public class OllamaEmbeddingService
 {
     private readonly HttpClient _http;
     private const string Model = "nomic-embed-text"; // 274MB, Apache 2.0
 
     // POST http://localhost:11434/api/embed
-    // { "model": "nomic-embed-text", "input": "texto a vectorizar" }
+    // { "model": "nomic-embed-text", "input": "text to vectorize" }
     public async Task<float[]> GetEmbeddingAsync(string text)
     {
         var request = new { model = Model, input = text };
         var response = await _http.PostAsJsonAsync("/api/embed", request);
-        // Responde: { "embeddings": [[0.1, 0.2, ...]] } — vectores L2-normalizados
+        // Responds: { "embeddings": [[0.1, 0.2, ...]] } — L2-normalized vectors
         var result = await response.Content
             .ReadFromJsonAsync<OllamaEmbedResponse>(OllamaJsonContext.Default.OllamaEmbedResponse);
         return result!.Embeddings[0];
@@ -432,28 +432,28 @@ public class OllamaEmbeddingService
 internal partial class OllamaJsonContext : JsonSerializerContext { }
 ```
 
-**Ventajas de Ollama sobre ONNX Runtime:**
+**Advantages of Ollama over ONNX Runtime:**
 
-| Característica | ONNX Runtime | Ollama |
+| Characteristic | ONNX Runtime | Ollama |
 |---|---|---|
-| AOT compatible | ❌ | ✅ (solo HTTP calls) |
-| Requiere GPU | Opcional | No |
-| Privacidad | Local | Local |
-| Modelos disponibles | Cualquier ONNX | Llama, Mistral, nomic-embed-text, etc. |
-| Actualizar modelo | Recompilar | `ollama pull <modelo>` |
-| Overhead cuando inactivo | 0 (no corre) | ~50MB RAM (servicio en background) |
-| Velocidad (500 notas, CPU i7) | ~50ms/nota | ~60ms/nota |
+| AOT compatible | ❌ | ✅ (only HTTP calls) |
+| Requires GPU | Optional | No |
+| Privacy | Local | Local |
+| Available models | Any ONNX | Llama, Mistral, nomic-embed-text, etc. |
+| Model updates | Recompile | `ollama pull <model>` |
+| Overhead when idle | 0 (doesn't run) | ~50MB RAM (background service) |
+| Speed (500 notes, i7 CPU) | ~50ms/note | ~60ms/note |
 
-> **Pre-requisito para v2:** El usuario debe tener **Ollama instalado** (`winget install Ollama.Ollama` en Windows, `flatpak install ollama` en Fedora).
-> El servidor Kioku debe verificar si Ollama está disponible al arrancar v2 y degradar graciosamente a solo-texto si no lo está.
+> **Prerequisite for v2:** The user must have **Ollama installed** (`winget install Ollama.Ollama` on Windows, `flatpak install ollama` on Fedora).
+> The Kioku server must check whether Ollama is available on startup for v2 and gracefully degrade to text-only if it isn't.
 
 ---
 
-### Regla de Oro Revisada
+### Revised Golden Rule
 
-> Para v1/v2 (Self-Contained): evitar librerías con reflexión **no porque rompa la compilación**, sino porque:
-> 1. Aumentan el tamaño del ejecutable.
-> 2. Reducen el rendimiento en tiempo de ejecución.
-> 3. Dificultan la migración futura a AOT en v3.
+> For v1/v2 (Self-Contained): avoid libraries with reflection **not because it breaks the build**, but because:
+> 1. They increase the size of the executable.
+> 2. They reduce runtime performance.
+> 3. They complicate future migration to AOT in v3.
 >
-> Para v3 (Native AOT): ninguna dependencia con reflexión dinámica. Todo debe usar source generators o parseo manual.
+> For v3 (Native AOT): no dependency with dynamic reflection is allowed. Everything must use source generators or manual parsing.

@@ -1,34 +1,34 @@
 # P3-02 — Flashcards (Spaced Repetition / Anki)
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P3 |
-| Rama | `feat/flashcards` |
+| Priority | P3 |
+| Branch | `feat/flashcards` |
 | Commit | `feat(server): add generate_flashcards tool with spaced-repetition and anki output` |
-| Tamaño | M |
+| Size | M |
 | Spec | [features/11-flashcards.md](../features/11-flashcards.md) |
-| Dependencias | **Requiere [P2-01](P2-01-local-generation.md)** (GenerationService) |
+| Dependencies | **Requires [P2-01](P2-01-local-generation.md)** (GenerationService) |
 
-## Objetivo
+## Objective
 
-`generate_flashcards(note, count, format, output_note, dry_run)` en `GenerationTools`:
-tarjetas Q/A o cloze generadas localmente, con salida en formato del plugin Spaced
-Repetition (`#flashcards`, `Q::A`), CSV para Anki, o cloze.
+`generate_flashcards(note, count, format, output_note, dry_run)` in `GenerationTools`:
+Q/A or cloze cards generated locally, with output in the Spaced Repetition plugin's format
+(`#flashcards`, `Q::A`), CSV for Anki, or cloze.
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] JSON del modelo validado con 1 reintento; fallo limpio si no valida
+- [ ] Model JSON validated with 1 retry; clean failure if it doesn't validate
   (`[error] [INTERNAL] model output could not be parsed`).
-- [ ] Los 3 formatos renderizan correctamente (tests con servicio mockeado), incluido
-  escaping CSV (comas/quotes/saltos de línea).
-- [ ] Nota de salida con frontmatter `type: flashcards, source: "[[nota]]"`; `dry_run`
-  no escribe.
-- [ ] Sin `KIOKU_GEN_MODEL`: `[error] [DEPENDENCY_UNAVAILABLE]` con instrucciones.
-- [ ] Prueba manual: tarjetas de una nota real legibles por el plugin Spaced Repetition.
-- [ ] `commands-reference.md` regenerado.
+- [ ] All 3 formats render correctly (tests with a mocked service), including CSV
+  escaping (commas/quotes/newlines).
+- [ ] Output note with frontmatter `type: flashcards, source: "[[note]]"`; `dry_run`
+  doesn't write.
+- [ ] Without `KIOKU_GEN_MODEL`: `[error] [DEPENDENCY_UNAVAILABLE]` with instructions.
+- [ ] Manual test: cards from a real note are readable by the Spaced Repetition plugin.
+- [ ] `commands-reference.md` regenerated.
 
-## Archivos
+## Files
 
 - `src/Kioku.Mcp.Server/Tools/GenerationTools.cs`
-- `src/Kioku.Mcp.Server/Services/GenerationService.cs` (salida JSON validada)
+- `src/Kioku.Mcp.Server/Services/GenerationService.cs` (validated JSON output)
 - Tests + docs
