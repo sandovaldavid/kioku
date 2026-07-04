@@ -1,49 +1,52 @@
 # 08 — Smart inbox
 
-> Área: server · Tarea: [P2-04](../tasks/P2-04-smart-inbox.md) · Impacto ★★ · Esfuerzo S
+> Area: server · Task: [P2-04](../tasks/P2-04-smart-inbox.md) · Impact ★★ · Effort S
 
-## Motivación
+## Motivation
 
-Procesar el inbox (clasificar capturas: carpeta + tags + enlaces) es el trabajo repetitivo
-por excelencia de un second brain. Kioku ya tiene las piezas (`suggest_folder`,
-`suggest_tags`, `find_similar_notes`, `FolderRanker`) pero el agente debe orquestarlas nota
-por nota, gastando tokens. Un tool que lo haga en batch localmente es la materialización
-directa de la tesis del producto.
+Processing the inbox (classifying captures: folder + tags + links) is the quintessential
+repetitive work of a second brain. Kioku already has the pieces (`suggest_folder`,
+`suggest_tags`, `find_similar_notes`, `FolderRanker`) but the agent has to orchestrate
+them note by note, spending tokens. A tool that does this in batch locally is the
+direct realization of the product's thesis.
 
-## Diseño
+## Design
 
 ### `process_inbox(inbox_folder = "", max_notes = 20, apply = false)`
 
-En `VaultOrganizationTools` (grupo `organization`):
+In `VaultOrganizationTools` (group `organization`):
 
-- `inbox_folder` default: `folders.inbox` de `.kioku/config.yml` (fallback `"Inbox"`).
-- Para cada nota del inbox (hasta `max_notes`):
-  1. **Carpeta sugerida** — `FolderRanker.RankFolders` (top-1 + score).
-  2. **Tags sugeridos** — lógica de `suggest_tags` (herencia de carpeta destino + similares).
-  3. **Enlaces sugeridos** — top-3 de `HybridSearchService.FindSimilar` (si hay embeddings).
-- `apply = false` (default): devuelve el **plan** por nota, numerado:
-  `1. "Captura X" → Research/Papers · tags: [paper, ml] · links: [[A]], [[B]]`.
-- `apply = true`: ejecuta el plan completo — mueve (`move_note` con actualización de
-  wikilinks si el spec 02 ya está mergeado), aplica tags (`add_tag`) y añade la sección de
-  relacionados (reuso del apply del spec 06). Reporta por nota qué se hizo.
+- `inbox_folder` default: `folders.inbox` from `.kioku/config.yml` (fallback `"Inbox"`).
+- For each note in the inbox (up to `max_notes`):
+  1. **Suggested folder** — `FolderRanker.RankFolders` (top-1 + score).
+  2. **Suggested tags** — `suggest_tags` logic (inheritance from target folder + similar
+     notes).
+  3. **Suggested links** — top-3 from `HybridSearchService.FindSimilar` (if embeddings
+     are available).
+- `apply = false` (default): returns the **plan** per note, numbered:
+  `1. "Capture X" → Research/Papers · tags: [paper, ml] · links: [[A]], [[B]]`.
+- `apply = true`: executes the full plan — moves (`move_note` with wikilink updates if
+  spec 02 is already merged), applies tags (`add_tag`), and adds the related-notes
+  section (reusing the apply from spec 06). Reports what was done per note.
 
 ### `apply_inbox_plan(items)`
 
-Variante granular: recibe el subconjunto de índices/notas aceptados del plan previo, para el
-flujo "propón todo, aplica solo estos". (Si complica la v1, puede posponerse: `apply=true`
-ya cubre el flujo básico.)
+A more granular variant: takes the accepted subset of indices/notes from a previous
+plan, for the "propose everything, apply only these" flow. (If this complicates v1, it
+can be postponed: `apply=true` already covers the basic flow.)
 
-## Archivos afectados
+## Affected files
 
 - `src/Kioku.Mcp.Server/Tools/VaultOrganizationTools.cs` (+1-2 tools)
-- Reuso: `FolderRanker`, `NoteHelpers.MergeTagsWithInheritance`, `HybridSearchService`
-- Tests: plan correcto con fixture (carpetas/domains de config), apply idempotente
-- `docs/commands-reference.md` (regenerar)
+- Reuse: `FolderRanker`, `NoteHelpers.MergeTagsWithInheritance`, `HybridSearchService`
+- Tests: correct plan with fixture (config folders/domains), idempotent apply
+- `docs/commands-reference.md` (regenerate)
 
-## Riesgos
+## Risks
 
-- Mover notas en batch es la operación más destructiva del catálogo → default `apply=false`,
-  y recordar en la salida que `revert_all_uncommitted`/git existen (grupos `restore`/`git`).
-- Sin Ollama: carpeta/tags siguen funcionando (FolderRanker mezcla token overlap); enlaces se
-  omiten con aviso.
-- Depende suavemente de los specs 02 y 06 (mejor experiencia), pero no bloquea.
+- Moving notes in batch is the most destructive operation in the catalog → default
+  `apply=false`, and remind in the output that `revert_all_uncommitted`/git exist
+  (groups `restore`/`git`).
+- Without Ollama: folder/tags still work (FolderRanker mixes in token overlap); links
+  are skipped with a warning.
+- Softly depends on specs 02 and 06 (better experience), but doesn't block.

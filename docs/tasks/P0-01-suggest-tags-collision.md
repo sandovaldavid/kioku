@@ -1,50 +1,51 @@
-# P0-01 — Resolver colisión de nombre `suggest_tags`
+# P0-01 — Resolve `suggest_tags` name collision
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P0 |
-| Rama | `fix/suggest-tags-collision` |
+| Priority | P0 |
+| Branch | `fix/suggest-tags-collision` |
 | Commit | `fix(server): rename duplicate suggest_tags query tool to inspect_note_tags` |
-| Tamaño | S |
-| Dependencias | Ninguna |
+| Size | S |
+| Dependencies | None |
 
-## Contexto
+## Context
 
-`suggest_tags` está definido **dos veces**:
+`suggest_tags` is defined **twice**:
 
-- `Tools/NoteQueryTools.cs` (core, siempre registrado) — diagnóstico read-only: reporta tags
-  actuales/heredados/excluidos de una nota.
-- `Tools/VaultOrganizationTools.cs` (grupo `organization`) — sugiere tags nuevos
+- `Tools/NoteQueryTools.cs` (core, always registered) — read-only diagnostic: reports a
+  note's current/inherited/excluded tags.
+- `Tools/VaultOrganizationTools.cs` (`organization` group) — suggests new tags
   (`max_suggestions`).
 
-Cuando el grupo `organization` está habilitado (default), se registran dos tools MCP con el
-mismo nombre. Según el cliente/SDK, uno eclipsa al otro o el listado queda ambiguo.
+When the `organization` group is enabled (default), two MCP tools get registered with the
+same name. Depending on the client/SDK, one shadows the other or the listing becomes
+ambiguous.
 
-## Alcance
+## Scope
 
-1. Renombrar el de `NoteQueryTools` a **`inspect_note_tags`** (describe mejor su naturaleza
-   read-only/diagnóstica). El de `VaultOrganizationTools` conserva `suggest_tags` (es el que
-   el nombre promete).
-2. Verificar en el código del SDK/registro qué comportamiento tenía la colisión y anotarlo
-   en la descripción del PR.
-3. Actualizar referencias en docs (README raíz tabla de Consulta, server README).
+1. Rename the one in `NoteQueryTools` to **`inspect_note_tags`** (better describes its
+   read-only/diagnostic nature). The one in `VaultOrganizationTools` keeps `suggest_tags`
+   (it's the one the name promises).
+2. Check the SDK/registration code to see what behavior the collision actually caused and
+   note it in the PR description.
+3. Update references in docs (root README Query table, server README).
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] `grep -rn '"suggest_tags"\|suggest_tags' src/Kioku.Mcp.Server/Tools/` muestra un único
-  tool MCP con ese nombre.
-- [ ] Con el grupo `organization` habilitado, `tools/list` no contiene duplicados.
-- [ ] Tests de `NoteQueryToolsTests` actualizados y verdes.
-- [ ] `docs/commands-reference.md` regenerado (`dotnet run --project scripts/GenerateCommandsRef`).
-- [ ] README raíz y `src/Kioku.Mcp.Server/README.md` actualizados.
+- [ ] `grep -rn '"suggest_tags"\|suggest_tags' src/Kioku.Mcp.Server/Tools/` shows a single
+  MCP tool with that name.
+- [ ] With the `organization` group enabled, `tools/list` contains no duplicates.
+- [ ] `NoteQueryToolsTests` tests updated and green.
+- [ ] `docs/commands-reference.md` regenerated (`dotnet run --project scripts/GenerateCommandsRef`).
+- [ ] Root README and `src/Kioku.Mcp.Server/README.md` updated.
 
-## Archivos
+## Files
 
 - `src/Kioku.Mcp.Server/Tools/NoteQueryTools.cs`
 - `src/Kioku.Mcp.Server.Tests/NoteQueryToolsTests.cs`
 - `docs/commands-reference.md`, `README.md`, `src/Kioku.Mcp.Server/README.md`
 
-## Nota de breaking change
+## Breaking change note
 
-Es un rename de tool visible para agentes: mencionarlo en el cuerpo del PR para que el
-CHANGELOG de release-please lo recoja (`fix(server)!:` si se quiere marcar como breaking).
+This is a tool rename visible to agents: mention it in the PR body so release-please's
+CHANGELOG picks it up (`fix(server)!:` if it should be marked as breaking).

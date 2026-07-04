@@ -1,33 +1,36 @@
 # P2-04 — Smart inbox
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Prioridad | P2 |
-| Rama | `feat/smart-inbox` |
+| Priority | P2 |
+| Branch | `feat/smart-inbox` |
 | Commit | `feat(server): add process_inbox batch triage tool` |
-| Tamaño | S |
+| Size | S |
 | Spec | [features/08-smart-inbox.md](../features/08-smart-inbox.md) |
-| Dependencias | Ninguna dura; mejor UX con P1-02 (wikilinks) y P2-02 (apply de enlaces) |
+| Dependencies | No hard dependency; better UX with P1-02 (wikilinks) and P2-02 (applying links) |
 
-## Objetivo
+## Objective
 
-`process_inbox(inbox_folder, max_notes, apply = false)` en `VaultOrganizationTools`: para
-cada nota del inbox propone carpeta (`FolderRanker`), tags (herencia + similares) y enlaces
-(top-3 semánticos); con `apply=true` ejecuta el plan completo (mover + tags + relacionados).
+`process_inbox(inbox_folder, max_notes, apply = false)` in `VaultOrganizationTools`: for
+each note in the inbox, proposes a folder (`FolderRanker`), tags (inheritance + similar
+notes) and links (top-3 semantic); with `apply=true` executes the full plan (move + tags +
+related notes).
 
-## Criterios de aceptación
+## Acceptance criteria
 
-- [ ] `apply=false` (default) no modifica nada y devuelve el plan numerado por nota.
-- [ ] `apply=true` ejecuta y reporta por nota qué hizo; las notas movidas conservan
-  frontmatter y contenido; con P1-02 mergeado, los wikilinks entrantes se actualizan.
-- [ ] Sin Ollama: carpeta/tags funcionan (token overlap), enlaces se omiten con aviso.
-- [ ] Inbox vacío / carpeta inexistente → mensajes claros, no errores.
-- [ ] La salida recuerda los mecanismos de reversa (`revert_all_uncommitted`, git).
-- [ ] Tests con `VaultFixture` (plan, apply, degradación) + `commands-reference.md`
-  regenerado.
+- [ ] `apply=false` (default) doesn't modify anything and returns the numbered per-note
+  plan.
+- [ ] `apply=true` executes and reports per note what it did; moved notes keep their
+  frontmatter and content; with P1-02 merged, inbound wikilinks get updated.
+- [ ] Without Ollama: folder/tags still work (token overlap), links are skipped with a
+  warning.
+- [ ] Empty inbox / nonexistent folder → clear messages, not errors.
+- [ ] The output reminds the user of the revert mechanisms (`revert_all_uncommitted`, git).
+- [ ] Tests with `VaultFixture` (plan, apply, degradation) + `commands-reference.md`
+  regenerated.
 
-## Archivos
+## Files
 
 - `src/Kioku.Mcp.Server/Tools/VaultOrganizationTools.cs`
-- Reuso: `FolderRanker`, `NoteHelpers`, `HybridSearchService`
+- Reuse: `FolderRanker`, `NoteHelpers`, `HybridSearchService`
 - Tests + docs

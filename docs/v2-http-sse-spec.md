@@ -1,83 +1,83 @@
-# Especificaciones v2: Transporte HTTP-SSE
+# v2 Specifications: HTTP-SSE Transport
 
-> **Estado:** ✅ Completado — Transporte HTTP-SSE, autenticación, búsqueda híbrida y despliegue en VM implementados.
-> **Referencia:** [planning.md](./planning.md) · [commands-reference.md](./commands-reference.md) · [auth-options.md](./deploy/auth-options.md)
-
----
-
-## Estado actual vs v2
-
-### Lo que ya está implementado (v1 — `feat/initial-setup`)
-
-| Componente | Estado | Notas |
-|---|---|---|
-| Transporte stdio (MCP) | ✅ Implementado | `WithStdioServerTransport()` |
-| VaultIndexService (keyword search) | ✅ Implementado | Índice invertido en memoria |
-| FileSystemWatcher + debounce | ✅ Implementado | 500ms debounce |
-| Dot-directory exclusion | ✅ Implementado | `.obsidian`, `.trash`, `.agents` excluidos |
-| EmbeddingService (Ollama) | ✅ Implementado | `nomic-embed-text`, 768-dim |
-| EmbeddingPersistence (binary cache) | ✅ Implementado | `vault/.kioku/embeddings.bin`, formato v3 (con hash de contenido por entrada) |
-| `search_notes_semantic` | ✅ Implementado | Con `min_score`, snippets, frontmatter en embedding |
-| Frontmatter en embeddings | ✅ Implementado | Tags, status, type, date, ExtraFields |
-| Re-embedding incremental en background | ✅ Implementado ([P3-03](tasks/P3-03-incremental-reembedding.md)) | El backlog de notas nuevas/cambiadas se procesa en background con paralelismo limitado (2 requests concurrentes a Ollama); el arranque nunca espera a que termine — keyword search está disponible de inmediato. Progreso visible en `get_index_status` (`embedding_backlog`, `embedded this session`, `embedding rate`, `estimated remaining`). |
-| KiokuLogger / Logger TypeScript | ✅ Implementado | Sin emojis, extensiones ILogger<T> |
-| MCP tools | ✅ Implementado | Hoy 102 tools en 17 clases — ver [commands-reference.md](./commands-reference.md) |
-
-### Lo que ya está implementado (v2 completo)
-
-| Componente | Estado | Notas |
-|---|---|---|
-| Transporte HTTP-SSE | ✅ Implementado | `WithHttpTransport()` en `Program.cs` |
-| Bearer Token auth (API Key) | ✅ Implementado | `Middleware/ApiKeyMiddleware.cs` |
-| nginx reverse proxy config | ✅ Implementado | `docs/deploy/nginx.conf` |
-| systemd service | ✅ Implementado | `docs/deploy/kioku.service` |
-| Búsqueda híbrida (keyword + semántica) | ✅ Implementado | `HybridSearchService` con RRF |
-| `find_similar_notes` (por nota) | ✅ Implementado | En `NoteQueryTools` |
-| Comandos avanzados (`normalize_tags`, `suggest_tags`) | ✅ Implementado | En `VaultOrganizationTools` |
-| Soporte assets (Excalidraw, imágenes) | ✅ Implementado | En `AssetTools` |
+> **Status:** ✅ Complete — HTTP-SSE transport, authentication, hybrid search, and VM deployment implemented.
+> **Reference:** [planning.md](./planning.md) · [commands-reference.md](./commands-reference.md) · [auth-options.md](./deploy/auth-options.md)
 
 ---
 
-## 1. Transporte HTTP-SSE (Streamable HTTP)
+## Current status vs v2
 
-### Motivación
+### What's already implemented (v1 — `feat/initial-setup`)
 
-El transporte stdio de v1 limita a un único agente de IA conectado a la vez.
-HTTP-SSE permite:
-- Múltiples agentes simultáneos (Claude Code + CI + móvil).
-- Servidor persistente en VM sin depender del ciclo de vida del agente.
-- Compatible con proxies, firewalls y herramientas de debug estándar.
+| Component | Status | Notes |
+|---|---|---|
+| stdio transport (MCP) | ✅ Implemented | `WithStdioServerTransport()` |
+| VaultIndexService (keyword search) | ✅ Implemented | In-memory inverted index |
+| FileSystemWatcher + debounce | ✅ Implemented | 500ms debounce |
+| Dot-directory exclusion | ✅ Implemented | `.obsidian`, `.trash`, `.agents` excluded |
+| EmbeddingService (Ollama) | ✅ Implemented | `nomic-embed-text`, 768-dim |
+| EmbeddingPersistence (binary cache) | ✅ Implemented | `vault/.kioku/embeddings.bin`, format v3 (with per-entry content hash) |
+| `search_notes_semantic` | ✅ Implemented | With `min_score`, snippets, frontmatter in embedding |
+| Frontmatter in embeddings | ✅ Implemented | Tags, status, type, date, ExtraFields |
+| Incremental background re-embedding | ✅ Implemented ([P3-03](tasks/P3-03-incremental-reembedding.md)) | The backlog of new/changed notes is processed in the background with limited parallelism (2 concurrent requests to Ollama); startup never waits for it to finish — keyword search is available immediately. Progress visible in `get_index_status` (`embedding_backlog`, `embedded this session`, `embedding rate`, `estimated remaining`). |
+| KiokuLogger / TypeScript Logger | ✅ Implemented | No emojis, ILogger<T> extensions |
+| MCP tools | ✅ Implemented | Currently 102 tools across 17 classes — see [commands-reference.md](./commands-reference.md) |
 
-### Arquitectura de Transporte Dual
+### What's already implemented (v2 complete)
+
+| Component | Status | Notes |
+|---|---|---|
+| HTTP-SSE transport | ✅ Implemented | `WithHttpTransport()` in `Program.cs` |
+| Bearer Token auth (API Key) | ✅ Implemented | `Middleware/ApiKeyMiddleware.cs` |
+| nginx reverse proxy config | ✅ Implemented | `docs/deploy/nginx.conf` |
+| systemd service | ✅ Implemented | `docs/deploy/kioku.service` |
+| Hybrid search (keyword + semantic) | ✅ Implemented | `HybridSearchService` with RRF |
+| `find_similar_notes` (by note) | ✅ Implemented | In `NoteQueryTools` |
+| Advanced commands (`normalize_tags`, `suggest_tags`) | ✅ Implemented | In `VaultOrganizationTools` |
+| Asset support (Excalidraw, images) | ✅ Implemented | In `AssetTools` |
+
+---
+
+## 1. HTTP-SSE Transport (Streamable HTTP)
+
+### Motivation
+
+The v1 stdio transport limits to a single connected AI agent at a time.
+HTTP-SSE enables:
+- Multiple simultaneous agents (Claude Code + CI + mobile).
+- Persistent server on a VM, independent of the agent's lifecycle.
+- Compatible with proxies, firewalls, and standard debugging tools.
+
+### Dual Transport Architecture
 
 ```
 [Claude Code (laptop)]
-        │ stdio (v1 — siempre disponible, arranque bajo demanda)
+        │ stdio (v1 — always available, on-demand startup)
         ▼
 ┌──────────────────────────────────────────────────────────┐
 │                  Kioku.Mcp.Server v2                     │
 │                                                          │
 │  ┌─────────────────────┐   ┌──────────────────────────┐  │
 │  │  Stdio Transport    │   │  HTTP-SSE Transport       │  │
-│  │  (v1, siempre ON)   │   │  (v2, :5173 configurable) │  │
+│  │  (v1, always ON)    │   │  (v2, :5173 configurable) │  │
 │  └─────────────────────┘   └──────────────────────────┘  │
 └───────────────────────────────────┬──────────────────────┘
                                     │ HTTP POST / GET (SSE)
                  ┌──────────────────┴──────────────────┐
-                 │   Agente B / CI / móvil              │
+                 │   Agent B / CI / mobile              │
                  └─────────────────────────────────────┘
 ```
 
-### Implementación en `Program.cs`
+### Implementation in `Program.cs`
 
 ```csharp
-// v2: arranque condicional según arg de CLI o env var
+// v2: conditional startup based on CLI arg or env var
 var useHttp = args.Contains("--http")
     || Environment.GetEnvironmentVariable("KIOKU_TRANSPORT") == "http";
 
 if (useHttp)
 {
-    // Transporte HTTP-SSE (v2)
+    // HTTP-SSE transport (v2)
     var webBuilder = WebApplication.CreateBuilder(args);
 
     webBuilder.Services.AddSingleton(config);
@@ -100,7 +100,7 @@ if (useHttp)
 
     var webApp = webBuilder.Build();
     webApp.UseCors();
-    webApp.UseMiddleware<ApiKeyMiddleware>();   // ver sección Auth
+    webApp.UseMiddleware<ApiKeyMiddleware>();   // see Auth section
     webApp.MapGet("/health", () => Results.Ok(new { status = "ok", transport = "http" }));
     webApp.MapMcp("/mcp");
 
@@ -110,38 +110,38 @@ if (useHttp)
 }
 else
 {
-    // Transporte stdio (v1 — sin cambios)
-    // ... código actual de Program.cs
+    // stdio transport (v1 — unchanged)
+    // ... current Program.cs code
 }
 ```
 
-> **Nota:** El ejemplo anterior es ilustrativo. El código real de `Program.cs` registra las
-> 17 tool classes mediante `ConfigureKiokuTools()`, filtrando por los grupos de capacidades
-> habilitados en `.kioku/config.yml`.
+> **Note:** The example above is illustrative. The actual `Program.cs` code registers the
+> 17 tool classes via `ConfigureKiokuTools()`, filtering by the capability groups
+> enabled in `.kioku/config.yml`.
 
-### Nueva env var y configuración
+### New Env Var and Configuration
 
 ```csharp
-// KiokuConfiguration.cs — añadir:
+// KiokuConfiguration.cs — add:
 public string? ApiKey { get; init; }       // KIOKU_API_KEY
 public int HttpPort { get; init; } = 5173; // KIOKU_HTTP_PORT
 public string Transport { get; init; } = "stdio"; // KIOKU_TRANSPORT: "stdio" | "http"
 ```
 
-| Variable | Requerida | Default | Descripción |
+| Variable | Required | Default | Description |
 |---|---|---|---|
-| `KIOKU_TRANSPORT` | no | `stdio` | `stdio` o `http` |
-| `KIOKU_HTTP_PORT` | no | `5173` | Puerto del servidor HTTP |
-| `KIOKU_API_KEY` | no* | — | Bearer token para auth (*requerido si `transport=http` y servidor público) |
+| `KIOKU_TRANSPORT` | no | `stdio` | `stdio` or `http` |
+| `KIOKU_HTTP_PORT` | no | `5173` | HTTP server port |
+| `KIOKU_API_KEY` | no* | — | Bearer token for auth (*required if `transport=http` and the server is public) |
 
-### Configuración del cliente MCP
+### MCP Client Configuration
 
-> La clave raíz depende del cliente: **`"mcpServers"`** en Claude Code/Claude Desktop/Cursor
-> (`.mcp.json`), **`"servers"`** en VS Code (`.vscode/mcp.json`). Los ejemplos siguientes usan
-> el formato de Claude Code.
+> The root key depends on the client: **`"mcpServers"`** in Claude Code/Claude Desktop/Cursor
+> (`.mcp.json`), **`"servers"`** in VS Code (`.vscode/mcp.json`). The examples below use
+> the Claude Code format.
 
 ```json
-// .mcp.json — versión HTTP (v2)
+// .mcp.json — HTTP version (v2)
 {
   "mcpServers": {
     "kioku": {
@@ -156,7 +156,7 @@ public string Transport { get; init; } = "stdio"; // KIOKU_TRANSPORT: "stdio" | 
 ```
 
 ```json
-// .mcp.json — versión stdio (v1, sigue funcionando sin cambios)
+// .mcp.json — stdio version (v1, still works unchanged)
 {
   "mcpServers": {
     "kioku": {
@@ -173,11 +173,11 @@ public string Transport { get; init; } = "stdio"; // KIOKU_TRANSPORT: "stdio" | 
 
 ---
 
-## 2. Autenticación (Bearer Token)
+## 2. Authentication (Bearer Token)
 
-Ver análisis completo en [`auth-options.md`](./deploy/auth-options.md).
+See the full analysis in [`auth-options.md`](./deploy/auth-options.md).
 
-### Middleware de API Key
+### API Key Middleware
 
 ```csharp
 // Middleware/ApiKeyMiddleware.cs
@@ -185,7 +185,7 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, KiokuConfiguration co
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        // Sin clave configurada: sin protección (solo para desarrollo local)
+        // No key configured: no protection (local development only)
         if (string.IsNullOrEmpty(config.ApiKey))
         {
             await next(context);
@@ -212,16 +212,16 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, KiokuConfiguration co
 }
 ```
 
-**Generar token:**
+**Generate token:**
 ```bash
 openssl rand -hex 32
 ```
 
 ---
 
-## 3. Despliegue en VM
+## 3. VM Deployment
 
-Ver guía completa en [`auth-options.md`](./deploy/auth-options.md). Resumen:
+See the full guide in [`auth-options.md`](./deploy/auth-options.md). Summary:
 
 ### systemd service
 
@@ -237,7 +237,7 @@ User=kioku
 WorkingDirectory=/opt/kioku
 ExecStart=/opt/kioku/Kioku.Mcp.Server --http
 Environment=KIOKU_VAULT_PATH=/vault/cortex
-Environment=KIOKU_API_KEY=<token-generado-con-openssl>
+Environment=KIOKU_API_KEY=<token-generated-with-openssl>
 Environment=KIOKU_OLLAMA_URL=http://localhost:11434
 Environment=KIOKU_TRANSPORT=http
 Restart=on-failure
@@ -251,13 +251,13 @@ WantedBy=multi-user.target
 sudo systemctl enable --now kioku
 ```
 
-### nginx reverse proxy (HTTPS con Tailscale)
+### nginx reverse proxy (HTTPS with Tailscale)
 
 ```nginx
 # /etc/nginx/sites-available/kioku
 server {
     listen 443 ssl;
-    server_name kioku.internal; # o IP de Tailscale
+    server_name kioku.internal; # or Tailscale IP
 
     ssl_certificate     /etc/ssl/kioku.crt;
     ssl_certificate_key /etc/ssl/kioku.key;
@@ -266,7 +266,7 @@ server {
         proxy_pass http://localhost:5173;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        # SSE: desactivar buffering
+        # SSE: disable buffering
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 3600s;
@@ -276,45 +276,45 @@ server {
 
 ---
 
-## 4. Búsqueda Híbrida ✅ Implementado
+## 4. Hybrid Search ✅ Implemented
 
-`search_notes_hybrid` combina `search_notes` (keyword) + `search_notes_semantic` (embeddings)
-con Reciprocal Rank Fusion (`HybridSearchService`). Si Ollama no está disponible, degrada a
-solo-keyword:
+`search_notes_hybrid` combines `search_notes` (keyword) + `search_notes_semantic` (embeddings)
+with Reciprocal Rank Fusion (`HybridSearchService`). If Ollama is unavailable, it degrades to
+keyword-only:
 
 ```
-query: "tickets de atena resueltos en enero"
+query: "atena tickets resolved in january"
   │
-  ├─► Keyword search (índice invertido)  → notas con "tickets", "atena", "enero"
+  ├─► Keyword search (inverted index)  → notes with "tickets", "atena", "january"
   │
-  └─► Semantic search (embeddings)       → notas conceptualmente relacionadas
-  │
-  ▼
-RRF: score = Σ 1 / (k + rank_i)    (k=60 es el valor estándar)
+  └─► Semantic search (embeddings)       → conceptually related notes
   │
   ▼
-Top-K unificados, sin duplicados
+RRF: score = Σ 1 / (k + rank_i)    (k=60 is the standard value)
+  │
+  ▼
+Unified Top-K, no duplicates
 ```
 
-Firma: `search_notes_hybrid(query, max_results, min_score, keyword_weight, semantic_weight)`
+Signature: `search_notes_hybrid(query, max_results, min_score, keyword_weight, semantic_weight)`
 
 ---
 
-## 5. Dependencias NuGet para v2
+## 5. NuGet Dependencies for v2
 
-| Paquete | Propósito | Estado |
+| Package | Purpose | Status |
 |---|---|---|
-| `ModelContextProtocol` | SDK MCP (stdio) | ✅ En uso |
-| `ModelContextProtocol.AspNetCore` | Transporte HTTP-SSE | ✅ En uso |
+| `ModelContextProtocol` | MCP SDK (stdio) | ✅ In use |
+| `ModelContextProtocol.AspNetCore` | HTTP-SSE transport | ✅ In use |
 
-> **Nota:** El caché de embeddings usa formato binario propio (`embeddings.bin`), no SQLite.
-> Esto reduce dependencias y es más rápido para lectura secuencial de 5000 vectores (~15MB).
+> **Note:** The embeddings cache uses a proprietary binary format (`embeddings.bin`), not SQLite.
+> This reduces dependencies and is faster for sequential reads of 5000 vectors (~15MB).
 
 ---
 
-## 6. Commits de Referencia
+## 6. Reference Commits
 
-Los siguientes commits implementaron v2 en `develop`:
+The following commits implemented v2 on `develop`:
 - `feat(server): add HTTP-SSE transport with dual-mode startup`
 - `feat(server): add API key authentication middleware`
 - `docs: add systemd service and nginx config examples`
@@ -322,13 +322,13 @@ Los siguientes commits implementaron v2 en `develop`:
 
 ---
 
-## 7. Métricas Esperadas
+## 7. Expected Metrics
 
-| Operación | Local (RTX 5060) | VM CPU-only |
+| Operation | Local (RTX 5060) | CPU-only VM |
 |---|---|---|
-| Arranque servidor HTTP | < 500ms | < 800ms |
-| Carga cache embeddings (5000 notas) | < 100ms | < 200ms |
-| Re-indexado incremental (1 nota) | ~60ms | ~2-5s |
+| HTTP server startup | < 500ms | < 800ms |
+| Embeddings cache load (5000 notes) | < 100ms | < 200ms |
+| Incremental re-indexing (1 note) | ~60ms | ~2-5s |
 | Keyword search | < 5ms | < 5ms |
-| Semantic search (cosine, 5000 vectores) | < 10ms | < 15ms |
+| Semantic search (cosine, 5000 vectors) | < 10ms | < 15ms |
 | Embedding query (Ollama) | ~60ms | ~2-5s (CPU) |

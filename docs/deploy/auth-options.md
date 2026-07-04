@@ -1,53 +1,53 @@
-# Autenticación para Kioku en VM — Opciones y Recomendaciones
+# Authentication for Kioku on a VM — Options and Recommendations
 
-> **Contexto:** Kioku v2 añade transporte HTTP-SSE para exponer el servidor MCP a múltiples agentes.
-> Si el servidor corre en una VM accesible desde internet, necesita protección.
-> Este documento evalúa las opciones de menor a mayor complejidad y recomienda la arquitectura óptima.
-
----
-
-## Feedback sobre la idea de subir a una VM
-
-Es una idea sólida con ventajas reales, pero con implicaciones que conviene tener claras:
-
-**Ventajas:**
-- El servidor corre 24/7 sin depender de que tu laptop esté encendida.
-- Múltiples agentes (Claude Code en laptop + móvil + CI) pueden conectarse simultáneamente.
-- El vault puede vivir en la VM y sincronizarse vía Syncthing o Obsidian Sync.
-
-**Riesgos y consideraciones:**
-- **El vault contiene notas personales/profesionales** — exposición en internet es un riesgo real.
-- Ollama necesita al menos 8GB RAM y GPU dedicada para ser útil en VM; la mayoría de VMs cloud son CPU-only (embeddings serán lentos: ~2-5s/nota vs ~60ms local con GPU).
-- Costo: una VM con 8GB RAM + GPU en AWS/GCP ronda los $200-400/mes. Una VM CPU de 4GB RAM es suficiente si usas Ollama sin GPU (~$20/mes en Hetzner o DigitalOcean).
-- **Recomendación de infraestructura:** Hetzner CX32 (4 vCPU, 8GB RAM, €13/mes) o Fly.io (free tier limitado). Para GPU: Lambda Labs es el más barato (~$0.50/h bajo demanda).
+> **Context:** Kioku v2 adds HTTP-SSE transport to expose the MCP server to multiple agents.
+> If the server runs on a VM accessible from the internet, it needs protection.
+> This document evaluates the options from lowest to highest complexity and recommends the optimal architecture.
 
 ---
 
-## Opciones de Autenticación
+## Feedback on the idea of deploying to a VM
 
-### Opción 1 — Tailscale (RECOMENDADA para uso personal)
+It's a solid idea with real advantages, but with implications worth being clear about:
 
-**Qué es:** VPN mesh zero-trust. Instalas el cliente en la VM y en tu laptop/PC. El servidor escucha solo en la IP de Tailscale (no en internet público). Sin puertos abiertos al mundo.
+**Advantages:**
+- The server runs 24/7 without depending on your laptop being on.
+- Multiple agents (Claude Code on laptop + mobile + CI) can connect simultaneously.
+- The vault can live on the VM and sync via Syncthing or Obsidian Sync.
 
-**Cómo funciona:**
+**Risks and considerations:**
+- **The vault contains personal/professional notes** — exposure on the internet is a real risk.
+- Ollama needs at least 8GB RAM and a dedicated GPU to be useful on a VM; most cloud VMs are CPU-only (embeddings will be slow: ~2-5s/note vs ~60ms locally with GPU).
+- Cost: a VM with 8GB RAM + GPU on AWS/GCP runs around $200-400/month. A 4GB RAM CPU VM is enough if you use Ollama without a GPU (~$20/month on Hetzner or DigitalOcean).
+- **Infrastructure recommendation:** Hetzner CX32 (4 vCPU, 8GB RAM, €13/month) or Fly.io (limited free tier). For GPU: Lambda Labs is the cheapest (~$0.50/h on demand).
+
+---
+
+## Authentication Options
+
+### Option 1 — Tailscale (RECOMMENDED for personal use)
+
+**What it is:** A zero-trust mesh VPN. You install the client on the VM and on your laptop/PC. The server listens only on the Tailscale IP (not on the public internet). No ports open to the world.
+
+**How it works:**
 ```
-Tu laptop (Tailscale) ──── Tailscale mesh (cifrado) ──── VM (Tailscale)
+Your laptop (Tailscale) ──── Tailscale mesh (encrypted) ──── VM (Tailscale)
                                                             │
                                                      Kioku HTTP :5173
-                                                     (solo escucha en 100.x.x.x)
+                                                     (listens only on 100.x.x.x)
 ```
 
-**Implementación (cero cambios en el servidor):**
+**Implementation (zero server changes):**
 ```bash
-# En la VM
+# On the VM
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
 
-# Arrancar el servidor solo en la IP de Tailscale
+# Start the server only on the Tailscale IP
 KIOKU_VAULT_PATH=/vault dotnet run ... --urls "http://$(tailscale ip -4):5173"
 ```
 
-**Configuración del cliente MCP** (formato Claude Code; en VS Code la clave raíz es `"servers"`):
+**MCP client configuration** (Claude Code format; in VS Code the root key is `"servers"`):
 ```json
 {
   "mcpServers": {
@@ -60,36 +60,36 @@ KIOKU_VAULT_PATH=/vault dotnet run ... --urls "http://$(tailscale ip -4):5173"
 ```
 
 **Pros:**
-- Cero cambios de código
-- Cifrado end-to-end (WireGuard)
-- Free tier: hasta 100 dispositivos
-- Funciona desde cualquier red (móvil, trabajo, casa)
-- El servidor nunca es accesible desde internet público
+- Zero code changes
+- End-to-end encryption (WireGuard)
+- Free tier: up to 100 devices
+- Works from any network (mobile, work, home)
+- The server is never accessible from the public internet
 
-**Contras:**
-- Requiere instalar Tailscale en cada dispositivo cliente
-- Dependencia de los servidores de coordinación de Tailscale (pueden caer, aunque la VPN sigue funcionando)
+**Cons:**
+- Requires installing Tailscale on every client device
+- Depends on Tailscale's coordination servers (they can go down, though the VPN keeps working)
 
 ---
 
-### Opción 2 — Bearer Token / API Key (RECOMENDADA si necesitas acceso HTTP directo)
+### Option 2 — Bearer Token / API Key (RECOMMENDED if you need direct HTTP access)
 
-**Qué es:** El servidor valida un header `Authorization: Bearer <token>` en cada request. El token es una cadena aleatoria configurada por env var.
+**What it is:** The server validates an `Authorization: Bearer <token>` header on every request. The token is a random string configured via an env var.
 
-**Implementación** (hoy vive en `Middleware/ApiKeyMiddleware.cs`; lógica equivalente a):
+**Implementation** (today lives in `Middleware/ApiKeyMiddleware.cs`; equivalent logic to):
 
 ```csharp
-// Middleware de autenticación por API key
+// API key authentication middleware
 app.Use(async (context, next) =>
 {
     var apiKey = config.ApiKey;
     if (string.IsNullOrEmpty(apiKey))
     {
-        await next(context); // Sin clave configurada: sin protección (solo localhost)
+        await next(context); // No key configured: no protection (localhost only)
         return;
     }
 
-    // Excluir health check
+    // Exclude health check
     if (context.Request.Path == "/health")
     {
         await next(context);
@@ -109,13 +109,13 @@ app.Use(async (context, next) =>
 });
 ```
 
-**En `KiokuConfiguration.cs`:**
+**In `KiokuConfiguration.cs`:**
 ```csharp
-// Env var: KIOKU_API_KEY (vacío = sin autenticación, solo para localhost)
+// Env var: KIOKU_API_KEY (empty = no authentication, localhost only)
 public string? ApiKey { get; init; }
 ```
 
-**Uso desde Claude Code:**
+**Usage from Claude Code:**
 ```json
 {
   "mcpServers": {
@@ -123,118 +123,118 @@ public string? ApiKey { get; init; }
       "type": "sse",
       "url": "http://vm-ip:5173/mcp",
       "headers": {
-        "Authorization": "Bearer tu-token-aqui-32chars-aleatorio"
+        "Authorization": "Bearer your-random-32char-token-here"
       }
     }
   }
 }
 ```
 
-**Generar un token seguro:**
+**Generate a secure token:**
 ```bash
 openssl rand -hex 32
 # → a3f8c2d1e4b5a6f7c8d9e0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1
 ```
 
 **Pros:**
-- Simple de implementar (~30 líneas)
-- Sin dependencias externas
-- Funciona con cualquier cliente HTTP
-- Combinable con HTTPS (nginx/Caddy)
+- Simple to implement (~30 lines)
+- No external dependencies
+- Works with any HTTP client
+- Combinable with HTTPS (nginx/Caddy)
 
-**Contras:**
-- Token no expira (rotación manual)
-- Si se filtra el token, hay que rotarlo manualmente
-- Requiere HTTPS para ser seguro (sin HTTPS, el token viaja en claro)
+**Cons:**
+- Token doesn't expire (manual rotation)
+- If the token leaks, it must be rotated manually
+- Requires HTTPS to be secure (without HTTPS, the token travels in cleartext)
 
 ---
 
-### Opción 3 — Cloudflare Tunnel + Cloudflare Access
+### Option 3 — Cloudflare Tunnel + Cloudflare Access
 
-**Qué es:** CF Tunnel crea un túnel saliente desde la VM hacia la edge de Cloudflare. CF Access actúa como proxy de autenticación (email OTP, GitHub OAuth, Google OAuth). Sin puertos abiertos en la VM.
+**What it is:** CF Tunnel creates an outbound tunnel from the VM to the Cloudflare edge. CF Access acts as an authentication proxy (email OTP, GitHub OAuth, Google OAuth). No ports open on the VM.
 
-**Cómo funciona:**
+**How it works:**
 ```
-Claude Code ──── https://kioku.tu-dominio.com ──── Cloudflare Access (auth)
+Claude Code ──── https://kioku.your-domain.com ──── Cloudflare Access (auth)
                                                          │
                                               CF Tunnel (outbound)
                                                          │
-                                                    VM (sin puertos abiertos)
+                                                    VM (no open ports)
                                                          │
-                                               Kioku HTTP :5173 (solo localhost)
+                                               Kioku HTTP :5173 (localhost only)
 ```
 
-**Implementación:**
+**Implementation:**
 ```bash
-# En la VM
+# On the VM
 curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
 chmod +x cloudflared
 ./cloudflared tunnel login
 ./cloudflared tunnel create kioku
-./cloudflared tunnel route dns kioku kioku.tu-dominio.com
+./cloudflared tunnel route dns kioku kioku.your-domain.com
 
 # config.yml
 tunnel: <tunnel-id>
 credentials-file: /root/.cloudflared/<tunnel-id>.json
 ingress:
-  - hostname: kioku.tu-dominio.com
+  - hostname: kioku.your-domain.com
     service: http://localhost:5173
   - service: http_status:404
 ```
 
 **Pros:**
-- Sin puertos abiertos en la VM (solo outbound desde la VM)
-- HTTPS automático
-- Auth delegada a CF Access (no hay que implementarla)
-- Logs y rate limiting gratis en CF
+- No open ports on the VM (only outbound from the VM)
+- Automatic HTTPS
+- Auth delegated to CF Access (no need to implement it)
+- Free logs and rate limiting on CF
 
-**Contras:**
-- Requiere dominio propio (~$10/año)
-- Dependencia de Cloudflare
-- CF Access tiene límite de 50 users en free tier
-- Latencia adicional (todo pasa por CF edge)
-- Configuración más compleja
-
----
-
-### Opción 4 — nginx + HTTPS + Basic Auth (descartada para este caso)
-
-Basic Auth con HTTPS funciona pero es la peor opción aquí: credenciales estáticas, no granular, MCP SDK puede no manejar bien el challenge 401.
+**Cons:**
+- Requires your own domain (~$10/year)
+- Dependency on Cloudflare
+- CF Access has a 50-user limit on the free tier
+- Extra latency (everything passes through the CF edge)
+- More complex configuration
 
 ---
 
-## Recomendación Final
+### Option 4 — nginx + HTTPS + Basic Auth (discarded for this case)
 
-| Escenario | Recomendación |
+Basic Auth with HTTPS works but is the worst option here: static credentials, not granular, the MCP SDK may not handle the 401 challenge well.
+
+---
+
+## Final Recommendation
+
+| Scenario | Recommendation |
 |-----------|--------------|
-| Uso personal, pocos dispositivos | **Tailscale** — cero código, máxima seguridad |
-| Acceso programático desde CI/scripts | **Bearer Token + nginx HTTPS** |
-| Quieres URL pública con auth robusta | **Cloudflare Tunnel + Access** |
-| Combinación óptima | **Tailscale + Bearer Token** (red privada + token como segunda capa) |
+| Personal use, few devices | **Tailscale** — zero code, maximum security |
+| Programmatic access from CI/scripts | **Bearer Token + nginx HTTPS** |
+| You want a public URL with robust auth | **Cloudflare Tunnel + Access** |
+| Optimal combination | **Tailscale + Bearer Token** (private network + token as a second layer) |
 
-La combinación **Tailscale + Bearer Token** es la más robusta para uso personal: Tailscale garantiza que solo tus dispositivos alcanzan el servidor, y el Bearer Token protege contra accesos accidentales desde la red Tailscale de otros usuarios.
+The **Tailscale + Bearer Token** combination is the most robust for personal use: Tailscale guarantees that only your devices can reach the server, and the Bearer Token protects against accidental access from other users' Tailscale networks.
 
 ---
 
-## Arquitectura recomendada en la VM
+## Recommended VM Architecture
 
 ```
 internet
     │
-    └── BLOQUEADO por firewall (solo puerto 22 SSH)
+    └── BLOCKED by firewall (only port 22 SSH)
 
 tailscale (100.x.x.x)
     │
-    └── nginx (:443, HTTPS con Let's Encrypt o self-signed)
+    └── nginx (:443, HTTPS with Let's Encrypt or self-signed)
               │
               └── Kioku HTTP (:5173, localhost only)
                        │
                        ├── VaultIndexService (reads /vault)
                        ├── EmbeddingService (→ Ollama :11434)
-                       └── ObsidianBridgeService (→ plugin :7765 si Obsidian en VM)
+                       └── ObsidianBridgeService (→ plugin :7765 if Obsidian is on the VM)
 ```
 
-**systemd service para el servidor:**
+**systemd service for the server:**
 
 ```ini
 # /etc/systemd/system/kioku.service
@@ -248,7 +248,7 @@ User=kioku
 WorkingDirectory=/opt/kioku
 ExecStart=/opt/kioku/Kioku.Mcp.Server
 Environment=KIOKU_VAULT_PATH=/vault/cortex
-Environment=KIOKU_API_KEY=<tu-token>
+Environment=KIOKU_API_KEY=<your-token>
 Environment=KIOKU_OLLAMA_URL=http://localhost:11434
 Restart=on-failure
 RestartSec=5
@@ -257,121 +257,121 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-**Sync del vault con Syncthing** (si no usas Obsidian Sync):
+**Vault sync with Syncthing** (if you're not using Obsidian Sync):
 ```bash
-# En la VM
+# On the VM
 flatpak install flathub me.kozec.syncthingtk
-# Compartir carpeta /vault/cortex entre VM y laptop
+# Share the /vault/cortex folder between the VM and laptop
 ```
 
 ---
 
-## Implementación del Bearer Token en Kioku
+## Bearer Token Implementation in Kioku
 
-✅ **Implementado** (mergeado desde `feat/v2-http-sse`):
+✅ **Implemented** (merged from `feat/v2-http-sse`):
 
-- `KiokuConfiguration.cs` lee `KIOKU_API_KEY`
-- `Middleware/ApiKeyMiddleware.cs` valida `Authorization: Bearer <token>` antes de `app.MapMcp()`
-  (`/health` queda exento; sin clave configurada, acceso abierto — solo para desarrollo local)
+- `KiokuConfiguration.cs` reads `KIOKU_API_KEY`
+- `Middleware/ApiKeyMiddleware.cs` validates `Authorization: Bearer <token>` before `app.MapMcp()`
+  (`/health` is exempt; with no key configured, access is open — for local development only)
 
-Ver [v2-http-sse-spec.md](../v2-http-sse-spec.md) §2 para el detalle del middleware.
+See [v2-http-sse-spec.md](../v2-http-sse-spec.md) §2 for middleware details.
 
 ---
 
-## Arquitectura Híbrida: Servidor en VM + Ollama y Obsidian Local
+## Hybrid Architecture: Server on VM + Local Ollama and Obsidian
 
-Esta arquitectura permite hospedar el servidor MCP Kioku en una VM económica (sin GPU) las 24/7, delegando el cómputo pesado de embeddings a la GPU del laptop/PC local del usuario y manteniendo la interacción con la UI de Obsidian.
+This architecture allows hosting the Kioku MCP server on a cheap VM (no GPU) 24/7, delegating the heavy compute of embeddings to the user's local laptop/PC GPU while keeping interaction with the Obsidian UI.
 
-### Diagrama de la Arquitectura
+### Architecture Diagram
 
 ```mermaid
 graph TD
-    subgraph VM_Cloud ["VM en la Nube (CPU Económica)"]
+    subgraph VM_Cloud ["Cloud VM (Cheap CPU)"]
         Server["Kioku MCP Server"]
         VaultDir["Vault Directory (/vault)"]
-        Server -->|Lee/Escribe| VaultDir
+        Server -->|Reads/Writes| VaultDir
     end
 
-    subgraph Laptop ["Laptop / PC Local (Con GPU)"]
+    subgraph Laptop ["Local Laptop / PC (With GPU)"]
         Obsidian["Obsidian + Kioku Plugin (:7765)"]
         Ollama["Ollama (:11434 nomic-embed-text)"]
-        LocalVault["Vault Local (.md files)"]
+        LocalVault["Local Vault (.md files)"]
     end
 
-    %% Sincronización de Archivos
-    LocalVault <-->|Sincronización: Obsidian Sync / Syncthing| VaultDir
+    %% File Synchronization
+    LocalVault <-->|Sync: Obsidian Sync / Syncthing| VaultDir
 
-    %% Conectividad de Red
+    %% Network Connectivity
     Server -->|Embeddings (HTTP POST)| Ollama
-    Server -->|Bridge UI (WebSocket)| Obsidian
+    Server -->|UI Bridge (WebSocket)| Obsidian
 ```
 
-### Opciones de Conectividad de Red
+### Network Connectivity Options
 
-Para que el servidor Kioku (en la VM) pueda comunicarse con Ollama y Obsidian (en la máquina local), existen dos métodos principales:
+For the Kioku server (on the VM) to communicate with Ollama and Obsidian (on the local machine), there are two main methods:
 
-#### Opción A: Túneles SSH Reversos (Recomendado por simplicidad y seguridad)
-Cuando te conectas a la VM por SSH, puedes redirigir puertos desde tu máquina local hacia la VM de forma segura.
+#### Option A: Reverse SSH Tunnels (Recommended for simplicity and security)
+When you connect to the VM via SSH, you can forward ports from your local machine to the VM securely.
 
-* **Comando para conectar:**
+* **Command to connect:**
   ```bash
-  ssh -R 11434:localhost:11434 -R 7765:localhost:7765 usuario@ip-de-la-vm
+  ssh -R 11434:localhost:11434 -R 7765:localhost:7765 user@vm-ip
   ```
-  *(Tip: Puedes configurar esto en tu `~/.ssh/config` local usando `RemoteForward` para que ocurra automáticamente al hacer `ssh vm`).*
+  *(Tip: You can configure this in your local `~/.ssh/config` using `RemoteForward` so it happens automatically when you run `ssh vm`).*
 
-* **Cómo lo ve el Servidor en la VM:**
-  * Ollama está disponible en `http://localhost:11434`
-  * Obsidian Bridge está disponible en `localhost:7765`
+* **How the Server on the VM sees it:**
+  * Ollama is available at `http://localhost:11434`
+  * The Obsidian Bridge is available at `localhost:7765`
 
-* **Configuración de Variables de Entorno en la VM:**
+* **Environment Variable Configuration on the VM:**
   ```ini
   KIOKU_OLLAMA_URL=http://localhost:11434
   KIOKU_OBSIDIAN_PORT=7765
   ```
 
-* **Ventajas:**
-  * No requiere configurar firewalls ni exponer puertos en tu máquina local.
-  * Todo el tráfico viaja cifrado dentro del túnel SSH existente.
-  * Funciona inmediatamente sin depender de servicios externos.
+* **Advantages:**
+  * No need to configure firewalls or expose ports on your local machine.
+  * All traffic travels encrypted within the existing SSH tunnel.
+  * Works immediately without depending on external services.
 
 ---
 
-#### Opción B: Tailscale (Red Mesh Privada)
-Si prefieres no depender de mantener una sesión SSH abierta en primer plano, puedes usar Tailscale para intercomunicar la VM y tu laptop.
+#### Option B: Tailscale (Private Mesh Network)
+If you'd rather not depend on keeping an SSH session open in the foreground, you can use Tailscale to interconnect the VM and your laptop.
 
-1. **Configurar Ollama en el Laptop:**
-   Por defecto, Ollama solo escucha en `127.0.0.1`. Debes configurarlo para escuchar en todas las interfaces estableciendo la variable de entorno en tu máquina local:
+1. **Configure Ollama on the Laptop:**
+   By default, Ollama only listens on `127.0.0.1`. You must configure it to listen on all interfaces by setting the environment variable on your local machine:
    ```bash
    OLLAMA_HOST=0.0.0.0
    ```
-2. **Configuración de Variables de Entorno en la VM:**
-   Apunta el servidor a la IP de Tailscale de tu laptop:
+2. **Environment Variable Configuration on the VM:**
+   Point the server to your laptop's Tailscale IP:
    ```ini
-   KIOKU_OLLAMA_URL=http://<IP-Tailscale-Laptop>:11434
-   KIOKU_OBSIDIAN_PORT=7765 # Obsidian se conecta a la IP de Tailscale
+   KIOKU_OLLAMA_URL=http://<Laptop-Tailscale-IP>:11434
+   KIOKU_OBSIDIAN_PORT=7765 # Obsidian connects via the Tailscale IP
    ```
 
-* **Ventajas:**
-  * Conexión persistente en segundo plano sin requerir sesión SSH activa.
-* **Desventajas:**
-  * Requiere exponer Ollama en la interfaz de red local (aunque esté protegida por Tailscale, hay que tener cuidado con las políticas de firewall locales).
+* **Advantages:**
+  * Persistent background connection without requiring an active SSH session.
+* **Disadvantages:**
+  * Requires exposing Ollama on the local network interface (even though it's protected by Tailscale, care must be taken with local firewall policies).
 
 ---
 
-### Sincronización del Vault y Base de Datos de Embeddings
+### Vault and Embeddings Database Synchronization
 
-Dado que el servidor MCP lee y escribe directamente en el sistema de archivos de la VM, los archivos `.md` deben sincronizarse en tiempo real entre la VM y el laptop local.
+Since the MCP server reads and writes directly to the VM's filesystem, the `.md` files must be synchronized in real time between the VM and the local laptop.
 
-1. **Sincronización de Notas:**
-   * Se recomienda utilizar **Obsidian Sync** oficial o **Syncthing** para mantener sincronizado el directorio `/vault` de la VM con el de tu máquina local.
-2. **Exclusión de Archivos de Cache (`.kioku`):**
-   * El archivo de caché de embeddings binarios `vault/.kioku/embeddings.bin` es administrado de manera local por el servidor en la VM.
-   * **Importante:** Se debe configurar **Syncthing** (usando `.stignore`) o la regla de exclusión del plugin de sincronización para **ignorar** la carpeta `.kioku/`. Esto evita conflictos de sincronización y escrituras redundantes sobre el disco local del laptop.
+1. **Note Synchronization:**
+   * It's recommended to use official **Obsidian Sync** or **Syncthing** to keep the VM's `/vault` directory synchronized with your local machine's.
+2. **Excluding Cache Files (`.kioku`):**
+   * The binary embeddings cache file `vault/.kioku/embeddings.bin` is managed locally by the server on the VM.
+   * **Important:** You must configure **Syncthing** (using `.stignore`) or the sync plugin's exclusion rule to **ignore** the `.kioku/` folder. This prevents sync conflicts and redundant writes to the laptop's local disk.
 
-### Robustez y Tolerancia a Fallos
+### Robustness and Fault Tolerance
 
-El servidor Kioku está diseñado con degradación progresiva:
-* **Si el laptop está apagado o el túnel está cerrado:**
-  * El servidor en la VM continuará respondiendo a todas las consultas normales de lectura, escritura y búsqueda semántica (utilizando la base de datos binaria local de embeddings `.kioku/embeddings.bin` previamente generada).
-  * Las búsquedas semánticas de nuevas consultas o indexación de nuevas notas fallarán graciosamente e informarán que Ollama no está disponible (retornando prefijo `[info]`), pero el servidor MCP general seguirá operando con búsquedas de palabras clave normales.
-  * Las herramientas del Bridge de Obsidian (ej. `open_note_in_obsidian`) reportarán un error grácil indicando que la UI de Obsidian no está conectada.
+The Kioku server is designed with graceful degradation:
+* **If the laptop is off or the tunnel is closed:**
+  * The server on the VM will continue responding to all normal read, write, and semantic search queries (using the previously generated local binary embeddings database `.kioku/embeddings.bin`).
+  * Semantic searches for new queries or indexing of new notes will fail gracefully and report that Ollama is unavailable (returning the `[info]` prefix), but the general MCP server will keep operating with normal keyword searches.
+  * The Obsidian Bridge tools (e.g. `open_note_in_obsidian`) will report a graceful error indicating that the Obsidian UI is not connected.

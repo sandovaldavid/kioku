@@ -1,63 +1,68 @@
-# 04 — Autenticación del bridge WebSocket
+# 04 — WebSocket bridge authentication
 
-> Área: server + plugin · Tarea: [P1-04](../tasks/P1-04-bridge-auth-token.md) · Impacto ★★ · Esfuerzo M
+> Area: server + plugin · Task: [P1-04](../tasks/P1-04-bridge-auth-token.md) · Impact ★★ · Effort M
 
-## Motivación
+## Motivation
 
-El WebSocket del plugin escucha en `127.0.0.1:7765` **sin autenticación**: cualquier proceso
-local puede conectarse y ejecutar los 22 comandos del bridge (abrir archivos, insertar texto,
-ejecutar comandos de Obsidian arbitrarios vía `trigger-command`). El README lo declara como
-limitación conocida. Un token compartido opcional cierra ese vector sin romper instalaciones
-existentes, y es un requisito razonable antes de publicar en la Community Store.
+The plugin's WebSocket listens on `127.0.0.1:7765` **without authentication**: any local
+process can connect and run the bridge's 22 commands (open files, insert text, run
+arbitrary Obsidian commands via `trigger-command`). The README states this as a known
+limitation. An optional shared token closes that vector without breaking existing
+installations, and is a reasonable requirement before publishing to the Community Store.
 
-## Diseño
+## Design
 
-### Token compartido opcional
+### Optional shared token
 
-- **Plugin**: setting `authToken: string` (default `""` = sin auth) en `KiokuSettings`,
-  con botón "Generate" en el settings tab (32 bytes aleatorios hex vía `crypto`).
-- **Server**: env var nueva `KIOKU_BRIDGE_TOKEN` en `KiokuConfiguration.FromEnvironment()`.
+- **Plugin**: new setting `authToken: string` (default `""` = no auth) in
+  `KiokuSettings`, with a "Generate" button in the settings tab (32 random bytes as hex
+  via `crypto`).
+- **Server**: new env var `KIOKU_BRIDGE_TOKEN` in `KiokuConfiguration.FromEnvironment()`.
 
-### Handshake (PROTOCOL_VERSION = 2, retrocompatible)
+### Handshake (PROTOCOL_VERSION = 2, backward compatible)
 
-1. Al conectar, el cliente C# envía como primer mensaje:
+1. On connect, the C# client sends as the first message:
    `{command: "auth", payload: {token}, protocolVersion: 2, requestId}`.
-2. Plugin con `authToken` configurado:
-   - `auth` correcto → `{success: true}`; la conexión queda autenticada.
-   - Cualquier otro comando antes de autenticar, o token inválido → `{success: false,
-     error: "[error] [UNAUTHORIZED] ..."}` y **cierre de la conexión** (code 4401).
-3. Plugin sin `authToken` (default): acepta conexiones como hoy; el comando `auth` responde
-   `{success: true}` (no-op). Clientes v1 siguen funcionando → **sin breaking change**.
-4. Comparación de tokens en tiempo constante (`crypto.timingSafeEqual`).
+2. Plugin with `authToken` configured:
+   - Correct `auth` → `{success: true}`; the connection becomes authenticated.
+   - Any other command before authenticating, or an invalid token → `{success: false,
+     error: "[error] [UNAUTHORIZED] ..."}` and **the connection is closed** (code 4401).
+3. Plugin without `authToken` (default): accepts connections as it does today; the
+   `auth` command responds `{success: true}` (no-op). v1 clients keep working →
+   **no breaking change**.
+4. Constant-time token comparison (`crypto.timingSafeEqual`).
 
-`PROTOCOL_VERSION` sube a 2 en `types.ts` y `ObsidianBridgeService.BridgeProtocol`; el
-mecanismo `onProtocolMismatch` existente sigue avisando ante desalineación de versiones.
+`PROTOCOL_VERSION` bumps to 2 in `types.ts` and `ObsidianBridgeService.BridgeProtocol`;
+the existing `onProtocolMismatch` mechanism keeps warning about version mismatches.
 
-### UX de errores
+### Error UX
 
-- Server sin token contra plugin con token → log `[error] [UNAUTHORIZED] Bridge requires
-  KIOKU_BRIDGE_TOKEN` y los tools bridge devuelven `KiokuError.Unauthorized`.
-- Notice opcional en el plugin al rechazar una conexión (respetando `showNotifications`).
+- Server without a token against a plugin with a token → log `[error] [UNAUTHORIZED]
+  Bridge requires KIOKU_BRIDGE_TOKEN` and the bridge tools return
+  `KiokuError.Unauthorized`.
+- Optional notice in the plugin when a connection is rejected (respecting
+  `showNotifications`).
 
-## Archivos afectados
+## Affected files
 
 - `src/obsidian-kioku-mcp/src/types.ts` (`PROTOCOL_VERSION`, `KiokuSettings`)
-- `src/obsidian-kioku-mcp/src/bridge.ts` (estado autenticado por conexión, cierre 4401)
-- `src/obsidian-kioku-mcp/src/handlers.ts` (comando `auth`)
-- `src/obsidian-kioku-mcp/src/main.ts` (setting + generador)
-- `src/obsidian-kioku-mcp/src/protocol-schema.json` (comando `auth`)
+- `src/obsidian-kioku-mcp/src/bridge.ts` (per-connection authenticated state, 4401 close)
+- `src/obsidian-kioku-mcp/src/handlers.ts` (`auth` command)
+- `src/obsidian-kioku-mcp/src/main.ts` (setting + generator)
+- `src/obsidian-kioku-mcp/src/protocol-schema.json` (`auth` command)
 - `src/Kioku.Mcp.Server/KiokuConfiguration.cs` (`KIOKU_BRIDGE_TOKEN`)
-- `src/Kioku.Mcp.Server/Services/ObsidianBridgeService.cs` (auth tras conectar y tras
-  cada reconexión)
-- Tests: contract tests del protocolo (`protocol.contract.test.ts`) + unit tests de rechazo;
-  lado C# si P1-05 ya aportó cobertura del bridge
-- Docs: `install.md`, `troubleshooting.md`, README raíz y server (tabla env vars),
+- `src/Kioku.Mcp.Server/Services/ObsidianBridgeService.cs` (auth after connect and after
+  every reconnect)
+- Tests: protocol contract tests (`protocol.contract.test.ts`) + unit tests for
+  rejection; C# side if P1-05 has already added bridge coverage
+- Docs: `install.md`, `troubleshooting.md`, root and server README (env vars table),
   `.mcp/server.json`
 
-## Riesgos
+## Risks
 
-- **Reconexión**: `ObsidianBridgeService` se reconecta automáticamente — debe re-autenticar
-  en cada conexión nueva (incluir en tests).
-- Deriva de docs de env vars (ya conocida) — actualizar todas las tablas en el mismo PR.
-- El token viaja en claro por localhost; es aceptable (mismo modelo que `KIOKU_API_KEY`
-  en HTTP local). Documentar que no protege contra procesos con acceso al config del plugin.
+- **Reconnection**: `ObsidianBridgeService` reconnects automatically — it must
+  re-authenticate on every new connection (include in tests).
+- Env var docs drift (already known) — update every table in the same PR.
+- The token travels in cleartext over localhost; this is acceptable (same model as
+  `KIOKU_API_KEY` over local HTTP). Document that it doesn't protect against processes
+  with access to the plugin's config.

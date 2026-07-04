@@ -1,46 +1,48 @@
 # 07 — Daily digest
 
-> Área: server · Tarea: [P2-03](../tasks/P2-03-daily-digest.md) · Impacto ★★★ · Esfuerzo S
+> Area: server · Task: [P2-03](../tasks/P2-03-daily-digest.md) · Impact ★★★ · Effort S
 
-## Motivación
+## Motivation
 
-"¿Qué aprendí esta semana, qué está vencido, qué quedó suelto?" — hoy responderlo requiere
-llamar 4-5 tools por separado. Un digest de un solo tool es la feature más demo-able para el
-persona estudiante y crea un hábito diario de uso.
+"What did I learn this week, what's overdue, what's still loose?" — today answering
+this requires calling 4-5 separate tools. A single-tool digest is the most demo-able
+feature for the student persona and builds a daily usage habit.
 
-## Diseño
+## Design
 
 ### `generate_digest(period = "day", target_folder = "", dry_run = false)`
 
-En `WorkflowTools` (grupo `workflows`):
+In `WorkflowTools` (group `workflows`):
 
 - `period`: `day` | `week`.
-- Secciones del digest (todas con datos ya disponibles):
-  1. **Actividad** — notas creadas/modificadas del período (`get_recent_activity` /
+- Digest sections (all built from already-available data):
+  1. **Activity** — notes created/modified during the period (`get_recent_activity` /
      `VaultIndexService`).
-  2. **Tareas** — vencidas y por vencer (`TaskService`).
-  3. **Huérfanas nuevas** — notas del período sin enlaces (`find_unlinked_notes` acotado).
-  4. **Para revisar** — notas del período con status `draft`/`inbox`.
-- Escribe la nota en la carpeta `daily` de `.kioku/config.yml` (`folders.daily`, fallback
-  `target_folder` o raíz) con nombre `Digest {yyyy-MM-dd}.md` y frontmatter
-  `type: log, tags: [digest]`. Si ya existe, la reemplaza (es generada).
-- `dry_run=true` devuelve el markdown sin escribir.
+  2. **Tasks** — overdue and upcoming (`TaskService`).
+  3. **New orphans** — notes from the period with no links (bounded
+     `find_unlinked_notes`).
+  4. **To review** — notes from the period with `draft`/`inbox` status.
+- Writes the note to the `daily` folder from `.kioku/config.yml` (`folders.daily`,
+  fallback `target_folder` or root) named `Digest {yyyy-MM-dd}.md` with frontmatter
+  `type: log, tags: [digest]`. If it already exists, it's replaced (it's generated).
+- `dry_run=true` returns the markdown without writing it.
 
-### Mejora opcional con generación local
+### Optional enhancement with local generation
 
-Si `GenerationService` (spec 05) está disponible, añade una sección **Resumen** de 3-4
-líneas generada localmente a partir de los títulos/snippets del período. Si no, el digest
-es puramente estructural — el feature **no depende** de 05.
+If `GenerationService` (spec 05) is available, adds a 3-4 line **Summary** section
+generated locally from the period's titles/snippets. If not, the digest is purely
+structural — the feature **doesn't depend** on 05.
 
-## Archivos afectados
+## Affected files
 
 - `src/Kioku.Mcp.Server/Tools/WorkflowTools.cs` (+1 tool)
-- Reuso: `VaultIndexService`, `TaskService`, `GraphAnalysisTools` internals (extraer a
-  servicio/helper si hace falta), `VaultConfigService.GetFolder("daily")`
-- Tests: construcción del digest con vault fixture (períodos, secciones vacías)
-- `docs/commands-reference.md` (regenerar)
+- Reuse: `VaultIndexService`, `TaskService`, `GraphAnalysisTools` internals (extract to
+  a service/helper if needed), `VaultConfigService.GetFolder("daily")`
+- Tests: digest construction with a vault fixture (periods, empty sections)
+- `docs/commands-reference.md` (regenerate)
 
-## Riesgos
+## Risks
 
-- Bajo. Definir claramente el corte temporal (medianoche local; `week` = últimos 7 días).
-- Sobrescribir el digest existente es intencional — documentarlo en la descripción del tool.
+- Low. Clearly define the time cutoff (local midnight; `week` = last 7 days).
+- Overwriting the existing digest is intentional — document it in the tool
+  description.
