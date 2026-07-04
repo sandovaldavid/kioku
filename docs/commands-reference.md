@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 05:46 UTC
+**Generated:** 2026-07-04 06:01 UTC
 
 ## Summary
 
@@ -105,6 +105,20 @@ Removes a CSS snippet file from the Obsidian vault's .obsidian/snippets/ folder.
 | `name` | String | Yes | Snippet name without .css extension (e.g. 'sepia-editor'). |
 
 ## GenerationTools
+
+### `generate_flashcards`
+
+Generates spaced-repetition flashcards from a note locally using Ollama (no cloud calls). Formats: 'spaced-repetition' (Q::A markdown for the Obsidian Spaced Repetition plugin, default), 'anki-csv' (front,back,tags CSV for Anki import), or 'cloze' (==hidden text== cloze cards for the Spaced Repetition plugin). Requires KIOKU_GEN_MODEL configured and Ollama running with that model pulled. Treat the cards as a draft to review before studying — quality depends on the configured model.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `note` | String | Yes | Name or path of the note to generate flashcards from. |
+| `count` | Int32 | No | Number of flashcards to generate (default: 10). |
+| `format` | String | No | Output format: 'spaced-repetition' (default), 'anki-csv', or 'cloze'. |
+| `output_note` | String | No | Path to write the flashcards to. Default: 'Flashcards/{note}.md' ('.csv' for anki-csv, in the assets folder). |
+| `dry_run` | Boolean | No | Preview the generated flashcards without writing any file. |
 
 ### `summarize_note`
 
@@ -1266,7 +1280,7 @@ MIME type: `application/json`
 
 ---
 
-**Total tools:** 116
+**Total tools:** 117
 
 **Total prompts:** 4
 
