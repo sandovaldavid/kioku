@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 06:01 UTC
+**Generated:** 2026-07-04 06:25 UTC
 
 ## Summary
 
@@ -978,7 +978,7 @@ Reopens a completed task by changing '- [x]' back to '- [ ]'. Use list_tasks wit
 
 ### `get_index_status`
 
-Returns the current status of the in-memory index: number of notes, embeddings cached, Ollama availability, last update time, and whether the index is ready.
+Returns the current status of the in-memory index: number of notes, embeddings cached, Ollama availability, last update time, whether the index is ready, and — if a re-embedding backlog is being processed in the background — its progress (backlog, rate, ETA).
 
 ### `ping`
 

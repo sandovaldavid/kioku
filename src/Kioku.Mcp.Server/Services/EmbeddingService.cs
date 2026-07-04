@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Numerics;
 using System.Text;
@@ -12,13 +14,22 @@ namespace Kioku.Mcp.Server.Services;
 /// Generates and stores semantic embeddings for vault notes using Ollama.
 /// Embeddings are cached in {vault}/.kioku/embeddings.bin to survive restarts.
 /// If Ollama is unavailable, the service degrades gracefully: IsAvailable = false.
+/// Re-embedding a stale backlog (e.g. after a cache invalidation) runs in the background
+/// with limited concurrency — it never blocks startup, since keyword search only needs
+/// VaultIndexService's own index, not embeddings.
 /// </summary>
 public sealed class EmbeddingService(KiokuConfiguration config, ILogger<EmbeddingService> logger, IHttpClientFactory httpClientFactory)
     : IDisposable
 {
-    private readonly Dictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
-    private int _pendingFlushes;
     private const int FlushEvery = 50;
+    private const int MaxConcurrentEmbeddings = 2;
+
+    private readonly ConcurrentDictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _embedSemaphore = new(MaxConcurrentEmbeddings);
+    private readonly Stopwatch _sessionStopwatch = new();
+    private int _pendingFlushes;
+    private int _backlogCount;
+    private int _embeddedThisSession;
 
     public bool IsAvailable { get; private set; }
 
@@ -27,6 +38,41 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
     /// <summary>Configured embedding model name.</summary>
     public string EmbeddingModel => config.EmbeddingModel;
+
+    /// <summary>Notes detected as needing an embedding (new or changed) that haven't finished yet.</summary>
+    public int EmbeddingBacklog => Volatile.Read(ref _backlogCount);
+
+    /// <summary>Notes embedded since this service started (used to compute <see cref="EmbeddingRatePerMinute"/>).</summary>
+    public int EmbeddedThisSession => Volatile.Read(ref _embeddedThisSession);
+
+    /// <summary>Rolling embedding throughput for this session, in notes per minute.</summary>
+    public double EmbeddingRatePerMinute
+    {
+        get
+        {
+            var elapsedMinutes = _sessionStopwatch.Elapsed.TotalMinutes;
+            return elapsedMinutes > 0 ? EmbeddedThisSession / elapsedMinutes : 0;
+        }
+    }
+
+    /// <summary>
+    /// Estimated time to clear the current backlog at the current rate. Null when the backlog
+    /// is non-zero but no throughput has been observed yet (rate unknown).
+    /// </summary>
+    public TimeSpan? EstimatedTimeRemaining
+    {
+        get
+        {
+            var backlog = EmbeddingBacklog;
+            if (backlog == 0)
+            {
+                return TimeSpan.Zero;
+            }
+
+            var rate = EmbeddingRatePerMinute;
+            return rate > 0 ? TimeSpan.FromMinutes(backlog / rate) : null;
+        }
+    }
 
     private int ExpectedDimension => EmbeddingModelRegistry.GetExpectedDimension(config.EmbeddingModel);
 
@@ -63,29 +109,21 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         }
 
         logger.Info("Loaded {Count} cached embeddings from disk.", _store.Count);
+        _sessionStopwatch.Start();
 
-        // Re-embed notes whose content changed since last run
+        // Re-embed notes whose content changed since last run, in the background — a large
+        // backlog must never block startup, since keyword search doesn't need embeddings.
         var stale = existingNotes
             .Where(n => !_store.TryGetValue(n.VaultRelativePath, out var e) || e.Hash != n.ContentHash)
             .ToList();
 
         if (stale.Count > 0)
         {
-            logger.Info("Embedding {Count} new/changed notes...", stale.Count);
-            foreach (var note in stale)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                await EmbedAndStoreAsync(note);
-            }
-
-            await SaveAsync();
+            logger.Info(
+                "Queuing {Count} new/changed notes for background embedding (up to {Parallelism} concurrent)...",
+                stale.Count, MaxConcurrentEmbeddings);
+            _ = ProcessBacklogAsync(stale, cancellationToken);
         }
-
-        logger.Info("Embedding index ready. {Count} notes indexed.", _store.Count);
     }
 
     // Public API
@@ -102,7 +140,24 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
             return;
         }
 
-        await EmbedAndStoreAsync(note);
+        Interlocked.Increment(ref _backlogCount);
+        try
+        {
+            await _embedSemaphore.WaitAsync();
+            try
+            {
+                await EmbedAndStoreAsync(note);
+                Interlocked.Increment(ref _embeddedThisSession);
+            }
+            finally
+            {
+                _embedSemaphore.Release();
+            }
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _backlogCount);
+        }
 
         if (Interlocked.Increment(ref _pendingFlushes) % FlushEvery == 0)
         {
@@ -119,7 +174,7 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
         // filePath is absolute; store uses vault-relative paths
         var relative = Path.GetRelativePath(config.VaultPath, filePath);
-        _store.Remove(relative);
+        _store.TryRemove(relative, out _);
     }
 
     public IEnumerable<SemanticResult> SearchByVector(
@@ -204,6 +259,35 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     }
 
     // Private helpers
+
+    /// <summary>
+    /// Embeds a batch of stale notes with bounded concurrency (via IndexNoteAsync's own
+    /// semaphore). Never throws — a failure here must not crash the background task silently
+    /// nor take down the caller, since this runs detached from InitializeAsync's return.
+    /// </summary>
+    private async Task ProcessBacklogAsync(IReadOnlyList<Note> notes, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var tasks = notes.Select(async note =>
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                await IndexNoteAsync(note);
+            });
+
+            await Task.WhenAll(tasks);
+            await SaveAsync();
+            logger.Info("Background embedding backlog complete. {Count} notes cached.", _store.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.Warn("Background embedding backlog processing failed: {Message}", ex.Message);
+        }
+    }
 
     private async Task EmbedAndStoreAsync(Note note)
     {
