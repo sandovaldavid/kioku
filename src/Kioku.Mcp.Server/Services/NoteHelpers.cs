@@ -184,6 +184,43 @@ public static class NoteHelpers
     }
 
     /// <summary>
+    /// Appends a Markdown wikilink section (e.g. "## Related") to note content, skipping any
+    /// target already present in existingOutgoingLinks — shared by link_related_notes and
+    /// apply_link_suggestions so neither duplicates the other's insertion logic.
+    /// Returns null when every target is already linked (caller should treat this as a no-op
+    /// and skip writing the file, which is what makes repeated calls idempotent).
+    /// </summary>
+    public static string? AppendLinkSection(
+        string currentContent,
+        IReadOnlySet<string> existingOutgoingLinks,
+        string sectionTitle,
+        IEnumerable<(string TargetName, string? Annotation)> targets)
+    {
+        var newTargets = targets
+            .Where(t => !existingOutgoingLinks.Contains(t.TargetName))
+            .ToList();
+
+        if (newTargets.Count == 0)
+        {
+            return null;
+        }
+
+        var section = new StringBuilder($"\n\n## {sectionTitle}\n\n");
+        foreach (var (name, annotation) in newTargets)
+        {
+            section.Append($"- [[{name}]]");
+            if (!string.IsNullOrEmpty(annotation))
+            {
+                section.Append($" ({annotation})");
+            }
+
+            section.AppendLine();
+        }
+
+        return currentContent.TrimEnd() + section;
+    }
+
+    /// <summary>
     /// Expands {{variable}} placeholders in a template string.
     /// Unknown placeholders are left as-is. Variables are matched case-insensitively.
     /// Built-in variables are supported: {{date}}, {{time}}, {{datetime}}, {{year}}, {{month}},

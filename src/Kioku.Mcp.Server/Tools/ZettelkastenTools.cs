@@ -276,25 +276,18 @@ public sealed class ZettelkastenTools(
         var currentContent = await File.ReadAllTextAsync(found.FilePath);
         var existingLinks = found.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var newLinks = similar
-            .Where(r => !existingLinks.Contains(r.Note.Name))
-            .ToList();
+        var updatedContent = NoteHelpers.AppendLinkSection(
+            currentContent, existingLinks, "Related",
+            similar.Select(r => (r.Note.Name, (string?)$"{r.Score:P0} similar")));
 
-        if (newLinks.Count == 0)
+        if (updatedContent is null)
         {
             return $"[info] All {similar.Count} related notes are already linked from '{found.Name}'.";
         }
 
-        // Append a 'Related' section at the end of the note
-        var linksSection = new StringBuilder("\n\n## Related\n\n");
-        foreach (var rel in newLinks)
-        {
-            linksSection.AppendLine($"- [[{rel.Note.Name}]] ({rel.Score:P0} similar)");
-        }
-
-        var updatedContent = currentContent.TrimEnd() + linksSection;
         await File.WriteAllTextAsync(found.FilePath, updatedContent, Encoding.UTF8);
 
+        var newLinks = similar.Where(r => !existingLinks.Contains(r.Note.Name)).ToList();
         return $"[ok] Added {newLinks.Count} related links to '{found.Name}':\n" +
                string.Join("\n", newLinks.Select(r => $"  - [[{r.Note.Name}]] ({r.Score:P0})"));
     }
