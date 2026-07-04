@@ -3,11 +3,15 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 01:37 UTC
+**Generated:** 2026-07-04 02:14 UTC
 
 ## Summary
 
 Total tool classes: **18**
+
+Total prompt classes: **1**
+
+Total resource classes: **1**
 
 ## AssetTools
 
@@ -1177,6 +1181,60 @@ Finds notes that are semantically related to a given note and appends wikilinks 
 | `max_links` | Int32 | No | Maximum number of related notes to link (default 5). |
 | `min_similarity` | Double | No | Minimum similarity score (0.0–1.0). Notes below this threshold are excluded. Default: 0.65. |
 
+## Prompts
+
+### `literature_review`
+
+Collects existing evidence on a topic from the vault and synthesizes it with citations.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `topic` | String | Yes | Topic or research question to review. |
+
+### `process_inbox`
+
+Guides the smart-inbox triage workflow: propose a plan, confirm it, then apply it.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `inbox` | String | No | Inbox folder to process (relative to vault root). Leave empty to use the configured default. |
+
+### `research_digest`
+
+Summarizes recent reading/research activity in the vault and lists open questions.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scope the review to (relative to vault root). Leave empty for the whole vault. |
+
+### `weekly_review`
+
+Runs a weekly vault review: digest, overdue tasks, orphaned notes, and link suggestions.
+
+## Resources
+
+### `kioku://note/{path}`
+
+Full content (including frontmatter) of a note, resolved by vault-relative path or name.
+
+MIME type: `text/markdown`
+
+### `kioku://vault/stats`
+
+Snapshot of vault statistics: note count, tag count, folder count, index status.
+
+MIME type: `application/json`
+
 ---
 
 **Total tools:** 113
+
+**Total prompts:** 4
+
+**Total resources:** 2
