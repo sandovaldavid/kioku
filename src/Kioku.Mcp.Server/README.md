@@ -2,7 +2,7 @@
 
 > Versión: **1.8.0-beta.8** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
 
-Servidor MCP en C# .NET 10 que expone 116 herramientas en 18 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
+Servidor MCP en C# .NET 10 que expone 117 herramientas en 18 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
 
 ## Arquitectura
 
@@ -41,7 +41,7 @@ Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre.
 | `RestoreTools` | `restore` | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
 | `AssetTools` | `assets` | `reorder_notes_in_folder`, `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder` |
 | `ObsidianBridgeTools` | `bridge` | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split`, `get_selection_in_obsidian`, `toggle_reading_mode`, `fold_all_headings`, `unfold_all_headings`, `get_obsidian_status` |
-| `GenerationTools` | `generation` | `summarize_note` |
+| `GenerationTools` | `generation` | `summarize_note`, `generate_flashcards` |
 
 ## Services
 

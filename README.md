@@ -4,7 +4,7 @@
 >
 > Versión actual: **1.8.0-beta.8** (`develop` · beta) <!-- x-release-please-version --> · [Ver releases](https://github.com/sandovaldavid/kioku/releases)
 
-Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 116 herramientas MCP en 18 clases y 22 comandos del bridge del plugin.
+Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 117 herramientas MCP en 18 clases y 22 comandos del bridge del plugin.
 
 ---
 
@@ -32,7 +32,7 @@ Agente de IA (Claude Code / agy)
     │
     ▼
 Kioku.Mcp.Server (C# .NET 10)
-    ├── 18 Tool Classes (116 herramientas MCP)
+    ├── 18 Tool Classes (117 herramientas MCP)
     ├── Services: VaultIndex · Embedding(Ollama) · HybridSearch
     │            TaskService · ObsidianBridge · Persistence
     └── Middleware: ApiKeyMiddleware
@@ -341,7 +341,7 @@ Para instalar el plugin localmente en tu Obsidian:
 
 ## MCP Tools Disponibles
 
-116 herramientas organizadas en 18 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
+117 herramientas organizadas en 18 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
 
 Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desactivan por **grupos de capacidades** en `{vault}/.kioku/config.yml` — ver [`docs/vault-config.md`](docs/vault-config.md).
 
@@ -357,6 +357,7 @@ Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desa
 | **Grafo de conocimiento** | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
 | **Análisis de grafo** | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
 | **Research** | `export_citations`, `export_note`, `get_literature_gap`, `get_citation_graph`, `import_bibtex`, `export_bibtex`, `share_as_gist`, `validate_research_notes` |
+| **Generación local** (requiere Ollama) | `summarize_note`, `generate_flashcards` |
 | **Restore** | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
 | **CSS Theming** | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet`, `reload_css_snippets` |
 | **Assets** | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder`, `reorder_notes_in_folder` |

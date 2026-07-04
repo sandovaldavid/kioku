@@ -19,18 +19,20 @@ public class GenerationToolsTests : IClassFixture<VaultFixture>
     private GenerationTools CreateTools(HttpMessageHandler? handler = null, string? generationModel = "llama3.2")
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath, GenerationModel = generationModel };
+        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
         var generation = new GenerationService(
             config,
             NullLogger<GenerationService>.Instance,
             new FakeHttpClientFactory(handler ?? new FakeHttpMessageHandler((_, _) =>
                 Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)))));
-        return new GenerationTools(_fixture.Index, generation, config);
+        return new GenerationTools(_fixture.Index, generation, config, vaultConfig);
     }
 
     private async Task<(GenerationTools tools, GenerationService generation)> CreateAvailableAsync(
         Func<HttpRequestMessage, HttpResponseMessage>? onGenerate = null)
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath, GenerationModel = "llama3.2" };
+        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
         var handler = new FakeHttpMessageHandler((request, _) =>
         {
             if (request.Method == HttpMethod.Get)
@@ -48,7 +50,7 @@ public class GenerationToolsTests : IClassFixture<VaultFixture>
         var generation = new GenerationService(config, NullLogger<GenerationService>.Instance, new FakeHttpClientFactory(handler));
         await generation.InitializeAsync();
 
-        return (new GenerationTools(_fixture.Index, generation, config), generation);
+        return (new GenerationTools(_fixture.Index, generation, config, vaultConfig), generation);
     }
 
     [Fact]
