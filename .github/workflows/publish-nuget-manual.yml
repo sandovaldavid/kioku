@@ -1,0 +1,53 @@
+name: publish-nuget-manual
+
+on:
+  workflow_dispatch:
+
+# Manual escape hatch, decoupled from release-please's release_created gate: lets a
+# specific branch tip be packed and pushed to NuGet.org on demand, for versions whose
+# automated publish-nuget run failed or was skipped.
+jobs:
+  publish-nuget:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore dependencies
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj -p:RuntimeIdentifiers=
+
+      - name: Build
+        run: |
+          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-restore \
+            -p:RuntimeIdentifiers=
+
+      - name: Pack NuGet package
+        run: |
+          dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-build \
+            --output ./nupkg \
+            -p:RuntimeIdentifiers=
+
+      - name: NuGet login (OIDC -> temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet.org
+        run: |
+          dotnet nuget push ./nupkg/*.nupkg \
+            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
