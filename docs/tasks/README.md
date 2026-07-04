@@ -48,7 +48,7 @@ Convenciones de cada tarea:
 | ID | Tarea | Rama | Tamaño | Spec | Estado |
 |----|-------|------|:------:|------|--------|
 | [P3-01](P3-01-zotero-bibtex.md) | Import/export BibTeX (base para Zotero) | `feat/zotero-bibtex` | M | [10](../features/10-zotero-bibtex.md) | ✅ Merged (#145) |
-| [P3-02](P3-02-flashcards.md) | Flashcards (Spaced Repetition / Anki) | `feat/flashcards` | M | [11](../features/11-flashcards.md) | Pendiente |
+| [P3-02](P3-02-flashcards.md) | Flashcards (Spaced Repetition / Anki) | `feat/flashcards` | M | [11](../features/11-flashcards.md) | ✅ Merged (#149) |
 | [P3-03](P3-03-incremental-reembedding.md) | Re-embedding incremental (cache v4 + progreso) | `feat/incremental-reembedding` | M | [12](../features/12-incremental-reembedding.md) | Pendiente |
 | [P3-04](P3-04-citation-graph.md) | Grafo de citas entre notas y fuentes | `feat/citation-graph` | M | [13](../features/13-citation-graph.md) | ✅ Merged (#147) |
 
