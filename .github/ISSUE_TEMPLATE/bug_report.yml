@@ -1,0 +1,85 @@
+name: Bug report
+description: Report something that isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out as much of this as you can.
+        For security vulnerabilities, please follow [SECURITY.md](https://github.com/sandovaldavid/kioku/blob/develop/SECURITY.md) instead of opening a public issue.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of Kioku is affected?
+      options:
+        - MCP server (C#)
+        - Obsidian plugin (TypeScript)
+        - Both / bridge between them
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: Tell us what happened, and what you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this?
+      placeholder: |
+        1. Run '...'
+        2. Call tool '...' with arguments '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Server logs go to stderr; plugin logs are in the Obsidian developer console. Paste any relevant output here.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Kioku version
+      description: Server and/or plugin version (see `ping` tool output, or the plugin's settings tab)
+      placeholder: e.g. 1.8.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport
+      options:
+        - stdio (local)
+        - HTTP-SSE (remote/VM)
+        - Not applicable
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: e.g. macOS 15, Windows 11, Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might help — vault size, `.kioku/config.yml` contents, Ollama model in use, etc.
