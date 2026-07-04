@@ -23,6 +23,7 @@ docker exec kioku-ollama ollama pull nomic-embed-text
 ```
 
 #### .NET Tool
+Requires the [ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (not just the base .NET Runtime) — the server targets `Microsoft.NET.Sdk.Web` to support the HTTP-SSE transport.
 ```bash
 # Install globally
 dotnet tool install -g kioku-mcp-server
