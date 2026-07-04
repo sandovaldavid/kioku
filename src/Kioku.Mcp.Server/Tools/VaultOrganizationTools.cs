@@ -16,7 +16,8 @@ public sealed class VaultOrganizationTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     HybridSearchService hybrid,
-    EmbeddingService embedding)
+    EmbeddingService embedding,
+    VaultConfigService vaultConfig)
 {
     // normalize_tags
 
@@ -237,6 +238,25 @@ public sealed class VaultOrganizationTools(
             return Task.FromResult($"[error] Note not found: '{note}'");
         }
 
+        var scored = ScoreTagSuggestions(found, max_suggestions);
+
+        if (scored.Count == 0)
+        {
+            return Task.FromResult($"[info] No relevant tags found for '{found.Name}'. The note may need more content.");
+        }
+
+        var sb = new StringBuilder($"[ok] Suggested tags for '{found.Name}' ({scored.Count} suggestions):\n\n");
+        foreach (var tag in scored)
+        {
+            sb.AppendLine($"  #{tag}");
+        }
+
+        return Task.FromResult(sb.ToString());
+    }
+
+    /// <summary>Scores existing vault tags by keyword overlap with a note's content and title.</summary>
+    private List<string> ScoreTagSuggestions(Note found, int maxSuggestions)
+    {
         // Get all unique tags across the vault
         var allTags = vault.GetAllNotes()
             .SelectMany(n => n.Metadata.Tags)
@@ -249,7 +269,7 @@ public sealed class VaultOrganizationTools(
         var noteWords = TokenizeText(found.PlainText + " " + found.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var scored = allTags
+        return allTags
             .Where(kv => !existingTags.Contains(kv.Key))
             .Select(kv =>
             {
@@ -259,21 +279,9 @@ public sealed class VaultOrganizationTools(
             })
             .Where(s => s.Score > 0)
             .OrderByDescending(s => s.Score)
-            .Take(max_suggestions)
+            .Take(maxSuggestions)
+            .Select(s => s.Tag)
             .ToList();
-
-        if (scored.Count == 0)
-        {
-            return Task.FromResult($"[info] No relevant tags found for '{found.Name}'. The note may need more content.");
-        }
-
-        var sb = new StringBuilder($"[ok] Suggested tags for '{found.Name}' ({scored.Count} suggestions):\n\n");
-        foreach (var (tag, _) in scored)
-        {
-            sb.AppendLine($"  #{tag}");
-        }
-
-        return Task.FromResult(sb.ToString());
     }
 
     // find_duplicate_notes
@@ -436,6 +444,250 @@ public sealed class VaultOrganizationTools(
 
         return Task.FromResult(sb.ToString());
     }
+
+    // process_inbox
+
+    [McpServerTool, Description(
+        "Batch-triages notes in an inbox folder: for each note, suggests a destination folder " +
+        "(same scoring as suggest_folder), tags (keyword overlap + destination folder " +
+        "inheritance), and up to 3 related notes (semantic similarity, when Ollama embeddings " +
+        "are available). apply=false (default) returns a numbered plan without touching any " +
+        "file. apply=true executes it: moves each note (updating inbound full-path wikilinks), " +
+        "adds the suggested tags, and appends a Related section with the suggested links. " +
+        "This moves files in batch — review the plan first. If something goes wrong, " +
+        "revert_all_uncommitted (or git) can undo an apply.")]
+    public async Task<string> process_inbox(
+        [Description("Inbox folder (relative to vault root). Leave empty to use folders.inbox from .kioku/config.yml, falling back to 'Inbox'.")] string inbox_folder = "",
+        [Description("Maximum number of notes to process in one call (default: 20).")] int max_notes = 20,
+        [Description("If true, executes the plan (move + tag + link). Default false only previews it.")] bool apply = false)
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        var folder = string.IsNullOrWhiteSpace(inbox_folder)
+            ? (vaultConfig.GetFolder("inbox") ?? "Inbox")
+            : inbox_folder;
+
+        var folderPath = Path.Combine(config.VaultPath, folder);
+        if (!Directory.Exists(folderPath))
+        {
+            return $"[info] Inbox folder not found: '{folder}'. Nothing to process.";
+        }
+
+        var notes = vault.GetNotesInFolder(folder)
+            .OrderBy(n => n.VaultRelativePath, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Max(0, max_notes))
+            .ToList();
+
+        if (notes.Count == 0)
+        {
+            return $"[info] Inbox '{folder}' is empty. Nothing to process.";
+        }
+
+        var plans = notes.Select(BuildInboxPlan).ToList();
+
+        if (!apply)
+        {
+            return FormatInboxPlan(plans, folder);
+        }
+
+        var results = new List<string>(plans.Count);
+        foreach (var plan in plans)
+        {
+            results.Add(await ApplyInboxPlanAsync(plan));
+        }
+
+        var sb = new StringBuilder($"[ok] Processed {plans.Count} note(s) from '{folder}':\n\n");
+        foreach (var line in results)
+        {
+            sb.AppendLine(line);
+        }
+
+        sb.AppendLine();
+        sb.Append("Made a mistake? Undo with revert_all_uncommitted (group `restore`) or git directly.");
+
+        if (!embedding.IsAvailable)
+        {
+            sb.AppendLine();
+            sb.Append("[info] Semantic embeddings are unavailable — link suggestions were skipped.");
+        }
+
+        return sb.ToString();
+    }
+
+    // Private helpers — process_inbox
+
+    private sealed record InboxItemPlan(
+        Note Note,
+        string? DestFolder,
+        double? DestScore,
+        IReadOnlyList<string> Tags,
+        IReadOnlyList<Note> RelatedNotes);
+
+    private InboxItemPlan BuildInboxPlan(Note note)
+    {
+        var ranked = FolderRanker.RankFolders(note, 1, vault, hybrid, embedding);
+        var destFolder = ranked.Count > 0 ? ranked[0].Folder : null;
+        var destScore = ranked.Count > 0 ? ranked[0].Score : (double?)null;
+
+        var similarTags = ScoreTagSuggestions(note, 5);
+        var inheritedTags = destFolder is not null ? vaultConfig.GetInheritedTags(destFolder) : [];
+        var tags = NoteHelpers.MergeTagsWithInheritance(similarTags, inheritedTags, vaultConfig.ExcludeFromTags);
+
+        var related = embedding.IsAvailable
+            ? hybrid.FindSimilar(note, 3, 0.3f).Select(r => r.Note).ToList()
+            : [];
+
+        return new InboxItemPlan(note, destFolder, destScore, tags, related);
+    }
+
+    private static string FormatInboxPlan(IReadOnlyList<InboxItemPlan> plans, string folder)
+    {
+        var sb = new StringBuilder($"[info] Inbox plan for '{folder}' ({plans.Count} note(s), apply=false — nothing changed):\n\n");
+
+        var i = 1;
+        foreach (var plan in plans)
+        {
+            var dest = plan.DestFolder is not null
+                ? $"{plan.DestFolder} (score: {plan.DestScore:F2})"
+                : "keep in place (no better folder found)";
+            var tags = plan.Tags.Count > 0 ? string.Join(", ", plan.Tags.Select(t => "#" + t)) : "none";
+            var links = plan.RelatedNotes.Count > 0
+                ? string.Join(", ", plan.RelatedNotes.Select(n => $"[[{n.Name}]]"))
+                : "none";
+
+            sb.AppendLine($"{i}. \"{plan.Note.Name}\" → {dest} · tags: {tags} · links: {links}");
+            i++;
+        }
+
+        sb.AppendLine();
+        sb.Append("Set apply=true to execute this plan. Undo with revert_all_uncommitted or git if needed.");
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ApplyInboxPlanAsync(InboxItemPlan plan)
+    {
+        var note = plan.Note;
+        var current = note;
+        var actions = new List<string>();
+
+        if (plan.DestFolder is not null)
+        {
+            var destDir = NoteHelpers.EnsureInsideVault(
+                config.VaultPath, Path.Combine(config.VaultPath, plan.DestFolder));
+            Directory.CreateDirectory(destDir);
+            var destPath = Path.Combine(destDir, Path.GetFileName(note.FilePath));
+
+            if (File.Exists(destPath))
+            {
+                actions.Add($"skipped move (a note named '{note.Name}' already exists in '{plan.DestFolder}')");
+            }
+            else
+            {
+                var oldPath = note.FilePath;
+                File.Move(oldPath, destPath);
+                await vault.SynchronizeFileMoveAsync(oldPath, destPath);
+                var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
+
+                var updatedLinks = await UpdateInboundWikilinksForMoveAsync(note, newRelativePath);
+                actions.Add($"moved to {plan.DestFolder}" +
+                            (updatedLinks > 0 ? $" ({updatedLinks} wikilink(s) updated)" : ""));
+
+                current = vault.GetNote(destPath) ?? note;
+            }
+        }
+
+        if (plan.Tags.Count > 0)
+        {
+            var rawContent = await File.ReadAllTextAsync(current.FilePath, Encoding.UTF8);
+            var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
+            var body = rawContent[bodyStart..];
+
+            var meta = current.Metadata;
+            var mergedTags = meta.Tags.Concat(plan.Tags).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var frontmatter = NoteHelpers.BuildFrontmatter(
+                mergedTags, meta.NoteType, meta.Status, meta.Date, domain: meta.Domain, extraFields: meta.ExtraFields);
+
+            await File.WriteAllTextAsync(current.FilePath, frontmatter + body, Encoding.UTF8);
+            await vault.SynchronizeFileReindexAsync(current.FilePath);
+            current = vault.GetNote(current.FilePath) ?? current;
+
+            actions.Add($"tagged: {string.Join(", ", plan.Tags.Select(t => "#" + t))}");
+        }
+
+        if (plan.RelatedNotes.Count > 0)
+        {
+            var relatedSection = new StringBuilder("\n\n## Related\n\n");
+            foreach (var related in plan.RelatedNotes)
+            {
+                relatedSection.AppendLine($"- [[{related.Name}]]");
+            }
+
+            await File.AppendAllTextAsync(current.FilePath, relatedSection.ToString(), Encoding.UTF8);
+            await vault.SynchronizeFileReindexAsync(current.FilePath);
+
+            actions.Add($"linked: {string.Join(", ", plan.RelatedNotes.Select(n => $"[[{n.Name}]]"))}");
+        }
+
+        if (actions.Count == 0)
+        {
+            actions.Add("no changes suggested");
+        }
+
+        return $"- {note.Name}: {string.Join("; ", actions)}";
+    }
+
+    /// <summary>
+    /// Rewrites inbound full-path wikilinks after moving a note — same semantics as
+    /// NoteCommandTools.move_note (bare-name links are untouched, since the note's short name
+    /// doesn't change on a folder move).
+    /// </summary>
+    private async Task<int> UpdateInboundWikilinksForMoveAsync(Note found, string newVaultRelativePath)
+    {
+        var plan = new WikilinkRewriter.RewritePlan(
+            OldShortName: found.Name,
+            NewShortName: found.Name,
+            OldFullPath: StripMdExtension(found.VaultRelativePath.Replace('\\', '/')),
+            NewFullPath: StripMdExtension(newVaultRelativePath.Replace('\\', '/')),
+            RewriteShortNameLinks: false,
+            ShortNameAmbiguous: false);
+
+        var candidates = new Dictionary<string, Note>(StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in vault.GetBacklinks(plan.OldShortName))
+        {
+            candidates[candidate.FilePath] = candidate;
+        }
+
+        foreach (var candidate in vault.GetBacklinks(plan.OldFullPath))
+        {
+            candidates[candidate.FilePath] = candidate;
+        }
+
+        var updatedLinks = 0;
+        foreach (var source in candidates.Values)
+        {
+            var raw = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
+            var bodyStart = FrontmatterParser.GetBodyStart(raw);
+            var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
+
+            if (result.ReplacedCount == 0)
+            {
+                continue;
+            }
+
+            await File.WriteAllTextAsync(source.FilePath, result.NewContent, Encoding.UTF8);
+            await vault.SynchronizeFileReindexAsync(source.FilePath);
+            updatedLinks += result.ReplacedCount;
+        }
+
+        return updatedLinks;
+    }
+
+    private static string StripMdExtension(string path) =>
+        path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? path[..^3] : path;
 
     // Private helpers
 

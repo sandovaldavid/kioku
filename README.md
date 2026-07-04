@@ -4,7 +4,7 @@
 >
 > Versión actual: **1.8.0-beta.8** (`develop` · beta) <!-- x-release-please-version --> · [Ver releases](https://github.com/sandovaldavid/kioku/releases)
 
-Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 110 herramientas MCP en 18 clases y 22 comandos del bridge del plugin.
+Kioku es un servidor MCP (Model Context Protocol) que permite a agentes de IA como **Claude Code** y **Antigravity CLI** leer, buscar, escribir y organizar tu bóveda de Obsidian de manera nativa, rápida y privada — con 111 herramientas MCP en 18 clases y 22 comandos del bridge del plugin.
 
 ---
 
@@ -32,7 +32,7 @@ Agente de IA (Claude Code / agy)
     │
     ▼
 Kioku.Mcp.Server (C# .NET 10)
-    ├── 18 Tool Classes (110 herramientas MCP)
+    ├── 18 Tool Classes (111 herramientas MCP)
     ├── Services: VaultIndex · Embedding(Ollama) · HybridSearch
     │            TaskService · ObsidianBridge · Persistence
     └── Middleware: ApiKeyMiddleware
@@ -341,7 +341,7 @@ Para instalar el plugin localmente en tu Obsidian:
 
 ## MCP Tools Disponibles
 
-110 herramientas organizadas en 18 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
+111 herramientas organizadas en 18 clases. Para el inventario completo con parámetros, ver [`docs/commands-reference.md`](docs/commands-reference.md).
 
 Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desactivan por **grupos de capacidades** en `{vault}/.kioku/config.yml` — ver [`docs/vault-config.md`](docs/vault-config.md).
 

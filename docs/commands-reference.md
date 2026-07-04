@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 00:59 UTC
+**Generated:** 2026-07-04 01:17 UTC
 
 ## Summary
 
@@ -967,6 +967,18 @@ Normalizes tag formatting across all notes in the vault. Converts tags to lowerc
 |------|------|----------|-------------|
 | `dry_run` | Boolean | No | If true, returns a preview of what would change without modifying any files. |
 
+### `process_inbox`
+
+Batch-triages notes in an inbox folder: for each note, suggests a destination folder (same scoring as suggest_folder), tags (keyword overlap + destination folder inheritance), and up to 3 related notes (semantic similarity, when Ollama embeddings are available). apply=false (default) returns a numbered plan without touching any file. apply=true executes it: moves each note (updating inbound full-path wikilinks), adds the suggested tags, and appends a Related section with the suggested links. This moves files in batch — review the plan first. If something goes wrong, revert_all_uncommitted (or git) can undo an apply.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `inbox_folder` | String | No | Inbox folder (relative to vault root). Leave empty to use folders.inbox from .kioku/config.yml, falling back to 'Inbox'. |
+| `max_notes` | Int32 | No | Maximum number of notes to process in one call (default: 20). |
+| `apply` | Boolean | No | If true, executes the plan (move + tag + link). Default false only previews it. |
+
 ### `reclassify_note`
 
 Move a note to the most appropriate folder based on its content. Uses the same scoring as suggest_folder.
@@ -1142,4 +1154,4 @@ Finds notes that are semantically related to a given note and appends wikilinks 
 
 ---
 
-**Total tools:** 110
+**Total tools:** 111

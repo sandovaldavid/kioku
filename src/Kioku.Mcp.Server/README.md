@@ -2,7 +2,7 @@
 
 > Versión: **1.8.0-beta.8** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
 
-Servidor MCP en C# .NET 10 que expone 110 herramientas en 18 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
+Servidor MCP en C# .NET 10 que expone 111 herramientas en 18 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
 
 ## Arquitectura
 
@@ -29,7 +29,7 @@ Solo `NoteQueryTools`, `NoteCommandTools` y `UtilityTools` se registran siempre.
 | `UtilityTools` | core | `ping`, `get_index_status`, `rebuild_index` |
 | `TaskManagementTools` | `tasks` | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
 | `ZettelkastenTools` | `zettelkasten` | `create_zettel`, `create_moc`, `create_literature_note`, `link_related_notes`, `create_folder_readme` |
-| `VaultOrganizationTools` | `organization` | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `audit_vault`, `find_broken_links` |
+| `VaultOrganizationTools` | `organization` | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `audit_vault`, `find_broken_links`, `process_inbox` |
 | `SessionContextTools` | `sessions` | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context`, `list_work_sessions`, `get_session_activity` |
 | `WorkflowTools` | `workflows` | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items`, `generate_digest` |
 | `CssThemingTools` | `css` | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet`, `reload_css_snippets` |
