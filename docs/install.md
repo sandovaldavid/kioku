@@ -31,7 +31,7 @@ dotnet tool install -g kioku-mcp-server
 export KIOKU_VAULT_PATH=/path/to/your/vault
 
 # Run
-kioku-mcp-server
+kioku
 ```
 
 #### One-line Installer (Linux/macOS)
@@ -110,7 +110,7 @@ Add to your MCP client configuration:
   "mcpServers": {
     "kioku": {
       "type": "stdio",
-      "command": "kioku-mcp-server",
+      "command": "kioku",
       "env": {
         "KIOKU_VAULT_PATH": "/path/to/your/vault"
       }
@@ -193,7 +193,7 @@ See the [Vault Configuration Guide](vault-config.md) for the full schema, and
 ### Check Server Status
 ```bash
 # stdio transport
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | kioku-mcp-server
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | kioku
 
 # HTTP transport
 curl http://localhost:5173/health

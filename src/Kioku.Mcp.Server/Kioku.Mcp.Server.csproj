@@ -7,13 +7,23 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- Self-Contained: binario portable, no requiere .NET instalado -->
-    <SelfContained>true</SelfContained>
-    <PublishSelfContained>true</PublishSelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
+    <!-- API-only server: no wwwroot/Razor content, so static web assets add nothing but
+         RID-path complications for `dotnet pack`. -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+
+    <!-- Self-Contained: binario portable, no requiere .NET instalado.
+         Scoped to an explicit runtime publish only (matches the release workflow's
+         self-contained, per-RID "dotnet publish" calls); unscoped, these forced
+         "dotnet pack" (a framework-dependent PackAsTool package) to try bundling all 4
+         RuntimeIdentifiers even though only the current platform had been built. -->
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+    <PublishSelfContained Condition="'$(RuntimeIdentifier)' != ''">true</PublishSelfContained>
+    <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
 
     <!-- Metadatos del paquete Kioku -->
+    <IsPackable>true</IsPackable>
     <PackAsTool>true</PackAsTool>
+    <ToolCommandName>kioku</ToolCommandName>
     <PackageType>McpServer</PackageType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>kioku-mcp-server</PackageId>

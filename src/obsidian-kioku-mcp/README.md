@@ -27,7 +27,7 @@ Kioku (記憶, "memory" in Japanese) is a local-first MCP server that gives AI a
 2. **Configure the server** with your vault path:
    ```bash
    export KIOKU_VAULT_PATH=/path/to/your/vault
-   kioku-mcp-server
+   kioku
    ```
 
 3. **Configure your MCP client** (Claude Code, etc.):
@@ -36,7 +36,7 @@ Kioku (記憶, "memory" in Japanese) is a local-first MCP server that gives AI a
      "mcpServers": {
        "kioku": {
          "type": "stdio",
-         "command": "kioku-mcp-server"
+         "command": "kioku"
        }
      }
    }
