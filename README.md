@@ -365,6 +365,28 @@ Las clases fuera del núcleo (consulta, escritura, utilidades) se activan o desa
 | **Obsidian UI** (requiere plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split`, `get_selection_in_obsidian`, `toggle_reading_mode`, `fold_all_headings`, `unfold_all_headings`, `get_obsidian_status` |
 | **Utilidades** | `ping`, `get_vault_stats`, `get_index_status`, `rebuild_index` |
 
+## MCP Prompts & Resources
+
+Además de las 113 tools, Kioku expone las otras dos primitivas de MCP (SDK `ModelContextProtocol` 1.4.0). El inventario completo vive junto al de tools en [`docs/commands-reference.md`](docs/commands-reference.md).
+
+**Prompts** — workflows curados que aparecen como slash commands nativos en cualquier cliente MCP (Claude Code, Cursor, VS Code):
+
+| Prompt | Argumentos | Descripción |
+|---|---|---|
+| `research_digest` | `folder?` | Resume actividad de lectura/investigación reciente y lista preguntas abiertas |
+| `process_inbox` | `inbox?` | Guía el flujo propón → confirma → aplica de `process_inbox` |
+| `weekly_review` | — | Revisión semanal: digest + tareas vencidas + huérfanas + sugerencias de enlaces |
+| `literature_review` | `topic` | Recolecta evidencia existente sobre un tema y la sintetiza con citas `[[wikilink]]` |
+
+**Resources** — permiten montar contenido del vault como contexto sin gastar una tool-call:
+
+| Resource | Tipo | Descripción |
+|---|---|---|
+| `kioku://note/{path}` | Template | Contenido completo (con frontmatter) de una nota por ruta relativa al vault |
+| `kioku://vault/stats` | Directo | Snapshot de estadísticas del vault (notas, tags, carpetas, estado del índice) |
+
+`resources/list` devuelve solo las ~20 notas más recientes (no las 5000+ del vault) — usa el resource template `kioku://note/{path}` para leer cualquier nota por su ruta.
+
 ## Plugins de Obsidian Integrados (vía Plugin Bridge)
 
 | Plugin | Comandos |

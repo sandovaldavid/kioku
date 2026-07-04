@@ -1,9 +1,12 @@
 using Kioku.Mcp.Server;
 using Kioku.Mcp.Server.Logging;
 using Kioku.Mcp.Server.Middleware;
+using Kioku.Mcp.Server.Prompts;
+using Kioku.Mcp.Server.Resources;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Sentry;
 
@@ -148,6 +151,30 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
     }
 }
 
+static void ConfigureKiokuPromptsAndResources(IMcpServerBuilder builder)
+{
+    builder
+        .WithPrompts<KiokuPrompts>()
+        .WithResources<NoteResources>()
+        .WithListResourcesHandler(async (ctx, _) =>
+        {
+            var vault = ctx.Services!.GetRequiredService<VaultIndexService>();
+
+            var recent = vault.GetAllNotes()
+                .OrderByDescending(n => n.LastModified)
+                .Take(20)
+                .Select(n => new Resource
+                {
+                    Uri = $"kioku://note/{n.VaultRelativePath.Replace('\\', '/')}",
+                    Name = n.Name,
+                    MimeType = "text/markdown",
+                })
+                .ToList();
+
+            return await Task.FromResult(new ListResourcesResult { Resources = recent });
+        });
+}
+
 static void ConfigureLogging(ILoggingBuilder logging)
 {
     logging.ClearProviders();
@@ -211,9 +238,11 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
                 .AllowAnyMethod()));
 
     // MCP over HTTP-SSE
-    ConfigureKiokuTools(webBuilder.Services
+    var httpMcpBuilder = webBuilder.Services
         .AddMcpServer()
-        .WithHttpTransport(), vaultConfig);
+        .WithHttpTransport();
+    ConfigureKiokuTools(httpMcpBuilder, vaultConfig);
+    ConfigureKiokuPromptsAndResources(httpMcpBuilder);
 
     var webApp = webBuilder.Build();
 
@@ -281,9 +310,11 @@ static async Task<int> RunStdioAsync(KiokuConfiguration config)
     builder.Services.AddSingleton(vaultConfig);
 
     // MCP over stdio
-    ConfigureKiokuTools(builder.Services
+    var stdioMcpBuilder = builder.Services
         .AddMcpServer()
-        .WithStdioServerTransport(), vaultConfig);
+        .WithStdioServerTransport();
+    ConfigureKiokuTools(stdioMcpBuilder, vaultConfig);
+    ConfigureKiokuPromptsAndResources(stdioMcpBuilder);
 
     var host = builder.Build();
 
