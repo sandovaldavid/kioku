@@ -1,6 +1,6 @@
 # Kioku MCP Server
 
-> Versión: **1.8.0-beta.8** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
+> Versión: **2.0.0-beta.8** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
 
 Servidor MCP en C# .NET 10 que expone 117 herramientas en 18 clases para que agentes de IA lean, escriban y organicen una bóveda de Obsidian. El inventario completo con parámetros vive en [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generado).
 
