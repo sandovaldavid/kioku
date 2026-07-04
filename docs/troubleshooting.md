@@ -89,7 +89,7 @@ is missing, empty, or doesn't match — or vice versa.
 **Debug Steps:**
 ```bash
 # Test server directly
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | kioku-mcp-server
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | kioku
 
 # Test HTTP endpoint
 curl http://localhost:5173/health
@@ -260,7 +260,7 @@ journalctl -u kioku-server
 
 Collect this information when reporting issues:
 
-1. **Server version:** `kioku-mcp-server --version` or check release tag
+1. **Server version:** `kioku --version` or check release tag
 2. **Plugin version:** Check in Obsidian Community Plugins settings
 3. **OS:** `uname -a` or Windows version
 4. **Node.js version:** `node --version` (if building from source)
