@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-beta.9](https://github.com/sandovaldavid/kioku/compare/v2.0.0-beta.8...v2.0.0-beta.9) (2026-07-04)
+
+
+### Bug Fixes
+
+* **ci:** pass explicit target-branch to release-please action ([#155](https://github.com/sandovaldavid/kioku/issues/155)) ([49b5173](https://github.com/sandovaldavid/kioku/commit/49b5173a5de0a1f67e9cea9d977465341bd46e45))
+
 ## [2.0.0-beta.8](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.8...v2.0.0-beta.8) (2026-07-04)
 
 
