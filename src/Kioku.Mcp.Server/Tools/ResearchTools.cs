@@ -406,16 +406,9 @@ public sealed partial class ResearchTools(
 
         // Gather notes that have a citekey in ExtraFields or in NoteType heuristic
         var withCitekey = notes
-            .Where(n =>
-                n.Metadata.ExtraFields.ContainsKey("citekey") ||
-                n.Metadata.ExtraFields.ContainsKey("citation-key") ||
-                n.Metadata.ExtraFields.ContainsKey("key"))
             .Select(n =>
             {
-                var citekey = n.Metadata.ExtraFields.TryGetValue("citekey", out var ck) ? ck
-                    : n.Metadata.ExtraFields.TryGetValue("citation-key", out var ck2) ? ck2
-                    : n.Metadata.ExtraFields.TryGetValue("key", out var ck3) ? ck3
-                    : string.Empty;
+                var citekey = GetCitekey(n) ?? string.Empty;
 
                 var author = n.Metadata.ExtraFields.TryGetValue("author", out var a) ? a
                     : n.Metadata.ExtraFields.TryGetValue("authors", out var a2) ? a2 : "Unknown";
@@ -495,12 +488,7 @@ public sealed partial class ResearchTools(
 
         // Build set of known citekeys from frontmatter
         var knownCitekeys = allNotes
-            .SelectMany(n => new[]
-            {
-                n.Metadata.ExtraFields.TryGetValue("citekey", out var ck) ? ck : null,
-                n.Metadata.ExtraFields.TryGetValue("citation-key", out var ck2) ? ck2 : null,
-                n.Metadata.ExtraFields.TryGetValue("key", out var ck3) ? ck3 : null,
-            })
+            .Select(GetCitekey)
             .Where(k => !string.IsNullOrWhiteSpace(k))
             .Select(k => k!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -554,6 +542,114 @@ public sealed partial class ResearchTools(
 
         sb.AppendLine();
         sb.AppendLine($"**{knownCitekeys.Count}** notes with citekey found · **{referencedCitekeys.Count}** total referenced · **{gaps.Count}** missing");
+
+        return sb.ToString();
+    }
+
+    // -------------------------------------------------------------------------
+    // get_citation_graph
+    // -------------------------------------------------------------------------
+
+    [McpServerTool, Description(
+        "Builds a citation graph from literature notes with a 'citekey' in frontmatter: the most-cited " +
+        "sources and orphan sources that were imported but never cited anywhere in the vault. A citation " +
+        "is counted from either a [[wikilink]] to the source note or an inline [@citekey]/@citekey mention. " +
+        "Complements get_literature_gap, which looks at citations from the opposite direction.")]
+    public string get_citation_graph(
+        [Description("Folder to scan for source (literature) notes. Leave empty to scan the entire vault. Citing notes may live anywhere regardless of this filter.")] string folder = "")
+    {
+        if (!vault.IsReady)
+        {
+            return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        var candidateSources = string.IsNullOrWhiteSpace(folder)
+            ? vault.GetAllNotes().ToList()
+            : vault.GetNotesInFolder(folder).ToList();
+
+        var sources = candidateSources
+            .Select(n => (Note: n, Citekey: GetCitekey(n)))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Citekey))
+            .ToList();
+
+        if (sources.Count == 0)
+        {
+            return "[ok] No notes with 'citekey' found in the vault. " +
+                   "Import a .bib file with import_bibtex, or add 'citekey' to a literature note's frontmatter.";
+        }
+
+        // citekey -> set of citing note names, deduplicated across the wikilink + inline signals
+        var citersByKey = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (sourceNote, citekey) in sources)
+        {
+            var citers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var backlink in vault.GetBacklinks(sourceNote.Name))
+            {
+                citers.Add(backlink.Name);
+            }
+
+            citersByKey[citekey!] = citers;
+        }
+
+        var inlineCiteRegex = InlineCitePattern();
+        foreach (var note in vault.GetAllNotes())
+        {
+            foreach (Match match in inlineCiteRegex.Matches(note.RawContent))
+            {
+                if (citersByKey.TryGetValue(match.Groups["key"].Value, out var citers))
+                {
+                    citers.Add(note.Name);
+                }
+            }
+        }
+
+        var ranked = sources
+            .Select(x => (x.Note, Citekey: x.Citekey!, Citers: citersByKey[x.Citekey!]))
+            .OrderByDescending(x => x.Citers.Count)
+            .ThenBy(x => x.Citekey, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var cited = ranked.Where(x => x.Citers.Count > 0).ToList();
+        var orphans = ranked.Where(x => x.Citers.Count == 0).ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"[ok] Citation graph — {sources.Count} source(s), {cited.Count} cited, {orphans.Count} orphan(s):");
+        sb.AppendLine();
+
+        if (cited.Count > 0)
+        {
+            sb.AppendLine("**Most cited:**");
+            sb.AppendLine();
+            sb.AppendLine("| Citekey | Source | Citations | Cited By |");
+            sb.AppendLine("|---------|--------|-----------|----------|");
+
+            foreach (var (note, citekey, citers) in cited)
+            {
+                var orderedCiters = citers.OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
+                var citerList = string.Join(", ", orderedCiters.Take(5));
+                if (orderedCiters.Count > 5)
+                {
+                    citerList += $" (+{orderedCiters.Count - 5} more)";
+                }
+
+                sb.AppendLine($"| `{citekey}` | {note.Name} | {citers.Count} | {citerList} |");
+            }
+
+            sb.AppendLine();
+        }
+
+        if (orphans.Count > 0)
+        {
+            sb.AppendLine("**Orphan sources (never cited):**");
+            foreach (var (note, citekey, _) in orphans)
+            {
+                sb.AppendLine($"- `{citekey}` — {note.Name} ({note.VaultRelativePath})");
+            }
+        }
+        else
+        {
+            sb.AppendLine("**Orphan sources:** none — every source is cited at least once.");
+        }
 
         return sb.ToString();
     }
@@ -806,6 +902,12 @@ public sealed partial class ResearchTools(
     // -------------------------------------------------------------------------
 
     private Note? ResolveNote(string input) => NoteHelpers.ResolveNote(input, vault);
+
+    private static string? GetCitekey(Note note) =>
+        note.Metadata.ExtraFields.TryGetValue("citekey", out var ck) ? ck
+            : note.Metadata.ExtraFields.TryGetValue("citation-key", out var ck2) ? ck2
+            : note.Metadata.ExtraFields.TryGetValue("key", out var ck3) ? ck3
+            : null;
 
     private static string StripFrontmatter(string content)
     {

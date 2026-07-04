@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 05:21 UTC
+**Generated:** 2026-07-04 05:46 UTC
 
 ## Summary
 
@@ -726,6 +726,16 @@ Exports a note as HTML (rendered from Markdown using Markdig). Returns a self-co
 | `note` | String | Yes | Name or path of the note to export. |
 | `format` | String | No | Output format: only 'html' is supported. |
 
+### `get_citation_graph`
+
+Builds a citation graph from literature notes with a 'citekey' in frontmatter: the most-cited sources and orphan sources that were imported but never cited anywhere in the vault. A citation is counted from either a [[wikilink]] to the source note or an inline [@citekey]/@citekey mention. Complements get_literature_gap, which looks at citations from the opposite direction.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `folder` | String | No | Folder to scan for source (literature) notes. Leave empty to scan the entire vault. Citing notes may live anywhere regardless of this filter. |
+
 ### `get_literature_gap`
 
 Identifies citekeys referenced inline in notes (as [@citekey] or @citekey) that do not have a corresponding literature note in the vault. Helps find gaps in your literature review — citations you have referenced but not yet synthesized.
@@ -1256,7 +1266,7 @@ MIME type: `application/json`
 
 ---
 
-**Total tools:** 115
+**Total tools:** 116
 
 **Total prompts:** 4
 

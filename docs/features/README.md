@@ -24,6 +24,7 @@ gaps detectados en la revisión de 2026-07-02.
 | 10 | [Zotero / BibTeX](10-zotero-bibtex.md) | server | [P3-01](../tasks/P3-01-zotero-bibtex.md) | ★★★ | M |
 | 11 | [Flashcards / Anki](11-flashcards.md) | server | [P3-02](../tasks/P3-02-flashcards.md) | ★★★ | M |
 | 12 | [Re-embedding incremental](12-incremental-reembedding.md) | server | [P3-03](../tasks/P3-03-incremental-reembedding.md) | ★★★ | M |
+| 13 | [Grafo de citas](13-citation-graph.md) | server | [P3-04](../tasks/P3-04-citation-graph.md) | ★★ | M |
 
 > Impacto: ★ (nice) → ★★★ (killer feature) · Esfuerzo: S / M / L
 
