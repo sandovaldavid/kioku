@@ -222,23 +222,32 @@ public sealed class ObsidianBridgeService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Tears down the current connection. Safe to call concurrently/reentrantly — it's invoked
+    /// both explicitly (e.g. after a failed auth handshake) and from ReceiveLoopAsync's own
+    /// teardown, which runs as an independent background task and isn't serialized by
+    /// _connectionSemaphore. Each field is atomically claimed via Interlocked.Exchange so only
+    /// one concurrent caller ever disposes it — otherwise a second caller could hit an
+    /// ObjectDisposedException disposing an already-disposed CancellationTokenSource/WebSocket.
+    /// </summary>
     private async Task CloseAndResetAsync()
     {
-        if (_loopCts is not null)
+        var loopCts = Interlocked.Exchange(ref _loopCts, null);
+        if (loopCts is not null)
         {
-            await _loopCts.CancelAsync();
-            _loopCts.Dispose();
-            _loopCts = null;
+            await loopCts.CancelAsync();
+            loopCts.Dispose();
         }
 
-        if (_webSocket is not null)
+        var webSocket = Interlocked.Exchange(ref _webSocket, null);
+        if (webSocket is not null)
         {
             try
             {
-                if (_webSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+                if (webSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
                 {
                     using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-                    await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnecting", closeCts.Token);
+                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Disconnecting", closeCts.Token);
                 }
             }
             catch
@@ -247,8 +256,7 @@ public sealed class ObsidianBridgeService : IDisposable
             }
             finally
             {
-                _webSocket.Dispose();
-                _webSocket = null;
+                webSocket.Dispose();
             }
         }
 
