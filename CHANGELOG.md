@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.1.0-beta.1](https://github.com/sandovaldavid/kioku/compare/v2.0.2...v2.1.0-beta.1) (2026-07-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **release:** the MCP tool suggest_tags in NoteQueryTools (core, always registered) is renamed to inspect_note_tags. Agents calling the read-only diagnostic variant by name must update to inspect_note_tags.
+
+### Bug Fixes
+
+* **release:** revert spurious v3.0.0-beta version bump ([#197](https://github.com/sandovaldavid/kioku/issues/197)) ([bbb4d72](https://github.com/sandovaldavid/kioku/commit/bbb4d721f49091755f8ffa8ae1e09320f4543443))
+
+
+### Miscellaneous Chores
+
+* **release:** consolidate to single release-please channel on main ([#195](https://github.com/sandovaldavid/kioku/issues/195)) ([50df4d2](https://github.com/sandovaldavid/kioku/commit/50df4d252a29cb0732535a3d09438f81468f8762))
+
 ## [2.0.2](https://github.com/sandovaldavid/kioku/compare/v2.0.1...v2.0.2) (2026-07-04)
 
 
