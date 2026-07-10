@@ -123,3 +123,45 @@ jobs:
 
       - name: Build
         run: pnpm --filter obsidian-kioku-mcp run build
+
+  validate-integrations:
+    name: validate-integrations (ubuntu-latest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Validate JSON syntax
+        run: |
+          for f in \
+            .claude-plugin/marketplace.json \
+            integrations/claude-code-plugin/.claude-plugin/plugin.json \
+            integrations/claude-code-plugin/.mcp.json \
+            integrations/antigravity-plugin/plugin.json \
+            integrations/antigravity-plugin/mcp_config.json \
+            integrations/antigravity-plugin/hooks/hooks.json; do
+            echo "Checking $f"
+            node -e "JSON.parse(require('fs').readFileSync('$f', 'utf8'))"
+          done
+
+      - name: Validate SKILL.md frontmatter
+        run: node scripts/lib/validate-skill-frontmatter.mjs
+
+      - name: Check kioku-vault skill is in sync
+        run: ./scripts/sync-skill.sh --check
+
+      - name: Shellcheck
+        run: |
+          shellcheck scripts/add-to-client.sh scripts/sync-skill.sh scripts/install.sh scripts/sync-develop-to-main.sh
+
+      - name: Dry-run add-to-client.sh for every client
+        run: |
+          mkdir -p /tmp/fake-vault
+          for client in claude-code codex opencode antigravity; do
+            ./scripts/add-to-client.sh "$client" --vault /tmp/fake-vault --dry-run --yes
+          done
