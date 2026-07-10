@@ -96,7 +96,7 @@ if [[ -z "$VAULT" ]]; then
     exit 1
 fi
 
-RESOLVED_VAULT="$(cd "$VAULT" 2>/dev/null && pwd || true)"
+RESOLVED_VAULT="$(cd "$VAULT" 2>/dev/null && pwd)" || RESOLVED_VAULT=""
 if [[ -z "$RESOLVED_VAULT" ]]; then
     echo "Error: --vault path '$VAULT' does not exist or is not a directory." >&2
     exit 1
