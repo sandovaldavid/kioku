@@ -142,8 +142,8 @@ C# logs go to **stderr** only — stdout is reserved for the MCP protocol.
   commitlint.config.js           Commit scope enforcement
   .editorconfig                  Cross-project style rules
   .husky/                        Git hooks (commit-msg, pre-commit)
-  release-please-config.json     Stable release config (main branch)
-  release-please-config.beta.json   Beta release config (develop branch)
+  release-please-config.json     Release config (main branch only; prerelease/beta by
+                                    default, graduated to stable manually — see CONTRIBUTING.md)
   .github/workflows/
     ci.yml                       CI: build + lint + type-check
     release-please.yml           CD: automated releases + binary artifacts
