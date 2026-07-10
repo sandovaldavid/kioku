@@ -50,14 +50,17 @@ docs(docs): add WebSocket protocol reference
 
 ## Branch workflow
 
-All changes branch from `origin/develop`. PRs target `develop` (squash-only).
-Never commit directly to `main` or `develop`.
+All changes branch from `origin/develop`. Regular feature/fix PRs target `develop`
+and are squash-merged. Never commit directly to `main` or `develop`.
 Release Please runs only on `main` (single channel, prerelease/beta by default).
 Promoting `develop` into `main` is a periodic sync PR from an intermediate branch
 (never push directly to `develop` or `main`) — see `scripts/sync-develop-to-main.sh`.
 Merge that sync PR with a merge commit, never squash (squashing destroys
 granular history and can make Release Please misfire on old breaking-change
-markers). Release Please then opens its own automated release PR against `main`.
+markers). The reverse catch-up PR (bringing `main` back into `develop`) must
+use rebase-merge instead, since `develop` requires linear history but squashing
+a multi-commit catch-up has the same poisoned-history risk. Release Please then
+opens its own automated release PR against `main`.
 
 ```bash
 git checkout -b feat/my-feature origin/develop
