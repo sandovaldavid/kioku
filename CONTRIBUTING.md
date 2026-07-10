@@ -38,6 +38,12 @@ Version numbers, `CHANGELOG.md`, and other release-managed files are never hand-
 in that sync — they're always resolved to `main`'s current value and left for
 Release Please's own automated release PR to update afterward.
 
+Always merge that sync PR with a **merge commit**, never squash. It can carry
+many individual commits from `develop`; squashing folds every one of their
+messages into a single commit body, which destroys granular history on `main`
+and can make Release Please misfire on old `!` breaking-change markers buried
+in that combined text.
+
 To cut a stable release instead of the next beta, temporarily remove `"prerelease"`,
 `"prerelease-type"`, and `"versioning"` from `release-please-config.json`, merge that
 to `main`, let Release Please open and merge its release PR, then restore those three
