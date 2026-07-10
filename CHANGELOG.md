@@ -1,27 +1,41 @@
 # Changelog
 
-## [2.0.0-beta.11](https://github.com/sandovaldavid/kioku/compare/v2.0.0-beta.10...v2.0.0-beta.11) (2026-07-10)
+## [2.0.2](https://github.com/sandovaldavid/kioku/compare/v2.0.1...v2.0.2) (2026-07-04)
 
 
 ### Bug Fixes
 
-* **config:** rename claude mcp file ([94b5290](https://github.com/sandovaldavid/kioku/commit/94b529066378d3744080d8bedad77d0fc308c998))
-* **server:** allow remove_tag to clear the last tag on a note ([99fef1e](https://github.com/sandovaldavid/kioku/commit/99fef1e955977717486d3a019420e9c2cc983bb8))
+* **server:** pack real LICENSE file and enable deterministic builds ([#184](https://github.com/sandovaldavid/kioku/issues/184)) ([f047a65](https://github.com/sandovaldavid/kioku/commit/f047a65e450bf22fa48414e50c718c5d2b0612b8))
 
-## [2.0.0-beta.10](https://github.com/sandovaldavid/kioku/compare/v2.0.0-beta.9...v2.0.0-beta.10) (2026-07-04)
-
-
-### Bug Fixes
-
-* **server:** pack real LICENSE file and enable deterministic builds ([#183](https://github.com/sandovaldavid/kioku/issues/183)) ([319c8b2](https://github.com/sandovaldavid/kioku/commit/319c8b25de467218edfe7c899b6eb271641c20fe))
-
-## [2.0.0-beta.9](https://github.com/sandovaldavid/kioku/compare/v2.0.0-beta.8...v2.0.0-beta.9) (2026-07-04)
+## [2.0.1](https://github.com/sandovaldavid/kioku/compare/v2.0.0...v2.0.1) (2026-07-04)
 
 
 ### Bug Fixes
 
-* **ci:** fix publish-nuget job and rename installed tool command to kioku ([#176](https://github.com/sandovaldavid/kioku/issues/176)) ([450e6f3](https://github.com/sandovaldavid/kioku/commit/450e6f3ad0037f4cf651b4424d1cd689e1d104eb))
-* **ci:** pass explicit target-branch to release-please action ([#155](https://github.com/sandovaldavid/kioku/issues/155)) ([49b5173](https://github.com/sandovaldavid/kioku/commit/49b5173a5de0a1f67e9cea9d977465341bd46e45))
+* **ci:** fix publish-nuget job and rename installed tool command to kioku ([c595e94](https://github.com/sandovaldavid/kioku/commit/c595e941893ebe6d8c57e0fcc1e791c1f015ec17))
+* **ci:** fix publish-nuget job and rename installed tool command to kioku ([ca8eff7](https://github.com/sandovaldavid/kioku/commit/ca8eff78a937ddd5420227e6634afc8f6dfa1c07))
+
+## [2.0.0](https://github.com/sandovaldavid/kioku/compare/v1.0.0...v2.0.0) (2026-07-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **release:** the MCP tool suggest_tags in NoteQueryTools (core, always registered) is renamed to inspect_note_tags. Agents calling the read-only diagnostic variant by name must update to inspect_note_tags.
+
+### Features
+
+* **plugin:** add Obsidian WebSocket bridge plugin ([c7f25cc](https://github.com/sandovaldavid/kioku/commit/c7f25ccf1c24959a854b63466b7bdafba0f710bb))
+* **server:** add MCP server with vault indexing and note tools ([83475c2](https://github.com/sandovaldavid/kioku/commit/83475c2a2986a2c711b03f7d3b11e2e70de4b6b8))
+
+
+### Bug Fixes
+
+* **ci:** pass explicit target-branch to release-please action ([#156](https://github.com/sandovaldavid/kioku/issues/156)) ([8b7aa8d](https://github.com/sandovaldavid/kioku/commit/8b7aa8d2d16601b9388ffd5f58476e84f979988d))
+
+
+### Miscellaneous Chores
+
+* **release:** sync develop into main — P0 through P3 backlog complete ([#153](https://github.com/sandovaldavid/kioku/issues/153)) ([5a09001](https://github.com/sandovaldavid/kioku/commit/5a09001103b77dd3b3b9f05e594ba58fde09bcc5))
 
 ## [2.0.0-beta.8](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.8...v2.0.0-beta.8) (2026-07-04)
 

@@ -1,6 +1,6 @@
 # Kioku MCP Server
 
-> Version: **2.0.0-beta.11** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
+> Version: **2.0.2** <!-- x-release-please-version --> — [Release notes](https://github.com/sandovaldavid/kioku/releases)
 
 MCP server in C# .NET 10 that exposes 117 tools across 18 classes for AI agents to read, write, and organize an Obsidian vault. The full inventory with parameters lives in [`docs/commands-reference.md`](../../docs/commands-reference.md) (auto-generated).
 
