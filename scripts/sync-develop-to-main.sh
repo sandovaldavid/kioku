@@ -54,3 +54,11 @@ git push -u "$REMOTE" "$BRANCH"
 echo
 echo "Pushed $BRANCH. Open the PR with:"
 echo "  gh pr create --base main --head $BRANCH --title \"chore(release): sync develop into main\""
+echo
+echo "IMPORTANT: merge this PR with a MERGE COMMIT, never squash."
+echo "This branch can carry many individual commits from develop; squashing"
+echo "folds all of their messages into one commit body, which both destroys"
+echo "granular history on main and can make Release Please misfire on old"
+echo "'!' breaking-change markers buried in that combined text (see PR #195 /"
+echo "the spurious v3.0.0-beta release this caused)."
+echo "  gh pr merge --merge <pr-number>"
