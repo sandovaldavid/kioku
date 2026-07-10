@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.0-beta.11](https://github.com/sandovaldavid/kioku/compare/v2.0.0-beta.10...v2.0.0-beta.11) (2026-07-10)
+
+
+### Bug Fixes
+
+* **config:** rename claude mcp file ([94b5290](https://github.com/sandovaldavid/kioku/commit/94b529066378d3744080d8bedad77d0fc308c998))
+* **server:** allow remove_tag to clear the last tag on a note ([99fef1e](https://github.com/sandovaldavid/kioku/commit/99fef1e955977717486d3a019420e9c2cc983bb8))
+
 ## [2.0.0-beta.10](https://github.com/sandovaldavid/kioku/compare/v2.0.0-beta.9...v2.0.0-beta.10) (2026-07-04)
 
 
