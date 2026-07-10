@@ -2,7 +2,7 @@ name: release-please
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
 
 permissions:
   contents: write
@@ -16,23 +16,12 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
 
     steps:
-      - name: Set config files per branch
-        id: cfg
-        run: |
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "config=release-please-config.json" >> $GITHUB_OUTPUT
-            echo "manifest=.release-please-manifest.json" >> $GITHUB_OUTPUT
-          else
-            echo "config=release-please-config.beta.json" >> $GITHUB_OUTPUT
-            echo "manifest=.release-please-manifest.beta.json" >> $GITHUB_OUTPUT
-          fi
-
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: release
         with:
-          target-branch: ${{ github.ref_name }}
-          config-file: ${{ steps.cfg.outputs.config }}
-          manifest-file: ${{ steps.cfg.outputs.manifest }}
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   build-server:
     needs: release-please
@@ -59,10 +48,10 @@ jobs:
             binary: Kioku.Mcp.Server
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.x"
 
@@ -100,7 +89,7 @@ jobs:
             --output-certificate ${{ matrix.artifact-name }}.spdx.json.pem \
             ${{ matrix.artifact-name }}.spdx.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact-name }}
           path: |
@@ -117,16 +106,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11
           run_install: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: "pnpm"
@@ -147,7 +136,7 @@ jobs:
              kioku-mcp/
           zip -r kioku-mcp-plugin.zip kioku-mcp/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: obsidian-plugin
           path: kioku-mcp-plugin.zip
@@ -158,9 +147,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts/
 
@@ -214,10 +203,10 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.x"
 
