@@ -52,7 +52,10 @@ docs(docs): add WebSocket protocol reference
 
 All changes branch from `origin/develop`. PRs target `develop` (squash-only).
 Never commit directly to `main` or `develop`.
-Release Please handles `develop` → `main` via automated PRs.
+Release Please runs only on `main` (single channel, prerelease/beta by default).
+Promoting `develop` into `main` is a periodic sync PR from an intermediate branch
+(never push directly to `develop` or `main`) — see `scripts/sync-develop-to-main.sh`.
+Release Please then opens its own automated release PR against `main`.
 
 ```bash
 git checkout -b feat/my-feature origin/develop
