@@ -30,8 +30,18 @@ pnpm lint:plugin
 ## Branch workflow
 
 All changes branch from `origin/develop`; PRs target `develop` (squash-merge only).
-Never commit directly to `main` or `develop` — `main` only receives changes via
-Release Please's automated release PRs.
+Never commit directly to `main` or `develop`. Release Please runs only on `main`
+(single channel, prerelease/beta by default); it never opens a `develop` → `main`
+PR itself. Periodically, a maintainer promotes `develop` into `main` via a sync PR
+opened from a short-lived intermediate branch — see `scripts/sync-develop-to-main.sh`.
+Version numbers, `CHANGELOG.md`, and other release-managed files are never hand-edited
+in that sync — they're always resolved to `main`'s current value and left for
+Release Please's own automated release PR to update afterward.
+
+To cut a stable release instead of the next beta, temporarily remove `"prerelease"`,
+`"prerelease-type"`, and `"versioning"` from `release-please-config.json`, merge that
+to `main`, let Release Please open and merge its release PR, then restore those three
+keys to resume the beta series.
 
 ```bash
 git checkout -b feat/my-feature origin/develop

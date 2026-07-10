@@ -2,7 +2,7 @@ name: release-please
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
 
 permissions:
   contents: write
@@ -16,23 +16,12 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
 
     steps:
-      - name: Set config files per branch
-        id: cfg
-        run: |
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "config=release-please-config.json" >> $GITHUB_OUTPUT
-            echo "manifest=.release-please-manifest.json" >> $GITHUB_OUTPUT
-          else
-            echo "config=release-please-config.beta.json" >> $GITHUB_OUTPUT
-            echo "manifest=.release-please-manifest.beta.json" >> $GITHUB_OUTPUT
-          fi
-
       - uses: googleapis/release-please-action@v5
         id: release
         with:
-          target-branch: ${{ github.ref_name }}
-          config-file: ${{ steps.cfg.outputs.config }}
-          manifest-file: ${{ steps.cfg.outputs.manifest }}
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   build-server:
     needs: release-please
