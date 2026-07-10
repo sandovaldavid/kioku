@@ -44,6 +44,15 @@ messages into a single commit body, which destroys granular history on `main`
 and can make Release Please misfire on old `!` breaking-change markers buried
 in that combined text.
 
+The reverse also applies: if `main` ever needs to be caught back up into
+`develop` (e.g. after a sync PR), that catch-up PR must be merged with
+**"Rebase and merge"**, never squash — `develop`'s branch protection requires
+linear history, which rules out a merge commit there, but squashing a
+multi-commit catch-up hits the exact same problem as above (one squashed PR
+into `develop`, later carried into `main` by a real merge, can still poison
+`main`'s history with a concatenated commit body). Rebase-merge keeps history
+linear *and* keeps each original commit message separate.
+
 To cut a stable release instead of the next beta, temporarily remove `"prerelease"`,
 `"prerelease-type"`, and `"versioning"` from `release-please-config.json`, merge that
 to `main`, let Release Please open and merge its release PR, then restore those three
