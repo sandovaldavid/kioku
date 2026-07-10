@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/sandovaldavid/kioku/compare/v2.1.0-beta.1...v2.1.0) (2026-07-10)
+
+
+### Miscellaneous Chores
+
+* **release:** force stable 2.1.0 release ([#200](https://github.com/sandovaldavid/kioku/issues/200)) ([8480ebf](https://github.com/sandovaldavid/kioku/commit/8480ebf046a150627ed77fe239403fca28640c47))
+
 ## [2.1.0-beta.1](https://github.com/sandovaldavid/kioku/compare/v2.0.2...v2.1.0-beta.1) (2026-07-10)
 
 
