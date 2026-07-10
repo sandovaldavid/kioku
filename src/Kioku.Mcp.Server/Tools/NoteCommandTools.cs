@@ -139,9 +139,10 @@ public sealed class NoteCommandTools(
         "Only modifies specified fields, the rest remains intact.")]
     public async Task<string> update_frontmatter(
         [Description("Name or path of the note.")] string note,
-        [Description("New tags (replaces existing ones, comma-separated). Leave empty to not modify.")] string tags = "",
+        [Description("New tags (replaces existing ones, comma-separated). Leave empty to not modify, or use clear_tags to remove all tags.")] string tags = "",
         [Description("New status (e.g. 'published', 'draft', 'archived'). Leave empty to not modify.")] string status = "",
-        [Description("New note type. Leave empty to not modify.")] string type = "")
+        [Description("New note type. Leave empty to not modify.")] string type = "",
+        [Description("If true, removes all tags regardless of the 'tags' argument.")] bool clear_tags = false)
     {
         Count(nameof(update_frontmatter), metrics);
         var found = ResolveNote(note);
@@ -156,9 +157,11 @@ public sealed class NoteCommandTools(
 
         // Rebuild frontmatter with changes
         var existingMeta = found.Metadata;
-        var newTags = !string.IsNullOrWhiteSpace(tags)
-            ? tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
-            : existingMeta.Tags.ToList();
+        var newTags = clear_tags
+            ? []
+            : !string.IsNullOrWhiteSpace(tags)
+                ? tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
+                : existingMeta.Tags.ToList();
 
         var newStatus = !string.IsNullOrWhiteSpace(status) ? status : existingMeta.Status;
         var newType = !string.IsNullOrWhiteSpace(type) ? type : existingMeta.NoteType;
@@ -228,7 +231,7 @@ public sealed class NoteCommandTools(
             .Where(t => !toRemove.Contains(t))
             .ToList();
 
-        return await update_frontmatter(found.Name, string.Join(", ", remaining));
+        return await update_frontmatter(found.Name, string.Join(", ", remaining), clear_tags: remaining.Count == 0);
     }
 
     // move_note
