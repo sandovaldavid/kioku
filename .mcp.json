@@ -1,0 +1,13 @@
+    {
+      "mcpServers": {
+        "kioku-mcp-server": {
+          "command": "kioku",
+          "args": [],
+          "env": {
+            "KIOKU_VAULT_PATH": "/home/sandovaldavid/workspaces/me/Cortex-L7",
+            "KIOKU_OLLAMA_URL": "http://localhost:11434",
+            "KIOKU_EMBEDDING_MODEL": "nomic-embed-text"
+          }
+        }
+      }
+    }

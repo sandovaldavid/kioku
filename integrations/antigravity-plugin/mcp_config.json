@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "kioku",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "__KIOKU_VAULT_PATH__"
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "kioku-audit-log": {
+    "PreToolUse": [
+      {
+        "matcher": "call_mcp_tool",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__KIOKU_HOOK_SCRIPT_PATH__",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

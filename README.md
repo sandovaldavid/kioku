@@ -81,6 +81,32 @@ This will generate the executable binary `Kioku.Mcp.Server` (or `Kioku.Mcp.Serve
 
 ### 2. Registering with MCP Clients
 
+#### Quick install (recommended)
+
+For Claude Code, Codex CLI, OpenCode, and Antigravity CLI/IDE, skip the manual JSON/TOML editing
+below and use the one-command installer. It checks for the `kioku` binary (offering to run
+`dotnet tool install -g kioku-mcp-server` if it's missing) and registers the server using each
+client's own mechanism:
+
+```bash
+# Claude Code — installs a plugin bundling the server + the kioku-vault skill
+claude plugin marketplace add sandovaldavid/kioku && claude plugin install kioku@kioku
+
+# Codex CLI
+./scripts/add-to-client.sh codex --vault /path/to/your/vault
+
+# OpenCode
+./scripts/add-to-client.sh opencode --vault /path/to/your/vault
+
+# Antigravity CLI/IDE
+./scripts/add-to-client.sh antigravity --vault /path/to/your/vault
+```
+
+See [`integrations/README.md`](integrations/README.md) for what each of these installs, and
+`./scripts/add-to-client.sh --help` for all flags (`--scope`, `--workspace`, `--dry-run`, ...).
+
+#### Manual configuration (all clients, or as a fallback)
+
 Build the server (step 1) and then add Kioku to your favorite MCP client:
 
 > [!TIP]
