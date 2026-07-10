@@ -83,7 +83,32 @@ set KIOKU_VAULT_PATH=C:\path\to\your\vault
 kioku-server-win-x64.exe
 ```
 
-### 2. Install the Plugin
+### 2. Register with an AI Coding CLI
+
+Once the server is installed and `kioku` is on your `PATH`, register it with your AI coding CLI
+in one command:
+
+```bash
+# Claude Code — installs a plugin bundling the server + the kioku-vault skill
+claude plugin marketplace add sandovaldavid/kioku && claude plugin install kioku@kioku
+
+# Codex CLI
+./scripts/add-to-client.sh codex --vault /path/to/your/vault
+
+# OpenCode
+./scripts/add-to-client.sh opencode --vault /path/to/your/vault
+
+# Antigravity CLI/IDE
+./scripts/add-to-client.sh antigravity --vault /path/to/your/vault
+```
+
+`scripts/add-to-client.sh` checks for the `kioku` binary and offers to install it if it's
+missing, so you can also run it as step 1 instead of the methods above. See
+[`../integrations/README.md`](../integrations/README.md) for what each installer sets up, and
+`./scripts/add-to-client.sh --help` for all flags. For any other MCP client, or if you'd rather
+edit the config by hand, see "Configure Your MCP Client" below.
+
+### 3. Install the Plugin
 
 #### Via BRAT (Beta)
 1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin in Obsidian
@@ -101,7 +126,11 @@ pnpm run build
 cp -r . /path/to/vault/.obsidian/plugins/kioku-mcp
 ```
 
-### 3. Configure Your MCP Client
+### 4. Configure Your MCP Client (Manual)
+
+If you already ran `scripts/add-to-client.sh` (step 2) for Claude Code, Codex, OpenCode, or
+Antigravity, you can skip this step. It's here as a fallback and for other clients (Cursor, VS
+Code, Zed, JetBrains, Claude Desktop, ...).
 
 Add to your MCP client configuration:
 
