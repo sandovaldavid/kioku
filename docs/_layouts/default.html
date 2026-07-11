@@ -24,6 +24,29 @@
   {% if page.head_extra %}
     {{ page.head_extra }}
   {% endif %}
+  
+  <!-- Mermaid Support -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        themeVariables: {
+          primaryColor: '#1e1b4b',
+          primaryTextColor: '#cdd9f0',
+          primaryBorderColor: '#7f6df2',
+          lineColor: '#7f6df2',
+          secondaryColor: '#151d2e',
+          tertiaryColor: '#0b1019',
+          nodeBorder: '#7f6df2',
+          mainBkg: '#1e1b4b',
+          actorBorder: '#7f6df2',
+          actorBkg: '#151d2e'
+        }
+      });
+    });
+  </script>
 </head>
 <body class="{% if page.is_home %}home-layout{% else %}docs-layout{% endif %}">
   

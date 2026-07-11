@@ -154,6 +154,22 @@ pre code {
   line-height: 1.5;
 }
 
+/* Jekyll Highlighter Rouge (Syntax Highlighting) */
+.highlight .c, .highlight .ch, .highlight .cd, .highlight .cm, .highlight .c1, .highlight .cs { color: #6b7da0; font-style: italic; } /* Comments */
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr, .highlight .kt, .highlight .kv { color: #f472b6; font-weight: 500; } /* Keywords */
+.highlight .o, .highlight .ow { color: #94a3b8; } /* Operators */
+.highlight .p { color: #cdd9f0; } /* Punctuation */
+.highlight .s, .highlight .sa, .highlight .sb, .highlight .sc, .highlight .dl, .highlight .sd, .highlight .s2, .highlight .se, .highlight .sh, .highlight .si, .highlight .sx, .highlight .s1, .highlight .ss { color: #86efac; } /* Strings */
+.highlight .m, .highlight .mb, .highlight .mx, .highlight .mi, .highlight .mo, .highlight .mf, .highlight .mh { color: #fcd34d; } /* Numbers */
+.highlight .n, .highlight .na, .highlight .nb, .highlight .nc, .highlight .no, .highlight .nd, .highlight .ni, .highlight .ne, .highlight .nf, .highlight .nl, .highlight .nn, .highlight .nt, .highlight .nv, .highlight .nx { color: #60a5fa; } /* Names, Tags, Functions */
+.highlight .w { color: #cdd9f0; } /* Whitespace */
+.highlight .sr { color: #38bdf8; } /* Regex */
+.highlight .ge { font-style: italic; }
+.highlight .gs { font-weight: bold; }
+.highlight .gh { color: #7f6df2; font-weight: bold; } /* Header */
+.highlight .gi { color: #34d399; background-color: rgba(52, 211, 153, 0.1); } /* Diff Add */
+.highlight .gd { color: #f87171; background-color: rgba(248, 113, 113, 0.1); } /* Diff Delete */
+
 /* Lists */
 ul, ol {
   padding-left: 1.8rem;
@@ -382,9 +398,18 @@ img {
 .main-content.has-sidebar {
   max-width: calc(100% - var(--sidebar-width));
 }
+body.home-layout .main-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+  width: 100%;
+}
 .content-body {
   max-width: var(--content-max-width);
   flex-grow: 1;
+}
+body.home-layout .content-body {
+  max-width: 100%;
 }
 
 /* Breadcrumbs */

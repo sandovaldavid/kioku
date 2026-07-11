@@ -74,61 +74,17 @@ description: Kioku (記憶) is an MCP server and Obsidian plugin that bridges th
     Kioku decouples indexing and file modifications (C# Server) from editor interactions (TypeScript Plugin), communicating over WebSocket and standard MCP transports.
   </p>
   
-  <svg class="arch-diagram-svg" viewBox="0 0 900 350" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <!-- Connections -->
-    <!-- Agent to Server Stdio -->
-    <path d="M190 120 H380" stroke="#7f6df2" stroke-dasharray="4 4" stroke-width="2" />
-    <polygon points="380,120 370,115 370,125" fill="#7f6df2" />
-    <!-- Agent to Server HTTP-SSE -->
-    <path d="M190 160 H380" stroke="#3b82f6" stroke-dasharray="4 4" stroke-width="2" />
-    <polygon points="380,160 370,155 370,165" fill="#3b82f6" />
-    
-    <!-- Server to Plugin WS -->
-    <path d="M570 140 H710" stroke="#7f6df2" stroke-width="2" />
-    <polygon points="710,140 700,135 700,145" fill="#7f6df2" />
-    <polygon points="570,140 580,135 580,145" fill="#7f6df2" />
+  <div class="mermaid" style="margin-top: 2rem; background: var(--bg-deep); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+    graph TD
+      Agent["AI Agent <br/> (Claude Code / Cursor / agy)"]
+      Server["Kioku Server <br/> (C# .NET 10)"]
+      Plugin["Obsidian Plugin <br/> (TypeScript 6)"]
+      Vault[("Obsidian Vault <br/> (.md files)")]
 
-    <!-- Blocks -->
-    <!-- AI Agent -->
-    <rect x="30" y="80" width="160" height="120" rx="12" fill="#151d2e" stroke="#232e45" stroke-width="2" />
-    <text x="110" y="125" fill="#ffffff" font-family="Outfit" font-size="16" font-weight="700" text-anchor="middle">AI Agent</text>
-    <text x="110" y="145" fill="#6b7da0" font-family="Inter" font-size="12" font-weight="500" text-anchor="middle">Claude Code, agy,</text>
-    <text x="110" y="160" fill="#6b7da0" font-family="Inter" font-size="12" font-weight="500" text-anchor="middle">Cursor, VS Code</text>
-
-    <!-- Connection labels -->
-    <rect x="210" y="95" width="140" height="22" rx="4" fill="#0b1019" stroke="#7f6df2" stroke-width="1" opacity="0.8" />
-    <text x="280" y="110" fill="#7f6df2" font-family="JetBrains Mono" font-size="10" font-weight="500" text-anchor="middle">stdio (v1 local)</text>
-
-    <rect x="210" y="165" width="140" height="22" rx="4" fill="#0b1019" stroke="#3b82f6" stroke-width="1" opacity="0.8" />
-    <text x="280" y="180" fill="#3b82f6" font-family="JetBrains Mono" font-size="10" font-weight="500" text-anchor="middle">HTTP-SSE (v2 VM)</text>
-
-    <!-- Kioku Server -->
-    <rect x="380" y="60" width="190" height="160" rx="12" fill="#1e1b4b" stroke="#7f6df2" stroke-width="2" />
-    <text x="475" y="100" fill="#ffffff" font-family="Outfit" font-size="18" font-weight="800" text-anchor="middle">Kioku Server</text>
-    <text x="475" y="120" fill="#cdd9f0" font-family="Inter" font-size="11" font-weight="600" text-anchor="middle">C# .NET 10</text>
-    <rect x="395" y="140" width="160" height="60" rx="6" fill="#0b1019" stroke="#232e45" stroke-width="1" />
-    <text x="475" y="157" fill="#6b7da0" font-family="Inter" font-size="10" text-anchor="middle">Vault Index &amp; Embeddings</text>
-    <text x="475" y="172" fill="#6b7da0" font-family="Inter" font-size="10" text-anchor="middle">18 Tool Classes</text>
-    <text x="475" y="187" fill="#6b7da0" font-family="Inter" font-size="10" text-anchor="middle">(117 MCP tools)</text>
-
-    <!-- WebSocket labels -->
-    <rect x="585" y="108" width="110" height="22" rx="4" fill="#0b1019" stroke="#7f6df2" stroke-width="1" opacity="0.8" />
-    <text x="640" y="123" fill="#7f6df2" font-family="JetBrains Mono" font-size="9" font-weight="500" text-anchor="middle">WebSocket</text>
-    <text x="640" y="152" fill="#6b7da0" font-family="JetBrains Mono" font-size="9" font-weight="500" text-anchor="middle">Port 7765</text>
-
-    <!-- Obsidian Plugin -->
-    <rect x="710" y="80" width="160" height="120" rx="12" fill="#151d2e" stroke="#232e45" stroke-width="2" />
-    <text x="790" y="125" fill="#ffffff" font-family="Outfit" font-size="16" font-weight="700" text-anchor="middle">Obsidian Plugin</text>
-    <text x="790" y="145" fill="#6b7da0" font-family="Inter" font-size="12" font-weight="500" text-anchor="middle">TypeScript 6</text>
-    <text x="790" y="165" fill="#7f6df2" font-family="Inter" font-size="11" font-weight="600" text-anchor="middle">UI Bridge commands</text>
-
-    <!-- Bottom Details -->
-    <!-- Local Vault Files -->
-    <path d="M475 220 V260" stroke="#7f6df2" stroke-width="2" stroke-dasharray="2 2" />
-    <rect x="385" y="260" width="180" height="50" rx="8" fill="#151d2e" stroke="#232e45" stroke-width="1" />
-    <text x="475" y="282" fill="#cdd9f0" font-family="Inter" font-size="12" font-weight="600" text-anchor="middle">Obsidian Vault (.md)</text>
-    <text x="475" y="297" fill="#6b7da0" font-family="Inter" font-size="10" text-anchor="middle">Direct file reads/writes</text>
-  </svg>
+      Agent -->|stdio v1 local / HTTP-SSE v2 VM| Server
+      Server <-->|WebSocket Port 7765| Plugin
+      Server -->|Direct File I/O| Vault
+  </div>
 </section>
 
 <!-- Quick Installation Section -->
