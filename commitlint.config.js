@@ -6,7 +6,16 @@ const config = {
     "scope-enum": [
       2,
       "always",
-      ["server", "plugin", "docs", "ci", "config", "deps", "release"],
+      [
+        "server",
+        "plugin",
+        "docs",
+        "ci",
+        "config",
+        "deps",
+        "release",
+        "integrations",
+      ],
     ],
     "scope-case": [2, "always", "lower-case"],
     "header-max-length": [2, "always", 100],

@@ -1,4 +1,8 @@
-# Vault Configuration Guide
+---
+layout: default
+title: Vault Configuration Guide
+sidebar: true
+---
 
 Kioku reads an optional configuration file at `{KIOKU_VAULT_PATH}/.kioku/config.yml`.
 Every section is optional — if the file or a section is missing, Kioku uses the defaults

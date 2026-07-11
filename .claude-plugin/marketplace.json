@@ -1,0 +1,13 @@
+{
+  "name": "kioku",
+  "owner": {
+    "name": "sandovaldavid"
+  },
+  "plugins": [
+    {
+      "name": "kioku",
+      "source": "./integrations/claude-code-plugin",
+      "description": "Kioku MCP server + kioku-vault skill for reading, searching, and organizing an Obsidian vault."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "kioku": {
+      "type": "stdio",
+      "command": "kioku",
+      "env": {
+        "KIOKU_VAULT_PATH": "${user_config.vault_path}",
+        "KIOKU_OLLAMA_URL": "${user_config.ollama_url}",
+        "KIOKU_EMBEDDING_MODEL": "${user_config.embedding_model}"
+      }
+    }
+  }
+}

@@ -1,4 +1,8 @@
-# Authentication for Kioku on a VM — Options and Recommendations
+---
+layout: default
+title: Auth & Security Options
+sidebar: true
+---
 
 > **Context:** Kioku v2 adds HTTP-SSE transport to expose the MCP server to multiple agents.
 > If the server runs on a VM accessible from the internet, it needs protection.
@@ -273,8 +277,7 @@ flatpak install flathub me.kozec.syncthingtk
 - `KiokuConfiguration.cs` reads `KIOKU_API_KEY`
 - `Middleware/ApiKeyMiddleware.cs` validates `Authorization: Bearer <token>` before `app.MapMcp()`
   (`/health` is exempt; with no key configured, access is open — for local development only)
-
-See [v2-http-sse-spec.md](../v2-http-sse-spec.md) §2 for middleware details.
+See [ApiKeyMiddleware.cs](../../src/Kioku.Mcp.Server/Middleware/ApiKeyMiddleware.cs) for middleware details.
 
 ---
 

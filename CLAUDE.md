@@ -16,6 +16,8 @@ src/Kioku.Mcp.Server/       C# MCP server (stdio transport)
 src/obsidian-kioku-mcp/     TypeScript Obsidian plugin (WebSocket server)
   src/main.ts               Plugin entry point (KiokuPlugin class)
   src/logger.ts             Logger class — use log.info/warn/error/debug
+integrations/               Client-specific packaging (Claude Code plugin, Antigravity plugin)
+scripts/add-to-client.sh    One-command MCP registration for Claude Code/Codex/OpenCode/Antigravity
 ```
 
 ## Commands
@@ -31,7 +33,7 @@ src/obsidian-kioku-mcp/     TypeScript Obsidian plugin (WebSocket server)
 
 ## Commit conventions
 
-Scope is **required**. Valid scopes: `server | plugin | docs | ci | config | deps | release`
+Scope is **required**. Valid scopes: `server | plugin | docs | ci | config | deps | release | integrations`
 
 Format: `type(scope): imperative description` — lowercase, no period, max 100 chars
 

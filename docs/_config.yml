@@ -1,0 +1,18 @@
+title: Kioku
+email: dev@sandovaldavid.com
+description: Kioku (記憶) is an MCP server that connects AI agents to your Obsidian vault.
+baseurl: "/kioku"
+url: "https://sandovaldavid.github.io"
+github_username: sandovaldavid
+github_repo: sandovaldavid/kioku
+
+markdown: kramdown
+theme: null
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/

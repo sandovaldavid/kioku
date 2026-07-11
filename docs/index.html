@@ -1,0 +1,247 @@
+---
+layout: default
+title: Home
+is_home: true
+sidebar: false
+description: Kioku (記憶) is an MCP server and Obsidian plugin that bridges the gap between local AI coding assistants and your knowledge base.
+---
+
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="hero-logo-container">
+    <img src="{{ site.baseurl }}/assets/images/logo.svg" alt="Kioku Logo" class="hero-logo">
+  </div>
+  <div>
+    <h1 class="hero-title">Kioku</h1>
+  </div>
+  <p class="hero-subtitle">
+    Connect your AI coding assistants directly to your Obsidian vault. 
+    A high-performance Model Context Protocol (MCP) server that lets agents read, write, search, and organize your knowledge base.
+  </p>
+  <div class="hero-buttons">
+    <a href="{{ site.baseurl }}/install.html" class="btn btn-primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      Get Started
+    </a>
+    <a href="https://github.com/{{ site.github_repo }}" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+      View on GitHub
+    </a>
+  </div>
+</section>
+
+<!-- Core Features Section -->
+<section>
+  <h2 class="home-section-title">Core Capabilities</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">🔎</div>
+      <h3>Hybrid Search</h3>
+      <p>Blends keyword search with local vector embeddings (via Ollama & nomic-embed-text) using Reciprocal Rank Fusion (RRF) for highly relevant context discovery.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">📝</div>
+      <h3>Read & Write Notes</h3>
+      <p>Natively edit notes, inject content into notes, parse and update frontmatter, and maintain structural YAML tags directly from the agent's context.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">✅</div>
+      <h3>Task Management</h3>
+      <p>Read, filter, complete, or reopen checkboxes across your entire vault. Supports filtering by due dates, tags, and overdue status.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">🕸️</div>
+      <h3>Zettelkasten & Graphs</h3>
+      <p>Create MOCs (Maps of Content), link related notes, calculate graph islands, analyze orphan notes, and construct visual concept maps of your thinking.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">🎨</div>
+      <h3>Obsidian UI Bridge</h3>
+      <p>Connects over WebSockets to open notes, trigger commands, insert snippets, or toggle reading mode directly inside the active Obsidian editor window.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon-wrapper">🚀</div>
+      <h3>On-Demand Daemon</h3>
+      <p>Starts in milliseconds and shuts down when your agent session completes, keeping VRAM and CPU footprint near zero during ordinary usage.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture Section -->
+<section class="arch-block">
+  <h2 style="margin-top:0;">System Architecture</h2>
+  <p style="color: var(--text-muted); max-width: 600px; margin: 0.5rem auto 1.5rem auto;">
+    Kioku decouples indexing and file modifications (C# Server) from editor interactions (TypeScript Plugin), communicating over WebSocket and standard MCP transports.
+  </p>
+  
+  <svg class="arch-diagram-svg" viewBox="0 0 900 350" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Connections -->
+    <!-- Agent to Server Stdio -->
+    <path d="M190 120 H380" stroke="#7f6df2" stroke-dasharray="4 4" stroke-width="2" />
+    <polygon points="380,120 370,115 370,125" fill="#7f6df2" />
+    <!-- Agent to Server HTTP-SSE -->
+    <path d="M190 160 H380" stroke="#3b82f6" stroke-dasharray="4 4" stroke-width="2" />
+    <polygon points="380,160 370,155 370,165" fill="#3b82f6" />
+    
+    <!-- Server to Plugin WS -->
+    <path d="M570 140 H710" stroke="#7f6df2" stroke-width="2" />
+    <polygon points="710,140 700,135 700,145" fill="#7f6df2" />
+    <polygon points="570,140 580,135 580,145" fill="#7f6df2" />
+
+    <!-- Blocks -->
+    <!-- AI Agent -->
+    <rect x="30" y="80" width="160" height="120" rx="12" fill="#151d2e" stroke="#232e45" stroke-width="2" />
+    <text x="110" y="125" fill="#ffffff" font-family="Outfit" font-size="16" font-weight="700" text-anchor="middle">AI Agent</text>
+    <text x="110" y="145" fill="#6b7da0" font-family="Inter" font-size="12" font-weight="500" text-anchor="middle">Claude Code, agy,</text>
+    <text x="110" y="160" fill="#6b7da0" font-family="Inter" font-size="12" font-weight="500" text-anchor="middle">Cursor, VS Code</text>
+
+    <!-- Connection labels -->
+    <rect x="210" y="95" width="140" height="22" rx="4" fill="#0b1019" stroke="#7f6df2" stroke-width="1" opacity="0.8" />
+    <text x="280" y="110" fill="#7f6df2" font-family="JetBrains Mono" font-size="10" font-weight="500" text-anchor="middle">stdio (v1 local)</text>
+
+    <rect x="210" y="165" width="140" height="22" rx="4" fill="#0b1019" stroke="#3b82f6" stroke-width="1" opacity="0.8" />
+    <text x="280" y="180" fill="#3b82f6" font-family="JetBrains Mono" font-size="10" font-weight="500" text-anchor="middle">HTTP-SSE (v2 VM)</text>
+
+    <!-- Kioku Server -->
+    <rect x="380" y="60" width="190" height="160" rx="12" fill="#1e1b4b" stroke="#7f6df2" stroke-width="2" />
+    <text x="475" y="100" fill="#ffffff" font-family="Outfit" font-size="18" font-weight="800" text-anchor="middle">Kioku Server</text>
+    <text x="475" y="120" fill="#cdd9f0" font-family="Inter" font-size="11" font-weight="600" text-anchor="middle">C# .NET 10</text>
+    <rect x="395" y="140" width="160" height="60" rx="6" fill="#0b1019" stroke="#232e45" stroke-width="1" />
+    <text x="475" y="157" fill="#6b7da0" font-family="Inter" font-size="10" text-anchor="middle">Vault Index &amp; Embeddings</text>
+    <text x="475" y="172" fill="#6b7da0" font-family="Inter" font-size="10" text-anchor="middle">18 Tool Classes</text>
+    <text x="475" y="187" fill="#6b7da0" font-family="Inter" font-size="10" text-anchor="middle">(117 MCP tools)</text>
+
+    <!-- WebSocket labels -->
+    <rect x="585" y="108" width="110" height="22" rx="4" fill="#0b1019" stroke="#7f6df2" stroke-width="1" opacity="0.8" />
+    <text x="640" y="123" fill="#7f6df2" font-family="JetBrains Mono" font-size="9" font-weight="500" text-anchor="middle">WebSocket</text>
+    <text x="640" y="152" fill="#6b7da0" font-family="JetBrains Mono" font-size="9" font-weight="500" text-anchor="middle">Port 7765</text>
+
+    <!-- Obsidian Plugin -->
+    <rect x="710" y="80" width="160" height="120" rx="12" fill="#151d2e" stroke="#232e45" stroke-width="2" />
+    <text x="790" y="125" fill="#ffffff" font-family="Outfit" font-size="16" font-weight="700" text-anchor="middle">Obsidian Plugin</text>
+    <text x="790" y="145" fill="#6b7da0" font-family="Inter" font-size="12" font-weight="500" text-anchor="middle">TypeScript 6</text>
+    <text x="790" y="165" fill="#7f6df2" font-family="Inter" font-size="11" font-weight="600" text-anchor="middle">UI Bridge commands</text>
+
+    <!-- Bottom Details -->
+    <!-- Local Vault Files -->
+    <path d="M475 220 V260" stroke="#7f6df2" stroke-width="2" stroke-dasharray="2 2" />
+    <rect x="385" y="260" width="180" height="50" rx="8" fill="#151d2e" stroke="#232e45" stroke-width="1" />
+    <text x="475" y="282" fill="#cdd9f0" font-family="Inter" font-size="12" font-weight="600" text-anchor="middle">Obsidian Vault (.md)</text>
+    <text x="475" y="297" fill="#6b7da0" font-family="Inter" font-size="10" text-anchor="middle">Direct file reads/writes</text>
+  </svg>
+</section>
+
+<!-- Quick Installation Section -->
+<section class="setup-container">
+  <h2 style="margin-top:0;">Quick Setup</h2>
+  
+  <div class="tab-headers">
+    <button class="tab-button active" onclick="switchTab(event, 'docker-tab')">Docker (Recommended)</button>
+    <button class="tab-button" onclick="switchTab(event, 'dotnet-tab')">.NET Global Tool</button>
+    <button class="tab-button" onclick="switchTab(event, 'agent-tab')">Register Agent</button>
+  </div>
+  
+  <div id="docker-tab" class="tab-pane active">
+    <p>Run the C# MCP server within a lightweight container. Ensure Docker and Docker Compose are installed.</p>
+    <pre><code># Clone the repository
+git clone https://github.com/sandovaldavid/kioku.git
+cd kioku
+
+# Set your vault directory path
+export KIOKU_VAULT_PATH=/path/to/your/vault
+
+# Spin up the containers
+docker-compose up -d
+
+# Download embedding model for semantic search (first time only)
+docker exec kioku-ollama ollama pull nomic-embed-text</code></pre>
+  </div>
+  
+  <div id="dotnet-tab" class="tab-pane">
+    <p>Install the server directly on your host machine. Requires the <a href="https://dotnet.microsoft.com/download/dotnet/10.0" target="_blank">ASP.NET Core 10 Runtime</a> (contains Web Sdk dependencies for HTTP-SSE).</p>
+    <pre><code># Install global tool
+dotnet tool install -g kioku-mcp-server
+
+# Set your vault path
+export KIOKU_VAULT_PATH=/path/to/your/vault
+
+# Start the server (runs stdio listener by default)
+kioku</code></pre>
+  </div>
+  
+  <div id="agent-tab" class="tab-pane">
+    <p>Configure the server inside your AI environment in one command. Supports Claude Code, Codex, and Antigravity:</p>
+    <pre><code># Claude Code — registers Kioku and installs the kioku-vault skill
+claude plugin marketplace add sandovaldavid/kioku &amp;&amp; claude plugin install kioku@kioku
+
+# Antigravity CLI &amp; IDE (local workspace setup)
+./scripts/add-to-client.sh antigravity --vault /path/to/your/vault
+
+# Codex CLI
+./scripts/add-to-client.sh codex --vault /path/to/your/vault</code></pre>
+    <p style="font-size:0.9rem; color:var(--text-muted); margin-top:1rem;">
+      See the manual configuration files for VS Code, Cursor, and Zed in the <a href="{{ site.baseurl }}/install.html">Installation Guide</a>.
+    </p>
+  </div>
+</section>
+
+<!-- Documentation Index / Hub -->
+<section style="margin-bottom: 5rem;">
+  <h2 class="home-section-title">Developer &amp; User Manuals</h2>
+  <div class="docs-grid">
+    <div class="doc-card">
+      <div>
+        <h4>Setup &amp; Deployment</h4>
+        <p>Full installation methods (Homebrew, WinGet, static binaries, Docker) and client configurations.</p>
+      </div>
+      <a href="{{ site.baseurl }}/install.html" class="doc-card-link">Read Guide</a>
+    </div>
+    <div class="doc-card">
+      <div>
+        <h4>117 MCP Tools Reference</h4>
+        <p>Complete documentation for all 18 capability groups, parameters, and return types.</p>
+      </div>
+      <a href="{{ site.baseurl }}/commands-reference.html" class="doc-card-link">View Reference</a>
+    </div>
+    <div class="doc-card">
+      <div>
+        <h4>Vault Configuration</h4>
+        <p>How to configure `.kioku/config.yml` in your vault to toggle capability groups and define folders.</p>
+      </div>
+      <a href="{{ site.baseurl }}/vault-config.html" class="doc-card-link">View Layout</a>
+    </div>
+    <div class="doc-card">
+      <div>
+        <h4>Authentication &amp; Security</h4>
+        <p>Secure the HTTP-SSE transport with API Keys, setup Sentry crash logs, and configure local bridge tokens.</p>
+      </div>
+      <a href="{{ site.baseurl }}/deploy/auth-options.html" class="doc-card-link">View Security</a>
+    </div>
+  </div>
+</section>
+
+<!-- Home Footer -->
+<footer class="home-footer">
+  <p>Kioku is created and maintained by <a href="https://github.com/sandovaldavid" target="_blank" rel="noopener noreferrer">David Sandoval</a>.</p>
+  <p>Website themed in Midnight Blue and Obsidian Purple. Released under the MIT License.</p>
+</footer>
+
+<script>
+  function switchTab(evt, tabId) {
+    // Hide all tab panes
+    const tabPanes = document.getElementsByClassName("tab-pane");
+    for (let i = 0; i < tabPanes.length; i++) {
+      tabPanes[i].classList.remove("active");
+    }
+
+    // Deactivate all tab buttons
+    const tabButtons = document.getElementsByClassName("tab-button");
+    for (let i = 0; i < tabButtons.length; i++) {
+      tabButtons[i].classList.remove("active");
+    }
+
+    // Show selected pane and set button active
+    document.getElementById(tabId).classList.add("active");
+    evt.currentTarget.classList.add("active");
+  }
+</script>

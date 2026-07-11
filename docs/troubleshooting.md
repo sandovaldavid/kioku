@@ -1,4 +1,8 @@
-# Troubleshooting Guide
+---
+layout: default
+title: Troubleshooting Guide
+sidebar: true
+---
 
 ## Common Issues
 

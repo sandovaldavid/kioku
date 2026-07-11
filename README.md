@@ -2,7 +2,7 @@
 
 > **Kioku** (記憶) means "memory" in Japanese.
 >
-> Current version: **2.1.1** <!-- x-release-please-version --> · [View releases](https://github.com/sandovaldavid/kioku/releases)
+> Current version: **2.1.1** <!-- x-release-please-version --> · [Documentation Website](https://sandovaldavid.github.io/kioku/) · [View releases](https://github.com/sandovaldavid/kioku/releases)
 
 Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claude Code** and **Antigravity CLI** read, search, write, and organize your Obsidian vault natively, fast, and privately — with 117 MCP tools across 18 classes and 22 plugin bridge commands.
 
@@ -80,6 +80,32 @@ This will generate the executable binary `Kioku.Mcp.Server` (or `Kioku.Mcp.Serve
 `src/Kioku.Mcp.Server/bin/Release/net10.0/<runtime>/publish/`
 
 ### 2. Registering with MCP Clients
+
+#### Quick install (recommended)
+
+For Claude Code, Codex CLI, OpenCode, and Antigravity CLI/IDE, skip the manual JSON/TOML editing
+below and use the one-command installer. It checks for the `kioku` binary (offering to run
+`dotnet tool install -g kioku-mcp-server` if it's missing) and registers the server using each
+client's own mechanism:
+
+```bash
+# Claude Code — installs a plugin bundling the server + the kioku-vault skill
+claude plugin marketplace add sandovaldavid/kioku && claude plugin install kioku@kioku
+
+# Codex CLI
+./scripts/add-to-client.sh codex --vault /path/to/your/vault
+
+# OpenCode
+./scripts/add-to-client.sh opencode --vault /path/to/your/vault
+
+# Antigravity CLI/IDE
+./scripts/add-to-client.sh antigravity --vault /path/to/your/vault
+```
+
+See [`integrations/README.md`](integrations/README.md) for what each of these installs, and
+`./scripts/add-to-client.sh --help` for all flags (`--scope`, `--workspace`, `--dry-run`, ...).
+
+#### Manual configuration (all clients, or as a fallback)
 
 Build the server (step 1) and then add Kioku to your favorite MCP client:
 
@@ -401,8 +427,6 @@ Besides the 116 tools, Kioku exposes the other two MCP primitives (SDK `ModelCon
 - **v1** (stdio): ✅ Complete — core tools + 22 plugin bridge commands
 - **v2** (HTTP-SSE): ✅ Complete — dual transport, Ollama embeddings, Bearer Token auth, VM deployment
 - **v3** (Ecosystem Tools): ✅ Complete — 102 tools across 17 classes: templates, tasks, Zettelkasten, CSS theming, assets, Git, restore, graph
-
-See [`docs/planning.md`](docs/planning.md) for the full architectural plan, [`docs/features/`](docs/features/README.md) for upcoming feature specs, and [`docs/tasks/`](docs/tasks/README.md) for the prioritized work breakdown.
 
 ## License
 
