@@ -22,22 +22,14 @@ jobs:
           dotnet-version: "10.x"
 
       - name: Restore dependencies
-        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj -p:RuntimeIdentifiers=
-
-      - name: Build
-        run: |
-          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-            --configuration Release \
-            --no-restore \
-            -p:RuntimeIdentifiers=
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
 
       - name: Pack NuGet package
         run: |
           dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
             --configuration Release \
-            --no-build \
-            --output ./nupkg \
-            -p:RuntimeIdentifiers=
+            --no-restore \
+            --output ./nupkg
 
       - name: NuGet login (OIDC -> temp API key)
         uses: NuGet/login@v1
