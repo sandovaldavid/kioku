@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/sandovaldavid/kioku/compare/v2.2.0...v2.2.1) (2026-07-11)
+
+
+### Bug Fixes
+
+* **docs:** center home layout, add mermaid support and code syntax highlighting ([#219](https://github.com/sandovaldavid/kioku/issues/219)) ([16cc181](https://github.com/sandovaldavid/kioku/commit/16cc181ae29a3e6f66f41aa31c0de0280b2c9da8))
+
 ## [2.2.0](https://github.com/sandovaldavid/kioku/compare/v2.1.1...v2.2.0) (2026-07-11)
 
 
