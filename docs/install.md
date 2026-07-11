@@ -1,4 +1,8 @@
-# Installation Guide
+---
+layout: default
+title: Installation Guide
+sidebar: true
+---
 
 ## Quick Start
 
@@ -270,6 +274,6 @@ this file-based flow proves insufficient.
 
 ## Next Steps
 
-- Read the [Architecture Plan](planning.md) to understand how Kioku works
+- Check the [Architecture Diagram]({{ site.baseurl }}/) on the homepage to understand how Kioku works
 - Explore [Available Tools](commands-reference.md) to see what you can do
 - Check [Troubleshooting](troubleshooting.md) if you encounter issues

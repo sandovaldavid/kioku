@@ -1,4 +1,8 @@
-# Kioku Docker Deployment
+---
+layout: default
+title: Docker Deployment
+sidebar: true
+---
 
 This directory contains Docker configuration for deploying Kioku MCP Server.
 
