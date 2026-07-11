@@ -54,9 +54,9 @@
     <!-- Official Microsoft MCP SDK -->
     <!-- v1: stdio transport -->
     <PackageReference Include="Markdig" Version="1.3.2"/>
-    <PackageReference Include="ModelContextProtocol" Version="1.4.0"/>
+    <PackageReference Include="ModelContextProtocol" Version="1.4.1"/>
     <!-- v2: HTTP-SSE transport (Streamable HTTP) -->
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0"/>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.1"/>
     <PackageReference Include="Sentry.AspNetCore" Version="6.6.0"/>
     <PackageReference Include="YamlDotNet" Version="18.1.0"/>
   </ItemGroup>
