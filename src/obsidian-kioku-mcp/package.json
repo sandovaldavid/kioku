@@ -1,6 +1,6 @@
 {
   "name": "obsidian-kioku-mcp",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Obsidian plugin bridge for Kioku MCP Server",
   "license": "MIT",
   "main": "main.js",

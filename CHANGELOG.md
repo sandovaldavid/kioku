@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/sandovaldavid/kioku/compare/v2.1.1...v2.2.0) (2026-07-11)
+
+
+### Features
+
+* **integrations:** one-command MCP registration for 4 AI coding CLIs ([#214](https://github.com/sandovaldavid/kioku/issues/214)) ([fae03b2](https://github.com/sandovaldavid/kioku/commit/fae03b2b1a1b642b8d9a526e026891b73b963b41))
+
 ## [2.1.1](https://github.com/sandovaldavid/kioku/compare/v2.1.0...v2.1.1) (2026-07-10)
 
 
