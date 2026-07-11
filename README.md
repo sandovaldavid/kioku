@@ -2,7 +2,7 @@
 
 > **Kioku** (記憶) means "memory" in Japanese.
 >
-> Current version: **2.1.1** <!-- x-release-please-version --> · [View releases](https://github.com/sandovaldavid/kioku/releases)
+> Current version: **2.1.1** <!-- x-release-please-version --> · [Documentation Website](https://sandovaldavid.github.io/kioku/) · [View releases](https://github.com/sandovaldavid/kioku/releases)
 
 Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claude Code** and **Antigravity CLI** read, search, write, and organize your Obsidian vault natively, fast, and privately — with 117 MCP tools across 18 classes and 22 plugin bridge commands.
 
@@ -427,8 +427,6 @@ Besides the 116 tools, Kioku exposes the other two MCP primitives (SDK `ModelCon
 - **v1** (stdio): ✅ Complete — core tools + 22 plugin bridge commands
 - **v2** (HTTP-SSE): ✅ Complete — dual transport, Ollama embeddings, Bearer Token auth, VM deployment
 - **v3** (Ecosystem Tools): ✅ Complete — 102 tools across 17 classes: templates, tasks, Zettelkasten, CSS theming, assets, Git, restore, graph
-
-See [`docs/planning.md`](docs/planning.md) for the full architectural plan, [`docs/features/`](docs/features/README.md) for upcoming feature specs, and [`docs/tasks/`](docs/tasks/README.md) for the prioritized work breakdown.
 
 ## License
 

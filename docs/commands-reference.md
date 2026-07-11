@@ -1,4 +1,8 @@
-# MCP Tools Reference
+---
+layout: default
+title: MCP Tools Reference
+sidebar: true
+---
 
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
