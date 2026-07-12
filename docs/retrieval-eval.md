@@ -97,6 +97,19 @@ Fixture vault (27 notes), 22 scored queries + 2 no-answer probes.
 
 No-answer probes: avg 5.0 results returned.
 
+### keyword — Okapi BM25 (k1=1.2, b=0.75, relative title/tag boosts), 2026-07-12
+
+| k | Precision@k | Recall@k | MRR | NDCG@k |
+|---|-------------|----------|-----|--------|
+| 5 | 0.245 | 0.652 | 0.788 | 0.741 |
+| 10 | 0.127 | 0.667 | 0.788 | 0.750 |
+
+No-answer probes: avg 5.0 results returned.
+
+Net effect of BM25: better early precision and ordering (P@5, R@5, MRR, NDCG@k all up);
+Recall@10 dips marginally because IDF demotes one weakly-relevant match. Kept per the
+"improve or hold" gate — rank quality is what the hybrid RRF fusion consumes.
+
 ### semantic / hybrid — nomic-embed-text (no query/document prefixes)
 
 Not captured in this environment (no Ollama available). To record it locally before
