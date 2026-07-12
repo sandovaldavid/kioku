@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <None Include="Fixtures\**\*.bib" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\**\*.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\golden-set.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
