@@ -110,6 +110,13 @@ Net effect of BM25: better early precision and ordering (P@5, R@5, MRR, NDCG@k a
 Recall@10 dips marginally because IDF demotes one weakly-relevant match. Kept per the
 "improve or hold" gate — rank quality is what the hybrid RRF fusion consumes.
 
+### Semantic threshold default
+
+`search_notes_semantic` now defaults to `min_score = 0.4` (explicit `0` disables the
+filter). The value is a conservative starting point for nomic-embed-text with task
+prefixes; validate it against your own golden set by sweeping `--min-score` with the
+runner and watching Precision@k versus the no-answer probes.
+
 ### semantic / hybrid — nomic-embed-text (no query/document prefixes)
 
 Not captured in this environment (no Ollama available). To record it locally before
