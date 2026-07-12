@@ -74,7 +74,9 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         }
     }
 
-    private int ExpectedDimension => EmbeddingModelRegistry.GetExpectedDimension(config.EmbeddingModel);
+    private EmbeddingModelInfo ModelInfo => EmbeddingModelRegistry.GetModelInfo(config.EmbeddingModel);
+
+    private int ExpectedDimension => ModelInfo.Dimension;
 
     private string CachePath => Path.Combine(config.VaultPath, ".kioku", "embeddings.bin");
 
@@ -209,6 +211,17 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     public float[]? GetVector(string vaultRelativePath) =>
         _store.TryGetValue(vaultRelativePath, out var entry) ? entry.Vector : null;
 
+    /// <summary>
+    /// Embeds a search query, applying the model's query task prefix when it requires one
+    /// (e.g. "search_query: " for nomic-embed-text). Always use this for query-side
+    /// embeddings so they live in the same space as the prefixed document embeddings.
+    /// </summary>
+    public Task<float[]?> EmbedQueryAsync(string query)
+    {
+        var prefix = ModelInfo.QueryPrefix;
+        return EmbedAsync(string.IsNullOrEmpty(prefix) ? query : prefix + query);
+    }
+
     public async Task<float[]?> EmbedAsync(string text)
     {
         if (!IsAvailable)
@@ -292,6 +305,12 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     private async Task EmbedAndStoreAsync(Note note)
     {
         var text = BuildEmbeddingText(note);
+        var prefix = ModelInfo.DocumentPrefix;
+        if (!string.IsNullOrEmpty(prefix))
+        {
+            text = prefix + text;
+        }
+
         var vector = await EmbedAsync(text);
         if (vector is not null)
         {

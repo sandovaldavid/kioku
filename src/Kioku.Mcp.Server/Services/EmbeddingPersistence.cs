@@ -8,6 +8,8 @@ namespace Kioku.Mcp.Server.Services;
 /// File header:
 ///   magic "KIOKU_EMB\n" (10 bytes)
 ///   uint32 formatVersion
+///   uint16 textSchemeVersion (how the embedded text was built; bump to force re-embedding
+///                             when the text construction changes without a format change)
 ///   uint16 modelNameLen + byte[modelNameLen] UTF-8 model name
 ///   uint16 dimension
 ///   uint32 count
@@ -17,12 +19,15 @@ namespace Kioku.Mcp.Server.Services;
 ///   uint16  hashLen  + byte[hashLen]  UTF-8 MD5 hex content hash
 ///   uint16  dim      + float[dim]     IEEE 754 LE embedding vector
 ///
-/// The cache is invalidated if the model name or dimension changes.
+/// The cache is invalidated if the format, text scheme, model name or dimension changes.
 /// </summary>
 internal static class EmbeddingPersistence
 {
     private static readonly byte[] Magic = "KIOKU_EMB\n"u8.ToArray();
-    private const uint FormatVersion = 3;
+    private const uint FormatVersion = 4;
+
+    // Scheme 1: note-level text with the model's document task prefix applied.
+    private const ushort TextSchemeVersion = 1;
 
     public static async Task SaveAsync(
         string filePath,
@@ -40,6 +45,7 @@ internal static class EmbeddingPersistence
 
         writer.Write(Magic);
         writer.Write(FormatVersion);
+        writer.Write(TextSchemeVersion);
 
         var modelBytes = Encoding.UTF8.GetBytes(modelName);
         writer.Write((ushort)modelBytes.Length);
@@ -93,6 +99,12 @@ internal static class EmbeddingPersistence
 
         var version = reader.ReadUInt32();
         if (version != FormatVersion)
+        {
+            return (result, null, 0);
+        }
+
+        var textScheme = reader.ReadUInt16();
+        if (textScheme != TextSchemeVersion)
         {
             return (result, null, 0);
         }

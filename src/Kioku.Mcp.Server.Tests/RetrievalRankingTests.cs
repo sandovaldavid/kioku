@@ -109,7 +109,7 @@ public class RetrievalRankingTests(EvalVaultFixture fixture) : IClassFixture<Eva
 
     private async Task<List<string>> RankedSemanticAsync(string query, float minScore = 0f)
     {
-        var vector = await fixture.Embedding.EmbedAsync(query);
+        var vector = await fixture.Embedding.EmbedQueryAsync(query);
         Assert.NotNull(vector);
         var notesByPath = fixture.Vault.GetAllNotes()
             .ToDictionary(n => n.FilePath, StringComparer.OrdinalIgnoreCase);
@@ -121,7 +121,7 @@ public class RetrievalRankingTests(EvalVaultFixture fixture) : IClassFixture<Eva
 
     private async Task<List<string>> RankedHybridAsync(string query)
     {
-        var vector = await fixture.Embedding.EmbedAsync(query);
+        var vector = await fixture.Embedding.EmbedQueryAsync(query);
         return fixture.Hybrid.Search(query, K, queryVector: vector)
             .Select(r => r.Note.VaultRelativePath)
             .ToList();

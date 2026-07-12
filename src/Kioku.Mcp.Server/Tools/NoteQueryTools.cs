@@ -603,7 +603,7 @@ public sealed class NoteQueryTools(
             return KiokuError.InvalidArgument("The 'query' parameter cannot be empty.");
         }
 
-        var queryVector = await embedding.EmbedAsync(query);
+        var queryVector = await embedding.EmbedQueryAsync(query);
         if (queryVector is null)
         {
             return KiokuError.DependencyUnavailable("Could not generate embedding for query. Is Ollama running?");
@@ -663,7 +663,7 @@ public sealed class NoteQueryTools(
         float[]? queryVector = null;
         if (embedding.IsAvailable && semantic_weight > 0f)
         {
-            queryVector = await embedding.EmbedAsync(query);
+            queryVector = await embedding.EmbedQueryAsync(query);
         }
 
         var capped = Math.Min(max_results, config.MaxSearchResults);
