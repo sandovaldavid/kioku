@@ -1,0 +1,125 @@
+# Retrieval quality evaluation
+
+How Kioku measures whether its search tools (`search_notes`, `search_notes_semantic`,
+`search_notes_hybrid`) actually return the right notes, and how to compare configurations
+(embedding model, thresholds, scoring changes) with numbers instead of gut feeling.
+
+## Scope
+
+Kioku is a retrieval-only MCP server: it returns notes, the client LLM generates answers.
+Therefore only retrieval metrics apply here. Generation-side metrics (RAGAS faithfulness,
+answer relevancy, groundedness) are out of scope by design — there is no generation step
+to evaluate inside this server.
+
+Metrics implemented in `src/Kioku.Mcp.Server/Domain/RetrievalMetrics.cs`:
+
+| Metric | Question it answers |
+|--------|---------------------|
+| Precision@k | Of the k results returned, how many are relevant? |
+| Recall@k | Of all relevant notes, how many made it into the top k? |
+| MRR | How high does the first relevant note rank? |
+| NDCG@k | Is the full ordering close to ideal, weighting by graded relevance? |
+
+## The golden set
+
+A golden set is a list of real queries annotated with the notes a good search should
+return, with a graded relevance (1 = somewhat relevant, 2 = relevant, 3 = exactly what
+the query asks for). Format (`src/Kioku.Mcp.Server.Tests/Fixtures/golden-set.json`):
+
+```json
+{
+  "queries": [
+    { "id": "q01", "query": "notas sobre burnout laboral",
+      "relevant": [ { "path": "Salud/Burnout Laboral.md", "grade": 3 } ] },
+    { "id": "q23-no-answer", "query": "quantum entanglement research papers",
+      "relevant": [] }
+  ]
+}
+```
+
+Authoring guidance:
+
+- Use queries you actually type, including typos and paraphrases that share no keywords
+  with the target note (those exercise the semantic leg).
+- Include queries answered by tags, by title, by aliases, and by content buried deep in a
+  long note.
+- Include 2-3 queries with an empty `relevant` list ("no-answer probes"): a good
+  configuration returns few or no results for them, so they measure noise/threshold quality.
+- Paths are vault-relative with `/` separators; grades 1-3.
+
+The checked-in fixture vault (`src/Kioku.Mcp.Server.Tests/Fixtures/EvalVault/`, 27 mixed
+Spanish/English notes) contains topic clusters, keyword distractors (same words, different
+meaning), semantic twins (same meaning, different words), alias-only matches and one very
+long note with a unique fact near the end (a truncation probe: whole-note embeddings get
+cut at the model context window, so only keyword search finds it today).
+
+## Running the evaluation
+
+```bash
+# Keyword only — works without Ollama
+dotnet run --project scripts/Kioku.Eval -- --modes keyword --label baseline
+
+# All modes — requires Ollama with the configured embedding model
+dotnet run --project scripts/Kioku.Eval -- --label baseline-nomic
+
+# Against your real vault with your own golden set
+dotnet run --project scripts/Kioku.Eval -- \
+  --vault ~/vault --golden ~/vault/.kioku/golden-set.json --min-score 0.4
+
+# Compare embedding models (cache auto-invalidates on model change)
+KIOKU_EMBEDDING_MODEL=qwen3-embedding:0.6b dotnet run --project scripts/Kioku.Eval -- --label qwen3
+```
+
+The runner boots the same `VaultIndexService` + `EmbeddingService` + `HybridSearchService`
+stack the MCP server uses (no transport), waits for the embedding backlog to drain, and
+prints one Markdown table per mode. Compare tables between runs with different `--label`s;
+only keep a change if Recall@10 / NDCG@10 improve or hold.
+
+## CI regression tests
+
+`src/Kioku.Mcp.Server.Tests/RetrievalRankingTests.cs` runs the golden set through all
+three search paths on every `dotnet test`, without Ollama, using a deterministic fake
+embedder (`DeterministicEmbeddingHandler.cs`: hashed bag-of-words vectors, so cosine
+similarity correlates with lexical overlap). Assertions are floors and invariants — never
+exact orderings — so they catch ranking regressions without overfitting to the fake.
+Real-model quality is measured only with the runner above.
+
+## Baseline
+
+Fixture vault (27 notes), 22 scored queries + 2 no-answer probes.
+
+### keyword — naive TF scoring (pre-BM25), 2026-07-12
+
+| k | Precision@k | Recall@k | MRR | NDCG@k |
+|---|-------------|----------|-----|--------|
+| 5 | 0.227 | 0.621 | 0.784 | 0.722 |
+| 10 | 0.132 | 0.682 | 0.784 | 0.744 |
+
+No-answer probes: avg 5.0 results returned.
+
+### semantic / hybrid — nomic-embed-text (no query/document prefixes)
+
+Not captured in this environment (no Ollama available). To record it locally before
+comparing changes:
+
+```bash
+dotnet run --project scripts/Kioku.Eval -- --label baseline-nomic
+```
+
+and paste the tables here.
+
+## Design decisions (what was deliberately not built)
+
+- **LLM contextual enrichment (Anthropic contextual retrieval)**: adds an LLM call per
+  chunk on every re-index. Obsidian vault notes change constantly, so the enrichment cost
+  repeats forever; the planned deterministic breadcrumb prefix (note name + heading path)
+  captures most of the benefit for free.
+- **Late chunking**: needs token-level embeddings; Ollama's embeddings API returns pooled
+  vectors only. Not implementable against Ollama.
+- **Cross-encoder reranking**: no local cross-encoder runtime available. Revisit only if
+  eval numbers show Precision@5 is the bottleneck after chunking lands.
+- **ANN index**: brute-force SIMD cosine over a whole vault is sub-10ms at typical vault
+  sizes. Revisit above ~100k vectors.
+- **Chunking + parent-document retrieval**: planned as the next iteration (heading-aware
+  chunks embedded individually, results aggregated back to note level). The golden set is
+  annotated at note level so it survives that change unchanged.
