@@ -359,7 +359,16 @@ public sealed class VaultIndexService : IDisposable
         _watcher.Deleted += (_, e) => RemoveFromIndex(e.FullPath);
         _watcher.Renamed += (_, e) =>
         {
-            RemoveFromIndex(e.OldFullPath);
+            if (IsExcludedPath(e.FullPath))
+            {
+                RemoveFromIndex(e.OldFullPath);
+                return;
+            }
+
+            // Content is unchanged on a rename: re-key the embedding instead of dropping it,
+            // so the re-index sees a matching hash and skips the Ollama round-trip.
+            _embedding?.Move(e.OldFullPath, e.FullPath);
+            RemoveFromIndex(e.OldFullPath, removeEmbedding: false);
             ScheduleReindex(e.FullPath);
         };
         _watcher.Error += (_, e) =>
@@ -410,7 +419,7 @@ public sealed class VaultIndexService : IDisposable
         });
     }
 
-    private void RemoveFromIndex(string filePath)
+    private void RemoveFromIndex(string filePath, bool removeEmbedding = true)
     {
         if (!_notesByPath.TryRemove(filePath, out var note))
         {
@@ -447,7 +456,11 @@ public sealed class VaultIndexService : IDisposable
             }
         }
 
-        _embedding?.Remove(filePath);
+        if (removeEmbedding)
+        {
+            _embedding?.Remove(filePath);
+        }
+
         Interlocked.Decrement(ref _indexedCount);
         _logger.Debug("Removed from index: {File}", Path.GetFileName(filePath));
     }
@@ -459,7 +472,8 @@ public sealed class VaultIndexService : IDisposable
     /// </summary>
     public async Task SynchronizeFileMoveAsync(string oldPath, string newPath)
     {
-        RemoveFromIndex(oldPath);
+        _embedding?.Move(oldPath, newPath);
+        RemoveFromIndex(oldPath, removeEmbedding: false);
         await IndexFileAsync(newPath);
     }
 

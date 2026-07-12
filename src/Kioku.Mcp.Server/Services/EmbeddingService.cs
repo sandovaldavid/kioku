@@ -179,6 +179,25 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         _store.TryRemove(relative, out _);
     }
 
+    /// <summary>
+    /// Re-keys a cached embedding after a file rename/move. The content hash is unchanged,
+    /// so the vector is reused and no re-embedding happens for a pure move.
+    /// </summary>
+    public void Move(string oldFilePath, string newFilePath)
+    {
+        if (!IsAvailable)
+        {
+            return;
+        }
+
+        var oldRelative = Path.GetRelativePath(config.VaultPath, oldFilePath);
+        var newRelative = Path.GetRelativePath(config.VaultPath, newFilePath);
+        if (_store.TryRemove(oldRelative, out var entry))
+        {
+            _store[newRelative] = entry with { VaultRelativePath = newRelative };
+        }
+    }
+
     public IEnumerable<SemanticResult> SearchByVector(
         float[] queryVector,
         int maxResults,
