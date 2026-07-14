@@ -69,7 +69,9 @@ public sealed partial class ProjectWorkspaceService(
         config.VaultPath, Path.Combine(config.VaultPath, KnowledgeRootRelative));
 
     /// <summary>
-    /// Validates a project name: must be a single folder name, not a path.
+    /// Validates a project identifier: a plain folder name, or a '/'-separated path grouping
+    /// several projects under shared folders (e.g. "Atena/api.core"). Each segment must be
+    /// non-empty (no leading/trailing/double slashes) and backslashes/'..' are always rejected.
     /// Returns an error message or null when valid.
     /// </summary>
     public static string? ValidateProjectName(string project)
@@ -79,9 +81,14 @@ public sealed partial class ProjectWorkspaceService(
             return "[error] The 'project' parameter cannot be empty. Use list_projects to see existing projects.";
         }
 
-        if (project.Contains('/') || project.Contains('\\') || project.Contains(".."))
+        if (project.Contains('\\') || project.Contains(".."))
         {
-            return $"[error] Invalid project name '{project}'. Use a plain folder name without path separators.";
+            return $"[error] Invalid project name '{project}'. Use '/' to group projects (e.g. 'Atena/api.core'); no backslashes or '..'.";
+        }
+
+        if (project.Split('/').Any(string.IsNullOrWhiteSpace))
+        {
+            return $"[error] Invalid project name '{project}'. Each '/'-separated segment must be non-empty (no leading, trailing, or double slashes).";
         }
 
         return null;
@@ -123,7 +130,11 @@ public sealed partial class ProjectWorkspaceService(
             }
         }
 
-        var mocPath = Path.Combine(projectFolder, $"{project}.md");
+        // Use the folder's own leaf name for the MOC file, not the full (possibly grouped)
+        // project identifier — "Atena/api.core" scaffolds ".../Atena/api.core/api.core.md",
+        // never ".../Atena/api.core/Atena/api.core.md".
+        var leafName = Path.GetFileName(projectFolder);
+        var mocPath = Path.Combine(projectFolder, $"{leafName}.md");
         if (!File.Exists(mocPath))
         {
             var template = await ResolveTemplateAsync("project-moc");
@@ -139,7 +150,7 @@ public sealed partial class ProjectWorkspaceService(
                     ["bugs_folder"] = ToVaultRelative(GetSubfolder(project, "bugs")),
                     ["backlog_folder"] = ToVaultRelative(GetSubfolder(project, "backlog")),
                 },
-                noteTitle: project);
+                noteTitle: leafName);
 
             var relFolder = ToVaultRelative(projectFolder);
             var tags = NoteHelpers.MergeTagsWithInheritance(
@@ -276,5 +287,55 @@ public sealed partial class ProjectWorkspaceService(
         return [.. Directory.EnumerateFiles(folder, "*.md", SearchOption.TopDirectoryOnly)
             .Select(f => new FileInfo(f))
             .OrderByDescending(f => f.LastWriteTimeUtc)];
+    }
+
+    /// <summary>
+    /// Recursively discovers project identifiers under the projects root, so projects can be
+    /// grouped in plain folders (e.g. Projects/Atena/api.core and Projects/Atena/api.common are
+    /// both discovered as "Atena/api.core" and "Atena/api.common" — "Atena" itself is a pure
+    /// grouping folder, not a project, and is never listed).
+    /// A directory counts as a project if it has its own "{leaf}.md" MOC note with type: moc,
+    /// or already has at least one of the standard engineering subfolders. Anything else is
+    /// treated as a grouping folder and recursed into.
+    /// </summary>
+    public IReadOnlyList<string> DiscoverProjects()
+    {
+        var results = new List<string>();
+        if (Directory.Exists(ProjectsRoot))
+        {
+            WalkForProjects(ProjectsRoot, results);
+        }
+
+        results.Sort(StringComparer.OrdinalIgnoreCase);
+        return results;
+    }
+
+    private void WalkForProjects(string dir, List<string> results)
+    {
+        if (IsProjectFolder(dir))
+        {
+            results.Add(Path.GetRelativePath(ProjectsRoot, dir).Replace('\\', '/'));
+            return;
+        }
+
+        foreach (var sub in Directory.EnumerateDirectories(dir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        {
+            WalkForProjects(sub, results);
+        }
+    }
+
+    private bool IsProjectFolder(string dir)
+    {
+        var mocPath = Path.Combine(dir, $"{Path.GetFileName(dir)}.md");
+        if (File.Exists(mocPath))
+        {
+            var metadata = FrontmatterParser.Parse(File.ReadAllText(mocPath));
+            if (string.Equals(metadata.NoteType, "moc", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return SubfolderKeys.Any(key => Directory.Exists(Path.Combine(dir, vaultConfig.GetEngineeringSubfolder(key))));
     }
 }

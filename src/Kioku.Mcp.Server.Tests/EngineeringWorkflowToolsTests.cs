@@ -94,8 +94,23 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
     {
         var (tools, _) = CreateTools();
 
-        Assert.StartsWith("[error]", await tools.record_adr("a/b", "T", "c", "d", "q"));
+        Assert.StartsWith("[error]", await tools.record_adr("a\\b", "T", "c", "d", "q"));
+        Assert.StartsWith("[error]", await tools.record_adr("../escape", "T", "c", "d", "q"));
+        Assert.StartsWith("[error]", await tools.record_adr("a//b", "T", "c", "d", "q"));
+        Assert.StartsWith("[error]", await tools.record_adr("/a", "T", "c", "d", "q"));
+        Assert.StartsWith("[error]", await tools.record_adr("a/", "T", "c", "d", "q"));
         Assert.StartsWith("[error]", await tools.record_adr("", "T", "c", "d", "q"));
+    }
+
+    [Fact]
+    public async Task RecordAdr_GroupedProjectName_IsValidAndScaffoldsNestedFolder()
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.record_adr("a/b", "T", "c", "d", "q");
+
+        Assert.StartsWith("[ok]", result);
+        Assert.Contains("Projects/a/b/decisions/ADR-0001-T", result);
     }
 
     // Scaffolding
@@ -117,6 +132,69 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var mocContent = await File.ReadAllTextAsync(moc);
         Assert.Contains("type: moc", mocContent);
         Assert.Contains("project: demo", mocContent);
+    }
+
+    // Grouped/nested projects (e.g. Projects/Atena/api.core, Projects/Atena/api.common)
+
+    [Fact]
+    public async Task NestedProject_MocFileUsesLeafNameNotFullIdentifier()
+    {
+        var (tools, workspace) = CreateTools();
+
+        await tools.record_adr("Atena/api.core", "Use gRPC", "ctx", "d", "c");
+
+        var projectFolder = workspace.GetProjectFolder("Atena/api.core");
+        Assert.True(File.Exists(Path.Combine(projectFolder, "api.core.md")), "MOC should be named after the leaf segment");
+        Assert.False(File.Exists(Path.Combine(projectFolder, "Atena/api.core.md")), "must not nest a stray 'Atena' folder inside the project folder");
+
+        var mocContent = await File.ReadAllTextAsync(Path.Combine(projectFolder, "api.core.md"));
+        Assert.Contains("type: moc", mocContent);
+        Assert.Contains("project: Atena/api.core", mocContent);
+    }
+
+    [Fact]
+    public async Task NestedProjects_SiblingsUnderSameGroupAreIndependent()
+    {
+        var (tools, workspace) = CreateTools();
+
+        await tools.record_adr("Atena/api.core", "Use gRPC", "ctx", "d", "c");
+        await tools.log_bug("Atena/api.common", "Shared lib crash", "s", "rc", "f");
+
+        Assert.True(Directory.Exists(workspace.GetSubfolder("Atena/api.core", "decisions")));
+        Assert.True(Directory.Exists(workspace.GetSubfolder("Atena/api.common", "bugs")));
+        Assert.Empty(Directory.GetFiles(workspace.GetSubfolder("Atena/api.core", "bugs")));
+        Assert.Empty(Directory.GetFiles(workspace.GetSubfolder("Atena/api.common", "decisions")));
+    }
+
+    [Fact]
+    public async Task ListProjects_GroupFolderItselfIsNotListedAsAProject()
+    {
+        var (tools, workspace) = CreateTools();
+        await tools.record_adr("Atena/api.core", "Use gRPC", "ctx", "d", "c");
+        await tools.log_bug("Atena/api.common", "Crash", "s", "rc", "f");
+        await tools.record_adr("demo", "Standalone decision", "ctx", "d", "c");
+
+        var discovered = workspace.DiscoverProjects();
+
+        Assert.Equal(["Atena/api.common", "Atena/api.core", "demo"], discovered);
+
+        var result = await tools.list_projects();
+        Assert.Contains("**Atena/api.core**", result);
+        Assert.Contains("**Atena/api.common**", result);
+        Assert.Contains("**demo**", result);
+        Assert.DoesNotContain("**Atena**", result);
+    }
+
+    [Fact]
+    public async Task GetProjectContext_WorksWithGroupedProjectIdentifier()
+    {
+        var (tools, _) = CreateTools();
+        await tools.record_adr("Atena/api.core", "Use gRPC", "ctx", "the decision", "c");
+
+        var context = await tools.get_project_context("Atena/api.core", include_content: true);
+
+        Assert.Contains("Project context: Atena/api.core", context);
+        Assert.Contains("the decision", context);
     }
 
     [Fact]

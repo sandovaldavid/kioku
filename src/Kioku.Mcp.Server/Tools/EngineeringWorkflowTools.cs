@@ -69,6 +69,11 @@ public sealed class EngineeringWorkflowTools(
             return statusError;
         }
 
+        if (ProjectWorkspaceService.ValidateProjectName(project) is { } nameError)
+        {
+            return nameError;
+        }
+
         var number = workspace.GetNextAdrNumber(project);
         return await CreateDocAsync(
             project,
@@ -421,7 +426,9 @@ public sealed class EngineeringWorkflowTools(
 
     [McpServerTool, Description(
         "Lists all project workspaces under the projects root with per-type document counts " +
-        "and the last modification date. Use to discover the project name to pass to other engineering tools.")]
+        "and the last modification date. Projects can be grouped in plain folders (e.g. " +
+        "'Atena/api.core', 'Atena/api.common') — pass the full identifier shown here as the " +
+        "'project' parameter to other engineering tools. Use to discover project names.")]
     public Task<string> list_projects()
     {
         if (!Directory.Exists(workspace.ProjectsRoot))
@@ -431,33 +438,30 @@ public sealed class EngineeringWorkflowTools(
                 "Use setup_agent_workflow to create the structure.");
         }
 
-        var projectDirs = Directory.EnumerateDirectories(workspace.ProjectsRoot)
-            .OrderBy(d => d, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (projectDirs.Count == 0)
+        var projects = workspace.DiscoverProjects();
+        if (projects.Count == 0)
         {
             return Task.FromResult(
                 $"[info] No projects yet under '{workspace.ProjectsRootRelative}/'. " +
                 "Use setup_agent_workflow with a project name, or any record tool (record_adr, log_bug, ...) to create one.");
         }
 
-        var sb = new StringBuilder($"[ok] {projectDirs.Count} project(s) under '{workspace.ProjectsRootRelative}/':\n\n");
-        foreach (var dir in projectDirs)
+        var sb = new StringBuilder($"[ok] {projects.Count} project(s) under '{workspace.ProjectsRootRelative}/':\n\n");
+        foreach (var project in projects)
         {
-            var name = Path.GetFileName(dir);
             var counts = ProjectWorkspaceService.SubfolderKeys
-                .Select(key => (key, count: workspace.EnumerateProjectDocs(name, key).Count))
+                .Select(key => (key, count: workspace.EnumerateProjectDocs(project, key).Count))
                 .Where(t => t.count > 0)
                 .Select(t => $"{t.key}: {t.count}")
                 .ToList();
 
-            var lastModified = Directory.EnumerateFiles(dir, "*.md", SearchOption.AllDirectories)
+            var projectDir = workspace.GetProjectFolder(project);
+            var lastModified = Directory.EnumerateFiles(projectDir, "*.md", SearchOption.AllDirectories)
                 .Select(f => File.GetLastWriteTimeUtc(f))
-                .DefaultIfEmpty(Directory.GetLastWriteTimeUtc(dir))
+                .DefaultIfEmpty(Directory.GetLastWriteTimeUtc(projectDir))
                 .Max();
 
-            sb.Append($"- **{name}**");
+            sb.Append($"- **{project}**");
             sb.Append(counts.Count > 0 ? $" — {string.Join(", ", counts)}" : " — empty");
             sb.AppendLine($" (last modified {lastModified:yyyy-MM-dd})");
         }
