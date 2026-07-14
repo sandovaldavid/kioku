@@ -126,6 +126,9 @@ public sealed class KiokuPrompts
            confirmed the decision yet; 'accepted' otherwise.
         4. If this decision supersedes an earlier ADR, call `update_frontmatter` on the old
            ADR setting status='superseded', and mention the new ADR in it with a [[wikilink]].
+        5. Call `suggest_links` on the new ADR to connect it to relevant notes elsewhere in the
+           vault, not just to other ADRs in the same project — a decision often relates to
+           existing research, standards, or knowledge notes worth linking.
         """;
 
     [McpServerPrompt(Name = "log_bugfix"), Description(
@@ -141,6 +144,8 @@ public sealed class KiokuPrompts
         3. If the bug relates to an existing ADR or plan, `append_to_note` a [[wikilink]]
            cross-reference so the connection is navigable in Obsidian.
         4. If there is an active work session, record the bug in its '## Log' section too.
+        5. Call `link_related_notes` on the new bug note so it connects to relevant notes
+           elsewhere in the vault, not just to the project's own ADRs/plans.
         """;
 
     [McpServerPrompt(Name = "plan_feature"), Description(
@@ -161,6 +166,8 @@ public sealed class KiokuPrompts
            exists.
         5. As steps complete, check them off with `update_note_content`; when the plan is
            done, set status='done' with `update_frontmatter`.
+        6. Call `suggest_links` on the new plan to connect it to relevant notes elsewhere in
+           the vault, not just to other project docs.
         """;
 
     [McpServerPrompt(Name = "work_on_ticket"), Description(
@@ -195,7 +202,9 @@ public sealed class KiokuPrompts
            team you noticed.
         3. Create it with `create_note_from_template` using template 'kioku/daily' (or
            `create_note`) inside the project's daily/ subfolder, named after today's date
-           (yyyy-MM-dd). Pass variables including project='{project}' so the template
+           (yyyy-MM-dd). Pass variables including project='{project}' and
+           project_link='[[<project's leaf name>]]' (the note's own filename, not the full
+           grouped identifier — e.g. 'ProjectA' for project 'Group/ProjectA') so the template
            placeholders resolve. `create_note_from_template` does not set frontmatter, so
            immediately follow up with `update_frontmatter` on the new note, setting
            type='daily', status='active', project='{project}', and tags='daily'.

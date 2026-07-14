@@ -319,8 +319,9 @@ public sealed class EngineeringWorkflowTools(
         sb.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
         sb.AppendLine();
 
-        // Project MOC verbatim: it is the human-curated overview.
-        var mocPath = Path.Combine(projectFolder, $"{project}.md");
+        // Project MOC verbatim: it is the human-curated overview. Named after the leaf segment,
+        // not the full (possibly grouped) identifier — same convention as EnsureProjectScaffoldAsync.
+        var mocPath = Path.Combine(projectFolder, $"{Path.GetFileName(projectFolder)}.md");
         if (File.Exists(mocPath))
         {
             sb.AppendLine("## Project overview (MOC)");
@@ -612,6 +613,16 @@ public sealed class EngineeringWorkflowTools(
             }
         }
 
+        // Templates — runs before the project scaffold below so that, on first use, the files
+        // already exist on disk when the scaffold step tries to register them in Templater's
+        // own folder-template settings (Templater can't point at an embedded resource).
+        if (write_templates)
+        {
+            var (templatesCreated, templatesSkipped) = await workspace.EnsureEngineeringTemplatesOnDiskAsync();
+            created.AddRange(templatesCreated);
+            skipped.AddRange(templatesSkipped);
+        }
+
         // Project scaffold
         if (!string.IsNullOrWhiteSpace(project))
         {
@@ -628,28 +639,6 @@ public sealed class EngineeringWorkflowTools(
             else
             {
                 skipped.Add($"{workspace.ToVaultRelative(workspace.GetProjectFolder(project))}/ (already scaffolded)");
-            }
-        }
-
-        // Templates
-        if (write_templates)
-        {
-            var kiokuTemplatesDir = Path.Combine(workspace.ResolveTemplatesFolderOrDefault(), "kioku");
-            Directory.CreateDirectory(kiokuTemplatesDir);
-
-            foreach (var key in ProjectWorkspaceService.TemplateKeys)
-            {
-                var target = Path.Combine(kiokuTemplatesDir, $"{key}.md");
-                var rel = workspace.ToVaultRelative(target);
-                if (File.Exists(target))
-                {
-                    skipped.Add(rel);
-                }
-                else
-                {
-                    await File.WriteAllTextAsync(target, ProjectWorkspaceService.ReadEmbeddedTemplate(key), Encoding.UTF8);
-                    created.Add(rel);
-                }
             }
         }
 
@@ -709,7 +698,9 @@ public sealed class EngineeringWorkflowTools(
             return $"[error] Note already exists: '{workspace.ToVaultRelative(filePath)}'. Use update_note_content to modify it.";
         }
 
+        var projectLink = $"[[{ProjectWorkspaceService.ProjectLeafName(project)}]]";
         variables["project"] = project;
+        variables["project_link"] = projectLink;
         var body = NoteHelpers.ExpandTemplateVariables(
             await workspace.ResolveTemplateAsync(templateKey), variables, noteTitle: title);
 
@@ -719,7 +710,11 @@ public sealed class EngineeringWorkflowTools(
             vaultConfig.GetInheritedTags(relFolder),
             vaultConfig.ExcludeFromTags);
 
-        var fields = new Dictionary<string, string> { ["project"] = project };
+        var fields = new Dictionary<string, string>
+        {
+            ["project"] = project,
+            ["project_link"] = $"\"{projectLink}\"",
+        };
         if (extraFields is not null)
         {
             foreach (var (k, v) in extraFields)

@@ -1,7 +1,7 @@
 # Daily — {{date}}
 
 > [!info] Daily note
-> Project: [[{{project}}]]
+> Project: {{project_link}}
 
 ## Yesterday
 

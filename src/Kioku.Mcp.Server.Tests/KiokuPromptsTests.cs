@@ -87,6 +87,7 @@ public class KiokuPromptsTests
         Assert.Contains("record_adr", result);
         Assert.Contains("update_frontmatter", result);
         Assert.Contains("superseded", result);
+        Assert.Contains("suggest_links", result);
     }
 
     [Fact]
@@ -97,6 +98,7 @@ public class KiokuPromptsTests
         Assert.Contains("log_bug", result);
         Assert.Contains("project='kioku'", result);
         Assert.Contains("root", result);
+        Assert.Contains("link_related_notes", result);
     }
 
     [Fact]
@@ -109,6 +111,7 @@ public class KiokuPromptsTests
         Assert.Contains("search_notes_hybrid", result);
         Assert.Contains("create_plan", result);
         Assert.Contains("- [ ]", result);
+        Assert.Contains("suggest_links", result);
     }
 
     [Fact]
@@ -131,5 +134,6 @@ public class KiokuPromptsTests
         Assert.Contains("get_project_context", result);
         Assert.Contains("types='daily,session'", result);
         Assert.Contains("create_note_from_template", result);
+        Assert.Contains("project_link=", result);
     }
 }

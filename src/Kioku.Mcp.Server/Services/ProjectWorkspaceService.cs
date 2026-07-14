@@ -27,14 +27,14 @@ public sealed partial class ProjectWorkspaceService(
     /// <summary>Type-specific template variables supported per doc type, beyond the built-ins.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> TemplateVariables = new Dictionary<string, string[]>
     {
-        ["adr"] = ["project", "number", "context", "decision", "consequences", "alternatives"],
-        ["bug"] = ["project", "symptom", "root_cause", "fix", "related_files"],
-        ["plan"] = ["project", "objective", "steps", "ticket"],
-        ["knowledge"] = ["project", "content"],
-        ["idea"] = ["project", "description"],
-        ["session"] = ["project", "goal", "agent"],
-        ["daily"] = ["project"],
-        ["ticket"] = ["project"],
+        ["adr"] = ["project", "project_link", "number", "context", "decision", "consequences", "alternatives"],
+        ["bug"] = ["project", "project_link", "symptom", "root_cause", "fix", "related_files"],
+        ["plan"] = ["project", "project_link", "objective", "steps", "ticket"],
+        ["knowledge"] = ["project", "project_link", "content"],
+        ["idea"] = ["project", "project_link", "description"],
+        ["session"] = ["project", "project_link", "goal", "agent"],
+        ["daily"] = ["project", "project_link"],
+        ["ticket"] = ["project", "project_link"],
         ["project-moc"] = ["project", "project_folder", "decisions_folder", "plans_folder", "bugs_folder", "backlog_folder"],
     };
 
@@ -105,6 +105,9 @@ public sealed partial class ProjectWorkspaceService(
     public string ToVaultRelative(string absolutePath) =>
         Path.GetRelativePath(config.VaultPath, absolutePath).Replace('\\', '/');
 
+    /// <summary>Leaf (last '/'-separated) segment of a possibly-grouped project identifier.</summary>
+    public static string ProjectLeafName(string project) => project.Split('/')[^1];
+
     /// <summary>
     /// Ensures the project folder, its standard subfolders, and the project MOC note exist.
     /// Never overwrites existing files. Returns the vault-relative paths that were created.
@@ -174,7 +177,82 @@ public sealed partial class ProjectWorkspaceService(
                 : $"{ToVaultRelative(mocPath)} [warning: {evalResult.Warning}]");
         }
 
+        // Only on first-time scaffold of this project (avoids redundant I/O on every
+        // record_adr/log_bug call once the project already exists).
+        if (created.Count > 0)
+        {
+            await EnsureEngineeringTemplatesOnDiskAsync();
+            var registered = await RegisterTemplaterFolderTemplatesAsync(project);
+            if (registered > 0)
+            {
+                created.Add($"Templater folder templates: {registered} registered (Settings → Folder Templates)");
+            }
+        }
+
         return created;
+    }
+
+    /// <summary>Doc type key each engineering subfolder maps to, for Templater folder-template registration.</summary>
+    private static readonly (string SubfolderKey, string TemplateKey)[] SubfolderTemplatePairs =
+    [
+        ("decisions", "adr"), ("bugs", "bug"), ("plans", "plan"), ("knowledge", "knowledge"),
+        ("sessions", "session"), ("daily", "daily"), ("tickets", "ticket"), ("backlog", "idea"),
+    ];
+
+    /// <summary>
+    /// Copies any of the embedded default engineering templates that don't yet exist on disk to
+    /// {templates}/kioku/{typeKey}.md. Idempotent: never overwrites an existing file. Templater
+    /// can only point to a real vault file, so this must run before a folder template pointing
+    /// at one of these files can be registered in Templater's own settings.
+    /// </summary>
+    public async Task<(List<string> Created, List<string> Skipped)> EnsureEngineeringTemplatesOnDiskAsync()
+    {
+        var created = new List<string>();
+        var skipped = new List<string>();
+
+        var kiokuTemplatesDir = Path.Combine(ResolveTemplatesFolderOrDefault(), "kioku");
+        Directory.CreateDirectory(kiokuTemplatesDir);
+
+        foreach (var key in TemplateKeys)
+        {
+            var target = Path.Combine(kiokuTemplatesDir, $"{key}.md");
+            var rel = ToVaultRelative(target);
+            if (File.Exists(target))
+            {
+                skipped.Add(rel);
+            }
+            else
+            {
+                await File.WriteAllTextAsync(target, ReadEmbeddedTemplate(key), Encoding.UTF8);
+                created.Add(rel);
+            }
+        }
+
+        return (created, skipped);
+    }
+
+    /// <summary>
+    /// Registers this project's standard subfolders (decisions/, bugs/, ...) as folder templates
+    /// in Templater's own settings, so manually creating a note there from Obsidian also gets the
+    /// right Kioku template — not just notes the agent creates via record_adr/log_bug/etc.
+    /// Deliberately excludes the project root itself (would apply the project-MOC template to
+    /// any new note created there, which is almost never what's wanted). Never overwrites a
+    /// folder the user already mapped in Templater, even to a different template. No-op if
+    /// Templater isn't installed or its settings file doesn't exist yet, or if the corresponding
+    /// template file isn't actually on disk (Templater can't point at an embedded resource).
+    /// </summary>
+    public async Task<int> RegisterTemplaterFolderTemplatesAsync(string project)
+    {
+        var entries = SubfolderTemplatePairs
+            .Select(p => (
+                Folder: ToVaultRelative(GetSubfolder(project, p.SubfolderKey)),
+                Template: ToVaultRelative(Path.Combine(ResolveTemplatesFolderOrDefault(), "kioku", $"{p.TemplateKey}.md"))))
+            .Where(p => File.Exists(Path.Combine(config.VaultPath, p.Template)))
+            .ToList();
+
+        return entries.Count == 0
+            ? 0
+            : await TemplaterFolderTemplates.RegisterFolderTemplatesAsync(config.VaultPath, entries);
     }
 
     /// <summary>

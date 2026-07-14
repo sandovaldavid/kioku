@@ -1,7 +1,7 @@
 # Work Session — {{title}}
 
 > [!info] Session
-> Project: [[{{project}}]] · Started: {{date}} {{time}} · Agent: {{agent}}
+> Project: {{project_link}} · Started: {{date}} {{time}} · Agent: {{agent}}
 
 **Goal:** {{goal}}
 

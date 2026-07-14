@@ -195,6 +195,27 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
 
         Assert.Contains("Project context: Group/ProjectA", context);
         Assert.Contains("the decision", context);
+        // The MOC (named after the leaf segment, not the full identifier) must actually be found.
+        Assert.Contains("## Project overview (MOC)", context);
+    }
+
+    [Fact]
+    public async Task SetupAgentWorkflow_NestedProject_CreatesAllStandardSubfoldersAndMoc()
+    {
+        var (tools, workspace) = CreateTools();
+
+        var result = await tools.setup_agent_workflow(project: "Group/ProjectA");
+
+        Assert.StartsWith("[ok]", result);
+        foreach (var key in ProjectWorkspaceService.SubfolderKeys)
+        {
+            Assert.True(
+                Directory.Exists(workspace.GetSubfolder("Group/ProjectA", key)),
+                $"missing subfolder '{key}' for nested project");
+        }
+
+        var moc = Path.Combine(workspace.GetProjectFolder("Group/ProjectA"), "ProjectA.md");
+        Assert.True(File.Exists(moc));
     }
 
     [Fact]
@@ -350,6 +371,112 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var content = await File.ReadAllTextAsync(file);
 
         Assert.Contains("  - kioku-session", content);
+    }
+
+    // project_link: a wikilink that actually resolves, including for nested/grouped projects
+
+    [Fact]
+    public async Task RecordAdr_NestedProject_GetsWorkingProjectLink()
+    {
+        var (tools, workspace) = CreateTools();
+
+        await tools.record_adr("Group/ProjectA", "Use gRPC", "ctx", "d", "c");
+
+        var file = Directory.GetFiles(workspace.GetSubfolder("Group/ProjectA", "decisions"), "ADR-*.md").Single();
+        var content = await File.ReadAllTextAsync(file);
+        // Frontmatter: quoted so YAML doesn't parse [[ as a flow sequence.
+        Assert.Contains("project_link: \"[[ProjectA]]\"", content);
+        // Body: the broken [[Group/ProjectA]] link is gone, replaced by the resolvable one.
+        Assert.Contains("[[ProjectA]]", content);
+        Assert.DoesNotContain("[[Group/ProjectA]]", content);
+    }
+
+    [Fact]
+    public async Task StartWorkSession_NestedProject_GetsWorkingProjectLink()
+    {
+        var sessions = CreateSessionTools();
+
+        await sessions.start_work_session(project: "Group/ProjectA", agent: "claude");
+
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
+        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, CreateBridge(config));
+        var file = Directory.GetFiles(workspace.GetSubfolder("Group/ProjectA", "sessions")).Single();
+        var content = await File.ReadAllTextAsync(file);
+
+        Assert.Contains("project_link: \"[[ProjectA]]\"", content);
+        Assert.Contains("[[ProjectA]]", content);
+        Assert.DoesNotContain("[[Group/ProjectA]]", content);
+    }
+
+    [Fact]
+    public async Task ProjectMoc_HasNoSelfReferentialProjectLink()
+    {
+        var (tools, workspace) = CreateTools();
+
+        await tools.record_adr("demo", "Use SQLite", "ctx", "d", "c");
+
+        var moc = await File.ReadAllTextAsync(Path.Combine(workspace.GetProjectFolder("demo"), "demo.md"));
+        Assert.DoesNotContain("project_link:", moc);
+    }
+
+    // Templater folder-template auto-registration on scaffold
+
+    [Fact]
+    public async Task FirstScaffold_RegistersTemplaterFolderTemplates()
+    {
+        var templaterSettings = Path.Combine(
+            _fixture.VaultPath, ".obsidian", "plugins", "templater-obsidian", "data.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(templaterSettings)!);
+        await File.WriteAllTextAsync(
+            templaterSettings,
+            """{ "enable_folder_templates": false, "folder_templates": [] }""",
+            Encoding.UTF8);
+        var (tools, workspace) = CreateTools();
+
+        await tools.record_adr("demo", "Use SQLite", "ctx", "d", "c");
+
+        using var doc = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(templaterSettings));
+        Assert.True(doc.RootElement.GetProperty("enable_folder_templates").GetBoolean());
+        var folders = doc.RootElement.GetProperty("folder_templates").EnumerateArray()
+            .Select(e => e.GetProperty("folder").GetString())
+            .ToList();
+        Assert.Contains(workspace.ToVaultRelative(workspace.GetSubfolder("demo", "decisions")), folders);
+        Assert.Contains(workspace.ToVaultRelative(workspace.GetSubfolder("demo", "bugs")), folders);
+        // The project root itself must never be registered (would force the MOC template onto any new note there).
+        Assert.DoesNotContain(workspace.ToVaultRelative(workspace.GetProjectFolder("demo")), folders);
+    }
+
+    [Fact]
+    public async Task SecondCallToSameProject_DoesNotReRegisterTemplaterFolderTemplates()
+    {
+        var templaterSettings = Path.Combine(
+            _fixture.VaultPath, ".obsidian", "plugins", "templater-obsidian", "data.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(templaterSettings)!);
+        await File.WriteAllTextAsync(
+            templaterSettings,
+            """{ "enable_folder_templates": false, "folder_templates": [] }""",
+            Encoding.UTF8);
+        var (tools, _) = CreateTools();
+
+        await tools.record_adr("demo", "First", "ctx", "d", "c");
+        var afterFirst = await File.ReadAllTextAsync(templaterSettings);
+        await tools.record_adr("demo", "Second", "ctx", "d", "c");
+        var afterSecond = await File.ReadAllTextAsync(templaterSettings);
+
+        Assert.Equal(afterFirst, afterSecond);
+    }
+
+    [Fact]
+    public async Task Scaffold_NoTemplaterInstalled_DoesNotCreateSettingsFile()
+    {
+        var (tools, _) = CreateTools();
+
+        await tools.record_adr("demo", "Use SQLite", "ctx", "d", "c");
+
+        var templaterSettings = Path.Combine(
+            _fixture.VaultPath, ".obsidian", "plugins", "templater-obsidian", "data.json");
+        Assert.False(File.Exists(templaterSettings));
     }
 
     // Engineering template management tools
