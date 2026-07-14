@@ -9,7 +9,8 @@ namespace Kioku.Mcp.Server.Services;
 /// ADR numbering, template resolution (vault override falls back to embedded defaults),
 /// and doc enumeration. Used by EngineeringWorkflowTools and SessionContextTools.
 /// </summary>
-public sealed partial class ProjectWorkspaceService(KiokuConfiguration config, VaultConfigService vaultConfig)
+public sealed partial class ProjectWorkspaceService(
+    KiokuConfiguration config, VaultConfigService vaultConfig, ObsidianBridgeService bridge)
 {
     /// <summary>Doc type keys, each mapping to a per-project subfolder.</summary>
     public static readonly string[] SubfolderKeys =
@@ -19,11 +20,43 @@ public sealed partial class ProjectWorkspaceService(KiokuConfiguration config, V
     public static readonly string[] TemplateKeys =
         ["adr", "bug", "plan", "knowledge", "idea", "session", "daily", "ticket", "project-moc"];
 
+    /// <summary>Built-in template variables available on every doc type (see NoteHelpers.ExpandTemplateVariables).</summary>
+    public static readonly string[] BuiltInTemplateVariables =
+        ["date", "time", "datetime", "year", "month", "day", "uid", "title"];
+
+    /// <summary>Type-specific template variables supported per doc type, beyond the built-ins.</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> TemplateVariables = new Dictionary<string, string[]>
+    {
+        ["adr"] = ["project", "number", "context", "decision", "consequences", "alternatives"],
+        ["bug"] = ["project", "symptom", "root_cause", "fix", "related_files"],
+        ["plan"] = ["project", "objective", "steps", "ticket"],
+        ["knowledge"] = ["project", "content"],
+        ["idea"] = ["project", "description"],
+        ["session"] = ["project", "goal", "agent"],
+        ["daily"] = ["project"],
+        ["ticket"] = ["project"],
+        ["project-moc"] = ["project", "project_folder", "decisions_folder", "plans_folder", "bugs_folder", "backlog_folder"],
+    };
+
     private static readonly string[] TemplateFolderCandidates =
         ["Templates", "99_System/Templates", "_templates", "System/Templates"];
 
     [GeneratedRegex(@"^ADR-(?<num>\d{1,4})-", RegexOptions.IgnoreCase)]
     private static partial Regex AdrNumberRegex();
+
+    // Matches {{ variable }} or {{variable}} Mustache/Handlebars syntax
+    [GeneratedRegex(@"\{\{\s*(?<var>[a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")]
+    private static partial Regex TemplateVarRegex();
+
+    /// <summary>Distinct {{var}} names referenced in a template body.</summary>
+    public static IReadOnlyList<string> ExtractTemplateVariableNames(string content) =>
+        [.. TemplateVarRegex().Matches(content)
+            .Select(m => m.Groups["var"].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>All variables recognized for a doc type: built-ins plus its type-specific ones.</summary>
+    public static IReadOnlyList<string> SupportedVariablesFor(string typeKey) =>
+        [.. BuiltInTemplateVariables, .. TemplateVariables.TryGetValue(typeKey, out var v) ? v : []];
 
     public string ProjectsRootRelative => vaultConfig.GetFolder("projects") ?? "Projects";
 
@@ -119,10 +152,15 @@ public sealed partial class ProjectWorkspaceService(KiokuConfiguration config, V
                 status: "active",
                 date: DateOnly.FromDateTime(DateTime.Now),
                 domain: vaultConfig.GetDomainForFolder(relFolder),
+                cssClasses: ["kioku-project-moc"],
                 extraFields: new Dictionary<string, string> { ["project"] = project });
 
             await File.WriteAllTextAsync(mocPath, frontmatter + "\n" + body, Encoding.UTF8);
-            created.Add(ToVaultRelative(mocPath));
+
+            var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, ToVaultRelative(mocPath));
+            created.Add(evalResult.Warning is null
+                ? ToVaultRelative(mocPath)
+                : $"{ToVaultRelative(mocPath)} [warning: {evalResult.Warning}]");
         }
 
         return created;

@@ -15,7 +15,8 @@ public sealed class SessionContextTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
-    ProjectWorkspaceService workspace)
+    ProjectWorkspaceService workspace,
+    ObsidianBridgeService bridge)
 {
     private static readonly string[] SessionsFolderCandidates = ["Sessions", "Journal", "Daily", "99_System/Sessions"];
 
@@ -500,13 +501,22 @@ public sealed class SessionContextTools(
             status: "active",
             date: DateOnly.FromDateTime(now),
             domain: vaultConfig.GetDomainForFolder(relFolder),
+            cssClasses: ["kioku-session"],
             extraFields: new Dictionary<string, string> { ["project"] = project, ["agent"] = agentName });
 
         await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
         await vault.SynchronizeFileReindexAsync(filePath);
 
-        return $"[ok] Work session started: {workspace.ToVaultRelative(filePath)} (agent: {agentName})\n" +
+        var vaultRelPath = workspace.ToVaultRelative(filePath);
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, vaultRelPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(filePath);
+        }
+
+        var result = $"[ok] Work session started: {vaultRelPath} (agent: {agentName})\n" +
                "   Log work and decisions in the '## Log' section; close with end_work_session and a summary.";
+        return evalResult.Warning is null ? result : $"{result}\n   [warning] {evalResult.Warning}";
     }
 
     /// <summary>

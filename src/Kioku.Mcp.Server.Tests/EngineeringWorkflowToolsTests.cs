@@ -23,20 +23,30 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
 
     public Task DisposeAsync() => _fixture.DisposeAsync();
 
+    /// <summary>
+    /// A bridge with no live Obsidian listening on the other end. SendRequestAsync degrades
+    /// gracefully (Success=false, no throw) so tests can exercise the Templater-interop code
+    /// path without a real plugin connection.
+    /// </summary>
+    private static ObsidianBridgeService CreateBridge(KiokuConfiguration config) =>
+        new(NullLogger<ObsidianBridgeService>.Instance, config);
+
     private (EngineeringWorkflowTools Tools, ProjectWorkspaceService Workspace) CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
-        var workspace = new ProjectWorkspaceService(config, vaultConfig);
-        return (new EngineeringWorkflowTools(_fixture.Index, config, vaultConfig, workspace), workspace);
+        var bridge = CreateBridge(config);
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge);
+        return (new EngineeringWorkflowTools(_fixture.Index, config, vaultConfig, workspace, bridge), workspace);
     }
 
     private SessionContextTools CreateSessionTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
-        var workspace = new ProjectWorkspaceService(config, vaultConfig);
-        return new SessionContextTools(_fixture.Index, config, vaultConfig, workspace);
+        var bridge = CreateBridge(config);
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge);
+        return new SessionContextTools(_fixture.Index, config, vaultConfig, workspace, bridge);
     }
 
     // ADR numbering
@@ -181,6 +191,216 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         }
     }
 
+    // Obsidian-native frontmatter properties (aliases, cssclasses)
+
+    [Fact]
+    public async Task RecordAdr_GetsAliasAndCssClass()
+    {
+        var (tools, workspace) = CreateTools();
+
+        await tools.record_adr("demo", "Use SQLite", "ctx", "d", "c");
+
+        var file = Directory.GetFiles(workspace.GetSubfolder("demo", "decisions"), "ADR-*.md").Single();
+        var content = await File.ReadAllTextAsync(file);
+        Assert.Contains("aliases:", content);
+        Assert.Contains("  - ADR-0001", content);
+        Assert.Contains("cssclasses:", content);
+        Assert.Contains("  - kioku-adr", content);
+    }
+
+    [Theory]
+    [InlineData("bugs", "kioku-bug")]
+    [InlineData("plans", "kioku-plan")]
+    [InlineData("backlog", "kioku-idea")]
+    public async Task OtherDocTypes_GetCssClassButNoAlias(string subfolderKey, string expectedCssClass)
+    {
+        var (tools, workspace) = CreateTools();
+
+        _ = subfolderKey switch
+        {
+            "bugs" => await tools.log_bug("demo", "Crash", "s", "rc", "f"),
+            "plans" => await tools.create_plan("demo", "Search feature", "obj", "- [ ] step"),
+            "backlog" => await tools.add_backlog_item("demo", "Faster index", "desc"),
+            _ => throw new InvalidOperationException(),
+        };
+
+        var file = Directory.GetFiles(workspace.GetSubfolder("demo", subfolderKey)).Single();
+        var content = await File.ReadAllTextAsync(file);
+        Assert.Contains($"  - {expectedCssClass}", content);
+        Assert.DoesNotContain("aliases:", content);
+    }
+
+    [Fact]
+    public async Task AddKnowledge_BothBranches_GetKnowledgeCssClass()
+    {
+        var (tools, workspace) = CreateTools();
+
+        await tools.add_knowledge("General note", "content", project: "demo");
+        await tools.add_knowledge("Standalone note", "content");
+
+        var projectContent = await File.ReadAllTextAsync(
+            Path.Combine(workspace.GetSubfolder("demo", "knowledge"), "General-note.md"));
+        var generalContent = await File.ReadAllTextAsync(
+            Path.Combine(workspace.KnowledgeRoot, "Standalone-note.md"));
+
+        Assert.Contains("  - kioku-knowledge", projectContent);
+        Assert.Contains("  - kioku-knowledge", generalContent);
+    }
+
+    [Fact]
+    public async Task ProjectMoc_GetsCssClass()
+    {
+        var (tools, workspace) = CreateTools();
+
+        await tools.record_adr("demo", "Use SQLite", "ctx", "d", "c");
+
+        var moc = await File.ReadAllTextAsync(Path.Combine(workspace.GetProjectFolder("demo"), "demo.md"));
+        Assert.Contains("  - kioku-project-moc", moc);
+    }
+
+    [Fact]
+    public async Task ProjectSession_GetsCssClass()
+    {
+        var sessions = CreateSessionTools();
+
+        await sessions.start_work_session(project: "demo", agent: "claude");
+
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
+        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, CreateBridge(config));
+        var file = Directory.GetFiles(workspace.GetSubfolder("demo", "sessions")).Single();
+        var content = await File.ReadAllTextAsync(file);
+
+        Assert.Contains("  - kioku-session", content);
+    }
+
+    // Engineering template management tools
+
+    [Fact]
+    public async Task ListEngineeringTemplates_ShowsEmbeddedByDefault()
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.list_engineering_templates();
+
+        Assert.Contains("**adr**", result);
+        Assert.Contains("using embedded default", result);
+        Assert.Contains("{{decision}}", result);
+    }
+
+    [Fact]
+    public async Task GetEngineeringTemplate_UnknownType_ReturnsError()
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.get_engineering_template("banana");
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("adr", result);
+    }
+
+    [Fact]
+    public async Task GetEngineeringTemplate_ReturnsEmbeddedContentAndVariables()
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.get_engineering_template("adr");
+
+        Assert.Contains("embedded default", result);
+        Assert.Contains("{{decision}}", result);
+        Assert.Contains("ADR-{{number}}", result);
+    }
+
+    [Fact]
+    public async Task SetEngineeringTemplate_CreatesOverride_ThenGetReflectsIt()
+    {
+        var (tools, workspace) = CreateTools();
+
+        var setResult = await tools.set_engineering_template("adr", "CUSTOM: {{decision}}");
+        Assert.Contains("[ok]", setResult);
+
+        var overridePath = workspace.GetVaultTemplatePath("adr");
+        Assert.True(File.Exists(overridePath));
+
+        var getResult = await tools.get_engineering_template("adr");
+        Assert.Contains("override:", getResult);
+        Assert.Contains("CUSTOM: {{decision}}", getResult);
+    }
+
+    [Fact]
+    public async Task SetEngineeringTemplate_OverwritesExistingOverride()
+    {
+        var (tools, _) = CreateTools();
+        await tools.set_engineering_template("adr", "FIRST VERSION");
+
+        var result = await tools.set_engineering_template("adr", "SECOND VERSION");
+
+        Assert.Contains("[ok]", result);
+        var getResult = await tools.get_engineering_template("adr");
+        Assert.Contains("SECOND VERSION", getResult);
+        Assert.DoesNotContain("FIRST VERSION", getResult);
+    }
+
+    [Fact]
+    public async Task SetEngineeringTemplate_UnrecognizedVariable_ReturnsWarningButStillSaves()
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.set_engineering_template("adr", "{{not_a_real_var}}");
+
+        Assert.Contains("[ok]", result);
+        Assert.Contains("[warning]", result);
+        Assert.Contains("not_a_real_var", result);
+    }
+
+    [Fact]
+    public async Task SetEngineeringTemplate_ResetToDefault_RemovesOverride()
+    {
+        var (tools, workspace) = CreateTools();
+        await tools.set_engineering_template("adr", "CUSTOM: {{decision}}");
+
+        var result = await tools.set_engineering_template("adr", reset_to_default: true);
+
+        Assert.Contains("[ok]", result);
+        Assert.False(File.Exists(workspace.GetVaultTemplatePath("adr")));
+
+        var getResult = await tools.get_engineering_template("adr");
+        Assert.Contains("embedded default", getResult);
+    }
+
+    [Fact]
+    public async Task SetEngineeringTemplate_ResetWhenNoOverrideExists_IsNoOp()
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.set_engineering_template("adr", reset_to_default: true);
+
+        Assert.Contains("[ok]", result);
+        Assert.Contains("already uses the embedded default", result);
+    }
+
+    [Fact]
+    public async Task SetEngineeringTemplate_UnknownType_ReturnsError()
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.set_engineering_template("banana", "content");
+
+        Assert.StartsWith("[error]", result);
+    }
+
+    [Fact]
+    public async Task SetEngineeringTemplate_NeverTriggersTemplaterEvaluation()
+    {
+        var (tools, workspace) = CreateTools();
+
+        await tools.set_engineering_template("adr", "Templater syntax: <% tp.date.now() %>");
+
+        // No bridge round trip is made when WRITING a template — the literal <% %> must survive.
+        var content = await File.ReadAllTextAsync(workspace.GetVaultTemplatePath("adr")!);
+        Assert.Contains("<% tp.date.now() %>", content);
+    }
+
     // get_project_context
 
     [Fact]
@@ -302,7 +522,7 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         Assert.StartsWith("[ok]", result);
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
-        var workspace = new ProjectWorkspaceService(config, vaultConfig);
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, CreateBridge(config));
         var file = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "sessions")));
 
         Assert.Matches(@"\d{4}-\d{2}-\d{2}-\d{4}-claude\.md$", file);
@@ -326,7 +546,7 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         Assert.StartsWith("[ok]", result);
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
-        var workspace = new ProjectWorkspaceService(config, vaultConfig);
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, CreateBridge(config));
         var file = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "sessions")));
         var content = await File.ReadAllTextAsync(file);
 

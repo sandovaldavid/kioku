@@ -16,7 +16,8 @@ public sealed class EngineeringWorkflowTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
-    ProjectWorkspaceService workspace)
+    ProjectWorkspaceService workspace,
+    ObsidianBridgeService bridge)
 {
     private static readonly Dictionary<string, string[]> AllowedStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -87,7 +88,8 @@ public sealed class EngineeringWorkflowTools(
                 ["consequences"] = consequences,
                 ["alternatives"] = string.IsNullOrWhiteSpace(alternatives) ? "_(none recorded)_" : alternatives,
             },
-            extraFields: new Dictionary<string, string> { ["adr"] = $"\"{number:D4}\"" });
+            extraFields: new Dictionary<string, string> { ["adr"] = $"\"{number:D4}\"" },
+            aliases: [$"ADR-{number:D4}"]);
     }
 
     // log_bug
@@ -232,12 +234,21 @@ public sealed class EngineeringWorkflowTools(
             type: "knowledge",
             status: "active",
             date: DateOnly.FromDateTime(DateTime.Now),
-            domain: vaultConfig.GetDomainForFolder(relFolder));
+            domain: vaultConfig.GetDomainForFolder(relFolder),
+            cssClasses: ["kioku-knowledge"]);
 
         await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
         await vault.SynchronizeFileReindexAsync(filePath);
 
-        return $"[ok] Knowledge note created: {workspace.ToVaultRelative(filePath)}";
+        var vaultRelPath = workspace.ToVaultRelative(filePath);
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, vaultRelPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(filePath);
+        }
+
+        var result = $"[ok] Knowledge note created: {vaultRelPath}";
+        return evalResult.Warning is null ? result : $"{result}\n   [warning] {evalResult.Warning}";
     }
 
     // add_backlog_item
@@ -454,6 +465,118 @@ public sealed class EngineeringWorkflowTools(
         return Task.FromResult(sb.ToString());
     }
 
+    // list_engineering_templates
+
+    [McpServerTool, Description(
+        "Lists the engineering doc types (adr, bug, plan, knowledge, idea, session, daily, " +
+        "ticket, project-moc), whether each has a vault override or falls back to the embedded " +
+        "default, its path, and the {{variables}} it supports. Use before editing a template " +
+        "with set_engineering_template.")]
+    public async Task<string> list_engineering_templates()
+    {
+        var sb = new StringBuilder($"[ok] {ProjectWorkspaceService.TemplateKeys.Length} engineering template(s):\n\n");
+
+        foreach (var typeKey in ProjectWorkspaceService.TemplateKeys)
+        {
+            var overridePath = workspace.GetVaultTemplatePath(typeKey);
+            var isOverride = overridePath is not null && File.Exists(overridePath);
+            var vars = ProjectWorkspaceService.SupportedVariablesFor(typeKey);
+
+            sb.Append($"  **{typeKey}** — ");
+            sb.Append(isOverride
+                ? $"override at {workspace.ToVaultRelative(overridePath!)}"
+                : "using embedded default");
+            sb.AppendLine($" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+        }
+
+        return await Task.FromResult(sb.ToString());
+    }
+
+    // get_engineering_template
+
+    [McpServerTool, Description(
+        "Reads the current effective body template for an engineering doc type (vault override " +
+        "if one exists, otherwise the embedded default), plus the {{variables}} it supports. " +
+        "Read this before proposing an edit with set_engineering_template.")]
+    public async Task<string> get_engineering_template(
+        [Description("Doc type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc.")] string type_key)
+    {
+        if (!ProjectWorkspaceService.TemplateKeys.Contains(type_key, StringComparer.OrdinalIgnoreCase))
+        {
+            return $"[error] Unknown template type '{type_key}'. Valid types: {string.Join(", ", ProjectWorkspaceService.TemplateKeys)}.";
+        }
+
+        var overridePath = workspace.GetVaultTemplatePath(type_key);
+        var isOverride = overridePath is not null && File.Exists(overridePath);
+        var content = await workspace.ResolveTemplateAsync(type_key);
+        var vars = ProjectWorkspaceService.SupportedVariablesFor(type_key);
+
+        var sb = new StringBuilder($"[ok] Template '{type_key}' ({(isOverride ? $"override: {workspace.ToVaultRelative(overridePath!)}" : "embedded default")}):\n\n");
+        sb.AppendLine($"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+        sb.AppendLine();
+        sb.AppendLine("```markdown");
+        sb.AppendLine(content);
+        sb.AppendLine("```");
+
+        return sb.ToString();
+    }
+
+    // set_engineering_template
+
+    [McpServerTool, Description(
+        "Creates or updates the vault override template for an engineering doc type at " +
+        "{templates}/kioku/{type_key}.md (always overwrites, unlike create_template). " +
+        "Pass reset_to_default=true to delete the override and revert to the embedded default. " +
+        "Never triggers Templater evaluation: this writes the template itself, which is only " +
+        "evaluated later when a note is generated from it.")]
+    public async Task<string> set_engineering_template(
+        [Description("Doc type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc.")] string type_key,
+        [Description("New template body content. Ignored when reset_to_default=true.")] string content = "",
+        [Description("Delete the vault override and revert to the embedded default instead of writing.")] bool reset_to_default = false)
+    {
+        if (!ProjectWorkspaceService.TemplateKeys.Contains(type_key, StringComparer.OrdinalIgnoreCase))
+        {
+            return $"[error] Unknown template type '{type_key}'. Valid types: {string.Join(", ", ProjectWorkspaceService.TemplateKeys)}.";
+        }
+
+        if (reset_to_default)
+        {
+            var existing = workspace.GetVaultTemplatePath(type_key);
+            if (existing is not null && File.Exists(existing))
+            {
+                File.Delete(existing);
+                return $"[ok] Reverted '{type_key}' to the embedded default (removed {workspace.ToVaultRelative(existing)}).";
+            }
+
+            return $"[ok] '{type_key}' already uses the embedded default (no override to remove).";
+        }
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return "[error] The 'content' parameter cannot be empty unless reset_to_default=true.";
+        }
+
+        var targetDir = Path.Combine(workspace.ResolveTemplatesFolderOrDefault(), "kioku");
+        Directory.CreateDirectory(targetDir);
+        var targetPath = Path.Combine(targetDir, $"{type_key}.md");
+
+        await File.WriteAllTextAsync(targetPath, content, Encoding.UTF8);
+
+        var recognized = new HashSet<string>(ProjectWorkspaceService.SupportedVariablesFor(type_key), StringComparer.OrdinalIgnoreCase);
+        var unknownVars = ProjectWorkspaceService.ExtractTemplateVariableNames(content)
+            .Where(v => !recognized.Contains(v))
+            .ToList();
+
+        var result = $"[ok] Template '{type_key}' saved: {workspace.ToVaultRelative(targetPath)}";
+        if (unknownVars.Count > 0)
+        {
+            result += $"\n   [warning] not a recognized variable for '{type_key}' and will be left literal: " +
+                      string.Join(", ", unknownVars.Select(v => "{{" + v + "}}"));
+        }
+
+        return result;
+    }
+
     // setup_agent_workflow
 
     [McpServerTool, Description(
@@ -560,7 +683,8 @@ public sealed class EngineeringWorkflowTools(
         string templateKey,
         string title,
         Dictionary<string, string> variables,
-        Dictionary<string, string>? extraFields = null)
+        Dictionary<string, string>? extraFields = null,
+        IEnumerable<string>? aliases = null)
     {
         if (ProjectWorkspaceService.ValidateProjectName(project) is { } nameError)
         {
@@ -606,15 +730,29 @@ public sealed class EngineeringWorkflowTools(
             status: status,
             date: DateOnly.FromDateTime(DateTime.Now),
             domain: vaultConfig.GetDomainForFolder(relFolder),
+            aliases: aliases,
+            cssClasses: [$"kioku-{baseTag}"],
             extraFields: fields);
 
         await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
         await vault.SynchronizeFileReindexAsync(filePath);
 
-        var sb = new StringBuilder($"[ok] {char.ToUpperInvariant(type[0]) + type[1..]} note created: {workspace.ToVaultRelative(filePath)}");
+        var vaultRelPath = workspace.ToVaultRelative(filePath);
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, vaultRelPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(filePath);
+        }
+
+        var sb = new StringBuilder($"[ok] {char.ToUpperInvariant(type[0]) + type[1..]} note created: {vaultRelPath}");
         if (scaffolded.Count > 0)
         {
             sb.Append($"\n   Scaffolded project '{project}' ({scaffolded.Count} new folder(s)/note(s)).");
+        }
+
+        if (evalResult.Warning is not null)
+        {
+            sb.Append($"\n   [warning] {evalResult.Warning}");
         }
 
         return sb.ToString();

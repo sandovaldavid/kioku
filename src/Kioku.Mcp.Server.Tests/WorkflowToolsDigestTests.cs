@@ -38,7 +38,8 @@ public class WorkflowToolsDigestTests : IAsyncLifetime
             NullLogger<GenerationService>.Instance,
             new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
                 Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)))));
-        return new WorkflowTools(_fixture.Index, config, _tasks, _vaultConfig, gen);
+        var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
+        return new WorkflowTools(_fixture.Index, config, _tasks, _vaultConfig, gen, bridge);
     }
 
     private static string TodayFileName() => $"Digest {DateOnly.FromDateTime(DateTime.Now):yyyy-MM-dd}.md";
