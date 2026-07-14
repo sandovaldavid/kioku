@@ -100,15 +100,23 @@ auto_tags:
     "Literature/Papers": [research, paper]
   exclude_from_tags: [domain, type, status]
 
-# --- Templates de cuerpo por tipo de nota ---
-# Reemplaza el cuerpo por defecto al crear notas
-# de un tipo. Soporta variables como {{title}},
-# {{date}} y {{uid}}.
-templates:
-  zettel: |
-    ## {{title}}
-
-    - Creada: {{date}}
+# --- Templates por carpeta destino ---
+# Reemplaza el cuerpo por defecto de create_zettel/
+# create_moc/create_literature_note (y la sesión
+# general) según la CARPETA donde se crea la nota,
+# no según un tipo fijo de Kioku. Cada valor es una
+# RUTA a un archivo .md (no el cuerpo embebido) —
+# se lee del disco en cada creación, así que editarlo
+# en Obsidian se aplica de inmediato.
+#
+# Si ya tienes configurado Settings -> Folder Templates
+# en el plugin Templater, Kioku lo respeta automáticamente
+# sin necesidad de nada aquí. Esta sección solo agrega
+# mapeos que Templater no tenga, o sobrescribe para un
+# caso puntual (gana sobre lo que diga Templater).
+template_folders:
+  "Zettelkasten": "System/Templates/zettel.md"
+  "Literature": "System/Templates/literature.md"
 
 # --- Workspaces de ingeniería por proyecto ---
 # Subcarpetas estándar de cada proyecto bajo
