@@ -117,16 +117,38 @@ filter). The value is a conservative starting point for nomic-embed-text with ta
 prefixes; validate it against your own golden set by sweeping `--min-score` with the
 runner and watching Precision@k versus the no-answer probes.
 
-### semantic / hybrid — nomic-embed-text (no query/document prefixes)
+### semantic / hybrid — nomic-embed-text (with query/document task prefixes), 2026-07-14
 
-Not captured in this environment (no Ollama available). To record it locally before
-comparing changes:
+Fixture vault, 26/27 notes embedded — `Referencias/Historia de la Computacion.md` fails
+every attempt because its content exceeds the model's context window (`n_ctx_slot = 2048`
+tokens) and is excluded from semantic/hybrid results as a result (a known limitation of
+whole-note embeddings; see "Design decisions" below). `min_score = 0` (the runner's
+default; the server itself defaults to `0.4`, see above).
+
+| k | Precision@k | Recall@k | MRR | NDCG@k |
+|---|-------------|----------|-----|--------|
+| 5 | 0.318 | 0.826 | 0.955 | 0.885 |
+| 10 | 0.191 | 0.955 | 0.955 | 0.913 |
+
+No-answer probes: avg 10.0 results returned.
+
+### hybrid — nomic-embed-text (with query/document task prefixes), 2026-07-14
+
+| k | Precision@k | Recall@k | MRR | NDCG@k |
+|---|-------------|----------|-----|--------|
+| 5 | 0.255 | 0.667 | 0.854 | 0.791 |
+| 10 | 0.177 | 0.894 | 0.854 | 0.845 |
+
+No-answer probes: avg 10.0 results returned.
+
+Both modes clear the keyword baseline on Recall@k, MRR and NDCG@k by a wide margin, at
+the cost of noisier no-answer probes (10.0 avg results vs. keyword's 5.0) — expected with
+`min_score = 0`; the server's own `0.4` default trades some recall for that noise
+reduction (sweep `--min-score` against your own golden set to tune it further).
 
 ```bash
 dotnet run --project scripts/Kioku.Eval -- --label baseline-nomic
 ```
-
-and paste the tables here.
 
 ## Design decisions (what was deliberately not built)
 
