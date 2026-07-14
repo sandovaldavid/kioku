@@ -218,12 +218,26 @@ public class RetrievalRankingTests(EvalVaultFixture fixture) : IClassFixture<Eva
     public void LongNote_TailFact_IsFindableByKeywordSearch()
     {
         // The word index covers the full note text, so the fact buried at the end of the long
-        // note must be reachable via keywords. (The semantic leg may miss it today because the
-        // whole-note embedding gets truncated by the model context — that gap is the chunking
-        // motivation, measured by the eval runner, not asserted here.)
+        // note must be reachable via keywords regardless of chunking.
         var query = fixture.Golden.Queries.Single(q => q.Id == "q11-long-note-tail");
         var recall = RetrievalMetrics.RecallAtK(RankedKeyword(query.Query), query.RelevanceByPath(), K);
 
         Assert.Equal(1.0, recall, precision: 10);
+    }
+
+    [Fact]
+    public async Task LongNote_TailFact_IsFindableBySemanticAndHybridSearch()
+    {
+        // Heading-aware chunking's whole point: the note is too long to embed as a single
+        // vector without losing this buried fact. Split by heading, the section containing it
+        // becomes its own chunk, and the semantic/hybrid legs must now find it too.
+        var query = fixture.Golden.Queries.Single(q => q.Id == "q11-long-note-tail");
+        var judgments = query.RelevanceByPath();
+
+        var semanticRecall = RetrievalMetrics.RecallAtK(await RankedSemanticAsync(query.Query), judgments, K);
+        Assert.Equal(1.0, semanticRecall, precision: 10);
+
+        var hybridRecall = RetrievalMetrics.RecallAtK(await RankedHybridAsync(query.Query), judgments, K);
+        Assert.Equal(1.0, hybridRecall, precision: 10);
     }
 }

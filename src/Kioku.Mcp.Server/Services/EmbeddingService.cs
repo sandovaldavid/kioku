@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net.Http.Json;
 using System.Numerics;
-using System.Text;
 using System.Text.Json.Serialization;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Logging;
@@ -28,6 +27,7 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     private readonly ConcurrentDictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _failedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _embedSemaphore = new(MaxConcurrentEmbeddings);
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
     private readonly Stopwatch _sessionStopwatch = new();
     private int _pendingFlushes;
     private int _backlogCount;
@@ -194,7 +194,7 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
     /// <summary>
     /// Re-keys a cached embedding after a file rename/move. The content hash is unchanged,
-    /// so the vector is reused and no re-embedding happens for a pure move.
+    /// so the chunks are reused and no re-embedding happens for a pure move.
     /// </summary>
     public void Move(string oldFilePath, string newFilePath)
     {
@@ -228,7 +228,11 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
                     return null;
                 }
 
-                return new SemanticResult(note, CosineSimilarity(queryVector, entry.Vector));
+                // Parent-document retrieval: a chunked note is represented by its
+                // best-matching chunk (max-pooling), so results still aggregate to one
+                // score per note regardless of how many chunks it was split into.
+                var score = entry.Chunks.Max(c => CosineSimilarity(queryVector, c.Vector));
+                return new SemanticResult(note, score);
             })
             .Where(r => r is not null && r.Score >= minScore)
             .Select(r => r!)
@@ -238,10 +242,13 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
     /// <summary>
     /// Returns the raw embedding vector for a note by its vault-relative path.
-    /// Returns null if not available or if Ollama is disabled.
+    /// Returns null if not available or if Ollama is disabled. For a chunked note, returns
+    /// only the first chunk's vector — a known limitation, fine for diagnostics
+    /// (get_note_embedding) and FindSimilar's "most similar to this note" comparisons, but
+    /// not a full representation of a multi-chunk note.
     /// </summary>
     public float[]? GetVector(string vaultRelativePath) =>
-        _store.TryGetValue(vaultRelativePath, out var entry) ? entry.Vector : null;
+        _store.TryGetValue(vaultRelativePath, out var entry) ? entry.Chunks[0].Vector : null;
 
     /// <summary>
     /// Embeds a search query, applying the model's query task prefix when it requires one
@@ -283,6 +290,9 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     /// <summary>
     /// Persists the in-memory embedding cache to disk.
     /// Called automatically every <see cref="FlushEvery"/> embeddings and on graceful shutdown.
+    /// Serialized via <see cref="_saveLock"/> — the periodic flush (from IndexNoteAsync) and
+    /// the backlog's trailing save (from ProcessBacklogAsync) can otherwise race on the same
+    /// ".tmp" file (opened with FileShare.None), losing whichever write loses the race.
     /// </summary>
     public async Task SaveAsync()
     {
@@ -291,6 +301,7 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
             return;
         }
 
+        await _saveLock.WaitAsync();
         try
         {
             await EmbeddingPersistence.SaveAsync(CachePath, _store, config.EmbeddingModel, ExpectedDimension);
@@ -300,6 +311,10 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         catch (Exception ex)
         {
             logger.Warn("Could not save embedding cache: {Message}", ex.Message);
+        }
+        finally
+        {
+            _saveLock.Release();
         }
     }
 
@@ -312,6 +327,12 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     /// </summary>
     private async Task ProcessBacklogAsync(IReadOnlyList<Note> notes, CancellationToken cancellationToken)
     {
+        // Held for the whole batch (on top of each note's own IndexNoteAsync increment) so
+        // EmbeddingBacklog doesn't drop to 0 until the trailing SaveAsync below has actually
+        // persisted the batch — otherwise a caller polling for "backlog cleared" as a signal
+        // that the cache is safe to reload (e.g. a fresh EmbeddingService against the same
+        // vault) can race the disk write and see an empty/stale cache.
+        Interlocked.Increment(ref _backlogCount);
         try
         {
             var tasks = notes.Select(async note =>
@@ -332,82 +353,43 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         {
             logger.Warn("Background embedding backlog processing failed: {Message}", ex.Message);
         }
+        finally
+        {
+            Interlocked.Decrement(ref _backlogCount);
+        }
     }
 
     private async Task EmbedAndStoreAsync(Note note)
     {
-        var text = BuildEmbeddingText(note);
         var prefix = ModelInfo.DocumentPrefix;
-        if (!string.IsNullOrEmpty(prefix))
+        var chunks = new List<EmbeddingChunk>();
+
+        foreach (var chunk in NoteChunker.Chunk(note))
         {
-            text = prefix + text;
+            var text = string.IsNullOrEmpty(chunk.HeadingPath)
+                ? chunk.Text
+                : $"{chunk.HeadingPath}\n\n{chunk.Text}";
+            if (!string.IsNullOrEmpty(prefix))
+            {
+                text = prefix + text;
+            }
+
+            var vector = await EmbedAsync(text);
+            if (vector is not null)
+            {
+                chunks.Add(new EmbeddingChunk(chunk.HeadingPath, vector));
+            }
         }
 
-        var vector = await EmbedAsync(text);
-        if (vector is not null)
+        if (chunks.Count > 0)
         {
-            _store[note.VaultRelativePath] = new EmbeddingEntry(note.VaultRelativePath, note.ContentHash, vector);
+            _store[note.VaultRelativePath] = new EmbeddingEntry(note.VaultRelativePath, note.ContentHash, chunks);
             _failedPaths.TryRemove(note.VaultRelativePath, out _);
         }
         else
         {
             _failedPaths[note.VaultRelativePath] = 0;
         }
-    }
-
-    private static string BuildEmbeddingText(Note note)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine(note.Name);
-
-        var m = note.Metadata;
-        if (m.Tags.Count > 0)
-        {
-            sb.AppendLine($"Tags: {string.Join(", ", m.Tags)}");
-        }
-
-        if (m.Aliases.Count > 0)
-        {
-            sb.AppendLine($"Aliases: {string.Join(", ", m.Aliases)}");
-        }
-
-        if (m.Status is not null)
-        {
-            sb.AppendLine($"Status: {m.Status}");
-        }
-
-        if (m.NoteType is not null)
-        {
-            sb.AppendLine($"Type: {m.NoteType}");
-        }
-
-        if (m.Domain is not null)
-        {
-            sb.AppendLine($"Domain: {m.Domain}");
-        }
-
-        if (m.Date.HasValue)
-        {
-            sb.AppendLine($"Date: {m.Date:yyyy-MM-dd}");
-        }
-
-        if (m.Updated.HasValue)
-        {
-            sb.AppendLine($"Updated: {m.Updated:yyyy-MM-dd}");
-        }
-
-        foreach (var (k, v) in m.ExtraFields)
-        {
-            sb.AppendLine($"{k}: {v}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(note.PlainText))
-        {
-            sb.AppendLine();
-            sb.Append(note.PlainText);
-        }
-
-        return sb.ToString();
     }
 
     private async Task<bool> PingOllamaAsync()
@@ -481,7 +463,9 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
 // Domain types
 
-internal record EmbeddingEntry(string VaultRelativePath, string Hash, float[] Vector);
+internal record EmbeddingChunk(string HeadingPath, float[] Vector);
+
+internal record EmbeddingEntry(string VaultRelativePath, string Hash, IReadOnlyList<EmbeddingChunk> Chunks);
 
 public record SemanticResult(Note Note, float Score);
 

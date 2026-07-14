@@ -51,7 +51,8 @@ The checked-in fixture vault (`src/Kioku.Mcp.Server.Tests/Fixtures/EvalVault/`, 
 Spanish/English notes) contains topic clusters, keyword distractors (same words, different
 meaning), semantic twins (same meaning, different words), alias-only matches and one very
 long note with a unique fact near the end (a truncation probe: whole-note embeddings get
-cut at the model context window, so only keyword search finds it today).
+cut at the model context window — heading-aware chunking, see below, is what makes it
+findable by semantic/hybrid search too, not just keyword).
 
 ## Running the evaluation
 
@@ -117,51 +118,66 @@ filter). The value is a conservative starting point for nomic-embed-text with ta
 prefixes; validate it against your own golden set by sweeping `--min-score` with the
 runner and watching Precision@k versus the no-answer probes.
 
-### semantic / hybrid — nomic-embed-text (with query/document task prefixes), 2026-07-14
+### semantic / hybrid — nomic-embed-text, before chunking (whole-note embeddings), 2026-07-14
 
-Fixture vault, 26/27 notes embedded — `Referencias/Historia de la Computacion.md` fails
-every attempt because its content exceeds the model's context window (`n_ctx_slot = 2048`
-tokens) and is excluded from semantic/hybrid results as a result (a known limitation of
-whole-note embeddings; see "Design decisions" below). `min_score = 0` (the runner's
-default; the server itself defaults to `0.4`, see above).
+Fixture vault, 26/27 notes embedded — `Referencias/Historia de la Computacion.md` failed
+every attempt because its content exceeded the model's context window (`n_ctx_slot = 2048`
+tokens) and was excluded from semantic/hybrid results entirely (a known limitation of
+whole-note embeddings, fixed by chunking below). `min_score = 0` (the runner's default;
+the server itself defaults to `0.4`, see above).
 
 | k | Precision@k | Recall@k | MRR | NDCG@k |
 |---|-------------|----------|-----|--------|
 | 5 | 0.318 | 0.826 | 0.955 | 0.885 |
 | 10 | 0.191 | 0.955 | 0.955 | 0.913 |
 
-No-answer probes: avg 10.0 results returned.
-
-### hybrid — nomic-embed-text (with query/document task prefixes), 2026-07-14
+Hybrid:
 
 | k | Precision@k | Recall@k | MRR | NDCG@k |
 |---|-------------|----------|-----|--------|
 | 5 | 0.255 | 0.667 | 0.854 | 0.791 |
 | 10 | 0.177 | 0.894 | 0.854 | 0.845 |
 
-No-answer probes: avg 10.0 results returned.
+### semantic / hybrid — nomic-embed-text, with heading-aware chunking, 2026-07-14
 
-Both modes clear the keyword baseline on Recall@k, MRR and NDCG@k by a wide margin, at
-the cost of noisier no-answer probes (10.0 avg results vs. keyword's 5.0) — expected with
-`min_score = 0`; the server's own `0.4` default trades some recall for that noise
-reduction (sweep `--min-score` against your own golden set to tune it further).
+Fixture vault, **27/27** notes embedded — the long note's oversized sections now split
+into per-heading chunks (each under the context limit) instead of failing outright. Results
+still aggregate to one score per note (max-pooling across a note's chunks), so the golden
+set — annotated at note level — needed no changes. `min_score = 0`.
+
+| k | Precision@k | Recall@k | MRR | NDCG@k |
+|---|-------------|----------|-----|--------|
+| 5 | 0.327 | 0.871 | 1.000 | 0.930 |
+| 10 | 0.191 | 0.985 | 1.000 | 0.954 |
+
+Hybrid:
+
+| k | Precision@k | Recall@k | MRR | NDCG@k |
+|---|-------------|----------|-----|--------|
+| 5 | 0.264 | 0.712 | 0.877 | 0.812 |
+| 10 | 0.173 | 0.902 | 0.877 | 0.867 |
+
+No-answer probes: avg 10.0 results returned for both semantic and hybrid, before and after
+(unaffected — `min_score = 0`; expected noise given no threshold, see above).
+
+Net effect of chunking: every metric improves or holds except hybrid P@10, which dips
+within noise (0.177 → 0.173). Semantic MRR reaches a perfect 1.000 — the previously-missed
+`q11-long-note-tail` query (the fact buried at the end of the long note) is now found by
+both semantic and hybrid, not just keyword. Kept per the "improve or hold" gate.
 
 ```bash
-dotnet run --project scripts/Kioku.Eval -- --label baseline-nomic
+dotnet run --project scripts/Kioku.Eval -- --label chunking
 ```
 
 ## Design decisions (what was deliberately not built)
 
 - **LLM contextual enrichment (Anthropic contextual retrieval)**: adds an LLM call per
   chunk on every re-index. Obsidian vault notes change constantly, so the enrichment cost
-  repeats forever; the planned deterministic breadcrumb prefix (note name + heading path)
-  captures most of the benefit for free.
+  repeats forever; the deterministic breadcrumb prefix (note name + heading path) used by
+  chunking above captures most of the benefit for free.
 - **Late chunking**: needs token-level embeddings; Ollama's embeddings API returns pooled
   vectors only. Not implementable against Ollama.
 - **Cross-encoder reranking**: no local cross-encoder runtime available. Revisit only if
-  eval numbers show Precision@5 is the bottleneck after chunking lands.
+  eval numbers show Precision@5 is the bottleneck.
 - **ANN index**: brute-force SIMD cosine over a whole vault is sub-10ms at typical vault
   sizes. Revisit above ~100k vectors.
-- **Chunking + parent-document retrieval**: planned as the next iteration (heading-aware
-  chunks embedded individually, results aggregated back to note level). The golden set is
-  annotated at note level so it survives that change unchanged.

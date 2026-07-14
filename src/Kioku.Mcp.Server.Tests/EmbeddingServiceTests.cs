@@ -225,6 +225,43 @@ public class EmbeddingServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task IndexNoteAsync_LongMultiChunkNote_CachedEmbeddingCountStaysNoteLevel()
+    {
+        var embedCalls = 0;
+        var service = CreateService((req, _) =>
+        {
+            if (req.Method == HttpMethod.Get)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+            }
+
+            Interlocked.Increment(ref embedCalls);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { embedding = new[] { 0.1f, 0.2f } }) });
+        });
+
+        await service.InitializeAsync([]);
+
+        var longBody = string.Join("\n\n", Enumerable.Range(1, 5)
+            .Select(i => $"## Section {i}\n" + string.Concat(Enumerable.Repeat($"word{i} ", 400))));
+        var rawContent = $"# Long Note\n\n{longBody}";
+        var note = new Note
+        {
+            FilePath = "Long.md",
+            VaultRelativePath = "Long.md",
+            Name = "Long Note",
+            RawContent = rawContent,
+            PlainText = MarkdownTextExtractor.Extract(rawContent, FrontmatterParser.GetBodyStart(rawContent)),
+            ContentHash = "hash-long",
+        };
+
+        await service.IndexNoteAsync(note);
+
+        Assert.True(embedCalls > 1, $"expected the long note to be split into multiple embedding calls, got {embedCalls}");
+        // Despite N chunk-level Ollama calls, the store still counts this as ONE note.
+        Assert.Equal(1, service.CachedEmbeddingCount);
+    }
+
+    [Fact]
     public async Task EstimatedTimeRemaining_ZeroBacklog_ReturnsZero()
     {
         var service = CreateService((req, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
