@@ -3,11 +3,11 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-12 20:17 UTC
+**Generated:** 2026-07-14 17:59 UTC
 
 ## Summary
 
-Total tool classes: **18**
+Total tool classes: **19**
 
 Total prompt classes: **1**
 
@@ -103,6 +103,113 @@ Removes a CSS snippet file from the Obsidian vault's .obsidian/snippets/ folder.
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `name` | String | Yes | Snippet name without .css extension (e.g. 'sepia-editor'). |
+
+## EngineeringWorkflowTools
+
+### `add_backlog_item`
+
+Adds a future improvement or idea to a project's backlog as {projects}/{project}/backlog/{title}.md with status 'proposed'. Use for out-of-scope improvements worth remembering. Later, set status to 'adopted' or 'discarded' with update_frontmatter.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+| `title` | String | Yes | Short idea title. |
+| `description` | String | Yes | What the improvement is and why it was deferred. |
+| `tags` | String | No | Extra tags, comma-separated. |
+
+### `add_knowledge`
+
+Saves a knowledge note. With a project it goes to {projects}/{project}/knowledge/; without one it goes to the general knowledge folder. Use for lessons learned, how-things-work explanations, and setup guides (e.g. local deployment).
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `title` | String | Yes | Note title, used as the file name (wiki-friendly, no prefix). |
+| `content` | String | Yes | The knowledge content in markdown. |
+| `project` | String | No | Project name for project-specific knowledge. Leave empty for general knowledge. |
+| `tags` | String | No | Extra tags, comma-separated. |
+
+### `create_plan`
+
+Creates an implementation plan for a project as {projects}/{project}/plans/PLAN-{date}-{title}.md. Write steps as a markdown checkbox list (- [ ] step) so task tools can track them. When the plan is completed, set status to 'done' with update_frontmatter. Scaffolds the project folder structure on first use.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+| `title` | String | Yes | Short plan title, e.g. 'Add semantic search'. |
+| `objective` | String | Yes | What the plan achieves and why. |
+| `steps` | String | Yes | The plan steps in markdown. Prefer a checkbox list: '- [ ] step one'. |
+| `status` | String | No | Plan status: draft, active, or done. |
+| `ticket` | String | No | Optional ticket note name this plan implements; linked as a wikilink. |
+| `tags` | String | No | Extra tags, comma-separated. |
+
+### `get_project_context`
+
+Returns the current state of a project workspace: the project MOC note, summaries of recent work sessions, and per-type listings (decisions, bugs, plans, tickets, backlog, knowledge, daily). Reads files fresh from disk, so edits made in Obsidian moments ago are always reflected. Call this before resuming work on a project.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). Use list_projects to discover names. |
+| `include_content` | Boolean | No | Include the full content of every listed document (verbose). |
+| `types` | String | No | Comma-separated type filter (adr, bug, plan, ticket, idea, knowledge, session, daily). Empty = all. |
+| `limit` | Int32 | No | Maximum documents listed per type. |
+
+### `list_projects`
+
+Lists all project workspaces under the projects root with per-type document counts and the last modification date. Use to discover the project name to pass to other engineering tools.
+
+### `log_bug`
+
+Logs a bug and its solution for a project as {projects}/{project}/bugs/BUG-{date}-{title}.md. Records the symptom, root cause, and fix so future agents don't re-debug solved problems. Scaffolds the project folder structure on first use.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+| `title` | String | Yes | Short bug title, e.g. 'Index race on startup'. |
+| `symptom` | String | Yes | Observed symptom: what failed and how it manifested. |
+| `root_cause` | String | Yes | The actual root cause found. |
+| `fix` | String | Yes | The fix that was applied (or should be applied if still open). |
+| `status` | String | No | Bug status: open or fixed. |
+| `related_files` | String | No | Related source files, comma-separated (e.g. 'src/a.ts, src/b.ts'). |
+| `tags` | String | No | Extra tags, comma-separated. |
+
+### `record_adr`
+
+Records an architecture decision record (ADR) for a project as {projects}/{project}/decisions/ADR-NNNN-{title}.md with sequential numbering. Scaffolds the project folder structure on first use. To supersede an old ADR later, change its status with update_frontmatter.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). Use list_projects to discover existing ones. |
+| `title` | String | Yes | Short decision title, e.g. 'Use PostgreSQL for persistence'. |
+| `context` | String | Yes | The context: what problem or forces led to this decision. |
+| `decision` | String | Yes | The decision taken, stated in full sentences. |
+| `consequences` | String | Yes | Consequences of the decision (positive and negative). |
+| `alternatives` | String | No | Alternatives that were considered and why they were rejected. |
+| `status` | String | No | ADR status: proposed, accepted, or superseded. |
+| `tags` | String | No | Extra tags, comma-separated. |
+
+### `setup_agent_workflow`
+
+Sets up the agent workflow structure in the vault: creates the projects and knowledge root folders, copies the default document templates (adr, bug, plan, knowledge, idea, session, daily, ticket, project-moc) into {templates}/kioku/ so the user can edit them in Obsidian, and documents the configuration in .kioku/config.yml. Fully idempotent: never overwrites existing files or human edits.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | No | Optional project to scaffold (creates its folder structure and MOC note). |
+| `write_templates` | Boolean | No | Copy the default templates into the vault's templates folder (skips existing files). |
+| `patch_config` | Boolean | No | Append a commented reference block to .kioku/config.yml if not present. |
 
 ## GenerationTools
 
@@ -855,14 +962,15 @@ Reverts a note to its last committed version using git restore. Discards all unc
 
 ### `end_work_session`
 
-Closes the current work session by appending a summary of notes modified since the session started. Updates the session note status to 'done'.
+Closes the current work session by appending a summary of notes modified since the session started. Updates the session note status to 'done'. For project sessions, the summary is also written into the '## Summary' section at the top of the note so the next agent reads it first via get_project_context.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `session_note` | String | No | Name or path of the session note to close. If empty, finds the most recent active session. |
-| `summary` | String | No | Optional summary or outcome of the session. |
+| `summary` | String | No | Optional summary or outcome of the session. Strongly recommended for project sessions: it is the handoff for the next agent. |
+| `project` | String | No | Project name: looks for the active session under {projects}/{project}/sessions/. |
 
 ### `get_recent_activity`
 
@@ -905,18 +1013,22 @@ Lists all work session notes with their dates, status (active/done), and duratio
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `sessions_folder` | String | No | Folder where session notes are stored (relative to vault root). Auto-detects if empty. |
+| `project` | String | No | Project name: lists the sessions under {projects}/{project}/sessions/. |
 
 ### `start_work_session`
 
-Creates a new work session note with a timestamp header. Records the current date, time, and optional session goal. The note is saved in the sessions folder for later reference.
+Creates a new work session note with a timestamp header. Records the current date, time, and optional session goal. With a project, the session is stored in that project's sessions subfolder as {date-time}-{agent}.md so multiple agents can hand work off to each other; the agent name is auto-detected from the MCP client when not provided.
 
 **Parameters:**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `session_name` | String | No | Optional name for the session (e.g. 'Thesis Chapter 3 Review'). Defaults to today's date. |
-| `sessions_folder` | String | No | Folder where session notes are stored (relative to vault root). |
+| `sessions_folder` | String | No | Folder where session notes are stored (relative to vault root). Ignored when project is set. |
 | `goal` | String | No | Optional goal or focus for this session. |
+| `project` | String | No | Project name: stores the session under {projects}/{project}/sessions/. |
+| `agent` | String | No | Agent running this session (claude, codex, ...). Auto-detected from the MCP client if empty. |
+| `server` | McpServer | No |  |
 
 ## TaskManagementTools
 
@@ -1241,6 +1353,27 @@ Collects existing evidence on a topic from the vault and synthesizes it with cit
 |------|------|----------|-------------|
 | `topic` | String | Yes | Topic or research question to review. |
 
+### `log_bugfix`
+
+Logs a bug and its fix for a project so future agents don't re-debug solved problems.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+
+### `plan_feature`
+
+Drafts an implementation plan for a feature, checking prior art in the vault first.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+| `feature` | String | Yes | Feature to plan. |
+
 ### `process_inbox`
 
 Guides the smart-inbox triage workflow: propose a plan, confirm it, then apply it.
@@ -1250,6 +1383,17 @@ Guides the smart-inbox triage workflow: propose a plan, confirm it, then apply i
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `inbox` | String | No | Inbox folder to process (relative to vault root). Leave empty to use the configured default. |
+
+### `record_decision`
+
+Records an architecture decision (ADR) for a project, superseding older ADRs when needed.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+| `topic` | String | Yes | Topic of the decision, e.g. 'database choice'. |
 
 ### `research_digest`
 
@@ -1261,9 +1405,40 @@ Summarizes recent reading/research activity in the vault and lists open question
 |------|------|----------|-------------|
 | `folder` | String | No | Folder to scope the review to (relative to vault root). Leave empty for the whole vault. |
 
+### `resume_project`
+
+Loads a project's full engineering context (decisions, plans, bugs, session handoffs) before resuming work.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+
 ### `weekly_review`
 
 Runs a weekly vault review: digest, overdue tasks, orphaned notes, and link suggestions.
+
+### `work_on_ticket`
+
+Reads a human-written ticket, structures it, and creates a linked implementation plan.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+| `ticket` | String | Yes | Ticket note name or path (under the project's tickets folder). |
+
+### `write_daily`
+
+Drafts today's daily note for a project from recent sessions and the previous daily.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
 
 ## Resources
 
@@ -1281,8 +1456,8 @@ MIME type: `application/json`
 
 ---
 
-**Total tools:** 117
+**Total tools:** 125
 
-**Total prompts:** 4
+**Total prompts:** 10
 
 **Total resources:** 2

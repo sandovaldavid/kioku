@@ -30,6 +30,8 @@ folders:
   sessions: "Sessions"
   templates: "System/Templates"
   assets: "System/Attachments"
+  projects: "Projects"     # grupo engineering: workspaces por proyecto
+  knowledge: "Knowledge"   # grupo engineering: conocimiento general
 
 # --- Dominios por carpeta ---
 # Asigna automáticamente el campo `domain:` en
@@ -108,13 +110,32 @@ templates:
 
     - Creada: {{date}}
 
+# --- Workspaces de ingeniería por proyecto ---
+# Subcarpetas estándar de cada proyecto bajo
+# folders.projects, usadas por el grupo de tools
+# `engineering` (record_adr, log_bug, create_plan,
+# add_knowledge, add_backlog_item, get_project_context,
+# setup_agent_workflow). Los valores mostrados son
+# los defaults; solo cambia lo que necesites.
+engineering:
+  subfolders:
+    decisions: "decisions"
+    bugs: "bugs"
+    plans: "plans"
+    knowledge: "knowledge"
+    sessions: "sessions"
+    daily: "daily"
+    tickets: "tickets"
+    backlog: "backlog"
+
 # --- Grupos de capacidades (tool groups) ---
 # Los grupos core (query, command, utility) siempre
-# se registran. Los 15 grupos opcionales se pueden
+# se registran. Los 16 grupos opcionales se pueden
 # desactivar aquí:
 #   tasks, zettelkasten, organization, sessions,
 #   workflows, css, graph, graph-analysis, research,
-#   bridge, plugin, git, restore, assets, generation
+#   bridge, plugin, git, restore, assets, generation,
+#   engineering
 #
 # Sin esta sección: todos habilitados.
 capabilities:

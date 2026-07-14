@@ -465,6 +465,19 @@ public sealed partial class WorkflowTools(
             return Directory.Exists(path) ? path : null;
         }
 
+        // folders.templates from .kioku/config.yml wins over the conventional candidates
+        var configured = vaultConfig.GetFolder("templates");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            var configuredPath = NoteHelpers.EnsureInsideVault(
+                config.VaultPath,
+                Path.Combine(config.VaultPath, configured));
+            if (Directory.Exists(configuredPath))
+            {
+                return configuredPath;
+            }
+        }
+
         foreach (var candidate in TemplateFolderCandidates)
         {
             var path = Path.Combine(config.VaultPath, candidate);
