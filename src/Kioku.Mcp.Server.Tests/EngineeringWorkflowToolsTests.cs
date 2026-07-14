@@ -134,22 +134,22 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         Assert.Contains("project: demo", mocContent);
     }
 
-    // Grouped/nested projects (e.g. Projects/Atena/api.core, Projects/Atena/api.common)
+    // Grouped/nested projects (e.g. Projects/Group/ProjectA, Projects/Group/ProjectB)
 
     [Fact]
     public async Task NestedProject_MocFileUsesLeafNameNotFullIdentifier()
     {
         var (tools, workspace) = CreateTools();
 
-        await tools.record_adr("Atena/api.core", "Use gRPC", "ctx", "d", "c");
+        await tools.record_adr("Group/ProjectA", "Use gRPC", "ctx", "d", "c");
 
-        var projectFolder = workspace.GetProjectFolder("Atena/api.core");
-        Assert.True(File.Exists(Path.Combine(projectFolder, "api.core.md")), "MOC should be named after the leaf segment");
-        Assert.False(File.Exists(Path.Combine(projectFolder, "Atena/api.core.md")), "must not nest a stray 'Atena' folder inside the project folder");
+        var projectFolder = workspace.GetProjectFolder("Group/ProjectA");
+        Assert.True(File.Exists(Path.Combine(projectFolder, "ProjectA.md")), "MOC should be named after the leaf segment");
+        Assert.False(File.Exists(Path.Combine(projectFolder, "Group/ProjectA.md")), "must not nest a stray 'Group' folder inside the project folder");
 
-        var mocContent = await File.ReadAllTextAsync(Path.Combine(projectFolder, "api.core.md"));
+        var mocContent = await File.ReadAllTextAsync(Path.Combine(projectFolder, "ProjectA.md"));
         Assert.Contains("type: moc", mocContent);
-        Assert.Contains("project: Atena/api.core", mocContent);
+        Assert.Contains("project: Group/ProjectA", mocContent);
     }
 
     [Fact]
@@ -157,43 +157,43 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
     {
         var (tools, workspace) = CreateTools();
 
-        await tools.record_adr("Atena/api.core", "Use gRPC", "ctx", "d", "c");
-        await tools.log_bug("Atena/api.common", "Shared lib crash", "s", "rc", "f");
+        await tools.record_adr("Group/ProjectA", "Use gRPC", "ctx", "d", "c");
+        await tools.log_bug("Group/ProjectB", "Shared lib crash", "s", "rc", "f");
 
-        Assert.True(Directory.Exists(workspace.GetSubfolder("Atena/api.core", "decisions")));
-        Assert.True(Directory.Exists(workspace.GetSubfolder("Atena/api.common", "bugs")));
-        Assert.Empty(Directory.GetFiles(workspace.GetSubfolder("Atena/api.core", "bugs")));
-        Assert.Empty(Directory.GetFiles(workspace.GetSubfolder("Atena/api.common", "decisions")));
+        Assert.True(Directory.Exists(workspace.GetSubfolder("Group/ProjectA", "decisions")));
+        Assert.True(Directory.Exists(workspace.GetSubfolder("Group/ProjectB", "bugs")));
+        Assert.Empty(Directory.GetFiles(workspace.GetSubfolder("Group/ProjectA", "bugs")));
+        Assert.Empty(Directory.GetFiles(workspace.GetSubfolder("Group/ProjectB", "decisions")));
     }
 
     [Fact]
     public async Task ListProjects_GroupFolderItselfIsNotListedAsAProject()
     {
         var (tools, workspace) = CreateTools();
-        await tools.record_adr("Atena/api.core", "Use gRPC", "ctx", "d", "c");
-        await tools.log_bug("Atena/api.common", "Crash", "s", "rc", "f");
+        await tools.record_adr("Group/ProjectA", "Use gRPC", "ctx", "d", "c");
+        await tools.log_bug("Group/ProjectB", "Crash", "s", "rc", "f");
         await tools.record_adr("demo", "Standalone decision", "ctx", "d", "c");
 
         var discovered = workspace.DiscoverProjects();
 
-        Assert.Equal(["Atena/api.common", "Atena/api.core", "demo"], discovered);
+        Assert.Equal(["demo", "Group/ProjectA", "Group/ProjectB"], discovered);
 
         var result = await tools.list_projects();
-        Assert.Contains("**Atena/api.core**", result);
-        Assert.Contains("**Atena/api.common**", result);
+        Assert.Contains("**Group/ProjectA**", result);
+        Assert.Contains("**Group/ProjectB**", result);
         Assert.Contains("**demo**", result);
-        Assert.DoesNotContain("**Atena**", result);
+        Assert.DoesNotContain("**Group**", result);
     }
 
     [Fact]
     public async Task GetProjectContext_WorksWithGroupedProjectIdentifier()
     {
         var (tools, _) = CreateTools();
-        await tools.record_adr("Atena/api.core", "Use gRPC", "ctx", "the decision", "c");
+        await tools.record_adr("Group/ProjectA", "Use gRPC", "ctx", "the decision", "c");
 
-        var context = await tools.get_project_context("Atena/api.core", include_content: true);
+        var context = await tools.get_project_context("Group/ProjectA", include_content: true);
 
-        Assert.Contains("Project context: Atena/api.core", context);
+        Assert.Contains("Project context: Group/ProjectA", context);
         Assert.Contains("the decision", context);
     }
 
