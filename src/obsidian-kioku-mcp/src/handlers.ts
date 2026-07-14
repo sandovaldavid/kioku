@@ -105,6 +105,11 @@ export function createHandlers(app: App, settings: KiokuSettings, pluginManifest
       if (validation) return validation;
       return cmdRunTemplater(app, p as { templatePath: string; targetNote?: string }, requestId);
     },
+    "evaluate-templater-in-file": (p: Record<string, unknown> | undefined, requestId?: string) => {
+      const validation = validatePayload(p, ["notePath"], requestId);
+      if (validation) return validation;
+      return cmdEvaluateTemplaterInFile(app, p as { notePath: string }, requestId);
+    },
     "run-linter": (p: Record<string, unknown> | undefined, requestId?: string) =>
       cmdRunLinter(app, p as { notePath?: string }, requestId),
     "run-linter-vault": (_p: Record<string, unknown> | undefined, requestId?: string) =>
@@ -473,6 +478,38 @@ async function cmdRunTemplater(
       success: true,
       data: { template: payload.templatePath, target: targetFile.path },
     };
+  } catch (err) {
+    return { requestId, success: false, error: `Templater error: ${String(err)}` };
+  }
+}
+
+async function cmdEvaluateTemplaterInFile(
+  app: App,
+  payload: { notePath: string },
+  requestId?: string
+): Promise<BridgeResponse> {
+  const plugins = asKiokuApp(app).plugins.plugins;
+  const templater = plugins["templater-obsidian"] as
+    | {
+        templater: {
+          overwrite_file_commands: (file: unknown, activeFile?: boolean) => Promise<void>;
+        };
+      }
+    | undefined;
+  if (!templater) {
+    return {
+      requestId,
+      success: false,
+      error: "Templater plugin is not enabled or installed.",
+    };
+  }
+  try {
+    const file = app.vault.getFileByPath(payload.notePath);
+    if (!file) {
+      return { requestId, success: false, error: `Note not found: ${payload.notePath}` };
+    }
+    await templater.templater.overwrite_file_commands(file);
+    return { requestId, success: true, data: { path: file.path } };
   } catch (err) {
     return { requestId, success: false, error: `Templater error: ${String(err)}` };
   }
