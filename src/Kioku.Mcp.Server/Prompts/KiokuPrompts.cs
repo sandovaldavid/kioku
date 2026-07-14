@@ -89,4 +89,114 @@ public sealed class KiokuPrompts
         4. If asked to save the review, use `export_citations` for a references section before
            writing it out.
         """;
+
+    [McpServerPrompt(Name = "resume_project"), Description(
+        "Loads a project's full engineering context (decisions, plans, bugs, session handoffs) before resuming work.")]
+    public static string resume_project(
+        [Description("Project name (folder under the projects root).")] string project) => $"""
+        Resume work on project "{project}":
+
+        1. Call `get_project_context` with project='{project}' to load the project overview,
+           recent session summaries (what previous agents did), decisions, plans, bugs, tickets,
+           and backlog. Humans may have edited these in Obsidian since the last session — this
+           tool always reads the current file contents.
+        2. `read_note` any document that looks relevant to the task at hand (open plans first,
+           then standing ADRs that constrain how you may implement things).
+        3. Call `start_work_session` with project='{project}' and a goal, so this session is
+           recorded for the next agent.
+        4. Summarize for the user: current state, open plans, standing decisions, and what you
+           propose to do next. Do not write code before this summary.
+
+        When you finish, close with `end_work_session` and a summary — it becomes the handoff
+        the next agent reads first.
+        """;
+
+    [McpServerPrompt(Name = "record_decision"), Description(
+        "Records an architecture decision (ADR) for a project, superseding older ADRs when needed.")]
+    public static string record_decision(
+        [Description("Project name (folder under the projects root).")] string project,
+        [Description("Topic of the decision, e.g. 'database choice'.")] string topic) => $"""
+        Record an architecture decision about "{topic}" for project "{project}":
+
+        1. Call `get_project_context` with project='{project}' and types='adr' to review prior
+           decisions on this topic. `read_note` any ADR that looks related.
+        2. Gather from the conversation (or ask the user): the context (forces/problem), the
+           decision itself, its consequences, and the alternatives that were rejected.
+        3. Call `record_adr` with those fields. Use status='proposed' if the user has not
+           confirmed the decision yet; 'accepted' otherwise.
+        4. If this decision supersedes an earlier ADR, call `update_frontmatter` on the old
+           ADR setting status='superseded', and mention the new ADR in it with a [[wikilink]].
+        """;
+
+    [McpServerPrompt(Name = "log_bugfix"), Description(
+        "Logs a bug and its fix for a project so future agents don't re-debug solved problems.")]
+    public static string log_bugfix(
+        [Description("Project name (folder under the projects root).")] string project) => $"""
+        Log the bug that was just fixed in project "{project}":
+
+        1. From this session, gather: a short title, the observed symptom, the actual root
+           cause, the fix that was applied, and the files that were touched.
+        2. Call `log_bug` with project='{project}' and those fields (status='fixed'; use
+           status='open' if the fix is still pending).
+        3. If the bug relates to an existing ADR or plan, `append_to_note` a [[wikilink]]
+           cross-reference so the connection is navigable in Obsidian.
+        4. If there is an active work session, record the bug in its '## Log' section too.
+        """;
+
+    [McpServerPrompt(Name = "plan_feature"), Description(
+        "Drafts an implementation plan for a feature, checking prior art in the vault first.")]
+    public static string plan_feature(
+        [Description("Project name (folder under the projects root).")] string project,
+        [Description("Feature to plan.")] string feature) => $"""
+        Plan the feature "{feature}" for project "{project}":
+
+        1. Call `get_project_context` with project='{project}' to load standing decisions
+           (ADRs constrain the design), open plans, and known bugs.
+        2. Call `search_notes_hybrid` with the feature topic to find prior art elsewhere in
+           the vault.
+        3. Draft the plan: objective and concrete steps as a markdown checkbox list
+           ('- [ ] step'). Confirm the approach with the user before saving.
+        4. Call `create_plan` with project='{project}', status='draft' (or 'active' if work
+           starts immediately). Link the originating ticket via the ticket parameter if one
+           exists.
+        5. As steps complete, check them off with `update_note_content`; when the plan is
+           done, set status='done' with `update_frontmatter`.
+        """;
+
+    [McpServerPrompt(Name = "work_on_ticket"), Description(
+        "Reads a human-written ticket, structures it, and creates a linked implementation plan.")]
+    public static string work_on_ticket(
+        [Description("Project name (folder under the projects root).")] string project,
+        [Description("Ticket note name or path (under the project's tickets folder).")] string ticket) => $"""
+        Work on ticket "{ticket}" of project "{project}":
+
+        1. `read_note` the ticket — the human wrote the idea, requirements, or objective there.
+        2. Call `get_project_context` with project='{project}' to load the decisions and prior
+           work that constrain the solution.
+        3. Structure the ticket: rewrite its 'Objective' and 'Acceptance criteria' sections
+           with `update_note_content`, keeping the human's original requirements intact.
+           Set its status to 'in-progress' with `update_frontmatter`.
+        4. Call `create_plan` with ticket='{ticket}' so the plan and ticket are cross-linked.
+        5. While implementing, link any notes you create (bugs, knowledge, ADRs) back to the
+           ticket with [[wikilinks]]. When done, set the ticket status to 'done'.
+        """;
+
+    [McpServerPrompt(Name = "write_daily"), Description(
+        "Drafts today's daily note for a project from recent sessions and the previous daily.")]
+    public static string write_daily(
+        [Description("Project name (folder under the projects root).")] string project) => $"""
+        Draft today's daily note for project "{project}":
+
+        1. Call `get_project_context` with project='{project}' and types='daily,session' to
+           find the previous daily note and recent session summaries. `read_note` the most
+           recent daily.
+        2. Draft today's note: 'Yesterday' from the previous daily and session summaries,
+           'Today' from open plans and in-progress tickets, plus any open questions for the
+           team you noticed.
+        3. Create it with `create_note_from_template` using template 'kioku/daily' (or
+           `create_note`) inside the project's daily/ subfolder, named after today's date
+           (yyyy-MM-dd), with type 'daily'.
+        4. Show the draft to the user — the daily is primarily their note; they may edit it
+           in Obsidian afterwards.
+        """;
 }

@@ -43,6 +43,7 @@ static void ConfigureKiokuServices(IServiceCollection services, KiokuConfigurati
     services.AddSingleton<HybridSearchService>();
     services.AddSingleton<TaskService>();
     services.AddSingleton<MetricsService>();
+    services.AddSingleton<ProjectWorkspaceService>();
 
     // Named HttpClient for Ollama
     services.AddHttpClient("ollama", c =>
@@ -148,6 +149,11 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
     if (vaultConfig.IsGroupEnabled("generation"))
     {
         builder.WithTools<GenerationTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("engineering"))
+    {
+        builder.WithTools<EngineeringWorkflowTools>();
     }
 }
 

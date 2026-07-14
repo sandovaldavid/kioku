@@ -34,6 +34,8 @@ folders:
   sessions: "Sessions"
   templates: "System/Templates"
   assets: "System/Attachments"
+  projects: "Projects"     # engineering tool group: per-project workspaces
+  knowledge: "Knowledge"   # engineering tool group: general knowledge notes
 ```
 
 ## `domains` — Frontmatter domain by folder
@@ -106,10 +108,48 @@ templates:
     - Created: {{date}}
 ```
 
+## `engineering` — Per-project workspace subfolders
+
+The `engineering` tool group (`record_adr`, `log_bug`, `create_plan`, `add_knowledge`,
+`add_backlog_item`, `get_project_context`, `list_projects`, `setup_agent_workflow`)
+stores documents in per-project workspaces under `folders.projects`:
+
+```
+Projects/{project}/
+  {project}.md   # project MOC note
+  decisions/     # ADR-0001-{title}.md
+  bugs/          # BUG-{date}-{title}.md
+  plans/         # PLAN-{date}-{title}.md
+  knowledge/     # project-specific knowledge
+  sessions/      # {date-time}-{agent}.md work sessions
+  daily/         # daily notes
+  tickets/       # human-written tickets the agent structures
+  backlog/       # future improvement ideas
+```
+
+The subfolder names are configurable (values below are the defaults):
+
+```yaml
+engineering:
+  subfolders:
+    decisions: "decisions"
+    bugs: "bugs"
+    plans: "plans"
+    knowledge: "knowledge"
+    sessions: "sessions"
+    daily: "daily"
+    tickets: "tickets"
+    backlog: "backlog"
+```
+
+Document bodies come from templates. `setup_agent_workflow` copies the built-in defaults
+to `{folders.templates}/kioku/{adr,bug,plan,knowledge,idea,session,daily,ticket,project-moc}.md`;
+edit them in Obsidian and they override the embedded versions.
+
 ## `capabilities` — Enable/disable tool groups
 
 The core groups (`NoteQueryTools`, `NoteCommandTools`, `UtilityTools`) are always
-registered. The 15 optional groups can be gated:
+registered. The 16 optional groups can be gated:
 
 | Group | Tool class |
 |---|---|
@@ -128,6 +168,7 @@ registered. The 15 optional groups can be gated:
 | `restore` | RestoreTools |
 | `assets` | AssetTools |
 | `generation` | GenerationTools — requires `KIOKU_GEN_MODEL` (see [install.md](install.md)) |
+| `engineering` | EngineeringWorkflowTools — per-project ADRs, bugs, plans, knowledge, backlog |
 
 Semantics:
 
