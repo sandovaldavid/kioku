@@ -146,6 +146,28 @@ Document bodies come from templates. `setup_agent_workflow` copies the built-in 
 to `{folders.templates}/kioku/{adr,bug,plan,knowledge,idea,session,daily,ticket,project-moc}.md`;
 edit them in Obsidian and they override the embedded versions.
 
+**Template syntax.** These templates use `{{variable}}` placeholders, evaluated by the
+server so they work headless (no Obsidian required). Besides the built-ins (`{{date}}`,
+`{{time}}`, `{{title}}`, `{{uid}}`, ...), each type receives its own variables:
+`{{project}}` everywhere; `{{number}}`, `{{context}}`, `{{decision}}`, `{{consequences}}`,
+`{{alternatives}}` (adr); `{{symptom}}`, `{{root_cause}}`, `{{fix}}`, `{{related_files}}`
+(bug); `{{objective}}`, `{{steps}}`, `{{ticket}}` (plan); `{{content}}` (knowledge);
+`{{description}}` (idea); `{{goal}}`, `{{agent}}` (session); and the project MOC gets
+`{{project_folder}}`, `{{decisions_folder}}`, `{{plans_folder}}`, `{{bugs_folder}}`,
+`{{backlog_folder}}` for its Dataview blocks. Unknown placeholders are left as-is.
+
+**Templater interop.** The server does not evaluate [Templater](https://github.com/SilentVoid13/Templater)
+syntax (`<% tp.* %>`) — Templater is JavaScript that only runs inside Obsidian, while these
+documents are created by agents that may run with Obsidian closed. Templater snippets in an
+override template are passed through untouched, and your regular Templater templates are
+unaffected. For human-triggered Templater evaluation use the `apply_template` tool, which
+runs real Templater through the Obsidian bridge.
+
+The default project MOC uses [Dataview](https://blacksmithgu.github.io/obsidian-dataview/)
+code blocks to auto-list ADRs, active plans, open bugs, and backlog ideas. Without the
+Dataview plugin they render as plain code blocks — replace them with manual lists if you
+prefer.
+
 ## `capabilities` — Enable/disable tool groups
 
 The core groups (`NoteQueryTools`, `NoteCommandTools`, `UtilityTools`) are always

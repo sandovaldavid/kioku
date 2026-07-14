@@ -1,6 +1,9 @@
 # ADR-{{number}} — {{title}}
 
-## Context
+> [!info] Decision record
+> Project: [[{{project}}]] · Date: {{date}} · Status lives in the frontmatter (`status`).
+
+## Context and problem statement
 
 {{context}}
 
@@ -15,3 +18,7 @@
 ## Alternatives considered
 
 {{alternatives}}
+
+## References
+
+- Related plans, bugs, or notes:

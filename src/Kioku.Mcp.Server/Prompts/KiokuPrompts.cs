@@ -195,7 +195,8 @@ public sealed class KiokuPrompts
            team you noticed.
         3. Create it with `create_note_from_template` using template 'kioku/daily' (or
            `create_note`) inside the project's daily/ subfolder, named after today's date
-           (yyyy-MM-dd), with type 'daily'.
+           (yyyy-MM-dd), with type 'daily'. Pass variables including project='{project}'
+           so the template placeholders resolve.
         4. Show the draft to the user — the daily is primarily their note; they may edit it
            in Obsidian afterwards.
         """;

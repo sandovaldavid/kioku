@@ -96,7 +96,16 @@ public sealed partial class ProjectWorkspaceService(KiokuConfiguration config, V
             var template = await ResolveTemplateAsync("project-moc");
             var body = NoteHelpers.ExpandTemplateVariables(
                 template,
-                new Dictionary<string, string> { ["project"] = project },
+                new Dictionary<string, string>
+                {
+                    ["project"] = project,
+                    // Vault-relative subfolder paths, used by the Dataview blocks in the MOC template
+                    ["project_folder"] = ToVaultRelative(projectFolder),
+                    ["decisions_folder"] = ToVaultRelative(GetSubfolder(project, "decisions")),
+                    ["plans_folder"] = ToVaultRelative(GetSubfolder(project, "plans")),
+                    ["bugs_folder"] = ToVaultRelative(GetSubfolder(project, "bugs")),
+                    ["backlog_folder"] = ToVaultRelative(GetSubfolder(project, "backlog")),
+                },
                 noteTitle: project);
 
             var relFolder = ToVaultRelative(projectFolder);

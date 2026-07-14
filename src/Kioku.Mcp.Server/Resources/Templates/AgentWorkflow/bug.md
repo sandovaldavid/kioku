@@ -1,8 +1,15 @@
 # {{title}}
 
+> [!bug] Bug record
+> Project: [[{{project}}]] · Logged: {{date}} · Status lives in the frontmatter (`status`).
+
 ## Symptom
 
 {{symptom}}
+
+## Reproduction
+
+_(steps to reproduce, if known)_
 
 ## Root cause
 
@@ -12,6 +19,14 @@
 
 {{fix}}
 
+## Verification
+
+_(how the fix was verified: test, manual check, ...)_
+
 ## Related files
 
 {{related_files}}
+
+## Related notes
+
+- Related ADRs or plans:

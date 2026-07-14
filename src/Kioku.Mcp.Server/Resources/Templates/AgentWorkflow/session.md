@@ -1,16 +1,16 @@
 # Work Session — {{title}}
 
-**Started:** {{time}}
-**Date:** {{date}}
-**Agent:** {{agent}}
+> [!info] Session
+> Project: [[{{project}}]] · Started: {{date}} {{time}} · Agent: {{agent}}
+
 **Goal:** {{goal}}
 
 ## Summary
 
-_(filled in when the session ends — next agents read this first)_
+_(filled in when the session ends — the next agent reads this section first)_
 
 ## Log
 
-_(record work, decisions, and links to [[ADRs]], [[plans]], and [[bugs]] as the session progresses)_
+_(running log: work done, decisions taken, links to [[ADRs]], [[plans]] and [[bugs]])_
 
 ## Modified during this session

@@ -678,14 +678,18 @@ public sealed class EngineeringWorkflowTools(
         return sb.ToString();
     }
 
-    /// <summary>First non-empty, non-heading body line — used as a one-line summary in listings.</summary>
+    /// <summary>
+    /// First non-empty body line that is not a heading, callout/quote, or placeholder —
+    /// used as a one-line summary in listings.
+    /// </summary>
     private static string FirstBodyLine(string raw)
     {
         var body = raw[FrontmatterParser.GetBodyStart(raw)..];
         foreach (var line in body.Replace("\r\n", "\n").Split('\n'))
         {
             var trimmed = line.Trim();
-            if (trimmed.Length > 0 && !trimmed.StartsWith('#') && !trimmed.StartsWith("_("))
+            if (trimmed.Length > 0 && !trimmed.StartsWith('#') && !trimmed.StartsWith('>') &&
+                !trimmed.StartsWith("_(") && !trimmed.StartsWith("```"))
             {
                 return trimmed.Length > 120 ? trimmed[..120] + "..." : trimmed;
             }

@@ -1,16 +1,26 @@
 # {{title}}
 
+> [!abstract] Implementation plan
+> Project: [[{{project}}]] · Created: {{date}} · Ticket: {{ticket}} · Status lives in the frontmatter (`status`).
+
 ## Objective
 
 {{objective}}
 
-## Ticket
+## Scope
 
-{{ticket}}
+**In scope:**
+
+**Out of scope:**
+
+_(move deferred items to the backlog with `add_backlog_item`)_
 
 ## Steps
 
 {{steps}}
 
-## Notes
+## Risks and open questions
 
+## Verification
+
+_(how to confirm the result works end to end)_
