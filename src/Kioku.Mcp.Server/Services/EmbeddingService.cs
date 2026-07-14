@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.Http.Json;
 using System.Numerics;
 using System.Text;
@@ -25,6 +26,7 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
     private const int MaxConcurrentEmbeddings = 2;
 
     private readonly ConcurrentDictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _failedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _embedSemaphore = new(MaxConcurrentEmbeddings);
     private readonly Stopwatch _sessionStopwatch = new();
     private int _pendingFlushes;
@@ -35,6 +37,17 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
 
     /// <summary>Number of embeddings currently cached in memory.</summary>
     public int CachedEmbeddingCount => _store.Count;
+
+    /// <summary>
+    /// Notes whose most recent embedding attempt failed (e.g. request timeout, content
+    /// exceeding the model's context window) and were left out of the cache. Callers that
+    /// wait for "all notes embedded" must account for this count too — a permanently failed
+    /// note never increments <see cref="CachedEmbeddingCount"/>.
+    /// </summary>
+    public int FailedEmbeddingCount => _failedPaths.Count;
+
+    /// <summary>Vault-relative paths of notes currently in <see cref="FailedEmbeddingCount"/>.</summary>
+    public IReadOnlyCollection<string> FailedPaths => _failedPaths.Keys.ToArray();
 
     /// <summary>Configured embedding model name.</summary>
     public string EmbeddingModel => config.EmbeddingModel;
@@ -334,6 +347,11 @@ public sealed class EmbeddingService(KiokuConfiguration config, ILogger<Embeddin
         if (vector is not null)
         {
             _store[note.VaultRelativePath] = new EmbeddingEntry(note.VaultRelativePath, note.ContentHash, vector);
+            _failedPaths.TryRemove(note.VaultRelativePath, out _);
+        }
+        else
+        {
+            _failedPaths[note.VaultRelativePath] = 0;
         }
     }
 

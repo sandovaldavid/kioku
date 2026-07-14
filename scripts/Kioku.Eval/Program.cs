@@ -68,16 +68,28 @@ if (semanticRequested && !embedding.IsAvailable)
 if (embedding.IsAvailable)
 {
     Console.Error.WriteLine($"[loading] Waiting for embeddings ({config.EmbeddingModel})...");
-    while (embedding.CachedEmbeddingCount < vault.IndexedCount || embedding.EmbeddingBacklog > 0)
+    while (embedding.CachedEmbeddingCount + embedding.FailedEmbeddingCount < vault.IndexedCount
+        || embedding.EmbeddingBacklog > 0)
     {
         var eta = embedding.EstimatedTimeRemaining;
         Console.Error.WriteLine(
             $"[loading] {embedding.CachedEmbeddingCount}/{vault.IndexedCount} embedded" +
+            (embedding.FailedEmbeddingCount > 0 ? $" ({embedding.FailedEmbeddingCount} failed)" : "") +
             (eta.HasValue && eta.Value > TimeSpan.Zero ? $" (ETA {eta.Value:mm\\:ss})" : ""));
         await Task.Delay(TimeSpan.FromSeconds(2));
     }
 
     Console.Error.WriteLine($"[ok] {embedding.CachedEmbeddingCount} embeddings ready.");
+    if (embedding.FailedEmbeddingCount > 0)
+    {
+        Console.Error.WriteLine(
+            $"[warn] {embedding.FailedEmbeddingCount} note(s) failed to embed (e.g. request timeout or " +
+            "content exceeding the model's context window) and will be absent from semantic/hybrid results:");
+        foreach (var path in embedding.FailedPaths)
+        {
+            Console.Error.WriteLine($"  - {path}");
+        }
+    }
 }
 
 var kMax = options.Ks.Max();
