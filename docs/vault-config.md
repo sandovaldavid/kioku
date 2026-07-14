@@ -111,7 +111,8 @@ templates:
 ## `engineering` — Per-project workspace subfolders
 
 The `engineering` tool group (`record_adr`, `log_bug`, `create_plan`, `add_knowledge`,
-`add_backlog_item`, `get_project_context`, `list_projects`, `setup_agent_workflow`)
+`add_backlog_item`, `get_project_context`, `list_projects`, `setup_agent_workflow`,
+`list_engineering_templates`, `get_engineering_template`, `set_engineering_template`)
 stores documents in per-project workspaces under `folders.projects`:
 
 ```
@@ -156,17 +157,58 @@ server so they work headless (no Obsidian required). Besides the built-ins (`{{d
 `{{project_folder}}`, `{{decisions_folder}}`, `{{plans_folder}}`, `{{bugs_folder}}`,
 `{{backlog_folder}}` for its Dataview blocks. Unknown placeholders are left as-is.
 
-**Templater interop.** The server does not evaluate [Templater](https://github.com/SilentVoid13/Templater)
-syntax (`<% tp.* %>`) — Templater is JavaScript that only runs inside Obsidian, while these
-documents are created by agents that may run with Obsidian closed. Templater snippets in an
-override template are passed through untouched, and your regular Templater templates are
-unaffected. For human-triggered Templater evaluation use the `apply_template` tool, which
-runs real Templater through the Obsidian bridge.
+**Templater interop.** [Templater](https://github.com/SilentVoid13/Templater) is JavaScript that
+only runs inside Obsidian, while these documents are created by agents that may run headless —
+so the embedded default templates shipped by the server stay `{{var}}`-only, guaranteeing the
+tool group works with Obsidian closed and Templater not installed. Your own vault override (in
+`{templates}/kioku/{typeKey}.md`, or a template passed to `create_note_from_template`) can mix
+in Templater syntax (`<% tp.* %>`) on top of the `{{var}}` placeholders the agent fills with
+data: the server substitutes `{{var}}` first, writes the note, then — if the resulting content
+still contains `<% %>` and Obsidian is open with the Kioku MCP plugin and Templater installed —
+asks the real Templater plugin to evaluate the file in place via the bridge. This applies to
+`record_adr`, `log_bug`, `create_plan`, `add_backlog_item`, `add_knowledge`,
+`setup_agent_workflow` (the project MOC), `start_work_session`, and the generic
+`create_note_from_template`. When Templater can't be reached (Obsidian closed, plugin missing,
+bridge unreachable), note creation still succeeds and the response includes a
+`[warning] template contains Templater syntax; left unevaluated (open Obsidian or use {{var}})`
+line — the `<% %>` snippet is left untouched in the file rather than silently dropped or
+corrupted. For human-triggered, on-demand evaluation of an arbitrary template file, use the
+`apply_template` tool instead.
 
 The default project MOC uses [Dataview](https://blacksmithgu.github.io/obsidian-dataview/)
 code blocks to auto-list ADRs, active plans, open bugs, and backlog ideas. Without the
 Dataview plugin they render as plain code blocks — replace them with manual lists if you
 prefer.
+
+**Managing engineering templates.** Three tools manage the `{templates}/kioku/*.md` overrides
+directly, so you can ask an agent to create or tweak them without hand-editing files:
+`list_engineering_templates` (which doc types have an override vs. the embedded default, and
+which `{{var}}` each supports), `get_engineering_template(type_key)` (read the current effective
+body before proposing an edit), and `set_engineering_template(type_key, content,
+reset_to_default)` (write or overwrite the override; `reset_to_default=true` deletes it,
+reverting to the embedded default). Supported variables per type:
+
+| Type key | Variables (besides the built-ins `date`, `time`, `datetime`, `year`, `month`, `day`, `uid`, `title`) |
+|---|---|
+| `adr` | `project`, `number`, `context`, `decision`, `consequences`, `alternatives` |
+| `bug` | `project`, `symptom`, `root_cause`, `fix`, `related_files` |
+| `plan` | `project`, `objective`, `steps`, `ticket` |
+| `knowledge` | `project`, `content` |
+| `idea` | `project`, `description` |
+| `session` | `project`, `goal`, `agent` |
+| `daily` | `project` |
+| `ticket` | `project` |
+| `project-moc` | `project`, `project_folder`, `decisions_folder`, `plans_folder`, `bugs_folder`, `backlog_folder` |
+
+These tools only write the *template*; they never trigger Templater evaluation — a template's
+`<% %>` syntax is only evaluated later, when a *note* is generated from it.
+
+**Frontmatter properties.** Notes created by the engineering tools get, beyond
+`tags`/`type`/`status`/`domain`/`date`/`project`, two native Obsidian properties: `aliases` —
+only ADRs get one (`ADR-0001`, so `[[ADR-0001]]` works as a short link) — and `cssclasses`, a
+`kioku-{type}` class on every doc type (`kioku-adr`, `kioku-bug`, `kioku-plan`, `kioku-idea`,
+`kioku-knowledge`, `kioku-session`, `kioku-project-moc`) so a CSS snippet (`css` tool group:
+`list_css_snippets`/`apply_css_snippet`) can style each document type differently in Obsidian.
 
 ## `capabilities` — Enable/disable tool groups
 
