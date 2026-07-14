@@ -200,14 +200,15 @@ public sealed class KiokuPrompts
         2. Draft today's note: 'Yesterday' from the previous daily and session summaries,
            'Today' from open plans and in-progress tickets, plus any open questions for the
            team you noticed.
-        3. Create it with `create_note_from_template` using template 'kioku/daily' (or
-           `create_note`) inside the project's daily/ subfolder, named after today's date
-           (yyyy-MM-dd). Pass variables including project='{project}' and
-           project_link='[[<project's leaf name>]]' (the note's own filename, not the full
-           grouped identifier — e.g. 'ProjectA' for project 'Group/ProjectA') so the template
-           placeholders resolve. `create_note_from_template` does not set frontmatter, so
-           immediately follow up with `update_frontmatter` on the new note, setting
-           type='daily', status='active', project='{project}', and tags='daily'.
+        3. Create it with `create_note_from_template` using template 'kioku/daily' inside the
+           project's daily/ subfolder, named after today's date (yyyy-MM-dd). Pass variables
+           including project='{project}' and project_link='[[<project's leaf name>]]' (the
+           note's own filename, not the full grouped identifier — e.g. 'ProjectA' for project
+           'Group/ProjectA') so the template placeholders resolve. `create_note_from_template`
+           does not set frontmatter, so immediately follow up with `update_frontmatter` on the
+           new note, setting type='daily', status='active', and tags='daily'. Note:
+           `update_frontmatter` only supports tags/status/type — it cannot add a `project:`
+           field, so the project association lives only in the body's project_link wikilink.
         4. Show the draft to the user — the daily is primarily their note; they may edit it
            in Obsidian afterwards.
         """;

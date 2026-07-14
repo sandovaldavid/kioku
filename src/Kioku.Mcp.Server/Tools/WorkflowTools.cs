@@ -150,6 +150,11 @@ public sealed partial class WorkflowTools(
         var targetDir = Path.GetDirectoryName(targetFilePath)!;
         Directory.CreateDirectory(targetDir);
         await File.WriteAllTextAsync(targetFilePath, rendered, Encoding.UTF8);
+        // Reindex immediately (matches every other creation tool) instead of relying solely on
+        // the FileSystemWatcher's 500ms debounce — a caller following the documented pattern of
+        // an immediate follow-up update_frontmatter call would otherwise race the watcher and
+        // get a spurious "note not found".
+        await vault.SynchronizeFileReindexAsync(targetFilePath);
 
         var relPath = Path.GetRelativePath(config.VaultPath, targetFilePath).Replace('\\', '/');
 
