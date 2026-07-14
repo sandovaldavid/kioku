@@ -135,5 +135,9 @@ public class KiokuPromptsTests
         Assert.Contains("types='daily,session'", result);
         Assert.Contains("create_note_from_template", result);
         Assert.Contains("project_link=", result);
+        // update_frontmatter only supports tags/status/type — must not claim project= is settable.
+        Assert.DoesNotContain("project='{project}'", result);
+        Assert.Contains("it cannot add a", result);
+        Assert.Contains("`project:`", result);
     }
 }
