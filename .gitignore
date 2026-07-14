@@ -22,6 +22,7 @@ main.js
 kioku.db
 kioku.db-shm
 kioku.db-wal
+.kioku/
 
 # Logs
 *.log

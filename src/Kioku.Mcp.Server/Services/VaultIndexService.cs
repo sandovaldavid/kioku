@@ -20,8 +20,11 @@ public sealed class VaultIndexService : IDisposable
     // Main index: absolute path -> note
     private readonly ConcurrentDictionary<string, Note> _notesByPath = new(StringComparer.OrdinalIgnoreCase);
 
-    // Inverted word index: word -> set of note paths
-    private readonly ConcurrentDictionary<string, HashSet<string>> _wordIndex = new(StringComparer.OrdinalIgnoreCase);
+    // Inverted word index: word -> postings (note path -> term frequency)
+    private readonly ConcurrentDictionary<string, Dictionary<string, int>> _wordIndex = new(StringComparer.OrdinalIgnoreCase);
+
+    // Indexed token count per note path, for BM25 document-length normalization
+    private readonly ConcurrentDictionary<string, int> _docLengths = new(StringComparer.OrdinalIgnoreCase);
 
     // Tag index: tag -> set of note paths
     private readonly ConcurrentDictionary<string, HashSet<string>> _tagIndex = new(StringComparer.OrdinalIgnoreCase);
@@ -118,9 +121,21 @@ public sealed class VaultIndexService : IDisposable
             .Where(n => n.FilePath.StartsWith(absFolder, StringComparison.OrdinalIgnoreCase));
     }
 
+    // Okapi BM25 constants: k1 controls term-frequency saturation, b controls how much
+    // document length normalizes the score.
+    private const float Bm25K1 = 1.2f;
+    private const float Bm25B = 0.75f;
+
+    // Title/tag bonuses, relative to the strongest BM25 content score of the query so they
+    // stay meaningful at any score scale.
+    private const float TitleBoost = 0.5f;
+    private const float TagBoost = 0.3f;
+
     /// <summary>
-    /// Full-text search in the inverted index.
-    /// Searches in titles, content, tags, and aliases.
+    /// Full-text search over the inverted index using Okapi BM25 scoring
+    /// (IDF-weighted, term-frequency-saturated, document-length-normalized),
+    /// with relative bonuses for tag and title matches.
+    /// Scores are normalized to [0, 1] relative to the best candidate.
     /// </summary>
     public IEnumerable<SearchResult> Search(string query, int maxResults = 20)
     {
@@ -130,61 +145,88 @@ public sealed class VaultIndexService : IDisposable
         }
 
         var queryWords = TokenizeQuery(query);
-        var scores = new Dictionary<string, (float score, NoteMatchType matchType, string? snippet)>(StringComparer.OrdinalIgnoreCase);
+        var totalDocs = Math.Max(1, _notesByPath.Count);
+        var avgDocLength = _docLengths.IsEmpty ? 1f : (float)_docLengths.Values.Average();
+
+        var bm25 = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+        var tagMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var word in queryWords)
         {
-            // Search in word index (content + title)
-            if (_wordIndex.TryGetValue(word, out var contentPaths))
+            if (_wordIndex.TryGetValue(word, out var postings))
             {
-                foreach (var path in contentPaths)
+                KeyValuePair<string, int>[] snapshot;
+                lock (postings)
                 {
-                    if (!scores.TryGetValue(path, out var current))
+                    snapshot = [.. postings];
+                }
+
+                if (snapshot.Length > 0)
+                {
+                    var idf = MathF.Log(1f + (totalDocs - snapshot.Length + 0.5f) / (snapshot.Length + 0.5f));
+                    foreach (var (path, tf) in snapshot)
                     {
-                        scores[path] = (1.0f, NoteMatchType.ContentMatch, null);
-                    }
-                    else
-                    {
-                        scores[path] = (current.score + 1.0f, current.matchType, current.snippet);
+                        var docLength = _docLengths.TryGetValue(path, out var dl) ? dl : avgDocLength;
+                        var norm = tf * (Bm25K1 + 1f) / (tf + Bm25K1 * (1f - Bm25B + Bm25B * docLength / avgDocLength));
+                        bm25[path] = bm25.GetValueOrDefault(path) + idf * norm;
                     }
                 }
             }
 
-            // Search in tag index (scores higher)
             if (_tagIndex.TryGetValue(word, out var tagPaths))
             {
-                foreach (var path in tagPaths)
+                lock (tagPaths)
                 {
-                    if (!scores.TryGetValue(path, out var current))
-                    {
-                        scores[path] = (2.0f, NoteMatchType.TagMatch, null);
-                    }
-                    else
-                    {
-                        scores[path] = (current.score + 2.0f, NoteMatchType.TagMatch, current.snippet);
-                    }
+                    tagMatches.UnionWith(tagPaths);
                 }
             }
         }
 
-        // Bonus for match in note title
+        var titleMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (path, note) in _notesByPath)
         {
             if (queryWords.Any(w => note.Name.Contains(w, StringComparison.OrdinalIgnoreCase)))
             {
-                if (scores.TryGetValue(path, out var current))
-                {
-                    scores[path] = (current.score + 3.0f, NoteMatchType.TitleMatch, current.snippet);
-                }
-                else
-                {
-                    scores[path] = (3.0f, NoteMatchType.TitleMatch, null);
-                }
+                titleMatches.Add(path);
             }
         }
 
+        // Tag/title bonuses scale with the query's strongest content score so they neither
+        // drown in it nor dominate it; when nothing matched content, they rank on their own.
+        var boostUnit = bm25.Count > 0 ? Math.Max(bm25.Values.Max(), 1e-6f) : 1f;
+
+        var scores = new Dictionary<string, (float score, NoteMatchType matchType)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in bm25.Keys.Concat(tagMatches).Concat(titleMatches))
+        {
+            if (scores.ContainsKey(path) || !_notesByPath.ContainsKey(path))
+            {
+                continue;
+            }
+
+            var score = bm25.GetValueOrDefault(path);
+            var matchType = NoteMatchType.ContentMatch;
+            if (tagMatches.Contains(path))
+            {
+                score += TagBoost * boostUnit;
+                matchType = NoteMatchType.TagMatch;
+            }
+
+            if (titleMatches.Contains(path))
+            {
+                score += TitleBoost * boostUnit;
+                matchType = NoteMatchType.TitleMatch;
+            }
+
+            scores[path] = (score, matchType);
+        }
+
+        if (scores.Count == 0)
+        {
+            return [];
+        }
+
+        var maxScore = scores.Values.Max(s => s.score);
         return scores
-            .Where(kv => _notesByPath.ContainsKey(kv.Key))
             .OrderByDescending(kv => kv.Value.score)
             .Take(maxResults)
             .Select(kv =>
@@ -193,11 +235,12 @@ public sealed class VaultIndexService : IDisposable
                 return new SearchResult
                 {
                     Note = note,
-                    Score = Math.Min(1.0f, kv.Value.score / (queryWords.Count * 3.0f)),
+                    Score = maxScore > 0f ? kv.Value.score / maxScore : 0f,
                     MatchType = kv.Value.matchType,
                     Snippet = BuildSnippet(note.PlainText, queryWords),
                 };
-            });
+            })
+            .ToList();
     }
 
     /// <summary>Filters notes by frontmatter field.</summary>
@@ -258,6 +301,7 @@ public sealed class VaultIndexService : IDisposable
         _logger.Info("Full re-indexing requested.");
         _notesByPath.Clear();
         _wordIndex.Clear();
+        _docLengths.Clear();
         _tagIndex.Clear();
         _backlinkIndex.Clear();
         _indexedCount = 0;
@@ -291,9 +335,17 @@ public sealed class VaultIndexService : IDisposable
             var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
             var note = BuildNote(filePath, content);
 
+            // Purge stale postings first, so an edited note doesn't keep matching words it
+            // no longer contains (keeps BM25 term/length statistics exact after edits).
+            if (_notesByPath.ContainsKey(filePath))
+            {
+                RemoveFromIndex(filePath, removeEmbedding: false);
+            }
+
             _notesByPath[filePath] = note;
-            AddToWordIndex(filePath, note.PlainText);
-            AddToWordIndex(filePath, note.Name);
+            var tokenCount = AddToWordIndex(filePath, note.PlainText);
+            tokenCount += AddToWordIndex(filePath, note.Name);
+            _docLengths[filePath] = tokenCount;
 
             foreach (var tag in note.Metadata.Tags)
             {
@@ -359,7 +411,16 @@ public sealed class VaultIndexService : IDisposable
         _watcher.Deleted += (_, e) => RemoveFromIndex(e.FullPath);
         _watcher.Renamed += (_, e) =>
         {
-            RemoveFromIndex(e.OldFullPath);
+            if (IsExcludedPath(e.FullPath))
+            {
+                RemoveFromIndex(e.OldFullPath);
+                return;
+            }
+
+            // Content is unchanged on a rename: re-key the embedding instead of dropping it,
+            // so the re-index sees a matching hash and skips the Ollama round-trip.
+            _embedding?.Move(e.OldFullPath, e.FullPath);
+            RemoveFromIndex(e.OldFullPath, removeEmbedding: false);
             ScheduleReindex(e.FullPath);
         };
         _watcher.Error += (_, e) =>
@@ -410,21 +471,29 @@ public sealed class VaultIndexService : IDisposable
         });
     }
 
-    private void RemoveFromIndex(string filePath)
+    private void RemoveFromIndex(string filePath, bool removeEmbedding = true)
     {
         if (!_notesByPath.TryRemove(filePath, out var note))
         {
             return;
         }
 
-        // Remove from word index
-        foreach (var (word, paths) in _wordIndex)
+        // Remove from word index — only the note's own tokens, not the whole vocabulary
+        var noteWords = Tokenize(note.PlainText)
+            .Concat(Tokenize(note.Name))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var word in noteWords)
         {
-            lock (paths)
+            if (_wordIndex.TryGetValue(word, out var postings))
             {
-                paths.Remove(filePath);
+                lock (postings)
+                {
+                    postings.Remove(filePath);
+                }
             }
         }
+
+        _docLengths.TryRemove(filePath, out _);
 
         // Remove from tag index
         foreach (var (tag, paths) in _tagIndex)
@@ -447,7 +516,11 @@ public sealed class VaultIndexService : IDisposable
             }
         }
 
-        _embedding?.Remove(filePath);
+        if (removeEmbedding)
+        {
+            _embedding?.Remove(filePath);
+        }
+
         Interlocked.Decrement(ref _indexedCount);
         _logger.Debug("Removed from index: {File}", Path.GetFileName(filePath));
     }
@@ -459,7 +532,8 @@ public sealed class VaultIndexService : IDisposable
     /// </summary>
     public async Task SynchronizeFileMoveAsync(string oldPath, string newPath)
     {
-        RemoveFromIndex(oldPath);
+        _embedding?.Move(oldPath, newPath);
+        RemoveFromIndex(oldPath, removeEmbedding: false);
         await IndexFileAsync(newPath);
     }
 
@@ -484,16 +558,21 @@ public sealed class VaultIndexService : IDisposable
 
     // Indexes
 
-    private void AddToWordIndex(string filePath, string text)
+    private int AddToWordIndex(string filePath, string text)
     {
+        var count = 0;
         foreach (var word in Tokenize(text))
         {
-            var paths = _wordIndex.GetOrAdd(word, _ => []);
-            lock (paths)
+            var postings = _wordIndex.GetOrAdd(word, _ => new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
+            lock (postings)
             {
-                paths.Add(filePath);
+                postings[filePath] = postings.GetValueOrDefault(filePath) + 1;
             }
+
+            count++;
         }
+
+        return count;
     }
 
     private void AddToTagIndex(string filePath, string tag)

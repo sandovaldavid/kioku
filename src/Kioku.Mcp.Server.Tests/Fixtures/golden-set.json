@@ -1,0 +1,189 @@
+{
+  "queries": [
+    {
+      "id": "q01-keyword-es",
+      "query": "burnout laboral",
+      "relevant": [
+        { "path": "Salud/Burnout Laboral.md", "grade": 3 },
+        { "path": "Salud/Senales de Estres.md", "grade": 2 },
+        { "path": "Diario/2026-03-14.md", "grade": 2 }
+      ]
+    },
+    {
+      "id": "q02-paraphrase-es",
+      "query": "me siento agotado y sin energia por el trabajo",
+      "relevant": [
+        { "path": "Salud/Burnout Laboral.md", "grade": 3 },
+        { "path": "Diario/2026-03-14.md", "grade": 3 },
+        { "path": "Salud/Senales de Estres.md", "grade": 2 }
+      ]
+    },
+    {
+      "id": "q03-keyword-en",
+      "query": "docker deployment production",
+      "relevant": [
+        { "path": "DevOps/Docker Deployment.md", "grade": 3 },
+        { "path": "DevOps/Docker Compose Basics.md", "grade": 2 },
+        { "path": "DevOps/CI Pipeline Setup.md", "grade": 1 }
+      ]
+    },
+    {
+      "id": "q04-paraphrase-en",
+      "query": "ship an application in an isolated reproducible environment",
+      "relevant": [
+        { "path": "Ideas/Aislar Aplicaciones.md", "grade": 3 },
+        { "path": "DevOps/Docker Deployment.md", "grade": 2 },
+        { "path": "DevOps/Docker Compose Basics.md", "grade": 2 }
+      ]
+    },
+    {
+      "id": "q05-tag",
+      "query": "productividad",
+      "relevant": [
+        { "path": "Productividad/Tecnica Pomodoro.md", "grade": 2 },
+        { "path": "Productividad/GTD Getting Things Done.md", "grade": 2 },
+        { "path": "Zettel/Metodo Zettelkasten.md", "grade": 2 }
+      ]
+    },
+    {
+      "id": "q06-title",
+      "query": "fondo de emergencia",
+      "relevant": [
+        { "path": "Finanzas/Fondo de Emergencia.md", "grade": 3 },
+        { "path": "Finanzas/Presupuesto Mensual.md", "grade": 1 }
+      ]
+    },
+    {
+      "id": "q07-multi-note",
+      "query": "recetas de cocina peruana",
+      "relevant": [
+        { "path": "Cocina/Receta Lomo Saltado.md", "grade": 3 },
+        { "path": "Cocina/Ceviche Clasico.md", "grade": 3 },
+        { "path": "Cocina/Pan Casero.md", "grade": 1 }
+      ]
+    },
+    {
+      "id": "q08-typo-en",
+      "query": "docker deploymnet",
+      "relevant": [
+        { "path": "DevOps/Docker Deployment.md", "grade": 3 },
+        { "path": "DevOps/Docker Compose Basics.md", "grade": 1 }
+      ]
+    },
+    {
+      "id": "q09-typo-es",
+      "query": "burnaut laboral sintomas",
+      "relevant": [
+        { "path": "Salud/Burnout Laboral.md", "grade": 3 }
+      ]
+    },
+    {
+      "id": "q10-alias",
+      "query": "slip-box",
+      "relevant": [
+        { "path": "Zettel/Metodo Zettelkasten.md", "grade": 3 }
+      ]
+    },
+    {
+      "id": "q11-long-note-tail",
+      "query": "quien propuso el protocolo Kioku-7",
+      "relevant": [
+        { "path": "Referencias/Historia de la Computacion.md", "grade": 3 }
+      ]
+    },
+    {
+      "id": "q12-cross-language",
+      "query": "work exhaustion and chronic stress",
+      "relevant": [
+        { "path": "Salud/Burnout Laboral.md", "grade": 3 },
+        { "path": "Salud/Senales de Estres.md", "grade": 2 },
+        { "path": "Diario/2026-03-14.md", "grade": 2 }
+      ]
+    },
+    {
+      "id": "q13-finance",
+      "query": "cuanto dinero ahorrar cada mes",
+      "relevant": [
+        { "path": "Finanzas/Presupuesto Mensual.md", "grade": 3 },
+        { "path": "Finanzas/Fondo de Emergencia.md", "grade": 2 }
+      ]
+    },
+    {
+      "id": "q14-kubernetes",
+      "query": "migrate services to kubernetes",
+      "relevant": [
+        { "path": "DevOps/Kubernetes Migration.md", "grade": 3 },
+        { "path": "DevOps/Docker Deployment.md", "grade": 1 }
+      ]
+    },
+    {
+      "id": "q15-sleep",
+      "query": "no puedo dormir bien",
+      "relevant": [
+        { "path": "Salud/Higiene del Sueno.md", "grade": 3 },
+        { "path": "Diario/2026-03-14.md", "grade": 1 }
+      ]
+    },
+    {
+      "id": "q16-exercise-distractor",
+      "query": "rutina de entrenamiento semanal",
+      "relevant": [
+        { "path": "Salud/Rutina de Ejercicio.md", "grade": 3 }
+      ]
+    },
+    {
+      "id": "q17-home-server",
+      "query": "self hosted home server",
+      "relevant": [
+        { "path": "Projects/Home Server Setup.md", "grade": 3 },
+        { "path": "DevOps/Docker Compose Basics.md", "grade": 1 }
+      ]
+    },
+    {
+      "id": "q18-garden",
+      "query": "automatic watering for plants",
+      "relevant": [
+        { "path": "Projects/Garden Automation.md", "grade": 3 }
+      ]
+    },
+    {
+      "id": "q19-investing",
+      "query": "invertir en fondos indexados a largo plazo",
+      "relevant": [
+        { "path": "Finanzas/Inversion Indexada.md", "grade": 3 }
+      ]
+    },
+    {
+      "id": "q20-forest-distractor",
+      "query": "recuperacion del bosque despues de un incendio",
+      "relevant": [
+        { "path": "Naturaleza/Incendios Forestales.md", "grade": 3 }
+      ]
+    },
+    {
+      "id": "q21-pomodoro-paraphrase",
+      "query": "tecnica para concentrarse en bloques de tiempo",
+      "relevant": [
+        { "path": "Productividad/Tecnica Pomodoro.md", "grade": 3 },
+        { "path": "Productividad/GTD Getting Things Done.md", "grade": 1 }
+      ]
+    },
+    {
+      "id": "q22-gtd",
+      "query": "getting things done weekly review inbox",
+      "relevant": [
+        { "path": "Productividad/GTD Getting Things Done.md", "grade": 3 }
+      ]
+    },
+    {
+      "id": "q23-no-answer",
+      "query": "quantum entanglement research papers",
+      "relevant": []
+    },
+    {
+      "id": "q24-no-answer",
+      "query": "resultados del mundial de futbol 2022",
+      "relevant": []
+    }
+  ]
+}

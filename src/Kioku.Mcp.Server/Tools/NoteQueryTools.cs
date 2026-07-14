@@ -577,6 +577,11 @@ public sealed class NoteQueryTools(
 
     // search_notes_semantic
 
+    // Default similarity floor for semantic results: filters unrelated notes that cosine
+    // similarity still scores in the low range. Tune against a golden set with the
+    // Kioku.Eval runner (docs/retrieval-eval.md); pass min_score=0 to disable filtering.
+    private const float DefaultSemanticMinScore = 0.4f;
+
     [McpServerTool, Description(
         "Searches notes by semantic meaning using Ollama embeddings. " +
         "Finds notes conceptually related to the query even without exact keyword matches. " +
@@ -585,7 +590,7 @@ public sealed class NoteQueryTools(
     public async Task<string> search_notes_semantic(
         [Description("Natural language query. E.g. 'notes about stress and burnout'.")] string query,
         [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
-        [Description("Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches.")] float min_score = 0f)
+        [Description("Minimum similarity score 0.0–1.0 to include a result (default: 0.4). Use 0 to disable filtering or 0.7 to keep only high-confidence matches.")] float min_score = DefaultSemanticMinScore)
     {
         Count(nameof(search_notes_semantic), metrics);
         if (!embedding.IsAvailable)
@@ -603,7 +608,7 @@ public sealed class NoteQueryTools(
             return KiokuError.InvalidArgument("The 'query' parameter cannot be empty.");
         }
 
-        var queryVector = await embedding.EmbedAsync(query);
+        var queryVector = await embedding.EmbedQueryAsync(query);
         if (queryVector is null)
         {
             return KiokuError.DependencyUnavailable("Could not generate embedding for query. Is Ollama running?");
@@ -663,7 +668,7 @@ public sealed class NoteQueryTools(
         float[]? queryVector = null;
         if (embedding.IsAvailable && semantic_weight > 0f)
         {
-            queryVector = await embedding.EmbedAsync(query);
+            queryVector = await embedding.EmbedQueryAsync(query);
         }
 
         var capped = Math.Min(max_results, config.MaxSearchResults);

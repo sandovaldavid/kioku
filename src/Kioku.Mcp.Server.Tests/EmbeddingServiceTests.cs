@@ -47,9 +47,10 @@ public class EmbeddingServiceTests : IAsyncLifetime
     };
 
     private EmbeddingService CreateService(
-        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder)
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> responder,
+        string model = "nomic-embed-text")
     {
-        var config = new KiokuConfiguration { VaultPath = _vaultPath, EmbeddingModel = "nomic-embed-text" };
+        var config = new KiokuConfiguration { VaultPath = _vaultPath, EmbeddingModel = model };
         return new EmbeddingService(config, NullLogger<EmbeddingService>.Instance, new FakeHttpClientFactory(new FakeHttpMessageHandler(responder)));
     }
 
@@ -230,6 +231,77 @@ public class EmbeddingServiceTests : IAsyncLifetime
         await service.InitializeAsync([]);
 
         Assert.Equal(TimeSpan.Zero, service.EstimatedTimeRemaining);
+    }
+
+    [Fact]
+    public async Task NomicModel_AppliesDocumentAndQueryPrefixes()
+    {
+        var prompts = new List<string>();
+        var service = CreateService(DeterministicEmbedding.Responder(p =>
+        {
+            lock (prompts)
+            {
+                prompts.Add(p);
+            }
+        }));
+
+        await service.InitializeAsync([]);
+        await service.IndexNoteAsync(MakeNote("A.md", "hash-a"));
+        await service.EmbedQueryAsync("burnout laboral");
+
+        Assert.Contains(prompts, p => p.StartsWith("search_document: ", StringComparison.Ordinal));
+        Assert.Contains(prompts, p => p == "search_query: burnout laboral");
+    }
+
+    [Fact]
+    public async Task PrefixlessModel_SendsRawText()
+    {
+        var prompts = new List<string>();
+        var service = CreateService(
+            DeterministicEmbedding.Responder(p =>
+            {
+                lock (prompts)
+                {
+                    prompts.Add(p);
+                }
+            }),
+            model: "bge-m3");
+
+        await service.InitializeAsync([]);
+        await service.IndexNoteAsync(MakeNote("A.md", "hash-a"));
+        await service.EmbedQueryAsync("burnout laboral");
+
+        Assert.All(prompts, p => Assert.DoesNotContain("search_document:", p));
+        Assert.Contains("burnout laboral", prompts);
+    }
+
+    [Fact]
+    public async Task SynchronizeFileMoveAsync_UnchangedContent_ReusesVectorWithoutReEmbedding()
+    {
+        var embedCalls = 0;
+        var service = CreateService(DeterministicEmbedding.Responder(_ => Interlocked.Increment(ref embedCalls)));
+        var config = new KiokuConfiguration { VaultPath = _vaultPath, EmbeddingModel = "nomic-embed-text" };
+        using var vault = new VaultIndexService(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<VaultIndexService>.Instance, config, service);
+
+        var oldPath = Path.Combine(_vaultPath, "Old.md");
+        await File.WriteAllTextAsync(oldPath, "---\ntags: [prueba]\n---\ncontenido estable de la nota");
+        await vault.InitializeAsync();
+        await WaitForBacklogToClearAsync(service);
+
+        var callsAfterIndexing = embedCalls;
+        Assert.True(callsAfterIndexing > 0);
+        Assert.NotNull(service.GetVector("Old.md"));
+
+        var newPath = Path.Combine(_vaultPath, "Sub", "New.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
+        File.Move(oldPath, newPath);
+        await vault.SynchronizeFileMoveAsync(oldPath, newPath);
+        await WaitForBacklogToClearAsync(service);
+
+        Assert.Equal(callsAfterIndexing, embedCalls);
+        Assert.NotNull(service.GetVector(Path.Combine("Sub", "New.md")));
+        Assert.Null(service.GetVector("Old.md"));
     }
 
     private static void InterlockedMax(ref int target, int value)

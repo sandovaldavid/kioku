@@ -1,13 +1,9 @@
----
-layout: default
-title: MCP Tools Reference
-sidebar: true
----
+# MCP Tools Reference
 
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-04 06:25 UTC
+**Generated:** 2026-07-12 20:17 UTC
 
 ## Summary
 
@@ -400,9 +396,10 @@ Updates or adds fields in the YAML frontmatter of an existing note. Only modifie
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `note` | String | Yes | Name or path of the note. |
-| `tags` | String | No | New tags (replaces existing ones, comma-separated). Leave empty to not modify. |
+| `tags` | String | No | New tags (replaces existing ones, comma-separated). Leave empty to not modify, or use clear_tags to remove all tags. |
 | `status` | String | No | New status (e.g. 'published', 'draft', 'archived'). Leave empty to not modify. |
 | `type` | String | No | New note type. Leave empty to not modify. |
+| `clear_tags` | Boolean | No | If true, removes all tags regardless of the 'tags' argument. |
 
 ### `update_note_content`
 
@@ -567,7 +564,7 @@ Searches notes by semantic meaning using Ollama embeddings. Finds notes conceptu
 |------|------|----------|-------------|
 | `query` | String | Yes | Natural language query. E.g. 'notes about stress and burnout'. |
 | `max_results` | Int32 | No | Maximum number of results to return (default: 10). |
-| `min_score` | Single | No | Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches. |
+| `min_score` | Single | No | Minimum similarity score 0.0–1.0 to include a result (default: 0.4). Use 0 to disable filtering or 0.7 to keep only high-confidence matches. |
 
 ## ObsidianBridgeTools
 

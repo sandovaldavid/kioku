@@ -60,7 +60,7 @@ public sealed class ZettelkastenTools(
         if (link_related && embedding.IsAvailable)
         {
             var searchQuery = $"{title} {content}".Trim();
-            var queryVector = await embedding.EmbedAsync(searchQuery);
+            var queryVector = await embedding.EmbedQueryAsync(searchQuery);
             var results = hybrid.Search(searchQuery, maxResults: max_links + 2, queryVector: queryVector);
             relatedLinks = results
                 .Take(max_links)
@@ -418,7 +418,7 @@ public sealed class ZettelkastenTools(
 
         if (embedding.IsAvailable)
         {
-            var queryVector = await embedding.EmbedAsync(searchQuery);
+            var queryVector = await embedding.EmbedQueryAsync(searchQuery);
             if (queryVector is not null)
             {
                 var results = hybrid.Search(searchQuery, maxResults: 20, queryVector: queryVector);
