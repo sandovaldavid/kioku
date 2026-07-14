@@ -1,7 +1,7 @@
 # {{title}}
 
 > [!bug] Bug record
-> Project: [[{{project}}]] · Logged: {{date}} · Status lives in the frontmatter (`status`).
+> Project: {{project_link}} · Logged: {{date}} · Status lives in the frontmatter (`status`).
 
 ## Symptom
 

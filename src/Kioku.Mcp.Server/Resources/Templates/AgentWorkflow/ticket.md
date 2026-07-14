@@ -1,7 +1,7 @@
 # {{title}}
 
 > [!question] Ticket
-> Project: [[{{project}}]] · Created: {{date}} · Status lives in the frontmatter (`status`).
+> Project: {{project_link}} · Created: {{date}} · Status lives in the frontmatter (`status`).
 
 ## Idea and requirements
 

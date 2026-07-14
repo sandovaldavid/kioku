@@ -27,14 +27,14 @@ public sealed partial class ProjectWorkspaceService(
     /// <summary>Type-specific template variables supported per doc type, beyond the built-ins.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> TemplateVariables = new Dictionary<string, string[]>
     {
-        ["adr"] = ["project", "number", "context", "decision", "consequences", "alternatives"],
-        ["bug"] = ["project", "symptom", "root_cause", "fix", "related_files"],
-        ["plan"] = ["project", "objective", "steps", "ticket"],
-        ["knowledge"] = ["project", "content"],
-        ["idea"] = ["project", "description"],
-        ["session"] = ["project", "goal", "agent"],
-        ["daily"] = ["project"],
-        ["ticket"] = ["project"],
+        ["adr"] = ["project", "project_link", "number", "context", "decision", "consequences", "alternatives"],
+        ["bug"] = ["project", "project_link", "symptom", "root_cause", "fix", "related_files"],
+        ["plan"] = ["project", "project_link", "objective", "steps", "ticket"],
+        ["knowledge"] = ["project", "project_link", "content"],
+        ["idea"] = ["project", "project_link", "description"],
+        ["session"] = ["project", "project_link", "goal", "agent"],
+        ["daily"] = ["project", "project_link"],
+        ["ticket"] = ["project", "project_link"],
         ["project-moc"] = ["project", "project_folder", "decisions_folder", "plans_folder", "bugs_folder", "backlog_folder"],
     };
 
@@ -69,7 +69,9 @@ public sealed partial class ProjectWorkspaceService(
         config.VaultPath, Path.Combine(config.VaultPath, KnowledgeRootRelative));
 
     /// <summary>
-    /// Validates a project name: must be a single folder name, not a path.
+    /// Validates a project identifier: a plain folder name, or a '/'-separated path grouping
+    /// several projects under shared folders (e.g. "Atena/api.core"). Each segment must be
+    /// non-empty (no leading/trailing/double slashes) and backslashes/'..' are always rejected.
     /// Returns an error message or null when valid.
     /// </summary>
     public static string? ValidateProjectName(string project)
@@ -79,9 +81,14 @@ public sealed partial class ProjectWorkspaceService(
             return "[error] The 'project' parameter cannot be empty. Use list_projects to see existing projects.";
         }
 
-        if (project.Contains('/') || project.Contains('\\') || project.Contains(".."))
+        if (project.Contains('\\') || project.Contains(".."))
         {
-            return $"[error] Invalid project name '{project}'. Use a plain folder name without path separators.";
+            return $"[error] Invalid project name '{project}'. Use '/' to group projects (e.g. 'Atena/api.core'); no backslashes or '..'.";
+        }
+
+        if (project.Split('/').Any(string.IsNullOrWhiteSpace))
+        {
+            return $"[error] Invalid project name '{project}'. Each '/'-separated segment must be non-empty (no leading, trailing, or double slashes).";
         }
 
         return null;
@@ -97,6 +104,9 @@ public sealed partial class ProjectWorkspaceService(
 
     public string ToVaultRelative(string absolutePath) =>
         Path.GetRelativePath(config.VaultPath, absolutePath).Replace('\\', '/');
+
+    /// <summary>Leaf (last '/'-separated) segment of a possibly-grouped project identifier.</summary>
+    public static string ProjectLeafName(string project) => project.Split('/')[^1];
 
     /// <summary>
     /// Ensures the project folder, its standard subfolders, and the project MOC note exist.
@@ -123,7 +133,11 @@ public sealed partial class ProjectWorkspaceService(
             }
         }
 
-        var mocPath = Path.Combine(projectFolder, $"{project}.md");
+        // Use the folder's own leaf name for the MOC file, not the full (possibly grouped)
+        // project identifier — "Atena/api.core" scaffolds ".../Atena/api.core/api.core.md",
+        // never ".../Atena/api.core/Atena/api.core.md".
+        var leafName = Path.GetFileName(projectFolder);
+        var mocPath = Path.Combine(projectFolder, $"{leafName}.md");
         if (!File.Exists(mocPath))
         {
             var template = await ResolveTemplateAsync("project-moc");
@@ -139,7 +153,7 @@ public sealed partial class ProjectWorkspaceService(
                     ["bugs_folder"] = ToVaultRelative(GetSubfolder(project, "bugs")),
                     ["backlog_folder"] = ToVaultRelative(GetSubfolder(project, "backlog")),
                 },
-                noteTitle: project);
+                noteTitle: leafName);
 
             var relFolder = ToVaultRelative(projectFolder);
             var tags = NoteHelpers.MergeTagsWithInheritance(
@@ -163,7 +177,82 @@ public sealed partial class ProjectWorkspaceService(
                 : $"{ToVaultRelative(mocPath)} [warning: {evalResult.Warning}]");
         }
 
+        // Only on first-time scaffold of this project (avoids redundant I/O on every
+        // record_adr/log_bug call once the project already exists).
+        if (created.Count > 0)
+        {
+            await EnsureEngineeringTemplatesOnDiskAsync();
+            var registered = await RegisterTemplaterFolderTemplatesAsync(project);
+            if (registered > 0)
+            {
+                created.Add($"Templater folder templates: {registered} registered (Settings → Folder Templates)");
+            }
+        }
+
         return created;
+    }
+
+    /// <summary>Doc type key each engineering subfolder maps to, for Templater folder-template registration.</summary>
+    private static readonly (string SubfolderKey, string TemplateKey)[] SubfolderTemplatePairs =
+    [
+        ("decisions", "adr"), ("bugs", "bug"), ("plans", "plan"), ("knowledge", "knowledge"),
+        ("sessions", "session"), ("daily", "daily"), ("tickets", "ticket"), ("backlog", "idea"),
+    ];
+
+    /// <summary>
+    /// Copies any of the embedded default engineering templates that don't yet exist on disk to
+    /// {templates}/kioku/{typeKey}.md. Idempotent: never overwrites an existing file. Templater
+    /// can only point to a real vault file, so this must run before a folder template pointing
+    /// at one of these files can be registered in Templater's own settings.
+    /// </summary>
+    public async Task<(List<string> Created, List<string> Skipped)> EnsureEngineeringTemplatesOnDiskAsync()
+    {
+        var created = new List<string>();
+        var skipped = new List<string>();
+
+        var kiokuTemplatesDir = Path.Combine(ResolveTemplatesFolderOrDefault(), "kioku");
+        Directory.CreateDirectory(kiokuTemplatesDir);
+
+        foreach (var key in TemplateKeys)
+        {
+            var target = Path.Combine(kiokuTemplatesDir, $"{key}.md");
+            var rel = ToVaultRelative(target);
+            if (File.Exists(target))
+            {
+                skipped.Add(rel);
+            }
+            else
+            {
+                await File.WriteAllTextAsync(target, ReadEmbeddedTemplate(key), Encoding.UTF8);
+                created.Add(rel);
+            }
+        }
+
+        return (created, skipped);
+    }
+
+    /// <summary>
+    /// Registers this project's standard subfolders (decisions/, bugs/, ...) as folder templates
+    /// in Templater's own settings, so manually creating a note there from Obsidian also gets the
+    /// right Kioku template — not just notes the agent creates via record_adr/log_bug/etc.
+    /// Deliberately excludes the project root itself (would apply the project-MOC template to
+    /// any new note created there, which is almost never what's wanted). Never overwrites a
+    /// folder the user already mapped in Templater, even to a different template. No-op if
+    /// Templater isn't installed or its settings file doesn't exist yet, or if the corresponding
+    /// template file isn't actually on disk (Templater can't point at an embedded resource).
+    /// </summary>
+    public async Task<int> RegisterTemplaterFolderTemplatesAsync(string project)
+    {
+        var entries = SubfolderTemplatePairs
+            .Select(p => (
+                Folder: ToVaultRelative(GetSubfolder(project, p.SubfolderKey)),
+                Template: ToVaultRelative(Path.Combine(ResolveTemplatesFolderOrDefault(), "kioku", $"{p.TemplateKey}.md"))))
+            .Where(p => File.Exists(Path.Combine(config.VaultPath, p.Template)))
+            .ToList();
+
+        return entries.Count == 0
+            ? 0
+            : await TemplaterFolderTemplates.RegisterFolderTemplatesAsync(config.VaultPath, entries);
     }
 
     /// <summary>
@@ -276,5 +365,55 @@ public sealed partial class ProjectWorkspaceService(
         return [.. Directory.EnumerateFiles(folder, "*.md", SearchOption.TopDirectoryOnly)
             .Select(f => new FileInfo(f))
             .OrderByDescending(f => f.LastWriteTimeUtc)];
+    }
+
+    /// <summary>
+    /// Recursively discovers project identifiers under the projects root, so projects can be
+    /// grouped in plain folders (e.g. Projects/Atena/api.core and Projects/Atena/api.common are
+    /// both discovered as "Atena/api.core" and "Atena/api.common" — "Atena" itself is a pure
+    /// grouping folder, not a project, and is never listed).
+    /// A directory counts as a project if it has its own "{leaf}.md" MOC note with type: moc,
+    /// or already has at least one of the standard engineering subfolders. Anything else is
+    /// treated as a grouping folder and recursed into.
+    /// </summary>
+    public IReadOnlyList<string> DiscoverProjects()
+    {
+        var results = new List<string>();
+        if (Directory.Exists(ProjectsRoot))
+        {
+            WalkForProjects(ProjectsRoot, results);
+        }
+
+        results.Sort(StringComparer.OrdinalIgnoreCase);
+        return results;
+    }
+
+    private void WalkForProjects(string dir, List<string> results)
+    {
+        if (IsProjectFolder(dir))
+        {
+            results.Add(Path.GetRelativePath(ProjectsRoot, dir).Replace('\\', '/'));
+            return;
+        }
+
+        foreach (var sub in Directory.EnumerateDirectories(dir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+        {
+            WalkForProjects(sub, results);
+        }
+    }
+
+    private bool IsProjectFolder(string dir)
+    {
+        var mocPath = Path.Combine(dir, $"{Path.GetFileName(dir)}.md");
+        if (File.Exists(mocPath))
+        {
+            var metadata = FrontmatterParser.Parse(File.ReadAllText(mocPath));
+            if (string.Equals(metadata.NoteType, "moc", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return SubfolderKeys.Any(key => Directory.Exists(Path.Combine(dir, vaultConfig.GetEngineeringSubfolder(key))));
     }
 }

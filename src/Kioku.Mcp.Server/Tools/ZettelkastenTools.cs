@@ -17,7 +17,8 @@ public sealed class ZettelkastenTools(
     EmbeddingService embedding,
     HybridSearchService hybrid,
     KiokuConfiguration config,
-    VaultConfigService vaultConfig)
+    VaultConfigService vaultConfig,
+    ObsidianBridgeService bridge)
 {
     // create_zettel
 
@@ -71,7 +72,14 @@ public sealed class ZettelkastenTools(
         var userTags = ParseTags(tags);
         var inherited = vaultConfig.GetInheritedTags(targetFolder);
         var tagList = NoteHelpers.MergeTagsWithInheritance(userTags, inherited, vaultConfig.ExcludeFromTags);
-        var body = BuildZettelBody(title, content, relatedLinks);
+        var relatedLinksBody = relatedLinks.Count > 0
+            ? string.Join("\n", relatedLinks.Select(l => $"- [[{l}]]"))
+            : "";
+        var body = await TryRenderFolderTemplateAsync(
+            targetFolder,
+            new Dictionary<string, string> { ["content"] = content, ["related_links"] = relatedLinksBody },
+            title)
+            ?? BuildZettelBody(title, content, relatedLinks);
 
         // Resolve domain: folder mapping > per-type default
         var domain = vaultConfig.GetDomainForFolder(targetFolder)
@@ -86,6 +94,12 @@ public sealed class ZettelkastenTools(
         await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(filePath);
+        }
+
         var sb = new StringBuilder();
         sb.AppendLine($"[ok] Zettel created: {relPath}");
         sb.AppendLine($"  ID: {zettelId}");
@@ -98,6 +112,11 @@ public sealed class ZettelkastenTools(
         else if (link_related && !embedding.IsAvailable)
         {
             sb.AppendLine("  [info] Semantic linking skipped — Ollama not available.");
+        }
+
+        if (evalResult.Warning is not null)
+        {
+            sb.AppendLine($"  [warning] {evalResult.Warning}");
         }
 
         return sb.ToString().TrimEnd();
@@ -142,7 +161,14 @@ public sealed class ZettelkastenTools(
         var saveFolder = string.IsNullOrWhiteSpace(output_folder) ? folder : output_folder;
         var fullMocName = $"{saveFolder.TrimEnd('/')}/{mocName}";
 
-        var body = BuildMocBody(folder, notes);
+        // A user template only replaces the wrapper/heading — the notes list itself is always
+        // generated fresh from the folder scan via {{moc_list}}, never replaced by static content.
+        var notesList = BuildMocNotesList(folder, notes);
+        var body = await TryRenderFolderTemplateAsync(
+            saveFolder,
+            new Dictionary<string, string> { ["folder"] = folder, ["moc_list"] = notesList },
+            mocName)
+            ?? BuildMocBody(folder, notesList);
         var domain = vaultConfig.GetDomainForFolder(saveFolder)
                   ?? vaultConfig.GetDefaults("moc")?.Domain;
         var frontmatter = BuildFrontmatter(["moc", "index"], "moc", "published",
@@ -155,7 +181,14 @@ public sealed class ZettelkastenTools(
         await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
-        return $"[ok] MOC created: {relPath} ({notes.Count} notes indexed)";
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(filePath);
+        }
+
+        var result = $"[ok] MOC created: {relPath} ({notes.Count} notes indexed)";
+        return evalResult.Warning is null ? result : $"{result}\n  [warning] {evalResult.Warning}";
     }
 
     // create_folder_readme
@@ -330,7 +363,17 @@ public sealed class ZettelkastenTools(
             tagList.Insert(0, "literature");
         }
 
-        var body = BuildLiteratureNoteBody(title, author, year, source, summary);
+        var body = await TryRenderFolderTemplateAsync(
+            folder,
+            new Dictionary<string, string>
+            {
+                ["author"] = author,
+                ["year"] = year,
+                ["source"] = source,
+                ["summary"] = summary,
+            },
+            title)
+            ?? BuildLiteratureNoteBody(title, author, year, source, summary);
         var domain = vaultConfig.GetDomainForFolder(folder)
                   ?? vaultConfig.GetDefaults("literature")?.Domain;
         var frontmatter = BuildFrontmatter(tagList, "literature", "draft",
@@ -342,7 +385,14 @@ public sealed class ZettelkastenTools(
         await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
-        return $"[ok] Literature note created: {relPath}";
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(filePath);
+        }
+
+        var result = $"[ok] Literature note created: {relPath}";
+        return evalResult.Warning is null ? result : $"{result}\n  [warning] {evalResult.Warning}";
     }
 
     // Private helpers
@@ -380,13 +430,20 @@ public sealed class ZettelkastenTools(
         return sb.ToString();
     }
 
-    private static string BuildMocBody(string folder, IReadOnlyList<Note> notes)
+    private static string BuildMocBody(string folder, string notesList)
     {
         var folderTitle = folder.Split('/', '\\').Last();
         var sb = new StringBuilder();
         sb.AppendLine($"# {folderTitle} — Map of Content\n");
         sb.AppendLine($"> Auto-generated index for `{folder}`. Last updated: {DateTime.Today:yyyy-MM-dd}\n");
+        sb.Append(notesList);
+        return sb.ToString();
+    }
 
+    /// <summary>Just the grouped notes list (no heading/wrapper) — reused as {{moc_list}} by a user template.</summary>
+    private static string BuildMocNotesList(string folder, IReadOnlyList<Note> notes)
+    {
+        var sb = new StringBuilder();
         string? lastSubdir = null;
 
         foreach (var note in notes)
@@ -410,6 +467,31 @@ public sealed class ZettelkastenTools(
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Resolves a per-folder template (Kioku's own template_folders override, or Templater's own
+    /// Folder Templates settings) for <paramref name="targetFolder"/>, reads and renders it with
+    /// {{var}} substitution. Returns null when no template is configured for this folder or the
+    /// configured file doesn't exist — callers should fall back to their own hardcoded body.
+    /// </summary>
+    private async Task<string?> TryRenderFolderTemplateAsync(
+        string targetFolder, IReadOnlyDictionary<string, string> variables, string? noteTitle)
+    {
+        var resolvedPath = await vaultConfig.ResolveFolderTemplateAsync(targetFolder);
+        if (resolvedPath is null)
+        {
+            return null;
+        }
+
+        var fullPath = NoteHelpers.EnsureInsideVault(config.VaultPath, Path.Combine(config.VaultPath, resolvedPath));
+        if (!File.Exists(fullPath))
+        {
+            return null;
+        }
+
+        var raw = await File.ReadAllTextAsync(fullPath, Encoding.UTF8);
+        return NoteHelpers.ExpandTemplateVariables(raw, variables, noteTitle);
     }
 
     private async Task<string> SuggestFolderForContent(string title, string content)

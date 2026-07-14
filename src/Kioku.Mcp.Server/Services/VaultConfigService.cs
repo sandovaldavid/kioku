@@ -7,9 +7,11 @@ namespace Kioku.Mcp.Server.Services;
 public sealed class VaultConfigService
 {
     private readonly VaultConfigData _data;
+    private readonly string _vaultPath;
 
     public VaultConfigService(KiokuConfiguration config, ILogger<VaultConfigService> logger)
     {
+        _vaultPath = config.VaultPath;
         var configPath = Path.Combine(config.VaultPath, ".kioku", "config.yml");
 
         if (File.Exists(configPath))
@@ -96,11 +98,33 @@ public sealed class VaultConfigService
         _data.AutoTags?.ExcludeFromTags is { Count: > 0 } list ? list : ["domain", "type", "status"];
 
     /// <summary>
-    /// Returns the body template for the given note type key (e.g. "zettel", "literature").
-    /// Returns null if no template is configured — callers should fall back to their hardcoded body.
+    /// Resolves the vault-relative template file path to use when creating a note in
+    /// <paramref name="targetFolderRelativePath"/>. Checks the vault's own explicit
+    /// <c>template_folders</c> override first (longest-prefix match, same pattern as
+    /// <see cref="GetDomainForFolder"/>), then falls back to whatever Templater itself has
+    /// configured under Settings → Folder Templates — so a user who already set that up in
+    /// Templater gets it respected automatically, with zero Kioku-specific configuration.
+    /// Returns null when neither source has a match.
     /// </summary>
-    public string? GetTemplate(string typeKey) =>
-        _data.Templates?.TryGetValue(typeKey, out var t) == true ? t : null;
+    public async Task<string?> ResolveFolderTemplateAsync(string targetFolderRelativePath)
+    {
+        var configuredOverride = _data.TemplateFolders?
+            .Where(kv => targetFolderRelativePath.StartsWith(kv.Key, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(kv => kv.Key.Length)
+            .Select(kv => kv.Value)
+            .FirstOrDefault();
+        if (configuredOverride is not null)
+        {
+            return configuredOverride;
+        }
+
+        var templaterPairs = await TemplaterFolderTemplates.ReadAsync(_vaultPath);
+        return templaterPairs
+            .Where(p => targetFolderRelativePath.StartsWith(p.Folder, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(p => p.Folder.Length)
+            .Select(p => p.Template)
+            .FirstOrDefault();
+    }
 
     private static readonly Dictionary<string, string> DefaultEngineeringSubfolders = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -166,7 +190,10 @@ public sealed class VaultConfigData
     public Dictionary<string, NoteDefaults>? Defaults { get; init; }
     public List<string>? Exclude { get; init; }
     public AutoTagsConfig? AutoTags { get; init; }
-    public Dictionary<string, string>? Templates { get; init; }
+
+    /// <summary>Folder prefix -&gt; vault-relative template file path (longest prefix wins).</summary>
+    public Dictionary<string, string>? TemplateFolders { get; init; }
+
     public CapabilitiesConfig? Capabilities { get; init; }
     public EngineeringConfig? Engineering { get; init; }
 }

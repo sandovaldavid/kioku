@@ -69,6 +69,11 @@ public sealed class EngineeringWorkflowTools(
             return statusError;
         }
 
+        if (ProjectWorkspaceService.ValidateProjectName(project) is { } nameError)
+        {
+            return nameError;
+        }
+
         var number = workspace.GetNextAdrNumber(project);
         return await CreateDocAsync(
             project,
@@ -314,8 +319,9 @@ public sealed class EngineeringWorkflowTools(
         sb.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
         sb.AppendLine();
 
-        // Project MOC verbatim: it is the human-curated overview.
-        var mocPath = Path.Combine(projectFolder, $"{project}.md");
+        // Project MOC verbatim: it is the human-curated overview. Named after the leaf segment,
+        // not the full (possibly grouped) identifier — same convention as EnsureProjectScaffoldAsync.
+        var mocPath = Path.Combine(projectFolder, $"{Path.GetFileName(projectFolder)}.md");
         if (File.Exists(mocPath))
         {
             sb.AppendLine("## Project overview (MOC)");
@@ -421,7 +427,9 @@ public sealed class EngineeringWorkflowTools(
 
     [McpServerTool, Description(
         "Lists all project workspaces under the projects root with per-type document counts " +
-        "and the last modification date. Use to discover the project name to pass to other engineering tools.")]
+        "and the last modification date. Projects can be grouped in plain folders (e.g. " +
+        "'Atena/api.core', 'Atena/api.common') — pass the full identifier shown here as the " +
+        "'project' parameter to other engineering tools. Use to discover project names.")]
     public Task<string> list_projects()
     {
         if (!Directory.Exists(workspace.ProjectsRoot))
@@ -431,33 +439,30 @@ public sealed class EngineeringWorkflowTools(
                 "Use setup_agent_workflow to create the structure.");
         }
 
-        var projectDirs = Directory.EnumerateDirectories(workspace.ProjectsRoot)
-            .OrderBy(d => d, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (projectDirs.Count == 0)
+        var projects = workspace.DiscoverProjects();
+        if (projects.Count == 0)
         {
             return Task.FromResult(
                 $"[info] No projects yet under '{workspace.ProjectsRootRelative}/'. " +
                 "Use setup_agent_workflow with a project name, or any record tool (record_adr, log_bug, ...) to create one.");
         }
 
-        var sb = new StringBuilder($"[ok] {projectDirs.Count} project(s) under '{workspace.ProjectsRootRelative}/':\n\n");
-        foreach (var dir in projectDirs)
+        var sb = new StringBuilder($"[ok] {projects.Count} project(s) under '{workspace.ProjectsRootRelative}/':\n\n");
+        foreach (var project in projects)
         {
-            var name = Path.GetFileName(dir);
             var counts = ProjectWorkspaceService.SubfolderKeys
-                .Select(key => (key, count: workspace.EnumerateProjectDocs(name, key).Count))
+                .Select(key => (key, count: workspace.EnumerateProjectDocs(project, key).Count))
                 .Where(t => t.count > 0)
                 .Select(t => $"{t.key}: {t.count}")
                 .ToList();
 
-            var lastModified = Directory.EnumerateFiles(dir, "*.md", SearchOption.AllDirectories)
+            var projectDir = workspace.GetProjectFolder(project);
+            var lastModified = Directory.EnumerateFiles(projectDir, "*.md", SearchOption.AllDirectories)
                 .Select(f => File.GetLastWriteTimeUtc(f))
-                .DefaultIfEmpty(Directory.GetLastWriteTimeUtc(dir))
+                .DefaultIfEmpty(Directory.GetLastWriteTimeUtc(projectDir))
                 .Max();
 
-            sb.Append($"- **{name}**");
+            sb.Append($"- **{project}**");
             sb.Append(counts.Count > 0 ? $" — {string.Join(", ", counts)}" : " — empty");
             sb.AppendLine($" (last modified {lastModified:yyyy-MM-dd})");
         }
@@ -608,6 +613,16 @@ public sealed class EngineeringWorkflowTools(
             }
         }
 
+        // Templates — runs before the project scaffold below so that, on first use, the files
+        // already exist on disk when the scaffold step tries to register them in Templater's
+        // own folder-template settings (Templater can't point at an embedded resource).
+        if (write_templates)
+        {
+            var (templatesCreated, templatesSkipped) = await workspace.EnsureEngineeringTemplatesOnDiskAsync();
+            created.AddRange(templatesCreated);
+            skipped.AddRange(templatesSkipped);
+        }
+
         // Project scaffold
         if (!string.IsNullOrWhiteSpace(project))
         {
@@ -624,28 +639,6 @@ public sealed class EngineeringWorkflowTools(
             else
             {
                 skipped.Add($"{workspace.ToVaultRelative(workspace.GetProjectFolder(project))}/ (already scaffolded)");
-            }
-        }
-
-        // Templates
-        if (write_templates)
-        {
-            var kiokuTemplatesDir = Path.Combine(workspace.ResolveTemplatesFolderOrDefault(), "kioku");
-            Directory.CreateDirectory(kiokuTemplatesDir);
-
-            foreach (var key in ProjectWorkspaceService.TemplateKeys)
-            {
-                var target = Path.Combine(kiokuTemplatesDir, $"{key}.md");
-                var rel = workspace.ToVaultRelative(target);
-                if (File.Exists(target))
-                {
-                    skipped.Add(rel);
-                }
-                else
-                {
-                    await File.WriteAllTextAsync(target, ProjectWorkspaceService.ReadEmbeddedTemplate(key), Encoding.UTF8);
-                    created.Add(rel);
-                }
             }
         }
 
@@ -705,7 +698,9 @@ public sealed class EngineeringWorkflowTools(
             return $"[error] Note already exists: '{workspace.ToVaultRelative(filePath)}'. Use update_note_content to modify it.";
         }
 
+        var projectLink = $"[[{ProjectWorkspaceService.ProjectLeafName(project)}]]";
         variables["project"] = project;
+        variables["project_link"] = projectLink;
         var body = NoteHelpers.ExpandTemplateVariables(
             await workspace.ResolveTemplateAsync(templateKey), variables, noteTitle: title);
 
@@ -715,7 +710,11 @@ public sealed class EngineeringWorkflowTools(
             vaultConfig.GetInheritedTags(relFolder),
             vaultConfig.ExcludeFromTags);
 
-        var fields = new Dictionary<string, string> { ["project"] = project };
+        var fields = new Dictionary<string, string>
+        {
+            ["project"] = project,
+            ["project_link"] = $"\"{projectLink}\"",
+        };
         if (extraFields is not null)
         {
             foreach (var (k, v) in extraFields)

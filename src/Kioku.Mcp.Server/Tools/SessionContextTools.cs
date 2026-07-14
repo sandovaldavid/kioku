@@ -196,16 +196,43 @@ public sealed class SessionContextTools(
             return $"[ok] Resumed existing session note: {sessions_folder}/{noteName}.md";
         }
 
+        var frontmatter = new StringBuilder();
+        frontmatter.AppendLine("---");
+        frontmatter.AppendLine("tags:");
+        frontmatter.AppendLine("  - session");
+        frontmatter.AppendLine("  - work-log");
+        frontmatter.AppendLine($"type: session");
+        frontmatter.AppendLine($"status: active");
+        frontmatter.AppendLine($"date: {dateStr}");
+        frontmatter.AppendLine("---");
+
+        var body = await TryRenderFolderTemplateAsync(
+            sessions_folder,
+            new Dictionary<string, string>
+            {
+                ["goal"] = string.IsNullOrWhiteSpace(goal) ? "" : goal,
+                ["date"] = dateStr,
+                ["time"] = timeStr,
+            },
+            noteName)
+            ?? BuildDefaultSessionBody(noteName, dateStr, timeStr, goal);
+
+        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
+
+        var relativePath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relativePath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(filePath);
+        }
+
+        var result = $"[ok] Work session started: {relativePath}";
+        return evalResult.Warning is null ? result : $"{result}\n   [warning] {evalResult.Warning}";
+    }
+
+    private static string BuildDefaultSessionBody(string noteName, string dateStr, string timeStr, string goal)
+    {
         var sb = new StringBuilder();
-        sb.AppendLine("---");
-        sb.AppendLine("tags:");
-        sb.AppendLine("  - session");
-        sb.AppendLine("  - work-log");
-        sb.AppendLine($"type: session");
-        sb.AppendLine($"status: active");
-        sb.AppendLine($"date: {dateStr}");
-        sb.AppendLine("---");
-        sb.AppendLine();
         sb.AppendLine($"# Work Session — {noteName}");
         sb.AppendLine();
         sb.AppendLine($"**Started:** {timeStr}");
@@ -224,10 +251,7 @@ public sealed class SessionContextTools(
         sb.AppendLine("## Modified during this session");
         sb.AppendLine();
 
-        await File.WriteAllTextAsync(filePath, sb.ToString(), Encoding.UTF8);
-
-        var relativePath = Path.GetRelativePath(config.VaultPath, filePath);
-        return $"[ok] Work session started: {relativePath}";
+        return sb.ToString();
     }
 
     // end_work_session
@@ -478,6 +502,7 @@ public sealed class SessionContextTools(
         var title = string.IsNullOrWhiteSpace(sessionName)
             ? $"{now:yyyy-MM-dd HH:mm} ({agentName})"
             : sessionName;
+        var projectLink = $"[[{ProjectWorkspaceService.ProjectLeafName(project)}]]";
         var body = NoteHelpers.ExpandTemplateVariables(
             await workspace.ResolveTemplateAsync("session"),
             new Dictionary<string, string>
@@ -485,6 +510,7 @@ public sealed class SessionContextTools(
                 ["goal"] = string.IsNullOrWhiteSpace(goal) ? "_(not specified)_" : goal,
                 ["agent"] = agentName,
                 ["project"] = project,
+                ["project_link"] = projectLink,
                 ["date"] = now.ToString("yyyy-MM-dd"),
                 ["time"] = now.ToString("HH:mm"),
             },
@@ -502,7 +528,12 @@ public sealed class SessionContextTools(
             date: DateOnly.FromDateTime(now),
             domain: vaultConfig.GetDomainForFolder(relFolder),
             cssClasses: ["kioku-session"],
-            extraFields: new Dictionary<string, string> { ["project"] = project, ["agent"] = agentName });
+            extraFields: new Dictionary<string, string>
+            {
+                ["project"] = project,
+                ["project_link"] = $"\"{projectLink}\"",
+                ["agent"] = agentName,
+            });
 
         await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
         await vault.SynchronizeFileReindexAsync(filePath);
@@ -567,6 +598,31 @@ public sealed class SessionContextTools(
         lines.RemoveRange(headingIndex + 1, sectionEnd - (headingIndex + 1));
         lines.InsertRange(headingIndex + 1, ["", summary.Trim(), ""]);
         return string.Join('\n', lines);
+    }
+
+    /// <summary>
+    /// Resolves a per-folder template (Kioku's own template_folders override, or Templater's own
+    /// Folder Templates settings) for <paramref name="targetFolder"/>, reads and renders it with
+    /// {{var}} substitution. Returns null when no template is configured for this folder or the
+    /// configured file doesn't exist — callers should fall back to their own hardcoded body.
+    /// </summary>
+    private async Task<string?> TryRenderFolderTemplateAsync(
+        string targetFolder, IReadOnlyDictionary<string, string> variables, string? noteTitle)
+    {
+        var resolvedPath = await vaultConfig.ResolveFolderTemplateAsync(targetFolder);
+        if (resolvedPath is null)
+        {
+            return null;
+        }
+
+        var fullPath = NoteHelpers.EnsureInsideVault(config.VaultPath, Path.Combine(config.VaultPath, resolvedPath));
+        if (!File.Exists(fullPath))
+        {
+            return null;
+        }
+
+        var raw = await File.ReadAllTextAsync(fullPath, Encoding.UTF8);
+        return NoteHelpers.ExpandTemplateVariables(raw, variables, noteTitle);
     }
 
     private string? FindSessionsFolder()
