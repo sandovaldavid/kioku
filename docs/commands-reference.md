@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-14 19:17 UTC
+**Generated:** 2026-07-14 19:51 UTC
 
 ## Summary
 
@@ -177,7 +177,7 @@ Lists the engineering doc types (adr, bug, plan, knowledge, idea, session, daily
 
 ### `list_projects`
 
-Lists all project workspaces under the projects root with per-type document counts and the last modification date. Use to discover the project name to pass to other engineering tools.
+Lists all project workspaces under the projects root with per-type document counts and the last modification date. Projects can be grouped in plain folders (e.g. 'Atena/api.core', 'Atena/api.common') — pass the full identifier shown here as the 'project' parameter to other engineering tools. Use to discover project names.
 
 ### `log_bug`
 

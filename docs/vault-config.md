@@ -128,6 +128,26 @@ Projects/{project}/
   backlog/       # future improvement ideas
 ```
 
+**Grouping projects.** A project identifier can use `/` to nest projects under shared folders,
+e.g. `record_adr(project: "Atena/api.core", ...)` and `..."Atena/api.common"` scaffold:
+
+```
+Projects/Atena/
+  api.core/
+    api.core.md   # MOC named after the leaf segment, not the full identifier
+    decisions/ bugs/ plans/ ...
+  api.common/
+    api.common.md
+    decisions/ bugs/ plans/ ...
+```
+
+A folder counts as a project once it has its own `{leaf}.md` MOC note (`type: moc`) or at
+least one of the standard subfolders; `Atena/` itself has neither, so it's a pure grouping
+folder — `list_projects` recurses through it but never lists it as a project itself. Pass the
+full identifier shown by `list_projects` (`"Atena/api.core"`) to every other engineering tool.
+Nesting can be arbitrarily deep; only `/` is a group separator — backslashes, `..`, and empty
+segments (leading/trailing/double slashes) are rejected.
+
 The subfolder names are configurable (values below are the defaults):
 
 ```yaml
