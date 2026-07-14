@@ -4,12 +4,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
 
-public sealed class ObsidianBridgeService : IDisposable
+public sealed partial class ObsidianBridgeService : IDisposable
 {
     private readonly ILogger<ObsidianBridgeService> _logger;
     private readonly int _port;
@@ -43,6 +44,34 @@ public sealed class ObsidianBridgeService : IDisposable
         }
 
         return await SendOverExistingConnectionAsync(command, payload, cancellationToken);
+    }
+
+    // Matches Templater's <% %> and <%* %> syntax, including multi-line blocks.
+    [GeneratedRegex(@"<%[\s\S]*?%>")]
+    private static partial Regex TemplaterSyntaxRegex();
+
+    /// <summary>
+    /// If <paramref name="renderedContent"/> contains Templater syntax, asks the real Templater
+    /// plugin (via the Obsidian bridge) to evaluate the already-written file in place. Best-effort:
+    /// never throws. When no Templater syntax is present, returns immediately without any RPC
+    /// (fully headless, no behavior change for users who don't use Templater).
+    /// </summary>
+    public async Task<TemplaterEvaluationResult> EvaluateTemplaterInPlaceAsync(
+        string renderedContent, string vaultRelativePath, CancellationToken cancellationToken = default)
+    {
+        if (!TemplaterSyntaxRegex().IsMatch(renderedContent))
+        {
+            return TemplaterEvaluationResult.NotNeeded;
+        }
+
+        var payload = new JsonObject { ["notePath"] = vaultRelativePath };
+        var response = await SendRequestAsync("evaluate-templater-in-file", payload, cancellationToken);
+
+        return response.Success
+            ? new TemplaterEvaluationResult(Applied: true, Warning: null)
+            : new TemplaterEvaluationResult(
+                Applied: false,
+                Warning: "template contains Templater syntax; left unevaluated (open Obsidian or use {{var}})");
     }
 
     private async Task<BridgeResponse> SendOverExistingConnectionAsync(string command, JsonNode? payload, CancellationToken cancellationToken)
@@ -326,6 +355,15 @@ public sealed class BridgeResponse
     /// [UNAUTHORIZED] error instead of a generic "Obsidian plugin error".
     /// </summary>
     public bool IsUnauthorized() => Error?.Contains("[UNAUTHORIZED]", StringComparison.Ordinal) == true;
+}
+
+/// <summary>
+/// Result of a best-effort attempt to have Templater evaluate an already-written note in place.
+/// <see cref="NotNeeded"/> means the content had no Templater syntax, so no bridge call was made.
+/// </summary>
+public readonly record struct TemplaterEvaluationResult(bool Applied, string? Warning)
+{
+    public static readonly TemplaterEvaluationResult NotNeeded = new(false, null);
 }
 
 [JsonSerializable(typeof(BridgeMessage))]

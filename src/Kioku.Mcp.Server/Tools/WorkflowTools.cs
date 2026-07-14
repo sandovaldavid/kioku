@@ -19,7 +19,8 @@ public sealed partial class WorkflowTools(
     KiokuConfiguration config,
     TaskService tasks,
     VaultConfigService vaultConfig,
-    GenerationService generation)
+    GenerationService generation,
+    ObsidianBridgeService bridge)
 {
     private static readonly string[] TemplateFolderCandidates =
         ["Templates", "99_System/Templates", "_templates", "System/Templates"];
@@ -150,7 +151,14 @@ public sealed partial class WorkflowTools(
         Directory.CreateDirectory(targetDir);
         await File.WriteAllTextAsync(targetFilePath, rendered, Encoding.UTF8);
 
-        var relPath = Path.GetRelativePath(config.VaultPath, targetFilePath);
+        var relPath = Path.GetRelativePath(config.VaultPath, targetFilePath).Replace('\\', '/');
+
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(rendered, relPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(targetFilePath);
+        }
+
         var result = new StringBuilder($"[ok] Note created from template '{template_name}': {relPath}");
 
         if (unresolved.Count > 0)
@@ -158,6 +166,12 @@ public sealed partial class WorkflowTools(
             result.AppendLine();
             result.Append($"   Warning: {unresolved.Count} unresolved variable(s): " +
                           string.Join(", ", unresolved.Select(v => "{{" + v + "}}")));
+        }
+
+        if (evalResult.Warning is not null)
+        {
+            result.AppendLine();
+            result.Append($"   [warning] {evalResult.Warning}");
         }
 
         return result.ToString();

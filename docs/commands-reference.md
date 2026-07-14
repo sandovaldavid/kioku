@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-14 17:59 UTC
+**Generated:** 2026-07-14 19:17 UTC
 
 ## Summary
 
@@ -148,6 +148,16 @@ Creates an implementation plan for a project as {projects}/{project}/plans/PLAN-
 | `ticket` | String | No | Optional ticket note name this plan implements; linked as a wikilink. |
 | `tags` | String | No | Extra tags, comma-separated. |
 
+### `get_engineering_template`
+
+Reads the current effective body template for an engineering doc type (vault override if one exists, otherwise the embedded default), plus the {{variables}} it supports. Read this before proposing an edit with set_engineering_template.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `type_key` | String | Yes | Doc type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc. |
+
 ### `get_project_context`
 
 Returns the current state of a project workspace: the project MOC note, summaries of recent work sessions, and per-type listings (decisions, bugs, plans, tickets, backlog, knowledge, daily). Reads files fresh from disk, so edits made in Obsidian moments ago are always reflected. Call this before resuming work on a project.
@@ -160,6 +170,10 @@ Returns the current state of a project workspace: the project MOC note, summarie
 | `include_content` | Boolean | No | Include the full content of every listed document (verbose). |
 | `types` | String | No | Comma-separated type filter (adr, bug, plan, ticket, idea, knowledge, session, daily). Empty = all. |
 | `limit` | Int32 | No | Maximum documents listed per type. |
+
+### `list_engineering_templates`
+
+Lists the engineering doc types (adr, bug, plan, knowledge, idea, session, daily, ticket, project-moc), whether each has a vault override or falls back to the embedded default, its path, and the {{variables}} it supports. Use before editing a template with set_engineering_template.
 
 ### `list_projects`
 
@@ -198,6 +212,18 @@ Records an architecture decision record (ADR) for a project as {projects}/{proje
 | `alternatives` | String | No | Alternatives that were considered and why they were rejected. |
 | `status` | String | No | ADR status: proposed, accepted, or superseded. |
 | `tags` | String | No | Extra tags, comma-separated. |
+
+### `set_engineering_template`
+
+Creates or updates the vault override template for an engineering doc type at {templates}/kioku/{type_key}.md (always overwrites, unlike create_template). Pass reset_to_default=true to delete the override and revert to the embedded default. Never triggers Templater evaluation: this writes the template itself, which is only evaluated later when a note is generated from it.
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `type_key` | String | Yes | Doc type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc. |
+| `content` | String | No | New template body content. Ignored when reset_to_default=true. |
+| `reset_to_default` | Boolean | No | Delete the vault override and revert to the embedded default instead of writing. |
 
 ### `setup_agent_workflow`
 
@@ -1456,7 +1482,7 @@ MIME type: `application/json`
 
 ---
 
-**Total tools:** 125
+**Total tools:** 128
 
 **Total prompts:** 10
 

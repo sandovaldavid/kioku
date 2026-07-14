@@ -343,6 +343,29 @@ public class NoteHelpersTests
     }
 
     [Fact]
+    public void BuildFrontmatter_WithAliasesAndCssClasses_GeneratesYamlLists()
+    {
+        var result = NoteHelpers.BuildFrontmatter(
+            ["adr"],
+            aliases: ["ADR-0001"],
+            cssClasses: ["kioku-adr"]);
+
+        Assert.Contains("aliases:", result);
+        Assert.Contains("  - ADR-0001", result);
+        Assert.Contains("cssclasses:", result);
+        Assert.Contains("  - kioku-adr", result);
+    }
+
+    [Fact]
+    public void BuildFrontmatter_NoAliasesOrCssClasses_OmitsThoseSections()
+    {
+        var result = NoteHelpers.BuildFrontmatter(["tag"]);
+
+        Assert.DoesNotContain("aliases:", result);
+        Assert.DoesNotContain("cssclasses:", result);
+    }
+
+    [Fact]
     public void EnsureInsideVault_ValidPath_ReturnsCanonicalPath()
     {
         var vaultRoot = Path.GetTempPath();
