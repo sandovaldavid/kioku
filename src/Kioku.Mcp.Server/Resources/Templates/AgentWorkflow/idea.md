@@ -1,7 +1,7 @@
 # {{title}}
 
 > [!todo] Backlog idea
-> Project: [[{{project}}]] · Proposed: {{date}} · Status lives in the frontmatter (`status`).
+> Project: {{project_link}} · Proposed: {{date}} · Status lives in the frontmatter (`status`).
 
 ## Description
 

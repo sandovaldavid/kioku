@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-14 19:51 UTC
+**Generated:** 2026-07-14 21:05 UTC
 
 ## Summary
 

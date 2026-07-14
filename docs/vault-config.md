@@ -95,18 +95,42 @@ auto_tags:
   exclude_from_tags: [domain, type, status]
 ```
 
-## `templates` — Body templates per note type
+## `template_folders` — Templates by target folder, not by note type
 
-Overrides the built-in body used when creating notes of a given type. Supports template
-variables such as `{{title}}`, `{{date}}` and `{{uid}}`.
+Overrides the built-in body used by `create_zettel`, `create_moc`, and `create_literature_note`
+(and the general, non-project branch of `start_work_session`) when creating a note in a
+particular folder. Keyed by folder prefix (longest prefix wins, same precedence rule as
+`domains`), not by an internal note-type name — this matches how real vaults work: you might
+have several templates in play across different folders, or none at all for folders where the
+default body is fine.
 
 ```yaml
-templates:
-  zettel: |
-    ## {{title}}
-
-    - Created: {{date}}
+template_folders:
+  "Journal/Daily": "Templates/Daily Note.md"
+  "Areas/Work/Meetings": "Templates/Meeting.md"
 ```
+
+Each value is a **vault-relative path to a markdown file** (not inline body text). The file is
+read fresh on every note creation — edit it in Obsidian and the next note picks up the change
+immediately, no restart needed. It's rendered with `{{var}}` substitution first (built-ins
+`{{date}}`, `{{time}}`, `{{title}}`, `{{uid}}`, ... plus tool-specific ones: `create_zettel` gets
+`{{content}}`/`{{related_links}}`; `create_moc` gets `{{folder}}`/`{{moc_list}}` — the generated
+notes list, so a template only replaces the *wrapper*, never the scan itself; `create_literature_note`
+gets `{{author}}`/`{{year}}`/`{{source}}`/`{{summary}}`). If the rendered result still contains
+[Templater](https://github.com/SilentVoid13/Templater) syntax (`<% %>`), it's evaluated the same
+way as the `engineering` group's templates (see below) — best-effort via the Obsidian bridge,
+with a `[warning]` and the literal `<% %>` left in place if Templater/Obsidian aren't reachable.
+
+**You usually don't need to configure this at all.** If you already use Templater's own
+**Settings → Folder Templates**, Kioku reads and respects that configuration automatically —
+zero Kioku-specific setup required. `template_folders` here only *adds* mappings Templater
+doesn't have (or an outright override, which always wins over Templater's own setting for that
+folder), for vaults without Templater or that want a Kioku-specific mapping.
+
+`create_note` (the fully generic creation tool) is deliberately **not** wired into this — it
+takes explicit `content` from the caller, and forcing a template there would silently override
+what was just asked to be written. Use `create_note_from_template` for "instantiate this exact
+template file" instead.
 
 ## `engineering` — Per-project workspace subfolders
 
@@ -170,7 +194,10 @@ edit them in Obsidian and they override the embedded versions.
 **Template syntax.** These templates use `{{variable}}` placeholders, evaluated by the
 server so they work headless (no Obsidian required). Besides the built-ins (`{{date}}`,
 `{{time}}`, `{{title}}`, `{{uid}}`, ...), each type receives its own variables:
-`{{project}}` everywhere; `{{number}}`, `{{context}}`, `{{decision}}`, `{{consequences}}`,
+`{{project}}` (the full identifier, e.g. `Atena/api.core`) and `{{project_link}}` (a
+`[[wikilink]]` to the project's *leaf* name — `[[api.core]]` — that actually resolves in
+Obsidian even for grouped/nested projects; use this instead of `[[{{project}}]]` in your own
+overrides) everywhere; `{{number}}`, `{{context}}`, `{{decision}}`, `{{consequences}}`,
 `{{alternatives}}` (adr); `{{symptom}}`, `{{root_cause}}`, `{{fix}}`, `{{related_files}}`
 (bug); `{{objective}}`, `{{steps}}`, `{{ticket}}` (plan); `{{content}}` (knowledge);
 `{{description}}` (idea); `{{goal}}`, `{{agent}}` (session); and the project MOC gets
@@ -195,6 +222,21 @@ line — the `<% %>` snippet is left untouched in the file rather than silently 
 corrupted. For human-triggered, on-demand evaluation of an arbitrary template file, use the
 `apply_template` tool instead.
 
+**Manual note creation from Obsidian.** The above only covers notes created *by the agent*
+(via `record_adr` and friends). If you create a note by hand inside `Projects/{project}/decisions/`
+(or any other engineering subfolder) directly from Obsidian, Templater applying the right
+template depends on you having that folder mapped in Templater's own settings. To close that
+gap, scaffolding a project (`setup_agent_workflow`, or lazily on first `record_adr`/`log_bug`/...)
+also registers each of the project's 8 subfolders in Templater's **Settings → Folder Templates**
+— pointing to the same `{templates}/kioku/{type}.md` files the agent itself uses — so manual
+creation gets the right template too. The project root folder itself is **never** registered
+(that would apply the MOC template to any unrelated note created there). Existing mappings you
+already configured for a folder are never overwritten, even if they point somewhere else. This
+only runs once per project (first-time scaffold) and only if Templater is already installed —
+Kioku never creates Templater's settings file from scratch. Obsidian loads Templater's settings
+once at startup, so a session already open may need Templater reloaded (or the vault reopened)
+to pick up newly registered folders.
+
 The default project MOC uses [Dataview](https://blacksmithgu.github.io/obsidian-dataview/)
 code blocks to auto-list ADRs, active plans, open bugs, and backlog ideas. Without the
 Dataview plugin they render as plain code blocks — replace them with manual lists if you
@@ -210,25 +252,28 @@ reverting to the embedded default). Supported variables per type:
 
 | Type key | Variables (besides the built-ins `date`, `time`, `datetime`, `year`, `month`, `day`, `uid`, `title`) |
 |---|---|
-| `adr` | `project`, `number`, `context`, `decision`, `consequences`, `alternatives` |
-| `bug` | `project`, `symptom`, `root_cause`, `fix`, `related_files` |
-| `plan` | `project`, `objective`, `steps`, `ticket` |
-| `knowledge` | `project`, `content` |
-| `idea` | `project`, `description` |
-| `session` | `project`, `goal`, `agent` |
-| `daily` | `project` |
-| `ticket` | `project` |
+| `adr` | `project`, `project_link`, `number`, `context`, `decision`, `consequences`, `alternatives` |
+| `bug` | `project`, `project_link`, `symptom`, `root_cause`, `fix`, `related_files` |
+| `plan` | `project`, `project_link`, `objective`, `steps`, `ticket` |
+| `knowledge` | `project`, `project_link`, `content` |
+| `idea` | `project`, `project_link`, `description` |
+| `session` | `project`, `project_link`, `goal`, `agent` |
+| `daily` | `project`, `project_link` |
+| `ticket` | `project`, `project_link` |
 | `project-moc` | `project`, `project_folder`, `decisions_folder`, `plans_folder`, `bugs_folder`, `backlog_folder` |
 
 These tools only write the *template*; they never trigger Templater evaluation — a template's
 `<% %>` syntax is only evaluated later, when a *note* is generated from it.
 
 **Frontmatter properties.** Notes created by the engineering tools get, beyond
-`tags`/`type`/`status`/`domain`/`date`/`project`, two native Obsidian properties: `aliases` —
-only ADRs get one (`ADR-0001`, so `[[ADR-0001]]` works as a short link) — and `cssclasses`, a
-`kioku-{type}` class on every doc type (`kioku-adr`, `kioku-bug`, `kioku-plan`, `kioku-idea`,
-`kioku-knowledge`, `kioku-session`, `kioku-project-moc`) so a CSS snippet (`css` tool group:
-`list_css_snippets`/`apply_css_snippet`) can style each document type differently in Obsidian.
+`tags`/`type`/`status`/`domain`/`date`/`project`, three native Obsidian properties:
+`project_link` — a quoted `"[[LeafName]]"` wikilink to the project's MOC that resolves
+correctly even for grouped/nested projects (present on every doc type except the project MOC
+itself, which would just be a self-link); `aliases` — only ADRs get one (`ADR-0001`, so
+`[[ADR-0001]]` works as a short link); and `cssclasses`, a `kioku-{type}` class on every doc type
+(`kioku-adr`, `kioku-bug`, `kioku-plan`, `kioku-idea`, `kioku-knowledge`, `kioku-session`,
+`kioku-project-moc`) so a CSS snippet (`css` tool group: `list_css_snippets`/`apply_css_snippet`)
+can style each document type differently in Obsidian.
 
 ## `capabilities` — Enable/disable tool groups
 
