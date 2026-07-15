@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.3.0](https://github.com/sandovaldavid/kioku/compare/v2.2.1...v2.3.0) (2026-07-15)
+
+
+### Features
+
+* **server:** engineering tool group for per-project ADRs, bugs, plans and knowledge ([#227](https://github.com/sandovaldavid/kioku/issues/227)) ([67ededa](https://github.com/sandovaldavid/kioku/commit/67ededa86253d161409a6050612492c5a9f8ce73))
+* **server:** heading-aware chunking with parent-document retrieval ([#226](https://github.com/sandovaldavid/kioku/issues/226)) ([a0753d4](https://github.com/sandovaldavid/kioku/commit/a0753d4945df1330a89d14dc5932ab8be3d57428))
+* **server:** retrieval quality eval harness, model prefixes and BM25 search ([#225](https://github.com/sandovaldavid/kioku/issues/225)) ([a73a6a6](https://github.com/sandovaldavid/kioku/commit/a73a6a68fcb46d4947ee9c273d5a1691cb78df20))
+* **server:** support grouped/nested project identifiers ([#229](https://github.com/sandovaldavid/kioku/issues/229)) ([e9e74c0](https://github.com/sandovaldavid/kioku/commit/e9e74c007d5950863b8d9f651a881298f4a9bd98))
+* **server:** Templater bridge interop, template management tools and richer frontmatter ([#228](https://github.com/sandovaldavid/kioku/issues/228)) ([4128612](https://github.com/sandovaldavid/kioku/commit/4128612364aa51e9c034a7bc5a967b23367b9456))
+
+
+### Bug Fixes
+
+* **server:** field-test bugs, skill update, and token reduction ([#232](https://github.com/sandovaldavid/kioku/issues/232)) ([e829345](https://github.com/sandovaldavid/kioku/commit/e8293450c744f32c3ec8f11dfa43a91d3974857b))
+* **server:** reindex immediately after create_note_from_template ([#231](https://github.com/sandovaldavid/kioku/issues/231)) ([2fdb823](https://github.com/sandovaldavid/kioku/commit/2fdb82344583b5f85de57f60789e8f9d813a4b53))
+
+
+### Performance Improvements
+
+* **server:** document real tool costs and trim verbose descriptions ([#233](https://github.com/sandovaldavid/kioku/issues/233)) ([3692d3b](https://github.com/sandovaldavid/kioku/commit/3692d3b682c90392546f483ccf9e347ad200de08))
+
+## [2.2.1](https://github.com/sandovaldavid/kioku/compare/v2.2.0...v2.2.1) (2026-07-11)
+
+
+### Bug Fixes
+
+* **docs:** center home layout, add mermaid support and code syntax highlighting ([#219](https://github.com/sandovaldavid/kioku/issues/219)) ([16cc181](https://github.com/sandovaldavid/kioku/commit/16cc181ae29a3e6f66f41aa31c0de0280b2c9da8))
+
 ## [2.2.0](https://github.com/sandovaldavid/kioku/compare/v2.1.1...v2.2.0) (2026-07-11)
 
 
