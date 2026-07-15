@@ -1,6 +1,6 @@
 ---
 name: kioku-vault
-description: Use when working with an Obsidian vault via the Kioku MCP server — searching notes, managing tasks, zettelkasten workflows, tags, links, git-backed history, and vault organization. Covers when to use each category of Kioku's 147+ tools and safety notes for destructive operations.
+description: Use when working with an Obsidian vault via the Kioku MCP server — searching notes, managing tasks, zettelkasten workflows, tags, links, git-backed history, and vault organization. Covers when to use each category of Kioku's 128 tools and safety notes for destructive operations.
 ---
 
 # Kioku vault skill
@@ -119,17 +119,19 @@ showing as active/draft in `get_project_context` indefinitely.
 
 ## Reduce the number of loaded tools
 
-Kioku ships 147+ tools across 19 groups; every connected client loads the full enabled-tool list
-into context at session start. If a vault's `.kioku/config.yml` disables groups you don't use,
-fewer tool schemas get loaded — same functionality for what's left, lower fixed cost per session.
-Check `get_vault_stats` or the vault's config before assuming a missing tool is a bug (see
-"Any group can be disabled" above). Example, disabling groups a note-taking-only workflow won't
-need:
+Kioku ships 128 tools across 19 groups; every connected client loads the full enabled-tool list
+into context at session start (~19k tokens with everything on). If a vault's `.kioku/config.yml`
+disables groups you don't use, fewer tool schemas get loaded — same functionality for what's
+left, lower fixed cost per session. Check `get_vault_stats` or the vault's config before assuming
+a missing tool is a bug (see "Any group can be disabled" above). Recommended profile for coding
+agents (which run `git` natively in the vault, making the `git`/`restore` groups redundant):
 
 ```yaml
 capabilities:
-  disabled: [git, css, generation, research]
+  disabled: [git, restore, css, assets, generation, research]
 ```
+
+`docs/vault-config.md` has the per-group token cost table for finer tuning.
 
 ## Safety notes for destructive or vault-wide tools
 

@@ -52,7 +52,7 @@ public sealed class EngineeringWorkflowTools(
     [McpServerTool, Description(
         "Records an architecture decision record (ADR) for a project as " +
         "{projects}/{project}/decisions/ADR-NNNN-{title}.md with sequential numbering. " +
-        "Scaffolds the project folder structure on first use. " +
+        "Scaffolds project folders on first use. " +
         "To supersede an old ADR later, change its status with update_frontmatter.")]
     public async Task<string> record_adr(
         [Description("Project name (folder under the projects root). Use list_projects to discover existing ones.")] string project,
@@ -105,7 +105,7 @@ public sealed class EngineeringWorkflowTools(
     [McpServerTool, Description(
         "Logs a bug and its solution for a project as {projects}/{project}/bugs/BUG-{date}-{title}.md. " +
         "Records the symptom, root cause, and fix so future agents don't re-debug solved problems. " +
-        "Scaffolds the project folder structure on first use.")]
+        "Scaffolds project folders on first use.")]
     public async Task<string> log_bug(
         [Description("Project name (folder under the projects root).")] string project,
         [Description("Short bug title, e.g. 'Index race on startup'.")] string title,
@@ -152,7 +152,7 @@ public sealed class EngineeringWorkflowTools(
         "Creates an implementation plan for a project as {projects}/{project}/plans/PLAN-{date}-{title}.md. " +
         "Write steps as a markdown checkbox list (- [ ] step) so task tools can track them. " +
         "When the plan is completed, set status to 'done' with update_frontmatter. " +
-        "Scaffolds the project folder structure on first use.")]
+        "Scaffolds project folders on first use.")]
     public async Task<string> create_plan(
         [Description("Project name (folder under the projects root).")] string project,
         [Description("Short plan title, e.g. 'Add semantic search'.")] string title,
@@ -289,8 +289,7 @@ public sealed class EngineeringWorkflowTools(
     [McpServerTool, Description(
         "Returns the current state of a project workspace: the project MOC note, summaries of " +
         "recent work sessions, and per-type listings (decisions, bugs, plans, tickets, backlog, " +
-        "knowledge, daily). Reads files fresh from disk, so edits made in Obsidian moments ago " +
-        "are always reflected. Call this before resuming work on a project.")]
+        "knowledge, daily). Reads fresh from disk. Call this before resuming work on a project.")]
     public async Task<string> get_project_context(
         [Description("Project name (folder under the projects root). Use list_projects to discover names.")] string project,
         [Description("Include the full content of every listed document (verbose).")] bool include_content = false,

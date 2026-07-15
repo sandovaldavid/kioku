@@ -25,10 +25,9 @@ public sealed class GenerationTools(
     private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
 
     [McpServerTool, Description(
-        "Summarizes a note locally using Ollama (no cloud calls). Styles: 'bullets' (default), " +
-        "'paragraph', or 'eli5' (explain like I'm 5). Requires KIOKU_GEN_MODEL configured and " +
-        "Ollama running with that model pulled. Treat the output as a local draft, not a " +
-        "final answer — quality depends on the configured model.")]
+        "Summarizes a note locally via Ollama (no cloud calls). Styles: 'bullets' (default), " +
+        "'paragraph', 'eli5'. Requires KIOKU_GEN_MODEL and Ollama; output quality depends on " +
+        "the local model.")]
     public async Task<string> summarize_note(
         [Description("Name or path of the note to summarize.")] string note,
         [Description("Summary style: 'bullets' (default), 'paragraph', or 'eli5'.")] string style = "bullets",
@@ -75,12 +74,10 @@ public sealed class GenerationTools(
     }
 
     [McpServerTool, Description(
-        "Generates spaced-repetition flashcards from a note locally using Ollama (no cloud calls). " +
-        "Formats: 'spaced-repetition' (Q::A markdown for the Obsidian Spaced Repetition plugin, default), " +
-        "'anki-csv' (front,back,tags CSV for Anki import), or 'cloze' (==hidden text== cloze cards for " +
-        "the Spaced Repetition plugin). Requires KIOKU_GEN_MODEL configured and Ollama running with " +
-        "that model pulled. Treat the cards as a draft to review before studying — quality depends on " +
-        "the configured model.")]
+        "Generates flashcards from a note locally via Ollama (no cloud calls). Formats: " +
+        "'spaced-repetition' (Q::A markdown, default), 'anki-csv' (front,back,tags CSV), or " +
+        "'cloze' (==hidden text== cards). Requires KIOKU_GEN_MODEL and Ollama; review the cards " +
+        "before studying.")]
     public async Task<string> generate_flashcards(
         [Description("Name or path of the note to generate flashcards from.")] string note,
         [Description("Number of flashcards to generate (default: 10).")] int count = 10,
