@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -253,6 +254,28 @@ public sealed partial class ProjectWorkspaceService(
         return entries.Count == 0
             ? 0
             : await TemplaterFolderTemplates.RegisterFolderTemplatesAsync(config.VaultPath, entries);
+    }
+
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> AdrLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Serializes ADR number allocation per project. GetNextAdrNumber scans disk with no
+    /// locking of its own, so two rapid/concurrent record_adr calls for the same project
+    /// could otherwise compute the same "next" number and both succeed (filenames differ
+    /// only by title slug, so there's no collision to force a retry). Callers should hold
+    /// this for the entire compute-number-then-write-file critical section.
+    /// </summary>
+    public async Task<IDisposable> AcquireAdrLockAsync(string project)
+    {
+        var semaphore = AdrLocks.GetOrAdd(project, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
+        return new SemaphoreReleaser(semaphore);
+    }
+
+    private sealed class SemaphoreReleaser(SemaphoreSlim semaphore) : IDisposable
+    {
+        public void Dispose() => semaphore.Release();
     }
 
     /// <summary>

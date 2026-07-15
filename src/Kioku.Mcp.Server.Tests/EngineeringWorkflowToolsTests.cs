@@ -78,6 +78,22 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RecordAdr_TwoConcurrentCalls_NoDuplicateNumbers()
+    {
+        var (tools, workspace) = CreateTools();
+        await workspace.EnsureProjectScaffoldAsync("demo");
+
+        var first = tools.record_adr("demo", "First", "ctx", "d", "c");
+        var second = tools.record_adr("demo", "Second", "ctx", "d", "c");
+        await Task.WhenAll(first, second);
+
+        var files = Directory.GetFiles(workspace.GetSubfolder("demo", "decisions"), "ADR-*.md");
+        var numbers = files.Select(f => Path.GetFileName(f)[4..8]).Distinct().ToList();
+        Assert.Equal(2, files.Length);
+        Assert.Equal(2, numbers.Count);
+    }
+
+    [Fact]
     public async Task RecordAdr_InvalidStatus_ReturnsErrorWithOptions()
     {
         var (tools, _) = CreateTools();
