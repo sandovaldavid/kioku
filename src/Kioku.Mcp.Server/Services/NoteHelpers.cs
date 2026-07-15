@@ -98,7 +98,8 @@ public static class NoteHelpers
         string? domain = null,
         IEnumerable<string>? aliases = null,
         IEnumerable<string>? cssClasses = null,
-        IReadOnlyDictionary<string, string>? extraFields = null)
+        IReadOnlyDictionary<string, string>? extraFields = null,
+        DateOnly? updated = null)
     {
         var sb = new StringBuilder("---\n");
 
@@ -150,6 +151,11 @@ public static class NoteHelpers
         if (date.HasValue)
         {
             sb.AppendLine($"date: {date:yyyy-MM-dd}");
+        }
+
+        if (updated.HasValue)
+        {
+            sb.AppendLine($"updated: {updated:yyyy-MM-dd}");
         }
 
         if (!string.IsNullOrWhiteSpace(zettelId))
