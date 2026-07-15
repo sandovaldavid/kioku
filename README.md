@@ -2,7 +2,7 @@
 
 > **Kioku** (記憶) means "memory" in Japanese.
 >
-> Current version: **2.2.1** <!-- x-release-please-version --> · [Documentation Website](https://sandovaldavid.github.io/kioku/) · [View releases](https://github.com/sandovaldavid/kioku/releases)
+> Current version: **2.3.0** <!-- x-release-please-version --> · [Documentation Website](https://sandovaldavid.github.io/kioku/) · [View releases](https://github.com/sandovaldavid/kioku/releases)
 
 Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claude Code** and **Antigravity CLI** read, search, write, and organize your Obsidian vault natively, fast, and privately — with 117 MCP tools across 18 classes and 22 plugin bridge commands.
 
