@@ -277,31 +277,33 @@ can style each document type differently in Obsidian.
 
 ## `capabilities` — Enable/disable tool groups
 
-Kioku ships 147+ tools across 19 groups. Every connected MCP client loads the full list of
-enabled tools (name, description, parameter schema) into its context at session start, so if
-you only use a handful of these groups, disabling the rest is the single biggest lever for
-cutting how many tokens Kioku costs per session — with no loss of functionality for the groups
-you keep. The core groups (`NoteQueryTools`, `NoteCommandTools`, `UtilityTools`) are always
-registered. The 16 optional groups can be gated:
+Kioku ships 128 tools across 19 groups. Every connected MCP client loads the full list of
+enabled tools (name, description, parameter schema) into its context at session start — with
+everything enabled that is roughly **19,000 tokens per session** before the first question is
+asked. If you only use a handful of these groups, disabling the rest is the single biggest lever
+for cutting how many tokens Kioku costs per session — with no loss of functionality for the
+groups you keep. The core groups (`NoteQueryTools`, `NoteCommandTools`, `UtilityTools`, 26 tools
+≈ 4,000 tokens) are always registered. The 16 optional groups can be gated; the token column is
+the approximate schema cost each group adds to every session:
 
-| Group | Tool class |
-|---|---|
-| `tasks` | TaskManagementTools |
-| `zettelkasten` | ZettelkastenTools |
-| `organization` | VaultOrganizationTools |
-| `sessions` | SessionContextTools |
-| `workflows` | WorkflowTools |
-| `css` | CssThemingTools |
-| `graph` | KnowledgeGraphTools |
-| `graph-analysis` | GraphAnalysisTools |
-| `research` | ResearchTools |
-| `bridge` | ObsidianBridgeTools |
-| `plugin` | PluginIntegrationTools |
-| `git` | GitTools |
-| `restore` | RestoreTools |
-| `assets` | AssetTools |
-| `generation` | GenerationTools — requires `KIOKU_GEN_MODEL` (see [install.md](install.md)) |
-| `engineering` | EngineeringWorkflowTools — per-project ADRs, bugs, plans, knowledge, backlog |
+| Group | Tool class | Tools | ~Tokens |
+|---|---|---|---|
+| `tasks` | TaskManagementTools | 5 | 700 |
+| `zettelkasten` | ZettelkastenTools | 5 | 1,150 |
+| `organization` | VaultOrganizationTools | 10 | 1,450 |
+| `sessions` | SessionContextTools | 6 | 1,050 |
+| `workflows` | WorkflowTools | 5 | 1,100 |
+| `css` | CssThemingTools | 4 | 450 |
+| `graph` | KnowledgeGraphTools | 3 | 550 |
+| `graph-analysis` | GraphAnalysisTools | 5 | 650 |
+| `research` | ResearchTools | 8 | 1,300 |
+| `bridge` | ObsidianBridgeTools | 14 | 1,000 |
+| `plugin` | PluginIntegrationTools | 5 | 650 |
+| `git` | GitTools | 8 | 850 |
+| `restore` | RestoreTools | 5 | 600 |
+| `assets` | AssetTools | 6 | 600 |
+| `generation` | GenerationTools — requires `KIOKU_GEN_MODEL` (see [install.md](install.md)) | 2 | 550 |
+| `engineering` | EngineeringWorkflowTools — per-project ADRs, bugs, plans, knowledge, backlog | 11 | 2,450 |
 
 Semantics:
 
@@ -318,6 +320,12 @@ capabilities:
 capabilities:
   require_explicit: true
   enabled: [tasks, zettelkasten]
+
+# Example 3: recommended profile for coding-agent use (Claude Code, OpenCode, Antigravity).
+# Drops ~4,500 tokens per session. git/restore are shell-native for these agents,
+# css/assets/generation/research are niche unless you actively use them.
+capabilities:
+  disabled: [git, restore, css, assets, generation, research]
 ```
 
 Changes require a server restart (tool groups are registered at startup).
