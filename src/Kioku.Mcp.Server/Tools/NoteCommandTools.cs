@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Text;
 using Kioku.Mcp.Server.Domain;
@@ -21,6 +22,25 @@ public sealed partial class NoteCommandTools(
     private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
 
     private static readonly UTF8Encoding Utf8NoBom = NoteHelpers.Utf8NoBom;
+
+    // Serializes trash destination-name allocation per vault. The soft-delete path computes a
+    // unique name in .trash and then moves the file; without a lock two concurrent delete_note
+    // calls for notes sharing a basename can both pick the same name and the second File.Move
+    // (rename on Unix) silently overwrites the first, losing a recoverable note.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> TrashLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private static async Task<IDisposable> AcquireTrashLockAsync(string vaultPath)
+    {
+        var semaphore = TrashLocks.GetOrAdd(vaultPath, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
+        return new SemaphoreReleaser(semaphore);
+    }
+
+    private sealed class SemaphoreReleaser(SemaphoreSlim semaphore) : IDisposable
+    {
+        public void Dispose() => semaphore.Release();
+    }
 
     // create_note
 
@@ -481,19 +501,33 @@ public sealed partial class NoteCommandTools(
                 Directory.CreateDirectory(trashDir);
             }
 
-            // Generate unique filename in trash to avoid conflicts
-            var fileName = Path.GetFileName(filePath);
-            var trashPath = Path.Combine(trashDir, fileName);
-            var counter = 1;
-            while (File.Exists(trashPath))
+            // Generate a unique filename in trash and move the file under a per-vault lock. The
+            // name selection and the move must be one atomic critical section: otherwise two
+            // concurrent deletes of same-basename notes can select the same trash name and the
+            // second move overwrites the first (File.Move is rename() on Unix, which clobbers).
+            // Generate a unique filename in trash and move the file under a per-vault lock. The
+            // name selection and the move must be one atomic critical section: otherwise two
+            // concurrent deletes of same-basename notes can select the same trash name and the
+            // second move overwrites the first (File.Move is rename() on Unix, which clobbers).
+            string trashPath;
+            using (await AcquireTrashLockAsync(config.VaultPath))
             {
-                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                var ext = Path.GetExtension(fileName);
-                trashPath = Path.Combine(trashDir, $"{nameWithoutExt}_{counter}{ext}");
-                counter++;
+                var fileName = Path.GetFileName(filePath);
+                trashPath = Path.Combine(trashDir, fileName);
+                var counter = 1;
+                while (File.Exists(trashPath))
+                {
+                    var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                    var ext = Path.GetExtension(fileName);
+                    trashPath = Path.Combine(trashDir, $"{nameWithoutExt}_{counter}{ext}");
+                    counter++;
+                }
+
+                // overwrite: false so a name collision fails loudly instead of losing a note,
+                // even if some future caller reaches this move without holding the lock.
+                File.Move(filePath, trashPath, overwrite: false);
             }
 
-            File.Move(filePath, trashPath);
             vault.SynchronizeFileDelete(filePath);
             await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
 
