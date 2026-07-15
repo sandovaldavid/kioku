@@ -9,7 +9,11 @@ namespace Kioku.Mcp.Server.Services;
 /// Service for parsing, querying, and modifying Markdown task items in an Obsidian vault.
 /// Supports the Obsidian Tasks plugin format with emoji date annotations.
 /// </summary>
-public sealed partial class TaskService(ILogger<TaskService> logger, KiokuConfiguration config)
+public sealed partial class TaskService(
+    ILogger<TaskService> logger,
+    KiokuConfiguration config,
+    VaultIndexService? vault = null,
+    VaultConfigService? vaultConfig = null)
 {
     // Matches '- [ ] text' (open) and '- [x] text' / '- [X] text' (done)
     [GeneratedRegex(@"^(?<indent>\s*)- \[(?<state>[ xX])\] (?<text>.+)$", RegexOptions.Multiline)]
@@ -63,30 +67,34 @@ public sealed partial class TaskService(ILogger<TaskService> logger, KiokuConfig
     }
 
     /// <summary>
-    /// Scans all .md files in the vault and extracts all task items.
+    /// Scans all indexed notes in the vault and extracts all task items.
     /// </summary>
     /// <param name="folderFilter">Optional vault-relative folder to restrict the scan.</param>
     /// <returns>All task items found across the vault (or folder).</returns>
     public async Task<IReadOnlyList<TaskItem>> GetAllTasksAsync(string? folderFilter = null)
     {
-        var searchRoot = string.IsNullOrWhiteSpace(folderFilter)
-            ? _vaultPath
-            : Path.Combine(_vaultPath, folderFilter);
-
-        if (!Directory.Exists(searchRoot))
+        if (vault is null)
         {
             return [];
         }
 
         var tasks = new List<TaskItem>();
-        var files = Directory.GetFiles(searchRoot, "*.md", SearchOption.AllDirectories);
-
-        foreach (var filePath in files)
+        IEnumerable<Note> notes;
+        if (string.IsNullOrWhiteSpace(folderFilter))
         {
-            var vaultRelative = Path.GetRelativePath(_vaultPath, filePath)
-                .Replace('\\', '/');
-            var noteName = Path.GetFileNameWithoutExtension(filePath);
-            var noteTasks = await ParseTasksFromFileAsync(filePath, vaultRelative, noteName);
+            notes = vault.GetAllNotes();
+        }
+        else
+        {
+            var folderPath = NoteHelpers.EnsureInsideVault(
+                _vaultPath,
+                Path.Combine(_vaultPath, folderFilter));
+            notes = vault.GetNotesInFolder(folderPath);
+        }
+
+        foreach (var note in notes.OrderBy(n => n.VaultRelativePath, StringComparer.OrdinalIgnoreCase))
+        {
+            var noteTasks = await ParseTasksFromFileAsync(note.FilePath, note.VaultRelativePath, note.Name);
             tasks.AddRange(noteTasks);
         }
 
@@ -125,7 +133,10 @@ public sealed partial class TaskService(ILogger<TaskService> logger, KiokuConfig
         var updatedLine = $"{match.Groups["indent"].Value}- [{newState}] {match.Groups["text"].Value}";
         lines[zeroIndex] = updatedLine;
 
-        await File.WriteAllLinesAsync(filePath, lines);
+        var updatedContent = string.Join(Environment.NewLine, lines);
+        updatedContent = NoteHelpers.TouchUpdated(
+            updatedContent, DateOnly.FromDateTime(DateTime.Today), vaultConfig?.MaintainUpdated == true);
+        await File.WriteAllTextAsync(filePath, updatedContent, NoteHelpers.Utf8NoBom);
         logger.Info("Task at line {Line} in {Path} marked as {State}", lineNumber, filePath, complete ? "complete" : "open");
 
         var vaultRelative = Path.GetRelativePath(_vaultPath, filePath).Replace('\\', '/');

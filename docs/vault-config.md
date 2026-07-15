@@ -100,6 +100,36 @@ template_folders:
 For an explicitly selected template, use `create_note` with `template`, or use the plugin-only
 `apply_template` tool when Templater evaluation is required.
 
+## `frontmatter` - Mutation timestamps
+
+Kioku preserves existing frontmatter by default and does not add or change `updated` fields. To
+make Kioku maintain a timestamp on notes it writes, opt in at the vault level:
+
+```yaml
+frontmatter:
+  maintain_updated: true
+```
+
+When enabled, Kioku updates an existing `updated:` or `modified:` field, adds `updated:` when
+frontmatter exists without either field, and creates minimal frontmatter for notes that had none.
+The default is `false` for compatibility with vaults where Obsidian Linter owns timestamps.
+
+## `generated_indexes` - MOC and folder-note refresh
+
+MOCs and folder-readmes created by Kioku are snapshots. They include provenance and managed-section
+markers so the server can refresh them safely. Refresh is manual by default:
+
+```yaml
+generated_indexes:
+  refresh: manual       # default; regenerate explicitly with create_note
+  # refresh: on_mutation
+```
+
+With `on_mutation`, Kioku refreshes only generated indexes created with managed markers after note
+creation, edits, moves, restores, or deletes. Legacy indexes without markers are not overwritten.
+Text outside the managed section is preserved. `rebuild_index` only rebuilds the search index; it
+does not regenerate Markdown indexes.
+
 ## `engineering` - Project workspaces
 
 The `engineering` capability provides `create_project_doc`, `get_project_context`, `list_projects`,

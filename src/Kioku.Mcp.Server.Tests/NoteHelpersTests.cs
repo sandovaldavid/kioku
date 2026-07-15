@@ -366,6 +366,44 @@ public class NoteHelpersTests
     }
 
     [Fact]
+    public void TouchUpdated_Disabled_PreservesContent()
+    {
+        const string content = "---\ntitle: Note\n---\nBody";
+
+        var result = NoteHelpers.TouchUpdated(content, new DateOnly(2026, 7, 15), enabled: false);
+
+        Assert.Equal(content, result);
+    }
+
+    [Fact]
+    public void TouchUpdated_ExistingUpdatedField_ReplacesOnlyTheField()
+    {
+        const string content = "---\ntitle: Note\nupdated: 2020-01-01\n---\nBody";
+
+        var result = NoteHelpers.TouchUpdated(content, new DateOnly(2026, 7, 15), enabled: true);
+
+        Assert.Equal("---\ntitle: Note\nupdated: 2026-07-15\n---\nBody", result);
+    }
+
+    [Fact]
+    public void TouchUpdated_ModifiedField_PreservesFieldName()
+    {
+        const string content = "---\ntitle: Note\nmodified: 2020-01-01\n---\nBody";
+
+        var result = NoteHelpers.TouchUpdated(content, new DateOnly(2026, 7, 15), enabled: true);
+
+        Assert.Equal("---\ntitle: Note\nmodified: 2026-07-15\n---\nBody", result);
+    }
+
+    [Fact]
+    public void TouchUpdated_NoFrontmatter_AddsMinimalFrontmatter()
+    {
+        var result = NoteHelpers.TouchUpdated("Body", new DateOnly(2026, 7, 15), enabled: true);
+
+        Assert.Equal("---\nupdated: 2026-07-15\n---\nBody", result);
+    }
+
+    [Fact]
     public void EnsureInsideVault_ValidPath_ReturnsCanonicalPath()
     {
         var vaultRoot = Path.GetTempPath();

@@ -168,6 +168,7 @@ public sealed partial class ProjectWorkspaceService(
                 date: DateOnly.FromDateTime(DateTime.Now),
                 domain: vaultConfig.GetDomainForFolder(relFolder),
                 cssClasses: ["kioku-project-moc"],
+                updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null,
                 extraFields: new Dictionary<string, string> { ["project"] = project });
 
             await File.WriteAllTextAsync(mocPath, frontmatter + "\n" + body, NoteHelpers.Utf8NoBom);
@@ -192,6 +193,7 @@ public sealed partial class ProjectWorkspaceService(
 
         return created;
     }
+
 
     /// <summary>Doc type key each engineering subfolder maps to, for Templater folder-template registration.</summary>
     private static readonly (string SubfolderKey, string TemplateKey)[] SubfolderTemplatePairs =

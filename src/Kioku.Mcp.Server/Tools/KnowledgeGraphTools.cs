@@ -41,7 +41,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
         var center = ResolveNote(note);
         if (center is null)
         {
-            return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
+            return KiokuError.NotFound($"Note not found or basename is ambiguous: '{note}'. Use list_notes to see available notes.");
         }
 
         // BFS traversal
@@ -50,7 +50,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
         var edges = new List<GraphEdge>();
 
         queue.Enqueue((center, 0));
-        visited[center.Name] = center;
+        visited[center.FilePath] = center;
 
         while (queue.Count > 0 && visited.Count < max_nodes)
         {
@@ -59,16 +59,15 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             // Outgoing links
             foreach (var target in current.OutgoingLinks)
             {
-                var targetNote = vault.GetAllNotes()
-                    .FirstOrDefault(n => n.Name.Equals(target, StringComparison.OrdinalIgnoreCase));
+                var targetNote = vault.ResolveLink(current, target);
 
                 if (targetNote is not null)
                 {
-                    edges.Add(new GraphEdge(current.Name, targetNote.Name, "link"));
+                    edges.Add(new GraphEdge(current.VaultRelativePath, targetNote.VaultRelativePath, "link"));
 
-                    if (!visited.ContainsKey(targetNote.Name) && currentDepth < depth && visited.Count < max_nodes)
+                    if (!visited.ContainsKey(targetNote.FilePath) && currentDepth < depth && visited.Count < max_nodes)
                     {
-                        visited[targetNote.Name] = targetNote;
+                        visited[targetNote.FilePath] = targetNote;
                         queue.Enqueue((targetNote, currentDepth + 1));
                     }
                 }
@@ -77,23 +76,24 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
                     // Broken link — include as a stub node
                     if (!visited.ContainsKey(target) && visited.Count < max_nodes)
                     {
-                        edges.Add(new GraphEdge(current.Name, target, "broken-link"));
+                        edges.Add(new GraphEdge(current.VaultRelativePath, target, "broken-link"));
                     }
                 }
             }
 
             // Backlinks
-            var backlinks = vault.GetBacklinks(current.Name);
+            var backlinks = vault.GetBacklinks(current);
             foreach (var backlinkNote in backlinks)
             {
-                if (!edges.Any(e => e.Source == backlinkNote.Name && e.Target == current.Name && e.Type == "link"))
+                if (!edges.Any(e => e.Source == backlinkNote.VaultRelativePath &&
+                                   e.Target == current.VaultRelativePath && e.Type == "link"))
                 {
-                    edges.Add(new GraphEdge(backlinkNote.Name, current.Name, "backlink"));
+                    edges.Add(new GraphEdge(backlinkNote.VaultRelativePath, current.VaultRelativePath, "backlink"));
                 }
 
-                if (!visited.ContainsKey(backlinkNote.Name) && currentDepth < depth && visited.Count < max_nodes)
+                if (!visited.ContainsKey(backlinkNote.FilePath) && currentDepth < depth && visited.Count < max_nodes)
                 {
-                    visited[backlinkNote.Name] = backlinkNote;
+                    visited[backlinkNote.FilePath] = backlinkNote;
                     queue.Enqueue((backlinkNote, currentDepth + 1));
                 }
             }
@@ -101,12 +101,12 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
         // Build graph JSON
         var nodes = visited.Values.Select(n => new GraphNode(
-            Id: n.Name,
+            Id: n.VaultRelativePath,
             Path: n.VaultRelativePath,
             Tags: n.Metadata.Tags.ToArray(),
             Status: n.Metadata.Status,
             Date: n.Metadata.Date?.ToString("yyyy-MM-dd"),
-            IsCenter: n.Name.Equals(center.Name, StringComparison.OrdinalIgnoreCase)
+            IsCenter: n.FilePath.Equals(center.FilePath, StringComparison.OrdinalIgnoreCase)
         )).ToList();
 
         // Deduplicate edges
@@ -116,7 +116,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             .ToList();
 
         var graph = new ConceptGraph(
-            Center: center.Name,
+            Center: center.VaultRelativePath,
             Depth: depth,
             NodeCount: nodes.Count,
             EdgeCount: uniqueEdges.Count,
@@ -153,10 +153,12 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
         if (island_threshold < 1)
         {
-            return "[error] Island threshold must be at least 1.";
+            return KiokuError.InvalidArgument("Island threshold must be at least 1.");
         }
 
-        var allNotes = vault.GetAllNotes().ToList();
+        try
+        {
+            var allNotes = vault.GetAllNotes().ToList();
 
         if (allNotes.Count == 0)
         {
@@ -279,7 +281,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
         // --- Link stats ---
         var totalOutgoing = allNotes.Sum(n => n.OutgoingLinks.Count);
         var notesWithLinks = allNotes.Count(n => n.OutgoingLinks.Count > 0);
-        var orphans = allNotes.Count(n => !n.OutgoingLinks.Any() && !vault.GetBacklinks(n.Name).Any());
+        var orphans = allNotes.Count(n => !n.OutgoingLinks.Any() && !vault.GetBacklinks(n).Any());
 
         sb.AppendLine("## Link statistics");
         sb.AppendLine($"- Total wikilinks: {totalOutgoing}");
@@ -288,7 +290,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
         // --- Consolidated graph analysis ---
         var backlinkCounts = allNotes
-            .Select(n => (Note: n, Count: vault.GetBacklinks(n.Name).Count()))
+            .Select(n => (Note: n, Count: vault.GetBacklinks(n).Count))
             .ToList();
         var totalBacklinks = backlinkCounts.Sum(x => x.Count);
         var notesWithBacklinks = backlinkCounts.Count(x => x.Count > 0);
@@ -339,19 +341,24 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             sb.AppendLine($"Found {islands.Count} island(s) (max {island_threshold} notes each):");
             foreach (var island in islands.OrderByDescending(i => i.Count))
             {
-                var noteNames = string.Join(", ", island.Select(n => n.Name).OrderBy(name => name));
+                var noteNames = string.Join(", ", island.Select(n => n.VaultRelativePath).OrderBy(path => path));
                 sb.AppendLine($"- Island ({island.Count} notes): {noteNames}");
             }
         }
 
-        return sb.ToString();
+            return sb.ToString();
+        }
+        catch (Exception)
+        {
+            return KiokuError.Internal("Could not build the vault snapshot.");
+        }
     }
 
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
-    private Note? ResolveNote(string input) => NoteHelpers.ResolveNote(input, vault);
+    private Note? ResolveNote(string input) => vault.ResolveNote(input);
 
     private static int Pct(int value, int total) =>
         total == 0 ? 0 : (int)Math.Round(value * 100.0 / total);
@@ -360,11 +367,10 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
     {
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var islands = new List<List<Note>>();
-        var notesByName = allNotes.ToDictionary(n => n.Name, StringComparer.OrdinalIgnoreCase);
 
         foreach (var note in allNotes)
         {
-            if (visited.Contains(note.Name))
+            if (visited.Contains(note.FilePath))
             {
                 continue;
             }
@@ -372,7 +378,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             var component = new List<Note>();
             var queue = new Queue<Note>();
             queue.Enqueue(note);
-            visited.Add(note.Name);
+            visited.Add(note.FilePath);
 
             while (queue.Count > 0)
             {
@@ -381,15 +387,16 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
                 foreach (var link in current.OutgoingLinks)
                 {
-                    if (notesByName.TryGetValue(link, out var linkedNote) && visited.Add(linkedNote.Name))
+                    var linkedNote = vault.ResolveLink(current, link);
+                    if (linkedNote is not null && visited.Add(linkedNote.FilePath))
                     {
                         queue.Enqueue(linkedNote);
                     }
                 }
 
-                foreach (var backlink in vault.GetBacklinks(current.Name))
+                foreach (var backlink in vault.GetBacklinks(current))
                 {
-                    if (visited.Add(backlink.Name))
+                    if (visited.Add(backlink.FilePath))
                     {
                         queue.Enqueue(backlink);
                     }

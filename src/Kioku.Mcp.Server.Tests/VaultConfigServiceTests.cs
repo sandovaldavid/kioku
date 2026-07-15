@@ -99,4 +99,31 @@ public class VaultConfigServiceTests : IDisposable
         Assert.True(service.IsGroupEnabled("tasks"));
         Assert.False(service.IsGroupEnabled("css"));
     }
+
+    [Fact]
+    public void MutationOptions_DefaultToCompatibilityMode()
+    {
+        var service = CreateService("");
+
+        Assert.False(service.MaintainUpdated);
+        Assert.False(service.RefreshGeneratedIndexes);
+    }
+
+    [Fact]
+    public void MutationOptions_ReadExplicitOptIns()
+    {
+        var service = CreateService(
+            "frontmatter:\n  maintain_updated: true\ngenerated_indexes:\n  refresh: on_mutation");
+
+        Assert.True(service.MaintainUpdated);
+        Assert.True(service.RefreshGeneratedIndexes);
+    }
+
+    [Fact]
+    public void GeneratedIndexRefresh_RejectsUnknownModes()
+    {
+        var service = CreateService("generated_indexes:\n  refresh: always");
+
+        Assert.False(service.RefreshGeneratedIndexes);
+    }
 }

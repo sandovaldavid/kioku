@@ -85,6 +85,31 @@ public sealed class VaultConfigService
 
     public string VaultName => _data.Vault?.Name ?? string.Empty;
 
+    /// <summary>Whether Kioku should maintain an <c>updated</c>/<c>modified</c> field on writes.</summary>
+    public bool MaintainUpdated => _data.Frontmatter?.MaintainUpdated == true;
+
+    /// <summary>Whether generated MOCs and folder notes may refresh after mutations.</summary>
+    public bool RefreshGeneratedIndexes =>
+        string.Equals(_data.GeneratedIndexes?.Refresh, "on_mutation", StringComparison.OrdinalIgnoreCase);
+
+    public string? ConfiguredInbox => GetFolder("inbox");
+
+    public IReadOnlyList<string> EnabledCapabilityGroups => KnownGroups
+        .Where(IsGroupEnabled)
+        .ToArray();
+
+    public IReadOnlyList<string> DisabledCapabilityGroups => KnownGroups
+        .Where(group => !IsGroupEnabled(group) && !RemovedGroups.Contains(group))
+        .ToArray();
+
+    public IReadOnlyList<string> RemovedCapabilityGroups => RemovedGroups.OrderBy(x => x).ToArray();
+
+    public static IReadOnlyList<string> KnownGroups { get; } =
+    [
+        "tasks", "organization", "sessions", "workflows", "graph", "research", "generation",
+        "css", "assets", "bridge", "plugin", "engineering"
+    ];
+
     /// <summary>
     /// Returns inherited tags for a folder path via longest-prefix match.
     /// Empty list if no match or auto_tags.inherit not configured.
@@ -220,6 +245,18 @@ public sealed class VaultConfigData
 
     public CapabilitiesConfig? Capabilities { get; init; }
     public EngineeringConfig? Engineering { get; init; }
+    public FrontmatterConfig? Frontmatter { get; init; }
+    public GeneratedIndexesConfig? GeneratedIndexes { get; init; }
+}
+
+public sealed class FrontmatterConfig
+{
+    public bool MaintainUpdated { get; init; }
+}
+
+public sealed class GeneratedIndexesConfig
+{
+    public string? Refresh { get; init; }
 }
 
 public sealed class EngineeringConfig

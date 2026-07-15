@@ -77,6 +77,20 @@ public class KiokuPromptsTests
     }
 
     [Fact]
+    public void ProjectTask_OrchestratesContextExecutionAndHandoff()
+    {
+        var result = KiokuPrompts.project_task("kioku", "implement semantic search");
+
+        Assert.Contains("implement semantic search", result);
+        Assert.Contains("get_project_context", result);
+        Assert.Contains("start_work_session", result);
+        Assert.Contains("create_project_doc", result);
+        Assert.Contains("list_tasks", result);
+        Assert.Contains("end_work_session", result);
+        Assert.Contains("do not execute", result);
+    }
+
+    [Fact]
     public void RecordDecision_ChecksPriorAdrsAndHandlesSupersede()
     {
         var result = KiokuPrompts.record_decision("kioku", "database choice");

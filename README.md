@@ -402,6 +402,7 @@ Besides the 49 tools, Kioku exposes prompts and resources. The full inventory li
 | `weekly_review` | — | Weekly review: digest + overdue tasks + orphans + link suggestions |
 | `literature_review` | `topic` | Gathers existing evidence on a topic and synthesizes it with `[[wikilink]]` citations |
 | `resume_project` | `project` | Loads project context before work resumes |
+| `project_task` | `project`, `task` | Orchestrates context, execution, documentation, verification, and handoff for a project task |
 | `record_decision` | `project`, `topic` | Records an architecture decision |
 | `log_bugfix` | `project` | Records a bug and its fix |
 | `plan_feature` | `project`, `feature` | Drafts an implementation plan |

@@ -172,7 +172,8 @@ public sealed partial class ResearchTools(
 
         var frontmatter = NoteHelpers.BuildFrontmatter(
             ["literature"], "literature", "draft",
-            DateOnly.FromDateTime(DateTime.Today), extraFields: extraFields);
+            DateOnly.FromDateTime(DateTime.Today), extraFields: extraFields,
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
         var dir = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(dir);
@@ -190,7 +191,8 @@ public sealed partial class ResearchTools(
 
         var frontmatter = NoteHelpers.BuildFrontmatter(
             existingMeta.Tags, existingMeta.NoteType, existingMeta.Status,
-            existingMeta.Date, domain: existingMeta.Domain, extraFields: extraFields);
+            existingMeta.Date, domain: existingMeta.Domain, extraFields: extraFields,
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
         await File.WriteAllTextAsync(existingNote.FilePath, frontmatter + body, NoteHelpers.Utf8NoBom);
     }

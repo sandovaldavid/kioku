@@ -77,6 +77,9 @@ not capability groups in this surface. See [`docs/vault-config.md`](../../docs/v
 | `KIOKU_ENABLE_METRICS` | no | `false` | Tool usage counters (opt-in) |
 | `KIOKU_SENTRY_DSN` | no | - | Sentry DSN for crash reporting (opt-in) |
 
+Vault-level options for `frontmatter.maintain_updated` and `generated_indexes.refresh` are
+documented in [`docs/vault-config.md`](../../docs/vault-config.md).
+
 ## Development
 
 ```bash

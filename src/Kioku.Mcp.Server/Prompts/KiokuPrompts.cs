@@ -96,6 +96,38 @@ public sealed class KiokuPrompts
         When finished, call `end_work_session` with a useful handoff summary.
         """;
 
+    [McpServerPrompt(Name = "project_task"), Description(
+        "Orchestrates the context, execution, documentation, verification, and handoff lifecycle for a project task.")]
+    public static string project_task(
+        [Description("Project name (folder under the projects root).")]
+        string project,
+        [Description("Task or desired outcome, including relevant constraints and acceptance criteria.")]
+        string task) => $"""
+        Work on task "{task}" for project "{project}":
+
+        1. Call `get_project_context` with project='{project}' before editing project notes or code.
+        2. Read the relevant MOC, latest session, active plans, open bugs, ADRs, tickets, backlog,
+           and knowledge notes with `read_note` as needed. Use `search_notes` for prior art.
+        3. Classify the request as read-only, implementation, bug investigation, architecture
+           decision, reusable knowledge, deferred backlog work, or daily/status work.
+        4. For substantial work, call `start_work_session` with project='{project}' and a concise
+           goal. Skip the session for a read-only answer or one-line edit.
+        5. Perform repository work with the client's native shell, editor, test, and Git tools.
+           Use Kioku for vault context and documentation. Do not create ADRs, bugs, plans, or
+           knowledge notes unless the task produces a reusable artifact.
+        6. Use `create_project_doc` only for a justified ADR, bug, plan, backlog item, or knowledge
+           note. Use `edit_note`, `set_task_state`, and `update_frontmatter` for follow-up changes.
+           Call `list_tasks` before changing a task state.
+        7. Verify the result with the relevant tests, build, lint, or review commands. Update plan
+           checkboxes only for verified work and explicitly set completed plans to status='done'.
+        8. Preview link, inbox, tag, and destructive changes before applying them. Never permanently
+           delete or apply bulk changes without explicit confirmation in this turn.
+        9. If a session was started, call `end_work_session` with what changed, verification,
+           blockers, risks, and the next action for the next agent.
+
+        MCP prompts provide instructions; they do not execute the listed tools automatically.
+        """;
+
     [McpServerPrompt(Name = "record_decision"), Description(
         "Records an architecture decision for a project.")]
     public static string record_decision(

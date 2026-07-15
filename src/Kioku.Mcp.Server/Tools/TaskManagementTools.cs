@@ -18,23 +18,38 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
     [McpServerTool, Description(
         "Lists all tasks (open and completed) across the vault or within a specific note. " +
         "Supports filtering by completion status, tag, and overdue date. " +
-        "Returns task text, note name, line number, due date, and inline tags.")]
+        "Supports pagination with stable ordering and returns task text, note name, line number, " +
+        "due date, and inline tags.")]
     public async Task<string> list_tasks(
         [Description("Name or path of a specific note to scan. Leave empty to scan the entire vault.")] string note = "",
         [Description("Filter by completion status: 'open' (default), 'done', or 'all'.")] string status = "open",
         [Description("Folder to restrict the search (relative to vault root). Only used when 'note' is empty.")] string folder = "",
         [Description("Optional tag to match in task text or note frontmatter, without the '#' prefix.")] string tag = "",
-        [Description("Only return open tasks whose due date is in the past.")] bool overdue_only = false)
+        [Description("Only return open tasks whose due date is in the past.")] bool overdue_only = false,
+        [Description("Maximum tasks to return (default: 50).")] int limit = 50,
+        [Description("Number of matching tasks to skip for pagination.")] int offset = 0)
     {
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
         }
 
+        if (offset < 0)
+        {
+            return KiokuError.InvalidArgument("'offset' must be 0 or greater.");
+        }
+
+        if (limit <= 0)
+        {
+            return KiokuError.InvalidArgument("'limit' must be greater than 0.");
+        }
+
+        limit = Math.Min(limit, 50);
+
         var normalizedStatus = status?.Trim().ToLowerInvariant() ?? "";
         if (normalizedStatus is not ("open" or "done" or "completed" or "all"))
         {
-            return $"[error] Invalid status '{status}'. Use 'open', 'done', or 'all'.";
+            return KiokuError.InvalidArgument($"Invalid status '{status}'. Use 'open', 'done', or 'all'.");
         }
 
         IReadOnlyList<TaskItem> allTasks;
@@ -44,14 +59,21 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
             var found = ResolveNote(note);
             if (found is null)
             {
-                return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
+                return KiokuError.NotFound($"Note not found: '{note}'. Use list_notes to see available notes.");
             }
 
             allTasks = await tasks.ParseTasksFromFileAsync(found.FilePath, found.VaultRelativePath, found.Name);
         }
         else
         {
-            allTasks = await tasks.GetAllTasksAsync(string.IsNullOrWhiteSpace(folder) ? null : folder);
+            try
+            {
+                allTasks = await tasks.GetAllTasksAsync(string.IsNullOrWhiteSpace(folder) ? null : folder);
+            }
+            catch (InvalidOperationException)
+            {
+                return KiokuError.InvalidArgument("The 'folder' parameter must resolve inside the vault.");
+            }
         }
 
         IEnumerable<TaskItem> filtered = normalizedStatus switch
@@ -79,46 +101,50 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
             filtered = filtered.Where(t => t.IsOverdue);
         }
 
-        var list = (overdue_only
-                ? filtered.OrderBy(t => t.DueDate).ThenBy(t => t.VaultRelativePath).ThenBy(t => t.LineNumber)
-                : filtered.OrderBy(t => t.VaultRelativePath).ThenBy(t => t.LineNumber))
+        var sorted = (overdue_only
+                ? filtered.OrderBy(t => t.DueDate).ThenBy(t => t.VaultRelativePath, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.LineNumber)
+                : filtered.OrderBy(t => t.VaultRelativePath, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.LineNumber))
             .ToList();
+        var total = sorted.Count;
+        var page = sorted.Skip(offset).Take(limit).ToList();
+        var pageMetadata = $"total: {total}, offset: {offset}, limit: {limit}, returned: {page.Count}";
 
-        if (list.Count == 0)
+        if (page.Count == 0)
         {
             if (overdue_only)
             {
-                return "No overdue tasks found. All caught up!";
+                return $"No overdue tasks found. All caught up! ({pageMetadata})";
             }
 
             if (tagValue.Length > 0)
             {
-                return $"No {(normalizedStatus == "all" ? "" : status + " ")}tasks found with tag '#{tagValue}'.";
+                return $"No {(normalizedStatus == "all" ? "" : status + " ")}tasks found with tag '#{tagValue}'. ({pageMetadata})";
             }
 
-            return string.IsNullOrWhiteSpace(note)
+            return (string.IsNullOrWhiteSpace(note)
                 ? $"No {(normalizedStatus == "all" ? "" : status + " ")}tasks found in the vault."
-                : $"No {(normalizedStatus == "all" ? "" : status + " ")}tasks found in '{note}'.";
+                : $"No {(normalizedStatus == "all" ? "" : status + " ")}tasks found in '{note}'.") +
+                $" ({pageMetadata})";
         }
 
         if (overdue_only)
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var sb = new StringBuilder();
-            sb.AppendLine($"Overdue tasks as of {today:yyyy-MM-dd} ({list.Count} found):\n");
-            sb.Append(FormatTaskList(list, showDueDate: true, highlightOverdue: true));
+            sb.AppendLine($"Overdue tasks as of {today:yyyy-MM-dd} ({pageMetadata}):\n");
+            sb.Append(FormatTaskList(page, showDueDate: true, highlightOverdue: true));
             return sb.ToString();
         }
 
         if (tagValue.Length > 0)
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"Tasks with tag '#{tagValue}' ({list.Count} found):\n");
-            sb.Append(FormatTaskList(list));
+            sb.AppendLine($"Tasks with tag '#{tagValue}' ({pageMetadata}):\n");
+            sb.Append(FormatTaskList(page));
             return sb.ToString();
         }
 
-        return FormatTaskList(list);
+        return $"Tasks ({pageMetadata}):\n\n{FormatTaskList(page)}";
     }
 
     // set_task_state
@@ -134,7 +160,7 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
         var found = ResolveNote(note);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'.";
+            return KiokuError.NotFound($"Note not found: '{note}'.");
         }
 
         var result = await tasks.SetTaskCompletionAsync(found.FilePath, line_number, completed);
@@ -144,7 +170,7 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
             var hint = completed
                 ? "Use list_tasks to find task line numbers."
                 : "Use list_tasks with status='done' to find completed task line numbers.";
-            return $"[error] Line {line_number} in '{note}' is not a valid task. {hint}";
+            return KiokuError.InvalidArgument($"Line {line_number} in '{note}' is not a valid task. {hint}");
         }
 
         return completed

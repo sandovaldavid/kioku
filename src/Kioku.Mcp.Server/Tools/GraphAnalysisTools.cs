@@ -41,40 +41,57 @@ public sealed class GraphAnalysisTools(
             return "[loading] The index is still loading. Wait a moment and try again.";
         }
 
-        if (!string.IsNullOrWhiteSpace(targets))
+        if (max_suggestions < 1)
         {
-            return await ApplyExplicitTargets(note, targets, section, !apply);
+            return KiokuError.InvalidArgument("'max_suggestions' must be greater than 0.");
         }
 
-        if (!string.IsNullOrWhiteSpace(note))
+        if (float.IsNaN(min_similarity) || min_similarity is < 0f or > 1f)
         {
-            var found = NoteHelpers.ResolveNote(note, vault);
-            if (found is null)
+            return KiokuError.InvalidArgument("'min_similarity' must be between 0 and 1.");
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(targets))
             {
-                return KiokuError.NotFound($"Note not found: '{note}'");
+                return await ApplyExplicitTargets(note, targets, section, !apply);
+            }
+
+            if (!string.IsNullOrWhiteSpace(note))
+            {
+                var found = vault.ResolveNote(note);
+                if (found is null)
+                {
+                    return KiokuError.NotFound($"Note not found or basename is ambiguous: '{note}'");
+                }
+
+                if (!embedding.IsAvailable)
+                {
+                    return KiokuError.DependencyUnavailable(
+                        $"Semantic link suggestions require Ollama running at {config.OllamaUrl} with embeddings available.");
+                }
+
+                var suggestions = SuggestLinksForNote(found, max_suggestions, min_similarity);
+                return !apply
+                    ? FormatSuggestions(suggestions, $"'{DisplayNote(found)}'")
+                    : await ApplySemanticSuggestions(suggestions, section);
             }
 
             if (!embedding.IsAvailable)
             {
-                return KiokuError.DependencyUnavailable(
-                    $"Semantic link suggestions require Ollama running at {config.OllamaUrl} with embeddings available.");
+                return FormatStructuralFallback();
             }
 
-            var suggestions = SuggestLinksForNote(found, max_suggestions, min_similarity);
+            var vaultSuggestions = SuggestLinksForVault(max_suggestions, min_similarity);
             return !apply
-                ? FormatSuggestions(suggestions, $"'{found.Name}'")
-                : await ApplySemanticSuggestions(suggestions, section);
+                ? FormatSuggestions(vaultSuggestions, "the vault")
+                : await ApplySemanticSuggestions(vaultSuggestions, section);
         }
-
-        if (!embedding.IsAvailable)
+        catch (Exception)
         {
-            return FormatStructuralFallback();
+            return KiokuError.Internal("Could not analyze link suggestions.");
         }
-
-        var vaultSuggestions = SuggestLinksForVault(max_suggestions, min_similarity);
-        return !apply
-            ? FormatSuggestions(vaultSuggestions, "the vault")
-            : await ApplySemanticSuggestions(vaultSuggestions, section);
     }
 
     // Private helpers — link suggestions
@@ -83,11 +100,11 @@ public sealed class GraphAnalysisTools(
 
     private List<LinkSuggestion> SuggestLinksForNote(Note source, int maxSuggestions, float minSimilarity)
     {
-        var outgoingNames = source.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var backlinkNames = vault.GetBacklinks(source.Name).Select(n => n.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var backlinkPaths = vault.GetBacklinks(source).Select(n => n.FilePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return hybrid.FindSimilar(source, maxSuggestions + 10, minSimilarity)
-            .Where(r => !outgoingNames.Contains(r.Note.Name) && !backlinkNames.Contains(r.Note.Name))
+            .Where(r => !IsLinked(source, r.Note) && !backlinkPaths.Contains(r.Note.FilePath))
             .Take(maxSuggestions)
             .Select(r => new LinkSuggestion(source, r.Note, r.Score, "semantic-similarity", BuildSnippet(r.Note)))
             .ToList();
@@ -110,15 +127,15 @@ public sealed class GraphAnalysisTools(
         // genuinely connected-but-small clusters here to avoid duplicate suggestions.
         foreach (var island in FindIslands(IslandThreshold).Where(i => i.Count > 1))
         {
-            var islandNames = island.Select(n => n.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var islandPaths = island.Select(n => n.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var representative = island[0];
-            var repOutgoing = representative.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var repBacklinks = vault.GetBacklinks(representative.Name).Select(n => n.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var repBacklinks = vault.GetBacklinks(representative).Select(n => n.FilePath)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var best = hybrid.FindSimilar(representative, island.Count + 10, minSimilarity)
-                .FirstOrDefault(r => !islandNames.Contains(r.Note.Name)
-                                   && !repOutgoing.Contains(r.Note.Name)
-                                   && !repBacklinks.Contains(r.Note.Name));
+                .FirstOrDefault(r => !islandPaths.Contains(r.Note.FilePath)
+                                   && !IsLinked(representative, r.Note)
+                                   && !repBacklinks.Contains(r.Note.FilePath));
 
             if (best is not null)
             {
@@ -132,7 +149,7 @@ public sealed class GraphAnalysisTools(
             .ToList();
     }
 
-    private static string FormatSuggestions(IReadOnlyList<LinkSuggestion> suggestions, string scopeDescription)
+    private string FormatSuggestions(IReadOnlyList<LinkSuggestion> suggestions, string scopeDescription)
     {
         if (suggestions.Count == 0)
         {
@@ -143,7 +160,7 @@ public sealed class GraphAnalysisTools(
         var i = 1;
         foreach (var s in suggestions)
         {
-            sb.AppendLine($"{i}. [[{s.Source.Name}]] → [[{s.Target.Name}]]  (score: {s.Score:P0}, {s.Reason})");
+            sb.AppendLine($"{i}. [[{DisplayNote(s.Source)}]] → [[{DisplayNote(s.Target)}]]  (score: {s.Score:P0}, {s.Reason})");
             if (!string.IsNullOrWhiteSpace(s.Snippet))
             {
                 sb.AppendLine($"   \"{s.Snippet}\"");
@@ -166,10 +183,10 @@ public sealed class GraphAnalysisTools(
             return KiokuError.InvalidArgument("The 'note' parameter is required when 'targets' is provided.");
         }
 
-        var found = NoteHelpers.ResolveNote(note, vault);
+        var found = vault.ResolveNote(note);
         if (found is null)
         {
-            return KiokuError.NotFound($"Note not found: '{note}'");
+            return KiokuError.NotFound($"Note not found or basename is ambiguous: '{note}'");
         }
 
         var targetNames = targets.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -182,7 +199,7 @@ public sealed class GraphAnalysisTools(
         var missing = new List<string>();
         foreach (var targetName in targetNames)
         {
-            var resolved = NoteHelpers.ResolveNote(targetName, vault);
+            var resolved = vault.ResolveNote(targetName);
             if (resolved is null)
             {
                 missing.Add(targetName);
@@ -204,31 +221,34 @@ public sealed class GraphAnalysisTools(
 
         var currentContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
         var existingLinks = found.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var newTargets = resolvedTargets.Where(t => !existingLinks.Contains(t.Name)).ToList();
+        var newTargets = resolvedTargets
+            .Select(target => (Note: target, Link: LinkText(target)))
+            .Where(t => !IsLinked(found, t.Note))
+            .ToList();
         var updatedContent = NoteHelpers.AppendLinkSection(
             currentContent,
             existingLinks,
             section,
-            newTargets.Select(t => (t.Name, (string?)null)));
+            newTargets.Select(t => (t.Link, (string?)null)));
 
         if (updatedContent is null)
         {
-            var result = $"[info] All {resolvedTargets.Count} target(s) are already linked from '{found.Name}'.";
+            var result = $"[info] All {resolvedTargets.Count} target(s) are already linked from '{DisplayNote(found)}'.";
             return AppendMissingTargets(result, missing);
         }
 
         if (dryRun)
         {
-            var preview = $"[info] dry_run=true — would add {newTargets.Count} link(s) to '{found.Name}' under '## {section}':\n" +
-                          string.Join("\n", newTargets.Select(t => $"  - [[{t.Name}]]"));
+            var preview = $"[info] dry_run=true — would add {newTargets.Count} link(s) to '{DisplayNote(found)}' under '## {section}':\n" +
+                          string.Join("\n", newTargets.Select(t => $"  - [[{t.Link}]]"));
             return AppendMissingTargets(preview, missing);
         }
 
         await File.WriteAllTextAsync(found.FilePath, updatedContent, NoteHelpers.Utf8NoBom);
         await vault.SynchronizeFileReindexAsync(found.FilePath);
 
-        var applied = $"[ok] Added {newTargets.Count} link(s) to '{found.Name}' under '## {section}':\n" +
-                      string.Join("\n", newTargets.Select(t => $"  - [[{t.Name}]]"));
+        var applied = $"[ok] Added {newTargets.Count} link(s) to '{DisplayNote(found)}' under '## {section}':\n" +
+                      string.Join("\n", newTargets.Select(t => $"  - [[{t.Link}]]"));
         return AppendMissingTargets(applied, missing);
     }
 
@@ -246,7 +266,7 @@ public sealed class GraphAnalysisTools(
             var currentContent = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
             var existingLinks = source.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
             var newSuggestions = sourceGroup
-                .Where(s => !existingLinks.Contains(s.Target.Name))
+                .Where(s => !IsLinked(source, s.Target))
                 .ToList();
             if (newSuggestions.Count == 0)
             {
@@ -257,7 +277,7 @@ public sealed class GraphAnalysisTools(
                 currentContent,
                 existingLinks,
                 section,
-                newSuggestions.Select(s => (s.Target.Name, (string?)$"{s.Score:P0} similar")));
+                newSuggestions.Select(s => (LinkText(s.Target), (string?)$"{s.Score:P0} similar")));
             if (updatedContent is null)
             {
                 continue;
@@ -276,10 +296,10 @@ public sealed class GraphAnalysisTools(
         var sb = new StringBuilder();
         foreach (var (source, sourceSuggestions) in applied)
         {
-            sb.AppendLine($"[ok] Added {sourceSuggestions.Count} related link(s) to '{source.Name}':");
+            sb.AppendLine($"[ok] Added {sourceSuggestions.Count} related link(s) to '{DisplayNote(source)}':");
             foreach (var suggestion in sourceSuggestions)
             {
-                sb.AppendLine($"  - [[{suggestion.Target.Name}]] ({suggestion.Score:P0})");
+                sb.AppendLine($"  - [[{LinkText(suggestion.Target)}]] ({suggestion.Score:P0})");
             }
         }
 
@@ -320,7 +340,7 @@ public sealed class GraphAnalysisTools(
             sb.AppendLine($"Found {islands.Count} island(s) (max {IslandThreshold} notes each):");
             foreach (var island in islands.OrderByDescending(i => i.Count))
             {
-                var noteNames = string.Join(", ", island.Select(n => n.Name).OrderBy(x => x));
+                var noteNames = string.Join(", ", island.Select(DisplayNote).OrderBy(x => x));
                 sb.AppendLine($"- Island ({island.Count} notes): {noteNames}");
             }
         }
@@ -337,7 +357,7 @@ public sealed class GraphAnalysisTools(
 
     private List<Note> FindOrphanNotes() =>
         vault.GetAllNotes()
-            .Where(n => !n.OutgoingLinks.Any() && !vault.GetBacklinks(n.Name).Any())
+            .Where(n => !n.OutgoingLinks.Any() && !vault.GetBacklinks(n).Any())
             .ToList();
 
     private List<List<Note>> FindIslands(int threshold)
@@ -348,12 +368,12 @@ public sealed class GraphAnalysisTools(
 
         foreach (var note in allNotes)
         {
-            if (visited.Contains(note.Name))
+            if (visited.Contains(note.FilePath))
             {
                 continue;
             }
 
-            var component = BfsComponent(note, visited, allNotes);
+            var component = BfsComponent(note, visited);
             if (component.Count <= threshold)
             {
                 islands.Add(component);
@@ -364,14 +384,12 @@ public sealed class GraphAnalysisTools(
     }
 
     // BFS to find connected component of a note
-    private List<Note> BfsComponent(Note startNote, HashSet<string> visited, List<Note> allNotes)
+    private List<Note> BfsComponent(Note startNote, HashSet<string> visited)
     {
         var component = new List<Note>();
         var queue = new Queue<Note>();
-        var notesByName = allNotes.ToDictionary(n => n.Name, StringComparer.OrdinalIgnoreCase);
-
         queue.Enqueue(startNote);
-        visited.Add(startNote.Name);
+        visited.Add(startNote.FilePath);
 
         while (queue.Count > 0)
         {
@@ -380,27 +398,38 @@ public sealed class GraphAnalysisTools(
 
             foreach (var link in current.OutgoingLinks)
             {
-                if (!visited.Contains(link))
+                var linkedNote = vault.ResolveLink(current, link);
+                if (linkedNote is not null && visited.Add(linkedNote.FilePath))
                 {
-                    visited.Add(link);
-                    if (notesByName.TryGetValue(link, out var linkedNote))
-                    {
-                        queue.Enqueue(linkedNote);
-                    }
+                    queue.Enqueue(linkedNote);
                 }
             }
 
-            var backlinks = vault.GetBacklinks(current.Name);
+            var backlinks = vault.GetBacklinks(current);
             foreach (var backlink in backlinks)
             {
-                if (!visited.Contains(backlink.Name))
+                if (visited.Add(backlink.FilePath))
                 {
-                    visited.Add(backlink.Name);
                     queue.Enqueue(backlink);
                 }
             }
         }
 
         return component;
+    }
+
+    private bool IsLinked(Note source, Note target) =>
+        source.OutgoingLinks.Any(link => vault.ResolveLink(source, link)?.FilePath
+            .Equals(target.FilePath, StringComparison.OrdinalIgnoreCase) == true);
+
+    private string DisplayNote(Note note) =>
+        vault.GetNotesByName(note.Name).Count == 1 ? note.Name : note.VaultRelativePath;
+
+    private string LinkText(Note note)
+    {
+        var display = DisplayNote(note);
+        return display.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+            ? display[..^3]
+            : display;
     }
 }

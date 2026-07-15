@@ -96,16 +96,60 @@ public sealed class VaultIndexService : IDisposable
     /// <summary>Gets a note by its absolute path or vault-relative path.</summary>
     public Note? GetNote(string path)
     {
-        var absPath = ResolveAbsolutePath(path);
+        var absPath = Path.GetFullPath(ResolveAbsolutePath(path));
         return _notesByPath.TryGetValue(absPath, out var note) ? note : null;
     }
 
     /// <summary>Gets a note by its name (without extension).</summary>
     public Note? GetNoteByName(string name)
     {
-        return _notesByPath.Values
-            .FirstOrDefault(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return GetNotesByName(name) is [var note] ? note : null;
     }
+
+    /// <summary>Gets all notes with the given basename.</summary>
+    public IReadOnlyList<Note> GetNotesByName(string name) =>
+        _notesByPath.Values
+            .Where(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    /// <summary>
+    /// Resolves an absolute path, vault-relative path, or unique basename. A duplicate basename
+    /// is intentionally ambiguous and is not resolved.
+    /// </summary>
+    public Note? ResolveNote(string nameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(nameOrPath))
+        {
+            return null;
+        }
+
+        var byPath = GetNote(nameOrPath);
+        if (byPath is not null)
+        {
+            return byPath;
+        }
+
+        var normalized = NormalizeVaultPath(nameOrPath);
+        var byRelativePath = normalized.Contains('/')
+            ? _notesByPath.Values
+                .Where(n => NormalizeVaultPath(n.VaultRelativePath).Equals(normalized, StringComparison.OrdinalIgnoreCase))
+                .ToList()
+            : [];
+        if (byRelativePath.Count == 1)
+        {
+            return byRelativePath[0];
+        }
+
+        if (!normalized.Contains('/'))
+        {
+            return GetNoteByName(Path.GetFileNameWithoutExtension(normalized));
+        }
+
+        return null;
+    }
+
+    /// <summary>Resolves a wikilink to a unique note, including path-qualified links.</summary>
+    public Note? ResolveLink(Note source, string link) => ResolveNote(link);
 
     /// <summary>Returns all indexed notes.</summary>
     public IEnumerable<Note> GetAllNotes() => _notesByPath.Values;
@@ -286,17 +330,59 @@ public sealed class VaultIndexService : IDisposable
         });
     }
 
-    /// <summary>Returns notes linking to the note with the given name.</summary>
-    public IEnumerable<Note> GetBacklinks(string noteName)
+    /// <summary>Returns notes linking to the uniquely resolved note with the given name or path.</summary>
+    public IReadOnlyList<Note> GetBacklinks(string noteNameOrPath)
     {
-        if (!_backlinkIndex.TryGetValue(noteName.ToLowerInvariant(), out var paths))
+        var target = ResolveNote(noteNameOrPath);
+        if (target is not null)
         {
-            return [];
+            return GetBacklinks(target);
         }
 
-        return paths
-            .Where(p => _notesByPath.ContainsKey(p))
-            .Select(p => _notesByPath[p]);
+        var normalizedPath = NormalizeVaultPath(noteNameOrPath);
+        var basenameCount = GetNotesByName(Path.GetFileNameWithoutExtension(normalizedPath)).Count;
+        return normalizedPath.Contains('/') || basenameCount == 0
+            ? MaterializeBacklinks([normalizedPath])
+            : [];
+    }
+
+    /// <summary>Returns notes linking to a specific note, without basename ambiguity.</summary>
+    public IReadOnlyList<Note> GetBacklinks(Note target)
+    {
+        var targetPath = NormalizeVaultPath(target.VaultRelativePath);
+        var targetNameIsUnique = GetNotesByName(target.Name).Count == 1;
+        var matchingKeys = _backlinkIndex.Keys
+            .Where(key => NormalizeVaultPath(key).Equals(targetPath, StringComparison.OrdinalIgnoreCase) ||
+                          (targetNameIsUnique && key.Equals(target.Name, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        return MaterializeBacklinks(matchingKeys);
+    }
+
+    private IReadOnlyList<Note> MaterializeBacklinks(IEnumerable<string> matchingKeys)
+    {
+        var sourcePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in matchingKeys)
+        {
+            if (!_backlinkIndex.TryGetValue(key, out var paths))
+            {
+                continue;
+            }
+
+            string[] snapshot;
+            lock (paths)
+            {
+                snapshot = [.. paths];
+            }
+
+            sourcePaths.UnionWith(snapshot);
+        }
+
+        return sourcePaths
+            .Select(path => _notesByPath.TryGetValue(path, out var note) ? note : null)
+            .Where(note => note is not null)
+            .Cast<Note>()
+            .ToList();
     }
 
     /// <summary>Forces a full re-indexing of the vault.</summary>
@@ -511,7 +597,8 @@ public sealed class VaultIndexService : IDisposable
         // Remove from backlinks
         foreach (var link in note.OutgoingLinks)
         {
-            if (_backlinkIndex.TryGetValue(link, out var backlinkPaths))
+            var normalizedLink = NormalizeVaultPath(link).ToLowerInvariant();
+            if (_backlinkIndex.TryGetValue(normalizedLink, out var backlinkPaths))
             {
                 lock (backlinkPaths)
                 {
@@ -591,7 +678,8 @@ public sealed class VaultIndexService : IDisposable
 
     private void AddToBacklinkIndex(string sourceFilePath, string targetNoteName)
     {
-        var paths = _backlinkIndex.GetOrAdd(targetNoteName.ToLowerInvariant(), _ => []);
+        var normalizedTarget = NormalizeVaultPath(targetNoteName).ToLowerInvariant();
+        var paths = _backlinkIndex.GetOrAdd(normalizedTarget, _ => []);
         lock (paths)
         {
             paths.Add(sourceFilePath);
@@ -605,6 +693,19 @@ public sealed class VaultIndexService : IDisposable
         return Path.IsPathRooted(path)
             ? path
             : Path.Combine(_vaultPath, path);
+    }
+
+    private static string NormalizeVaultPath(string path)
+    {
+        var normalized = path.Trim().Replace('\\', '/').TrimStart('/');
+        while (normalized.StartsWith("./", StringComparison.Ordinal))
+        {
+            normalized = normalized[2..];
+        }
+
+        return normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+            ? normalized[..^3]
+            : normalized;
     }
 
     private static IReadOnlyList<string> TokenizeQuery(string query) =>

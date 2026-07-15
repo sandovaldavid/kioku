@@ -153,7 +153,8 @@ public sealed class GenerationTools(
         var notePath = ResolveFlashcardNotePath(output_note, found.Name);
         var frontmatter = NoteHelpers.BuildFrontmatter(
             [], "flashcards",
-            extraFields: new Dictionary<string, string> { ["source"] = $"\"[[{found.Name}]]\"" });
+            extraFields: new Dictionary<string, string> { ["source"] = $"\"[[{found.Name}]]\"" },
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
         Directory.CreateDirectory(Path.GetDirectoryName(notePath)!);
         await File.WriteAllTextAsync(notePath, frontmatter + "\n" + rendered, NoteHelpers.Utf8NoBom);

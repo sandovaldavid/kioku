@@ -19,7 +19,7 @@ public sealed class TaskManagementToolsTests : IAsyncLifetime
 
         var config = new KiokuConfiguration { VaultPath = _vaultPath };
         _index = new VaultIndexService(NullLogger<VaultIndexService>.Instance, config);
-        var taskService = new TaskService(NullLogger<TaskService>.Instance, config);
+        var taskService = new TaskService(NullLogger<TaskService>.Instance, config, _index);
         _tools = new TaskManagementTools(_index, taskService);
 
         var yesterday = DateOnly.FromDateTime(DateTime.Today).AddDays(-1);
@@ -74,7 +74,7 @@ public sealed class TaskManagementToolsTests : IAsyncLifetime
     {
         var result = await _tools.list_tasks(status: "pending");
 
-        Assert.StartsWith("[error] Invalid status 'pending'.", result);
+        Assert.StartsWith("[error] [INVALID_ARGUMENT] Invalid status 'pending'.", result);
     }
 
     [Fact]
@@ -87,6 +87,40 @@ public sealed class TaskManagementToolsTests : IAsyncLifetime
         Assert.DoesNotContain("Completed task", result);
         Assert.DoesNotContain("Future task", result);
         Assert.Contains("OVERDUE", result);
+    }
+
+    [Fact]
+    public async Task ListTasks_PaginatesWithStableMetadataAndPreservesSourceLineNumbers()
+    {
+        var result = await _tools.list_tasks(status: "all", limit: 2, offset: 1);
+
+        Assert.Contains("total: 6", result);
+        Assert.Contains("offset: 1", result);
+        Assert.Contains("limit: 2", result);
+        Assert.Contains("returned: 2", result);
+        Assert.Contains("[L7]", result);
+    }
+
+    [Fact]
+    public async Task ListTasks_RejectsFolderTraversalOutsideVault()
+    {
+        var result = await _tools.list_tasks(folder: "../outside");
+
+        Assert.StartsWith("[error] [INVALID_ARGUMENT]", result);
+        Assert.Contains("inside the vault", result);
+    }
+
+    [Fact]
+    public async Task ListTasks_UsesIndexedNotesAndExcludesTrash()
+    {
+        var trashPath = Path.Combine(_vaultPath, ".trash", "Hidden.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(trashPath)!);
+        await File.WriteAllTextAsync(trashPath, "- [ ] Should not be listed", Encoding.UTF8);
+        await _index.RebuildIndexAsync();
+
+        var result = await _tools.list_tasks(status: "all");
+
+        Assert.DoesNotContain("Should not be listed", result);
     }
 
     [Fact]

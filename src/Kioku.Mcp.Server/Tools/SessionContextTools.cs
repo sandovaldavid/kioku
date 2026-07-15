@@ -31,11 +31,15 @@ public sealed class SessionContextTools(
         "notes with status 'draft', and the most recently modified notes. " +
         "Call this at the start of a session to quickly understand where to resume work.")]
     public Task<string> get_work_context(
-        [Description("Folder treated as the inbox (relative to vault root). Default: 'Inbox'.")] string inbox_folder = "Inbox",
+        [Description("Folder treated as the inbox (relative to vault root). Leave empty to use folders.inbox from .kioku/config.yml, falling back to 'Inbox'.")] string inbox_folder = "",
         [Description("Maximum number of notes to show in the inbox, drafts, and recent sections unless recent_limit is set.")] int max_per_section = 5,
         [Description("Scope the recently modified section to a subfolder (relative to vault root). Leave empty for the full vault.")] string recent_folder = "",
         [Description("Maximum number of notes in the recently modified section. Defaults to max_per_section.")] int recent_limit = 0)
     {
+        inbox_folder = string.IsNullOrWhiteSpace(inbox_folder)
+            ? vaultConfig.GetFolder("inbox") ?? "Inbox"
+            : inbox_folder;
+
         var sb = new StringBuilder("# Work Context Snapshot\n\n");
         sb.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC\n");
 
@@ -120,13 +124,13 @@ public sealed class SessionContextTools(
 
     [McpServerTool, Description(
         "Creates a new work session note with a timestamp header. " +
-        "Records the current date, time, and optional session goal. " +
-        "With a project, the session is stored in that project's sessions subfolder as " +
-        "{date-time}-{agent}.md so multiple agents can hand work off to each other; " +
-        "the agent name is auto-detected from the MCP client when not provided.")]
+     "Records the current date, time, and optional session goal. " +
+     "With a project, the session is stored in that project's sessions subfolder as " +
+     "{date-time}-{agent}.md so multiple agents can hand work off to each other; " +
+     "the agent name is auto-detected from the MCP client when not provided.")]
     public async Task<string> start_work_session(
         [Description("Optional name for the session (e.g. 'Thesis Chapter 3 Review'). Defaults to today's date.")] string session_name = "",
-        [Description("Folder where session notes are stored (relative to vault root). Ignored when project is set.")] string sessions_folder = "Sessions",
+        [Description("Folder where session notes are stored (relative to vault root). Leave empty to use folders.sessions from .kioku/config.yml, falling back to 'Sessions'. Ignored when project is set.")] string sessions_folder = "",
         [Description("Optional goal or focus for this session.")] string goal = "",
         [Description("Project name: stores the session under {projects}/{project}/sessions/.")] string project = "",
         [Description("Agent running this session (claude, codex, ...). Auto-detected from the MCP client if empty.")] string agent = "",
@@ -136,6 +140,10 @@ public sealed class SessionContextTools(
         {
             return await StartProjectSessionAsync(project, session_name, goal, agent, server);
         }
+
+        sessions_folder = string.IsNullOrWhiteSpace(sessions_folder)
+            ? vaultConfig.GetFolder("sessions") ?? "Sessions"
+            : sessions_folder;
 
         var now = DateTime.Now;
         var dateStr = now.ToString("yyyy-MM-dd");
@@ -499,6 +507,7 @@ public sealed class SessionContextTools(
             date: DateOnly.FromDateTime(now),
             domain: vaultConfig.GetDomainForFolder(relFolder),
             cssClasses: ["kioku-session"],
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null,
             extraFields: new Dictionary<string, string>
             {
                 ["project"] = project,
@@ -598,7 +607,16 @@ public sealed class SessionContextTools(
 
     private string? FindSessionsFolder()
     {
-        foreach (var folder in SessionsFolderCandidates)
+        var candidates = SessionsFolderCandidates.AsEnumerable();
+        var configured = vaultConfig.GetFolder("sessions");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            candidates = new[] { configured }.Concat(candidates);
+        }
+
+        candidates = candidates.Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var folder in candidates)
         {
             var folderPath = Path.Combine(config.VaultPath, folder);
             if (Directory.Exists(folderPath))
@@ -611,10 +629,11 @@ public sealed class SessionContextTools(
 
     private Note? FindActiveSessionNote()
     {
-        return SessionsFolderCandidates
-            .SelectMany(folder => vault.GetNotesInFolder(folder))
-            .Where(n => string.Equals(n.Metadata.Status, "active", StringComparison.OrdinalIgnoreCase) ||
-                        n.Metadata.Tags.Any(t => t.Equals("session", StringComparison.OrdinalIgnoreCase)))
+        // Project sessions live below Projects/{project}/sessions, so folder candidates cannot
+        // discover them. The indexed note type is the stable discriminator across all projects.
+        return vault.GetAllNotes()
+            .Where(n => string.Equals(n.Metadata.NoteType, "session", StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(n.Metadata.Status, "active", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(n => n.LastModified)
             .FirstOrDefault();
     }
