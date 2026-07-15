@@ -1,4 +1,4 @@
 {
   "name": "kioku",
-  "description": "Kioku MCP server + kioku-vault skill for reading, searching, and organizing an Obsidian vault."
+  "description": "Kioku MCP server + skills for reading, searching, organizing, and managing project workflows in an Obsidian vault."
 }
