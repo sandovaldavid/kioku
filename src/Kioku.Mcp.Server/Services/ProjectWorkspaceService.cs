@@ -362,7 +362,7 @@ public sealed partial class ProjectWorkspaceService(
             return [];
         }
 
-        return [.. Directory.EnumerateFiles(folder, "*.md", SearchOption.TopDirectoryOnly)
+        return [.. Directory.EnumerateFiles(folder, "*.md", SearchOption.AllDirectories)
             .Select(f => new FileInfo(f))
             .OrderByDescending(f => f.LastWriteTimeUtc)];
     }
