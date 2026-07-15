@@ -277,7 +277,11 @@ can style each document type differently in Obsidian.
 
 ## `capabilities` — Enable/disable tool groups
 
-The core groups (`NoteQueryTools`, `NoteCommandTools`, `UtilityTools`) are always
+Kioku ships 147+ tools across 19 groups. Every connected MCP client loads the full list of
+enabled tools (name, description, parameter schema) into its context at session start, so if
+you only use a handful of these groups, disabling the rest is the single biggest lever for
+cutting how many tokens Kioku costs per session — with no loss of functionality for the groups
+you keep. The core groups (`NoteQueryTools`, `NoteCommandTools`, `UtilityTools`) are always
 registered. The 16 optional groups can be gated:
 
 | Group | Tool class |
