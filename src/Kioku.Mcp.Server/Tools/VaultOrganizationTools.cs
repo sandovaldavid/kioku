@@ -455,9 +455,8 @@ public sealed class VaultOrganizationTools(
         "inheritance), and up to 3 related notes (semantic similarity, when Ollama embeddings " +
         "are available). apply=false (default) returns a numbered plan without touching any " +
         "file. apply=true executes it: moves each note (updating inbound full-path wikilinks), " +
-        "adds the suggested tags, and appends a Related section with the suggested links. " +
-        "This moves files in batch — review the plan first. If something goes wrong, " +
-        "revert_all_uncommitted (or git) can undo an apply.")]
+        "adds the suggested tags, and appends a Related section. Review the plan before " +
+        "applying; git can undo an apply.")]
     public async Task<string> process_inbox(
         [Description("Inbox folder (relative to vault root). Leave empty to use folders.inbox from .kioku/config.yml, falling back to 'Inbox'.")] string inbox_folder = "",
         [Description("Maximum number of notes to process in one call (default: 20).")] int max_notes = 20,

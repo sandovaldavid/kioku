@@ -310,13 +310,10 @@ public sealed partial class WorkflowTools(
     [McpServerTool, Description(
         "Generates a digest note summarizing recent vault activity: notes created or modified, " +
         "overdue and upcoming tasks, newly orphaned notes, and draft/inbox notes awaiting review. " +
-        "period='day' (default) covers today since local midnight; period='week' covers the last " +
-        "7 days. Written as 'Digest {yyyy-MM-dd}.md' in the 'daily' folder (folders.daily in " +
-        ".kioku/config.yml, falling back to target_folder, then the vault root) — re-running on " +
-        "the same day replaces the note, since it's fully regenerated each time. If local " +
-        "generation (KIOKU_GEN_MODEL) is available, adds a short AI-generated Summary section; " +
-        "otherwise the digest is purely structural. Set dry_run=true to preview the markdown " +
-        "without writing anything.")]
+        "period='day' (default, since local midnight) or 'week' (last 7 days). Written as " +
+        "'Digest {yyyy-MM-dd}.md' in the daily folder; re-running the same day regenerates it. " +
+        "Adds an AI Summary section when KIOKU_GEN_MODEL is available. Set dry_run=true to " +
+        "preview without writing.")]
     public async Task<string> generate_digest(
         [Description("Digest period: 'day' (default, since local midnight) or 'week' (last 7 days).")] string period = "day",
         [Description("Destination folder (relative to vault root) used only if folders.daily isn't configured. Leave empty for the vault root.")] string target_folder = "",

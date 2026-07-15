@@ -647,9 +647,8 @@ public sealed class NoteQueryTools(
 
     [McpServerTool, Description(
         "Searches notes combining keyword and semantic search using Reciprocal Rank Fusion (RRF). " +
-        "Finds notes that match by exact terms AND by conceptual meaning. " +
-        "Best general-purpose search when you are unsure whether to use keyword or semantic search. " +
-        "Requires Ollama for the semantic leg — degrades to keyword-only if Ollama is unavailable.")]
+        "Best general-purpose search when unsure which to use. " +
+        "Degrades to keyword-only if Ollama is unavailable.")]
     public async Task<string> search_notes_hybrid(
         [Description("Search query in natural language or keywords.")] string query,
         [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
