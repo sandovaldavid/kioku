@@ -181,4 +181,31 @@ public class MarkdownTextExtractorTests
         var result = MarkdownTextExtractor.ExtractWikilinks("See [[unclosed link");
         Assert.Empty(result);
     }
+
+    [Fact]
+    public void ExtractWikilinks_LinkInsideFencedCodeBlock_IsIgnored()
+    {
+        var content = "Real link: [[Real Note]]\n\n```\nExample syntax: [[Fake Note]]\n```\n";
+        var result = MarkdownTextExtractor.ExtractWikilinks(content);
+        Assert.Single(result);
+        Assert.Equal("Real Note", result[0]);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_LinkInsideTildeFencedCodeBlock_IsIgnored()
+    {
+        var content = "~~~\n[[Fake Note]]\n~~~\n[[Real Note]]";
+        var result = MarkdownTextExtractor.ExtractWikilinks(content);
+        Assert.Single(result);
+        Assert.Equal("Real Note", result[0]);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_LinkInsideInlineCode_IsIgnored()
+    {
+        var content = "Wikilinks look like `[[Note Name]]` — see [[Real Note]] for an example.";
+        var result = MarkdownTextExtractor.ExtractWikilinks(content);
+        Assert.Single(result);
+        Assert.Equal("Real Note", result[0]);
+    }
 }
