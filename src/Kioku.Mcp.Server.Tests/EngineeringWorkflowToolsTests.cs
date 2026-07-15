@@ -186,6 +186,41 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DiscoverProjects_RootHasOwnMocNote_StillFindsNestedProjects()
+    {
+        var (tools, workspace) = CreateTools();
+        await tools.record_adr("demo", "Use SQLite", "ctx", "d", "c");
+
+        // A vault-level index note at the projects root itself, named after the root folder
+        // with type: moc — a natural setup that used to misclassify the whole root as a
+        // single project named "." and stop recursion before finding "demo".
+        Directory.CreateDirectory(workspace.ProjectsRoot);
+        var rootMocPath = Path.Combine(workspace.ProjectsRoot, $"{Path.GetFileName(workspace.ProjectsRoot)}.md");
+        await File.WriteAllTextAsync(rootMocPath, "---\ntype: moc\n---\n# Projects index", Encoding.UTF8);
+
+        var discovered = workspace.DiscoverProjects();
+
+        Assert.DoesNotContain(".", discovered);
+        Assert.Contains("demo", discovered);
+    }
+
+    [Fact]
+    public async Task EnumerateProjectDocs_NestedSubfolder_ReturnsFile()
+    {
+        var (_, workspace) = CreateTools();
+        await workspace.EnsureProjectScaffoldAsync("demo");
+        var knowledgeFolder = workspace.GetSubfolder("demo", "knowledge");
+        var nestedFolder = Path.Combine(knowledgeFolder, "employee-debt");
+        Directory.CreateDirectory(nestedFolder);
+        await File.WriteAllTextAsync(Path.Combine(nestedFolder, "note.md"), "# nested", Encoding.UTF8);
+
+        var docs = workspace.EnumerateProjectDocs("demo", "knowledge");
+
+        Assert.Single(docs);
+        Assert.Equal("note.md", docs[0].Name);
+    }
+
+    [Fact]
     public async Task GetProjectContext_WorksWithGroupedProjectIdentifier()
     {
         var (tools, _) = CreateTools();

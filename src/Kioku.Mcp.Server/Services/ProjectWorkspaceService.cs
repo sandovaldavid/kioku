@@ -381,7 +381,15 @@ public sealed partial class ProjectWorkspaceService(
         var results = new List<string>();
         if (Directory.Exists(ProjectsRoot))
         {
-            WalkForProjects(ProjectsRoot, results);
+            // Never evaluate IsProjectFolder on ProjectsRoot itself: a vault-level MOC note
+            // there (or engineering subfolders placed directly under it) would otherwise
+            // misclassify the whole root as a single project named ".", hiding everything
+            // beneath it. Always recurse starting from its direct subdirectories instead.
+            foreach (var sub in Directory.EnumerateDirectories(ProjectsRoot)
+                .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+            {
+                WalkForProjects(sub, results);
+            }
         }
 
         results.Sort(StringComparer.OrdinalIgnoreCase);
