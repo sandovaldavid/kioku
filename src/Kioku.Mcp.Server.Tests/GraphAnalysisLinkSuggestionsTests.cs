@@ -286,4 +286,105 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
         Assert.Contains("## Unlinked notes", result);
         Assert.Contains("## Graph islands", result);
     }
+
+    [Fact]
+    public async Task VaultSnapshot_DuplicateBasenames_UsesPathIdentityWithoutCrashing()
+    {
+        await _fixture.CreateNoteAsync("Duplicate", "Root duplicate.");
+        await _fixture.CreateNoteAsync("Folder/Duplicate", "Folder duplicate.");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = new KnowledgeGraphTools(_fixture.Index).get_vault_snapshot();
+
+        Assert.StartsWith("[ok]", result);
+        Assert.Contains("Duplicate.md", result);
+        Assert.Contains("Folder/Duplicate.md", result);
+    }
+
+    [Fact]
+    public async Task StructuralFallback_DuplicateBasenames_UsesPathIdentityWithoutCrashing()
+    {
+        await _fixture.CreateNoteAsync("Duplicate", "Root duplicate.");
+        await _fixture.CreateNoteAsync("Folder/Duplicate", "Folder duplicate.");
+        await _fixture.CreateNoteAsync("Path Linker", "See [[Folder/Duplicate]].");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await CreateToolsWithoutEmbeddings().suggest_links();
+
+        Assert.StartsWith("[info]", result);
+        Assert.Contains("Folder/Duplicate.md", result);
+        Assert.Contains("Path Linker", result);
+    }
+
+    [Fact]
+    public async Task GetBacklinks_PathQualifiedLink_ResolvesDuplicateBasenameDeterministically()
+    {
+        await _fixture.CreateNoteAsync("Duplicate", "Root duplicate.");
+        await _fixture.CreateNoteAsync("Folder/Duplicate", "Folder duplicate.");
+        await _fixture.CreateNoteAsync("Path Linker", "See [[Folder/Duplicate]].");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var pathBacklinks = _fixture.Index.GetBacklinks("Folder/Duplicate");
+        var ambiguousBacklinks = _fixture.Index.GetBacklinks("Duplicate");
+
+        Assert.Contains(pathBacklinks, note => note.Name == "Path Linker");
+        Assert.Empty(ambiguousBacklinks);
+    }
+
+    [Fact]
+    public void GetBacklinks_UniqueBareName_ResolvesExistingLink()
+    {
+        var backlinks = _fixture.Index.GetBacklinks("Note One");
+
+        Assert.Contains(backlinks, note => note.Name == "Note Three");
+    }
+
+    [Fact]
+    public async Task ApplyLinkSuggestions_PathQualifiedTarget_WritesPathQualifiedLink()
+    {
+        await _fixture.CreateNoteAsync("Duplicate", "Root duplicate.");
+        await _fixture.CreateNoteAsync("Folder/Duplicate", "Folder duplicate.");
+        await _fixture.Index.RebuildIndexAsync();
+        var tools = CreateToolsWithoutEmbeddings();
+
+        var result = await tools.suggest_links("Note One", targets: "Folder/Duplicate", apply: true);
+        var body = await _fixture.ReadNoteBodyAsync("Note One");
+
+        Assert.Contains("[ok] Added 1 link(s)", result);
+        Assert.Contains("[[Folder/Duplicate]]", body);
+    }
+
+    [Fact]
+    public async Task ApplyLinkSuggestions_AmbiguousBareTarget_IsNotResolved()
+    {
+        await _fixture.CreateNoteAsync("Duplicate", "Root duplicate.");
+        await _fixture.CreateNoteAsync("Folder/Duplicate", "Folder duplicate.");
+        await _fixture.Index.RebuildIndexAsync();
+        var tools = CreateToolsWithoutEmbeddings();
+
+        var result = await tools.suggest_links("Note One", targets: "Duplicate", apply: true);
+
+        Assert.Contains("[error] [NOT_FOUND]", result);
+        Assert.Contains("Duplicate", result);
+    }
+
+    [Fact]
+    public async Task SuggestLinks_InvalidThreshold_ReturnsInvalidArgument()
+    {
+        var tools = CreateToolsWithoutEmbeddings();
+
+        var result = await tools.suggest_links(min_similarity: 1.1f);
+
+        Assert.Equal("[error] [INVALID_ARGUMENT] 'min_similarity' must be between 0 and 1.", result);
+    }
+
+    [Fact]
+    public void VaultSnapshot_InvalidThreshold_ReturnsInvalidArgument()
+    {
+        var tools = new KnowledgeGraphTools(_fixture.Index);
+
+        var result = tools.get_vault_snapshot(island_threshold: 0);
+
+        Assert.Equal("[error] [INVALID_ARGUMENT] Island threshold must be at least 1.", result);
+    }
 }

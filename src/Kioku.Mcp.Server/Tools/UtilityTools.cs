@@ -12,7 +12,8 @@ public sealed class UtilityTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     EmbeddingService? embedding = null,
-    MetricsService? metrics = null)
+    MetricsService? metrics = null,
+    VaultConfigService? vaultConfig = null)
 {
     [McpServerTool, Description(
         "Returns the current Kioku server health and status: vault path, indexed note count, " +
@@ -43,6 +44,15 @@ public sealed class UtilityTools(
         if (metrics?.Enabled == true)
         {
             result += $"\n   Metrics: enabled, total tool calls: {metrics.TotalCalls}";
+        }
+
+        if (vaultConfig is not null)
+        {
+            result += "\n   Capabilities:" +
+                      $"\n      Enabled: {string.Join(", ", vaultConfig.EnabledCapabilityGroups)}" +
+                      $"\n      Disabled: {string.Join(", ", vaultConfig.DisabledCapabilityGroups)}" +
+                      $"\n      Removed: {string.Join(", ", vaultConfig.RemovedCapabilityGroups)}" +
+                      "\n      Changes require server restart";
         }
 
         result += $"\nUTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";

@@ -925,6 +925,48 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetWorkContext_FindsActiveProjectSessionVaultWideAndIgnoresClosedSessions()
+    {
+        var sessions = CreateSessionTools();
+        await sessions.start_work_session(project: "demo", agent: "claude");
+
+        var active = await sessions.get_work_context();
+        var activeSection = active[active.IndexOf("## Active Session", StringComparison.Ordinal)..];
+        Assert.DoesNotContain("no active session", activeSection);
+
+        await sessions.end_work_session(project: "demo", summary: "Closed");
+
+        var closed = await sessions.get_work_context();
+        var closedSection = closed[closed.IndexOf("## Active Session", StringComparison.Ordinal)..];
+        Assert.Contains("no active session", closedSection);
+    }
+
+    [Fact]
+    public async Task GetWorkContext_UsesConfiguredInboxWhenOmitted()
+    {
+        var kiokuFolder = Path.Combine(_fixture.VaultPath, ".kioku");
+        Directory.CreateDirectory(kiokuFolder);
+        await File.WriteAllTextAsync(
+            Path.Combine(kiokuFolder, "config.yml"),
+            "folders:\n  inbox: Captures\n  sessions: Session Logs\n",
+            Encoding.UTF8);
+        await _fixture.CreateNoteAsync("Captures/Configured capture", "Inbox content.");
+        await _fixture.CreateNoteAsync("Session Logs/Configured session", "Session content.", type: "session", status: "active");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var sessions = CreateSessionTools();
+        var result = await sessions.get_work_context();
+        var listed = await sessions.list_work_sessions();
+        var started = await sessions.start_work_session(session_name: "Configured session");
+
+        Assert.Contains("## Inbox (Captures)", result);
+        Assert.Contains("Configured capture", result);
+        Assert.Contains("Session Logs", listed);
+        Assert.Contains("Configured session", listed);
+        Assert.Contains("Session Logs", started);
+    }
+
+    [Fact]
     public async Task ListWorkSessions_ActivityIsOptInAndReportsPositiveElapsedTime()
     {
         var sessions = CreateSessionTools();

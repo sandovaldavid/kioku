@@ -298,7 +298,12 @@ public sealed class VaultOrganizationTools(
         var folderPath = Path.Combine(config.VaultPath, folder);
         if (!Directory.Exists(folderPath))
         {
-            return $"[info] Inbox folder not found: '{folder}'. Nothing to process.";
+            var configuredHint = !string.IsNullOrWhiteSpace(inbox_folder) &&
+                                 !string.IsNullOrWhiteSpace(vaultConfig.ConfiguredInbox) &&
+                                 !folder.Equals(vaultConfig.ConfiguredInbox, StringComparison.OrdinalIgnoreCase)
+                ? $" Configured folders.inbox is '{vaultConfig.ConfiguredInbox}'; omit inbox_folder to use it."
+                : string.Empty;
+            return $"[info] Inbox folder not found: '{folder}'. Nothing to process.{configuredHint}";
         }
 
         var notes = vault.GetNotesInFolder(folder)
@@ -434,7 +439,8 @@ public sealed class VaultOrganizationTools(
             var meta = current.Metadata;
             var mergedTags = meta.Tags.Concat(plan.Tags).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             var frontmatter = NoteHelpers.BuildFrontmatter(
-                mergedTags, meta.NoteType, meta.Status, meta.Date, domain: meta.Domain, extraFields: meta.ExtraFields);
+                mergedTags, meta.NoteType, meta.Status, meta.Date, domain: meta.Domain, extraFields: meta.ExtraFields,
+                updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
             await File.WriteAllTextAsync(current.FilePath, frontmatter + body, NoteHelpers.Utf8NoBom);
             await vault.SynchronizeFileReindexAsync(current.FilePath);
@@ -836,13 +842,13 @@ public sealed class VaultOrganizationTools(
 
         if (string.IsNullOrWhiteSpace(note))
         {
-            return "[error] The 'note' parameter cannot be empty.";
+            return KiokuError.InvalidArgument("The 'note' parameter cannot be empty.");
         }
 
-        var found = vault.GetNote(note) ?? vault.GetNoteByName(note);
+        var found = NoteHelpers.ResolveNote(note, vault);
         if (found is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
         var capped = Math.Min(max_suggestions, config.MaxSearchResults);

@@ -149,4 +149,15 @@ public class VaultOrganizationToolsInboxTests : IAsyncLifetime
 
         Assert.Contains("1 note(s)", result);
     }
+
+    [Fact]
+    public void SuggestFolder_ResolvesExtensionlessRelativeNotePath()
+    {
+        var tools = CreateTools();
+
+        var result = tools.suggest_folder("Projects/Project Alpha");
+
+        Assert.DoesNotContain("[NOT_FOUND]", result);
+        Assert.DoesNotContain("Note not found", result);
+    }
 }

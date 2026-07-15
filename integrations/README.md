@@ -18,9 +18,8 @@ claude plugin install kioku@kioku
 here). Installing prompts for the vault path (and optionally the Ollama URL / embedding model)
 via the plugin's `userConfig` — no manual `.mcp.json` editing needed.
 
-`skills/kioku-vault/SKILL.md` in this directory is the **canonical** copy of the skill. Edit it
-here, then run `scripts/sync-skill.sh` to propagate the change into
-`antigravity-plugin/skills/kioku-vault/SKILL.md`.
+The skills under `claude-code-plugin/skills/` are the **canonical** copies. Edit them there, then
+run `scripts/sync-skill.sh` to propagate all skills into the matching Antigravity directories.
 
 ## `antigravity-plugin/`
 
@@ -30,9 +29,9 @@ CLI "add" command — plugins are discovered by scanning a directory — so
 `~/.gemini/config/plugins/kioku/` (global, default) or `.agents/plugins/kioku/` (workspace, with
 `--workspace`), substituting the real vault path into `mcp_config.json` in the process.
 
-- **`skills/kioku-vault/SKILL.md` is a generated file.** It's a copy of the canonical skill in
-  `claude-code-plugin/`, produced by `scripts/sync-skill.sh`. Don't hand-edit it — edit the
-  canonical copy and re-run the sync script (CI checks for drift via `sync-skill.sh --check`).
+- **`skills/*/SKILL.md` files are generated files.** They are copies of the canonical skills in
+  `claude-code-plugin/`, produced by `scripts/sync-skill.sh`. Don't hand-edit them — edit the
+  canonical copies and re-run the sync script (CI checks for drift via `sync-skill.sh --check`).
 - **`rules/kioku.md`** holds behavioral constraints (hard "never do X without Y" rules),
   distinct from the skill's "how to use these tools" content.
 - **`hooks/` is experimental and off by default.** The `hooks.json` schema it uses (matcher,

@@ -3,7 +3,7 @@
 > Auto-generated documentation of all MCP tools. Do not edit manually.
 > Regenerate with: `dotnet run --project scripts/GenerateCommandsRef`
 
-**Generated:** 2026-07-15 07:21 UTC
+**Generated:** 2026-07-15 16:54 UTC
 
 ## Summary
 
@@ -233,7 +233,7 @@ Edits the body of an existing note, keeping its YAML frontmatter intact. mode='r
 
 ### `manage_trash`
 
-Manages the vault trash. action='list' (default) shows deleted notes in '.trash' or '.obsidian/trash'; action='restore' moves a note out of the trash back into the vault (to the vault root, or the folder given in destination).
+Manages the vault trash. action='list' (default) shows deleted notes in '.trash' or '.obsidian/trash'; action='restore' moves a note out of the trash back into the vault (to the vault root, or the folder given in destination). List supports filtering and pagination.
 
 **Parameters:**
 
@@ -243,6 +243,9 @@ Manages the vault trash. action='list' (default) shows deleted notes in '.trash'
 | `note` | String | No | Restore only: name or path of the note in the trash. |
 | `destination` | String | No | Restore only: target folder (vault-relative). Defaults to vault root. |
 | `dry_run` | Boolean | No | Restore only: if true, reports what would be restored without moving the file. |
+| `prefix` | String | No | List only: case-insensitive relative-path prefix filter. |
+| `limit` | Int32 | No | List only: maximum entries to return (default: 50). |
+| `offset` | Int32 | No | List only: number of matching entries to skip. |
 
 ### `move_note`
 
@@ -478,7 +481,7 @@ Returns a snapshot of the vault's current work state: notes in inbox folders, no
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `inbox_folder` | String | No | Folder treated as the inbox (relative to vault root). Default: 'Inbox'. |
+| `inbox_folder` | String | No | Folder treated as the inbox (relative to vault root). Leave empty to use folders.inbox from .kioku/config.yml, falling back to 'Inbox'. |
 | `max_per_section` | Int32 | No | Maximum number of notes to show in the inbox, drafts, and recent sections unless recent_limit is set. |
 | `recent_folder` | String | No | Scope the recently modified section to a subfolder (relative to vault root). Leave empty for the full vault. |
 | `recent_limit` | Int32 | No | Maximum number of notes in the recently modified section. Defaults to max_per_section. |
@@ -504,7 +507,7 @@ Creates a new work session note with a timestamp header. Records the current dat
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `session_name` | String | No | Optional name for the session (e.g. 'Thesis Chapter 3 Review'). Defaults to today's date. |
-| `sessions_folder` | String | No | Folder where session notes are stored (relative to vault root). Ignored when project is set. |
+| `sessions_folder` | String | No | Folder where session notes are stored (relative to vault root). Leave empty to use folders.sessions from .kioku/config.yml, falling back to 'Sessions'. Ignored when project is set. |
 | `goal` | String | No | Optional goal or focus for this session. |
 | `project` | String | No | Project name: stores the session under {projects}/{project}/sessions/. |
 | `agent` | String | No | Agent running this session (claude, codex, ...). Auto-detected from the MCP client if empty. |
@@ -514,7 +517,7 @@ Creates a new work session note with a timestamp header. Records the current dat
 
 ### `list_tasks`
 
-Lists all tasks (open and completed) across the vault or within a specific note. Supports filtering by completion status, tag, and overdue date. Returns task text, note name, line number, due date, and inline tags.
+Lists all tasks (open and completed) across the vault or within a specific note. Supports filtering by completion status, tag, and overdue date. Supports pagination with stable ordering and returns task text, note name, line number, due date, and inline tags.
 
 **Parameters:**
 
@@ -525,6 +528,8 @@ Lists all tasks (open and completed) across the vault or within a specific note.
 | `folder` | String | No | Folder to restrict the search (relative to vault root). Only used when 'note' is empty. |
 | `tag` | String | No | Optional tag to match in task text or note frontmatter, without the '#' prefix. |
 | `overdue_only` | Boolean | No | Only return open tasks whose due date is in the past. |
+| `limit` | Int32 | No | Maximum tasks to return (default: 50). |
+| `offset` | Int32 | No | Number of matching tasks to skip for pagination. |
 
 ### `set_task_state`
 
@@ -681,6 +686,17 @@ Guides the smart-inbox triage workflow: propose a plan, confirm it, then apply i
 |------|------|----------|-------------|
 | `inbox` | String | No | Inbox folder to process (relative to vault root). Leave empty to use the configured default. |
 
+### `project_task`
+
+Orchestrates the context, execution, documentation, verification, and handoff lifecycle for a project task.
+
+**Arguments:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `project` | String | Yes | Project name (folder under the projects root). |
+| `task` | String | Yes | Task or desired outcome, including relevant constraints and acceptance criteria. |
+
 ### `record_decision`
 
 Records an architecture decision for a project.
@@ -755,6 +771,6 @@ MIME type: `application/json`
 
 **Total tools:** 49
 
-**Total prompts:** 10
+**Total prompts:** 11
 
 **Total resources:** 2

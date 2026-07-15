@@ -1,10 +1,14 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
 
 namespace Kioku.Mcp.Server.Services;
 
 public static class NoteHelpers
 {
+    private static readonly Regex UpdatedFieldRegex = new(
+        @"^(?<key>updated|modified):.*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
     /// <summary>
     /// UTF-8 without BOM for every vault write. Obsidian/Node-authored files never carry a
     /// BOM; Encoding.UTF8 writes one by default, which would leak into touched notes.
@@ -48,17 +52,9 @@ public static class NoteHelpers
             return byPath;
         }
 
-        // Try exact name (without extension)
-        var byName = all.FirstOrDefault(n =>
-            n.Name.Equals(nameOrPath, StringComparison.OrdinalIgnoreCase));
-        if (byName is not null)
-        {
-            return byName;
-        }
-
         // Try vault-relative path (with or without .md extension)
         var normalized = nameOrPath.TrimStart('/').Replace('\\', '/');
-        var byRelPath = all.FirstOrDefault(n =>
+        var byRelPath = all.SingleOrDefault(n =>
             n.VaultRelativePath.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
             n.VaultRelativePath.Equals(normalized + ".md", StringComparison.OrdinalIgnoreCase));
         if (byRelPath is not null)
@@ -66,10 +62,22 @@ public static class NoteHelpers
             return byRelPath;
         }
 
-        // Try file name without extension (for paths like "folder/note")
+        // Try exact filename only when it is unambiguous. Duplicate basenames are valid in a vault.
         var nameOnly = Path.GetFileNameWithoutExtension(nameOrPath);
-        return all.FirstOrDefault(n =>
-            n.Name.Equals(nameOnly, StringComparison.OrdinalIgnoreCase));
+        if (!normalized.Contains('/'))
+        {
+            var byName = all.Where(n => n.Name.Equals(nameOnly, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (byName.Count == 1)
+            {
+                return byName[0];
+            }
+        }
+
+        // Finally resolve a unique frontmatter alias. Ambiguous aliases are deliberately rejected.
+        var byAlias = all
+            .Where(n => n.Metadata.Aliases.Any(alias => alias.Equals(nameOrPath, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        return byAlias.Count == 1 ? byAlias[0] : null;
     }
 
     public static string BuildFilePath(string name, string vaultPath)
@@ -179,6 +187,48 @@ public static class NoteHelpers
 
         sb.AppendLine("---");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Touches an existing note's declared modification date without rebuilding its YAML.
+    /// The operation is deliberately opt-in because many vaults let Obsidian Linter own this field.
+    /// </summary>
+    public static string TouchUpdated(string content, DateOnly date, bool enabled)
+    {
+        if (!enabled)
+        {
+            return content;
+        }
+
+        var bodyStart = FrontmatterParser.GetBodyStart(content);
+        var value = $"updated: {date:yyyy-MM-dd}";
+        if (bodyStart == 0)
+        {
+            return $"---\n{value}\n---\n{content}";
+        }
+
+        if (UpdatedFieldRegex.IsMatch(content[..bodyStart]))
+        {
+            return UpdatedFieldRegex.Replace(
+                content,
+                match => $"{match.Groups["key"].Value}: {date:yyyy-MM-dd}",
+                1);
+        }
+
+        var closeIndex = content.LastIndexOf("---", bodyStart - 1, StringComparison.Ordinal);
+        if (closeIndex < 0)
+        {
+            return content;
+        }
+
+        var newline = content.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var beforeClose = content[..closeIndex];
+        if (!beforeClose.EndsWith(newline, StringComparison.Ordinal))
+        {
+            beforeClose += newline;
+        }
+
+        return beforeClose + value + newline + content[closeIndex..];
     }
 
     public static string SanitizeFileName(string name)

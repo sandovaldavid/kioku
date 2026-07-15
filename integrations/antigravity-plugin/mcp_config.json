@@ -4,7 +4,7 @@
       "command": "kioku",
       "args": [],
       "env": {
-        "KIOKU_VAULT_PATH": "__KIOKU_VAULT_PATH__"
+        "KIOKU_VAULT_PATH": "/home/sandovaldavid/workspaces/me/Cortex-L7"
       }
     }
   }

@@ -74,6 +74,15 @@ template_folders:
   "Zettelkasten": "System/Templates/zettel.md"
   "Literature": "System/Templates/literature.md"
 
+# --- Frontmatter and generated indexes ---
+# Both settings are conservative by default. Enable them only when Kioku should own these fields.
+frontmatter:
+  maintain_updated: false
+
+generated_indexes:
+  # manual (default) or on_mutation
+  refresh: manual
+
 # --- Workspaces de ingeniería por proyecto ---
 engineering:
   subfolders:

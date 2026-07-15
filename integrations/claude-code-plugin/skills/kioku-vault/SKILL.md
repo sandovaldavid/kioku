@@ -61,6 +61,15 @@ For project work, call `get_project_context` before resuming. Use `create_projec
 `update_frontmatter` for follow-up changes. Use `start_work_session` and `end_work_session` for
 handoffs. Use `manage_templates` for vault or engineering template overrides.
 
+For a user request that involves substantial work on a named project, use the focused
+`kioku-project-workflow` skill when available, or follow the `project_task` MCP prompt. That
+workflow decides whether the task needs a session, plan, bug, ADR, knowledge note, or no document
+at all. Do not create every document type by default.
+
+MCP prompts return instructions for the agent; they do not execute the referenced tools by
+themselves. The agent remains responsible for reviewing context, asking for confirmation before
+destructive changes, performing code work with the client's native tools, and closing the session.
+
 ## Native Git guidance
 
 Kioku does not provide Git tools. For a Git-backed vault, use the client's shell commands:

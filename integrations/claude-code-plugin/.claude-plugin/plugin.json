@@ -1,7 +1,7 @@
 {
   "name": "kioku",
   "displayName": "Kioku",
-  "description": "MCP server + skill for reading, searching, and organizing an Obsidian vault (130+ tools: search, tasks, zettelkasten, knowledge graph, git-backed history, and more).",
+  "description": "MCP server + skills for reading, searching, organizing, and managing project workflows in an Obsidian vault (49 tools plus prompts and resources).",
   "version": "2.1.1",
   "author": {
     "name": "sandovaldavid"

@@ -183,11 +183,13 @@ public sealed partial class NoteCommandTools(
         }
 
         var frontmatter = NoteHelpers.BuildFrontmatter(
-            tagList, noteType, noteStatus, DateOnly.FromDateTime(DateTime.Today), domain: domain);
+            tagList, noteType, noteStatus, DateOnly.FromDateTime(DateTime.Today), domain: domain,
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
         var directory = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(directory);
         await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Utf8NoBom);
         await vault.SynchronizeFileReindexAsync(filePath);
+        await RefreshGeneratedIndexesAsync(targetFolder);
 
         var relativePath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         return $"[ok] Note created: {relativePath}";
@@ -219,8 +221,11 @@ public sealed partial class NoteCommandTools(
                     var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
                     var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
                     var frontmatter = rawContent[..bodyStart];
-                    await File.WriteAllTextAsync(found.FilePath, frontmatter + content, Utf8NoBom);
+                    var updatedContent = NoteHelpers.TouchUpdated(
+                        frontmatter + content, DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
+                    await File.WriteAllTextAsync(found.FilePath, updatedContent, Utf8NoBom);
                     await vault.SynchronizeFileReindexAsync(found.FilePath);
+                    await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
                     return $"[ok] Content updated in '{found.Name}'";
                 }
 
@@ -230,9 +235,12 @@ public sealed partial class NoteCommandTools(
                     var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
                     var frontmatter = rawContent[..bodyStart];
                     var body = rawContent[bodyStart..];
-                    var newContent = frontmatter + content.Replace("\\n", "\n") + "\n" + body;
+                    var newContent = NoteHelpers.TouchUpdated(
+                        frontmatter + content.Replace("\\n", "\n") + "\n" + body,
+                        DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
                     await File.WriteAllTextAsync(found.FilePath, newContent, Utf8NoBom);
                     await vault.SynchronizeFileReindexAsync(found.FilePath);
+                    await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
                     return $"[ok] Content prepended to the start of '{found.Name}'";
                 }
 
@@ -245,8 +253,12 @@ public sealed partial class NoteCommandTools(
                     }
 
                     toAppend.AppendLine(content.Replace("\\n", "\n"));
-                    await File.AppendAllTextAsync(found.FilePath, toAppend.ToString(), Utf8NoBom);
+                    var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+                    var updatedContent = NoteHelpers.TouchUpdated(
+                        rawContent + toAppend.ToString(), DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
+                    await File.WriteAllTextAsync(found.FilePath, updatedContent, Utf8NoBom);
                     await vault.SynchronizeFileReindexAsync(found.FilePath);
+                    await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
                     return $"[ok] Content appended to '{found.Name}' ({content.Length} characters)";
                 }
 
@@ -316,10 +328,12 @@ public sealed partial class NoteCommandTools(
         var frontmatter = BuildFrontmatter(newTags, newType ?? "", newStatus ?? "",
             existingMeta.Date, domain: newDomain, extraFields: existingMeta.ExtraFields,
             aliases: existingMeta.Aliases, updated: existingMeta.Updated);
-        var newContent = frontmatter + body;
+        var newContent = NoteHelpers.TouchUpdated(
+            frontmatter + body, DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
 
         await File.WriteAllTextAsync(found.FilePath, newContent, Utf8NoBom);
         await vault.SynchronizeFileReindexAsync(found.FilePath);
+        await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
         return $"[ok] Frontmatter updated in '{found.Name}'";
     }
 
@@ -400,12 +414,25 @@ public sealed partial class NoteCommandTools(
         Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
         var oldPath = found.FilePath;
         File.Move(oldPath, destPath);
+        if (vaultConfig.MaintainUpdated)
+        {
+            var movedContent = await File.ReadAllTextAsync(destPath, Encoding.UTF8);
+            await File.WriteAllTextAsync(
+                destPath,
+                NoteHelpers.TouchUpdated(movedContent, DateOnly.FromDateTime(DateTime.Today), true),
+                Utf8NoBom);
+        }
+
         await vault.SynchronizeFileMoveAsync(oldPath, destPath);
 
         if (update_links && linkSummary.LinksUpdated > 0)
         {
             linkSummary = await UpdateInboundWikilinksAsync(plan, dryRun: false);
         }
+
+        await RefreshGeneratedIndexesAsync(
+            Path.GetDirectoryName(found.VaultRelativePath),
+            Path.GetDirectoryName(newRelativePath));
 
         return $"[ok] Note {(nameChanged ? "renamed" : "moved")}:\n   Before: {found.VaultRelativePath}\n   After: {newRelativePath}" +
                FormatLinkSummarySuffix(update_links, linkSummary);
@@ -442,6 +469,7 @@ public sealed partial class NoteCommandTools(
             // Permanent delete
             File.Delete(filePath);
             vault.SynchronizeFileDelete(filePath);
+            await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
             return $"[ok] Note permanently deleted: {found.VaultRelativePath}";
         }
         else
@@ -467,6 +495,7 @@ public sealed partial class NoteCommandTools(
 
             File.Move(filePath, trashPath);
             vault.SynchronizeFileDelete(filePath);
+            await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
 
             var trashRelativePath = Path.GetRelativePath(config.VaultPath, trashPath);
             return $"[ok] Note moved to trash: {found.VaultRelativePath} → {trashRelativePath}\n" +
@@ -479,37 +508,61 @@ public sealed partial class NoteCommandTools(
     [McpServerTool, Description(
         "Manages the vault trash. action='list' (default) shows deleted notes in '.trash' or " +
         "'.obsidian/trash'; action='restore' moves a note out of the trash back into the vault " +
-        "(to the vault root, or the folder given in destination).")]
+        "(to the vault root, or the folder given in destination). List supports filtering and pagination.")]
     public async Task<string> manage_trash(
         [Description("'list' (default) or 'restore'.")] string action = "list",
         [Description("Restore only: name or path of the note in the trash.")] string note = "",
         [Description("Restore only: target folder (vault-relative). Defaults to vault root.")] string destination = "",
-        [Description("Restore only: if true, reports what would be restored without moving the file.")] bool dry_run = false)
+        [Description("Restore only: if true, reports what would be restored without moving the file.")] bool dry_run = false,
+        [Description("List only: case-insensitive relative-path prefix filter.")] string prefix = "",
+        [Description("List only: maximum entries to return (default: 50).")] int limit = 50,
+        [Description("List only: number of matching entries to skip.")] int offset = 0)
     {
         Count(nameof(manage_trash), metrics);
         switch (action.ToLowerInvariant())
         {
             case "list":
                 {
+                    if (offset < 0)
+                    {
+                        return KiokuError.InvalidArgument("'offset' must be 0 or greater.");
+                    }
+
+                    if (limit <= 0)
+                    {
+                        return KiokuError.InvalidArgument("'limit' must be greater than 0.");
+                    }
+
+                    limit = Math.Min(limit, 100);
                     var trashPath = FindTrashFolder();
                     if (trashPath is null)
                     {
                         return "[info] No trash folder found ('.trash' or '.obsidian/trash') — nothing deleted yet.";
                     }
 
-                    var files = Directory.GetFiles(trashPath, "*.md", SearchOption.AllDirectories);
-                    if (files.Length == 0)
+                    var files = Directory.GetFiles(trashPath, "*.md", SearchOption.AllDirectories)
+                        .Select(file => new
+                        {
+                            File = file,
+                            Relative = Path.GetRelativePath(config.VaultPath, file).Replace('\\', '/')
+                        })
+                        .Where(item => string.IsNullOrWhiteSpace(prefix) ||
+                                       item.Relative.StartsWith(prefix.TrimStart('/'), StringComparison.OrdinalIgnoreCase))
+                        .OrderBy(item => item.Relative, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    if (files.Count == 0)
                     {
                         return "[info] The trash is empty.";
                     }
 
-                    var sb = new StringBuilder($"[ok] {files.Length} deleted note(s):\n\n");
-                    foreach (var file in files)
+                    var page = files.Skip(offset).Take(limit).ToList();
+                    var sb = new StringBuilder(
+                        $"[ok] Trash notes (total: {files.Count}, offset: {offset}, limit: {limit}, returned: {page.Count}):\n\n");
+                    foreach (var item in page)
                     {
-                        var relPath = Path.GetRelativePath(config.VaultPath, file);
-                        var age = DateTimeOffset.UtcNow - File.GetLastWriteTimeUtc(file);
+                        var age = DateTimeOffset.UtcNow - File.GetLastWriteTimeUtc(item.File);
                         var ageStr = age.TotalHours < 24 ? $"{(int)age.TotalHours}h" : $"{(int)age.TotalDays}d";
-                        sb.AppendLine($"  {relPath} (deleted {ageStr} ago)");
+                        sb.AppendLine($"  {item.Relative} (modified {ageStr} ago)");
                     }
 
                     return sb.ToString();
@@ -625,6 +678,17 @@ public sealed partial class NoteCommandTools(
 
     private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
 
+    private async Task RefreshGeneratedIndexesAsync(params string?[] folders)
+    {
+        if (zettelkasten is null || !vaultConfig.RefreshGeneratedIndexes)
+        {
+            return;
+        }
+
+        await zettelkasten.RefreshGeneratedIndexesAsync(
+            folders.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f!));
+    }
+
     private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
 
     private static string BuildFrontmatter(
@@ -690,7 +754,9 @@ public sealed partial class NoteCommandTools(
 
             if (!dryRun)
             {
-                await File.WriteAllTextAsync(source.FilePath, result.NewContent, Utf8NoBom);
+                var contentToWrite = NoteHelpers.TouchUpdated(
+                    result.NewContent, DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
+                await File.WriteAllTextAsync(source.FilePath, contentToWrite, Utf8NoBom);
                 await vault.SynchronizeFileReindexAsync(source.FilePath);
             }
         }

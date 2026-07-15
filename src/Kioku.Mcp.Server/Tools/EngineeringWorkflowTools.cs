@@ -297,7 +297,7 @@ public sealed class EngineeringWorkflowTools(
         {
             sb.AppendLine("## Project overview (MOC)");
             sb.AppendLine();
-            sb.AppendLine((await File.ReadAllTextAsync(mocPath, Encoding.UTF8)).Trim());
+            sb.AppendLine(RenderProjectOverview(await File.ReadAllTextAsync(mocPath, Encoding.UTF8)).Trim());
             sb.AppendLine();
         }
 
@@ -665,8 +665,9 @@ public sealed class EngineeringWorkflowTools(
             type: "knowledge",
             status: "active",
             date: DateOnly.FromDateTime(DateTime.Now),
-            domain: vaultConfig.GetDomainForFolder(relFolder),
-            cssClasses: ["kioku-knowledge"]);
+                domain: vaultConfig.GetDomainForFolder(relFolder),
+                cssClasses: ["kioku-knowledge"],
+                updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
         await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, NoteHelpers.Utf8NoBom);
         await vault.SynchronizeFileReindexAsync(filePath);
@@ -748,6 +749,7 @@ public sealed class EngineeringWorkflowTools(
             domain: vaultConfig.GetDomainForFolder(relFolder),
             aliases: aliases,
             cssClasses: [$"kioku-{baseTag}"],
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null,
             extraFields: fields);
 
         await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, NoteHelpers.Utf8NoBom);
@@ -850,6 +852,13 @@ public sealed class EngineeringWorkflowTools(
         }
 
         return string.Empty;
+    }
+
+    private static string RenderProjectOverview(string raw)
+    {
+        return raw
+            .Replace("_(what this project is, its goals, and its current state)_", "_(pending in project MOC)_", StringComparison.Ordinal)
+            .Replace("- Repository:\n- Environments:\n- Documentation:", "_(key links pending in project MOC)_", StringComparison.Ordinal);
     }
 
     private async Task<(bool Created, string Message)> AppendConfigReferenceAsync(string configPath)
