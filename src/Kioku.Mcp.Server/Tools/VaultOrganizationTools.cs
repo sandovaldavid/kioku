@@ -371,7 +371,8 @@ public sealed class VaultOrganizationTools(
                 var linkTarget = link.Split('#')[0].Trim();
                 if (!string.IsNullOrWhiteSpace(linkTarget)
                     && !allNoteNames.Contains(linkTarget)
-                    && !allNotePaths.Contains(linkTarget))
+                    && !allNotePaths.Contains(linkTarget)
+                    && !ExistsOnDisk(config.VaultPath, linkTarget))
                 {
                     broken.Add((note.VaultRelativePath, link));
                 }
@@ -421,7 +422,8 @@ public sealed class VaultOrganizationTools(
                 .Select(l => l.Split('#')[0].Trim())
                 .Where(l => !string.IsNullOrWhiteSpace(l)
                     && !allNoteNames.Contains(l)
-                    && !allNotePaths.Contains(l))
+                    && !allNotePaths.Contains(l)
+                    && !ExistsOnDisk(config.VaultPath, l))
                 .Select(l => (Note: n.VaultRelativePath, Link: l)))
             .ToList();
 
@@ -690,6 +692,27 @@ public sealed class VaultOrganizationTools(
         path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? path[..^3] : path;
 
     // Private helpers
+
+    /// <summary>
+    /// Fallback check for find_broken_links/audit_vault: a link that doesn't resolve against
+    /// the in-memory index might still point at a real file sitting in a folder excluded from
+    /// indexing (.kioku/config.yml's exclude: list) — that's not actually broken. A full path
+    /// (containing '/') is checked directly; a bare note name is searched for by filename
+    /// anywhere in the vault, since Obsidian resolves bare wikilinks across folders.
+    /// </summary>
+    private static bool ExistsOnDisk(string vaultPath, string linkTarget)
+    {
+        var fileName = linkTarget.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+            ? linkTarget
+            : linkTarget + ".md";
+
+        if (linkTarget.Contains('/'))
+        {
+            return File.Exists(Path.Combine(vaultPath, fileName.Replace('/', Path.DirectorySeparatorChar)));
+        }
+
+        return Directory.EnumerateFiles(vaultPath, fileName, SearchOption.AllDirectories).Any();
+    }
 
     private static string NormalizeTag(string tag)
     {

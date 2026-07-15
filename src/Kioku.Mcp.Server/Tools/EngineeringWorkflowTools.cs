@@ -74,6 +74,9 @@ public sealed class EngineeringWorkflowTools(
             return nameError;
         }
 
+        // Holds the per-project ADR lock across both number allocation and the file write in
+        // CreateDocAsync, so concurrent record_adr calls never compute the same next number.
+        using var adrLock = await workspace.AcquireAdrLockAsync(project);
         var number = workspace.GetNextAdrNumber(project);
         return await CreateDocAsync(
             project,

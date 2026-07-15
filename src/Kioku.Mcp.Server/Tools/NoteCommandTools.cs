@@ -19,6 +19,10 @@ public sealed class NoteCommandTools(
 {
     private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
 
+    // Obsidian/Node-authored files never carry a BOM; Encoding.UTF8 writes one by default,
+    // which would introduce one into every note this tool type touches.
+    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
     // create_note
 
     [McpServerTool, Description(
@@ -46,7 +50,7 @@ public sealed class NoteCommandTools(
         Directory.CreateDirectory(dir);
 
         var noteContent = BuildNoteContent(content, tags, type, status, name);
-        await File.WriteAllTextAsync(filePath, noteContent, Encoding.UTF8);
+        await File.WriteAllTextAsync(filePath, noteContent, Utf8NoBom);
 
         return $"[ok] Note created: {Path.GetRelativePath(config.VaultPath, filePath)}\n" +
                $"Path: {filePath}";
@@ -72,7 +76,8 @@ public sealed class NoteCommandTools(
         var frontmatter = rawContent[..bodyStart];
 
         var newContent = frontmatter + content;
-        await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
+        await File.WriteAllTextAsync(found.FilePath, newContent, Utf8NoBom);
+        await vault.SynchronizeFileReindexAsync(found.FilePath);
 
         return $"[ok] Content updated in '{found.Name}'";
     }
@@ -98,7 +103,8 @@ public sealed class NoteCommandTools(
         var body = rawContent[bodyStart..];
 
         var newContent = frontmatter + content.Replace("\\n", "\n") + "\n" + body;
-        await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
+        await File.WriteAllTextAsync(found.FilePath, newContent, Utf8NoBom);
+        await vault.SynchronizeFileReindexAsync(found.FilePath);
 
         return $"[ok] Content prepended to the start of '{found.Name}'";
     }
@@ -128,7 +134,8 @@ public sealed class NoteCommandTools(
 
         toAppend.AppendLine(content.Replace("\\n", "\n"));
 
-        await File.AppendAllTextAsync(found.FilePath, toAppend.ToString(), Encoding.UTF8);
+        await File.AppendAllTextAsync(found.FilePath, toAppend.ToString(), Utf8NoBom);
+        await vault.SynchronizeFileReindexAsync(found.FilePath);
         return $"[ok] Content appended to '{found.Name}' ({content.Length} characters)";
     }
 
@@ -169,10 +176,12 @@ public sealed class NoteCommandTools(
             Path.GetDirectoryName(found.VaultRelativePath) ?? "");
 
         var frontmatter = BuildFrontmatter(newTags, newType ?? "", newStatus ?? "",
-            existingMeta.Date, domain: newDomain, extraFields: existingMeta.ExtraFields);
+            existingMeta.Date, domain: newDomain, extraFields: existingMeta.ExtraFields,
+            aliases: existingMeta.Aliases, updated: existingMeta.Updated);
         var newContent = frontmatter + body;
 
-        await File.WriteAllTextAsync(found.FilePath, newContent, Encoding.UTF8);
+        await File.WriteAllTextAsync(found.FilePath, newContent, Utf8NoBom);
+        await vault.SynchronizeFileReindexAsync(found.FilePath);
         return $"[ok] Frontmatter updated in '{found.Name}'";
     }
 
@@ -440,8 +449,11 @@ public sealed class NoteCommandTools(
         string? status,
         DateOnly? date = null,
         string? domain = null,
-        IReadOnlyDictionary<string, string>? extraFields = null) =>
-        NoteHelpers.BuildFrontmatter(tags, type, status, date, domain: domain, extraFields: extraFields);
+        IReadOnlyDictionary<string, string>? extraFields = null,
+        IEnumerable<string>? aliases = null,
+        DateOnly? updated = null) =>
+        NoteHelpers.BuildFrontmatter(tags, type, status, date, domain: domain, extraFields: extraFields,
+            aliases: aliases, updated: updated);
 
     // Wikilink auto-update helpers (move_note / rename_note)
 
@@ -494,7 +506,7 @@ public sealed class NoteCommandTools(
 
             if (!dryRun)
             {
-                await File.WriteAllTextAsync(source.FilePath, result.NewContent, Encoding.UTF8);
+                await File.WriteAllTextAsync(source.FilePath, result.NewContent, Utf8NoBom);
                 await vault.SynchronizeFileReindexAsync(source.FilePath);
             }
         }

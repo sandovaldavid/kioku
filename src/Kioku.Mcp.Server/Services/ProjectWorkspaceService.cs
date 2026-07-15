@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -255,6 +256,28 @@ public sealed partial class ProjectWorkspaceService(
             : await TemplaterFolderTemplates.RegisterFolderTemplatesAsync(config.VaultPath, entries);
     }
 
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> AdrLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Serializes ADR number allocation per project. GetNextAdrNumber scans disk with no
+    /// locking of its own, so two rapid/concurrent record_adr calls for the same project
+    /// could otherwise compute the same "next" number and both succeed (filenames differ
+    /// only by title slug, so there's no collision to force a retry). Callers should hold
+    /// this for the entire compute-number-then-write-file critical section.
+    /// </summary>
+    public async Task<IDisposable> AcquireAdrLockAsync(string project)
+    {
+        var semaphore = AdrLocks.GetOrAdd(project, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
+        return new SemaphoreReleaser(semaphore);
+    }
+
+    private sealed class SemaphoreReleaser(SemaphoreSlim semaphore) : IDisposable
+    {
+        public void Dispose() => semaphore.Release();
+    }
+
     /// <summary>
     /// Next sequential ADR number for a project, scanning the decisions folder on disk
     /// (max existing number + 1; 1 for an empty or missing folder).
@@ -362,7 +385,7 @@ public sealed partial class ProjectWorkspaceService(
             return [];
         }
 
-        return [.. Directory.EnumerateFiles(folder, "*.md", SearchOption.TopDirectoryOnly)
+        return [.. Directory.EnumerateFiles(folder, "*.md", SearchOption.AllDirectories)
             .Select(f => new FileInfo(f))
             .OrderByDescending(f => f.LastWriteTimeUtc)];
     }
@@ -381,7 +404,15 @@ public sealed partial class ProjectWorkspaceService(
         var results = new List<string>();
         if (Directory.Exists(ProjectsRoot))
         {
-            WalkForProjects(ProjectsRoot, results);
+            // Never evaluate IsProjectFolder on ProjectsRoot itself: a vault-level MOC note
+            // there (or engineering subfolders placed directly under it) would otherwise
+            // misclassify the whole root as a single project named ".", hiding everything
+            // beneath it. Always recurse starting from its direct subdirectories instead.
+            foreach (var sub in Directory.EnumerateDirectories(ProjectsRoot)
+                .OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+            {
+                WalkForProjects(sub, results);
+            }
         }
 
         results.Sort(StringComparer.OrdinalIgnoreCase);

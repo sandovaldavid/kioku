@@ -20,6 +20,8 @@ public sealed class NoteQueryTools(
     VaultConfigService vaultConfig,
     MetricsService? metrics = null)
 {
+    private const string FormatDescription = "'text' (default) or 'json'.";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = false,
@@ -40,7 +42,7 @@ public sealed class NoteQueryTools(
         "Use format='json' to receive a structured response.")]
     public async Task<string> read_note(
         [Description("Name or path of the note. E.g. 'My Note', 'Projects/Kioku', '/home/user/vault/note.md'")] string note,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(read_note), metrics);
         var found = ResolveNote(note);
@@ -77,7 +79,7 @@ public sealed class NoteQueryTools(
         [Description("Folder to list (relative to the vault). Leave empty to list the entire vault.")] string folder = "",
         [Description("Maximum number of notes to return (default: 50, capped by KIOKU_MAX_RESULTS).")] int limit = 50,
         [Description("Number of notes to skip for pagination.")] int offset = 0,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(list_notes), metrics);
         if (!vault.IsReady)
@@ -162,7 +164,7 @@ public sealed class NoteQueryTools(
     public string search_notes(
         [Description("Text to search. Can include multiple keywords.")] string query,
         [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(search_notes), metrics);
         if (!vault.IsReady)
@@ -245,7 +247,7 @@ public sealed class NoteQueryTools(
         [Description("Filter by note type (e.g. 'note', 'project', 'area').")] string? type = null,
         [Description("Minimum date in frontmatter (format: YYYY-MM-DD).")] string? date_from = null,
         [Description("Maximum date in frontmatter (format: YYYY-MM-DD).")] string? date_to = null,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(filter_notes), metrics);
         if (!vault.IsReady)
@@ -352,7 +354,7 @@ public sealed class NoteQueryTools(
         "Use format='json' to receive a structured response.")]
     public string get_note_metadata(
         [Description("Name or path of the note.")] string note,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(get_note_metadata), metrics);
         var found = ResolveNote(note);
@@ -444,7 +446,7 @@ public sealed class NoteQueryTools(
         "Use format='json' to receive a structured response.")]
     public string get_backlinks(
         [Description("Name of the target note (without .md extension).")] string note_name,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(get_backlinks), metrics);
         if (!vault.IsReady)
@@ -486,7 +488,7 @@ public sealed class NoteQueryTools(
         "Use format='json' to receive a structured response.")]
     public string get_outgoing_links(
         [Description("Name or path of the note.")] string note,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         var found = ResolveNote(note);
         if (found is null)
@@ -524,7 +526,7 @@ public sealed class NoteQueryTools(
         "folders, and index status. " +
         "Use format='json' to receive a structured response.")]
     public string get_vault_stats(
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(get_vault_stats), metrics);
         if (!vault.IsReady)
