@@ -167,6 +167,42 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     }
 
     [Fact]
+    public async Task DeleteNote_ConcurrentSameBasename_KeepsBothRecoverable()
+    {
+        var tools = CreateTools();
+        var trashDir = Path.Combine(_fixture.VaultPath, ".trash");
+
+        // The soft-delete race is timing-dependent, so repeat to make a regression deterministic.
+        for (var iteration = 0; iteration < 15; iteration++)
+        {
+            var basename = $"concurrent-{Guid.NewGuid():N}";
+            var pathA = $"ConcurrentA/{basename}";
+            var pathB = $"ConcurrentB/{basename}";
+            var bodyA = $"body-A-{basename}";
+            var bodyB = $"body-B-{basename}";
+
+            await tools.create_note(pathA, bodyA, tags: "");
+            await tools.create_note(pathB, bodyB, tags: "");
+            await _fixture.Index.RebuildIndexAsync();
+
+            var results = await Task.WhenAll(
+                tools.delete_note(pathA),
+                tools.delete_note(pathB));
+
+            Assert.All(results, r => Assert.StartsWith("[ok]", r));
+
+            // Both notes must survive in the trash under distinct names — the second move must
+            // never overwrite the first when the basenames collide.
+            var trashed = Directory.GetFiles(trashDir, $"{basename}*.md");
+            Assert.Equal(2, trashed.Length);
+
+            var contents = trashed.Select(File.ReadAllText).ToList();
+            Assert.Contains(contents, c => c.Contains(bodyA));
+            Assert.Contains(contents, c => c.Contains(bodyB));
+        }
+    }
+
+    [Fact]
     public async Task DeleteNote_PermanentDelete_RemovesFile()
     {
         var tools = CreateTools();
