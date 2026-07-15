@@ -32,9 +32,6 @@ BenchmarkDotNet.Artifacts/
 .env
 .env.local
 
-# Notas de trabajo locales (no versionadas)
-docs/planning/
-docs/proposals/
 
 # OS
 .DS_Store
