@@ -6,6 +6,12 @@ namespace Kioku.Mcp.Server.Services;
 public static class NoteHelpers
 {
     /// <summary>
+    /// UTF-8 without BOM for every vault write. Obsidian/Node-authored files never carry a
+    /// BOM; Encoding.UTF8 writes one by default, which would leak into touched notes.
+    /// </summary>
+    public static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
+
+    /// <summary>
     /// Ensures that a candidate path remains inside the vault root after canonicalization.
     /// Throws <see cref="InvalidOperationException"/> if the path escapes the vault.
     /// </summary>

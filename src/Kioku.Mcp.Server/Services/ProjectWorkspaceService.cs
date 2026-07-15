@@ -170,7 +170,7 @@ public sealed partial class ProjectWorkspaceService(
                 cssClasses: ["kioku-project-moc"],
                 extraFields: new Dictionary<string, string> { ["project"] = project });
 
-            await File.WriteAllTextAsync(mocPath, frontmatter + "\n" + body, Encoding.UTF8);
+            await File.WriteAllTextAsync(mocPath, frontmatter + "\n" + body, NoteHelpers.Utf8NoBom);
 
             var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, ToVaultRelative(mocPath));
             created.Add(evalResult.Warning is null
@@ -224,7 +224,7 @@ public sealed partial class ProjectWorkspaceService(
             }
             else
             {
-                await File.WriteAllTextAsync(target, ReadEmbeddedTemplate(key), Encoding.UTF8);
+                await File.WriteAllTextAsync(target, ReadEmbeddedTemplate(key), NoteHelpers.Utf8NoBom);
                 created.Add(rel);
             }
         }

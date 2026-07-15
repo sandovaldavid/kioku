@@ -6,6 +6,18 @@ namespace Kioku.Mcp.Server.Services;
 
 public sealed class VaultConfigService
 {
+    private static readonly HashSet<string> DefaultDisabledGroups =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "research", "generation", "css", "assets", "bridge", "plugin",
+        };
+
+    private static readonly HashSet<string> RemovedGroups =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "git", "restore", "zettelkasten", "graph-analysis",
+        };
+
     private readonly VaultConfigData _data;
     private readonly string _vaultPath;
 
@@ -159,10 +171,15 @@ public sealed class VaultConfigService
     /// </summary>
     public bool IsGroupEnabled(string groupName)
     {
+        if (RemovedGroups.Contains(groupName))
+        {
+            return false;
+        }
+
         var caps = _data.Capabilities;
         if (caps is null)
         {
-            return true;
+            return !DefaultDisabledGroups.Contains(groupName);
         }
 
         var disabled = caps.Disabled ?? [];
@@ -172,13 +189,20 @@ public sealed class VaultConfigService
             return false;
         }
 
+        var enabled = caps.Enabled ?? [];
         if (caps.RequireExplicit)
         {
-            var enabled = caps.Enabled ?? [];
             return enabled.Contains(groupName, StringComparer.OrdinalIgnoreCase);
         }
 
-        return true;
+        // A partial capabilities block must not silently re-enable the default-off
+        // groups: they stay off unless explicitly listed in 'enabled'.
+        if (enabled.Contains(groupName, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !DefaultDisabledGroups.Contains(groupName);
     }
 }
 
@@ -208,8 +232,8 @@ public sealed class CapabilitiesConfig
 {
     /// <summary>
     /// Tool groups that should be disabled. Use '*' to disable all optional groups.
-    /// Known groups: git, css, assets, research, graph, graph-analysis, zettelkasten, workflows,
-    /// organization, sessions, bridge, plugin, restore, tasks, generation, engineering.
+    /// Known groups: css, assets, research, graph, workflows, organization, sessions, bridge,
+    /// plugin, tasks, generation, engineering.
     /// </summary>
     public List<string>? Disabled { get; init; }
 

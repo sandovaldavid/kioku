@@ -26,18 +26,21 @@ public class UtilityToolsTests : IClassFixture<VaultFixture>
     }
 
     [Fact]
-    public void GetIndexStatus_NoEmbeddingService_OmitsEmbeddingProgressFields()
+    public void GetServerStatus_NoEmbeddingService_OmitsEmbeddingProgressFields()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
         var tools = new UtilityTools(_fixture.Index, config);
 
-        var result = tools.get_index_status();
+        var result = tools.get_server_status();
 
+        Assert.StartsWith("[online] Kioku MCP Server", result);
+        Assert.Contains("Health: healthy", result);
+        Assert.Contains("Index ready:", result);
         Assert.DoesNotContain("Embedding backlog", result);
     }
 
     [Fact]
-    public async Task GetIndexStatus_OllamaUnavailable_OmitsEmbeddingProgressFields()
+    public async Task GetServerStatus_OllamaUnavailable_OmitsEmbeddingProgressFields()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath, EmbeddingModel = "nomic-embed-text" };
         var embedding = new EmbeddingService(config, NullLogger<EmbeddingService>.Instance,
@@ -46,14 +49,14 @@ public class UtilityToolsTests : IClassFixture<VaultFixture>
 
         var tools = new UtilityTools(_fixture.Index, config, embedding);
 
-        var result = tools.get_index_status();
+        var result = tools.get_server_status();
 
         Assert.DoesNotContain("Embedding backlog", result);
         Assert.Contains("[info] Unavailable", result);
     }
 
     [Fact]
-    public async Task GetIndexStatus_OllamaAvailableWithNoBacklog_ShowsZeroBacklog()
+    public async Task GetServerStatus_OllamaAvailableWithNoBacklog_ShowsZeroBacklog()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath, EmbeddingModel = "nomic-embed-text" };
         var embedding = new EmbeddingService(config, NullLogger<EmbeddingService>.Instance,
@@ -64,7 +67,7 @@ public class UtilityToolsTests : IClassFixture<VaultFixture>
 
         var tools = new UtilityTools(_fixture.Index, config, embedding);
 
-        var result = tools.get_index_status();
+        var result = tools.get_server_status();
 
         Assert.Contains("Embedding backlog: 0", result);
         Assert.Contains("Embedding rate:", result);
@@ -72,7 +75,7 @@ public class UtilityToolsTests : IClassFixture<VaultFixture>
     }
 
     [Fact]
-    public async Task GetIndexStatus_BacklogInProgress_ShowsNonZeroBacklog()
+    public async Task GetServerStatus_BacklogInProgress_ShowsNonZeroBacklog()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath, EmbeddingModel = "nomic-embed-text" };
         var embedding = new EmbeddingService(config, NullLogger<EmbeddingService>.Instance,
@@ -92,7 +95,7 @@ public class UtilityToolsTests : IClassFixture<VaultFixture>
         await embedding.InitializeAsync(_fixture.Index.GetAllNotes());
 
         var tools = new UtilityTools(_fixture.Index, config, embedding);
-        var result = tools.get_index_status();
+        var result = tools.get_server_status();
 
         Assert.Matches(@"Embedding backlog: [1-9]\d*", result);
 

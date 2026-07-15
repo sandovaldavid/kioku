@@ -34,7 +34,7 @@ public class NoteCommandToolsWikilinkTests : IAsyncLifetime
     {
         var tools = CreateTools();
 
-        var result = await tools.rename_note("Note One", "Note One Renamed");
+        var result = await tools.move_note("Note One", new_name: "Note One Renamed");
 
         Assert.Contains("[ok] Note renamed", result);
         Assert.Contains("Updated 1 wikilink(s) in 1 note(s).", result);
@@ -54,7 +54,7 @@ public class NoteCommandToolsWikilinkTests : IAsyncLifetime
         var tools = CreateTools();
         var beforeBody = await _fixture.ReadNoteBodyAsync("Note Three");
 
-        var result = await tools.rename_note("Note One", "Note One Renamed", dry_run: true);
+        var result = await tools.move_note("Note One", new_name: "Note One Renamed", dry_run: true);
 
         Assert.Contains("[info] Dry run", result);
         Assert.Contains("Would update 1 wikilink(s) in 1 note(s)", result);
@@ -70,7 +70,7 @@ public class NoteCommandToolsWikilinkTests : IAsyncLifetime
     {
         var tools = CreateTools();
 
-        var result = await tools.rename_note("Note One", "Note One Renamed", update_links: false);
+        var result = await tools.move_note("Note One", new_name: "Note One Renamed", update_links: false);
 
         Assert.Contains("[ok] Note renamed", result);
         Assert.DoesNotContain("wikilink", result);
@@ -88,7 +88,7 @@ public class NoteCommandToolsWikilinkTests : IAsyncLifetime
         await _fixture.Index.RebuildIndexAsync();
         var tools = CreateTools();
 
-        var result = await tools.rename_note("Folder/Duplicate", "Folder/Duplicate Renamed");
+        var result = await tools.move_note("Folder/Duplicate", new_name: "Folder/Duplicate Renamed");
 
         Assert.Contains("ambiguous", result, StringComparison.OrdinalIgnoreCase);
 

@@ -9,121 +9,12 @@ using ModelContextProtocol.Server;
 namespace Kioku.Mcp.Server.Tools;
 
 /// <summary>
-/// MCP tools for knowledge graph operations: timelines, concept maps, and vault snapshots.
+/// MCP tools for knowledge graph operations: concept maps and vault snapshots.
 /// All operations are read-only.
 /// </summary>
 [McpServerToolType]
 public sealed class KnowledgeGraphTools(VaultIndexService vault)
 {
-    // -------------------------------------------------------------------------
-    // get_knowledge_timeline
-    // -------------------------------------------------------------------------
-
-    [McpServerTool, Description(
-        "Returns notes ordered chronologically by their frontmatter 'date' field. " +
-        "Useful for reviewing the evolution of ideas over time. " +
-        "Optionally filter by tag, folder, or date range. " +
-        "Notes without a 'date' frontmatter field are excluded.")]
-    public string get_knowledge_timeline(
-        [Description("Filter by tag (without #). Leave empty for all notes.")] string tag = "",
-        [Description("Folder path relative to vault root. Leave empty for all folders.")] string folder = "",
-        [Description("Start date (inclusive) in YYYY-MM-DD format. Leave empty for no lower bound.")] string date_from = "",
-        [Description("End date (inclusive) in YYYY-MM-DD format. Leave empty for no upper bound.")] string date_to = "",
-        [Description("Maximum number of notes to return (default: 50, max: 200).")] int max_results = 50)
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        max_results = Math.Clamp(max_results, 1, 200);
-
-        // Parse date bounds
-        DateTimeOffset? fromDate = null;
-        DateTimeOffset? toDate = null;
-
-        if (!string.IsNullOrWhiteSpace(date_from) &&
-            DateTimeOffset.TryParse(date_from, out var parsedFrom))
-        {
-            fromDate = parsedFrom;
-        }
-
-        if (!string.IsNullOrWhiteSpace(date_to) &&
-            DateTimeOffset.TryParse(date_to, out var parsedTo))
-        {
-            toDate = parsedTo.AddDays(1).AddTicks(-1); // inclusive end
-        }
-
-        var notes = vault.GetAllNotes().AsEnumerable();
-
-        // Folder filter
-        if (!string.IsNullOrWhiteSpace(folder))
-        {
-            var normalizedFolder = folder.Replace('\\', '/').TrimEnd('/');
-            notes = notes.Where(n =>
-                n.VaultRelativePath.StartsWith(normalizedFolder + "/", StringComparison.OrdinalIgnoreCase) ||
-                n.VaultRelativePath.Equals(normalizedFolder, StringComparison.OrdinalIgnoreCase));
-        }
-
-        // Tag filter
-        if (!string.IsNullOrWhiteSpace(tag))
-        {
-            var tagLower = tag.TrimStart('#').ToLowerInvariant();
-            notes = notes.Where(n =>
-                n.Metadata.Tags.Any(t => t.TrimStart('#').Equals(tagLower, StringComparison.OrdinalIgnoreCase)));
-        }
-
-        // Only notes with a date
-        var dated = notes
-            .Where(n => n.Metadata.Date.HasValue)
-            .Select(n => (note: n, date: n.Metadata.Date!.Value));
-
-        // Date range filter — compare DateOnly
-        if (fromDate.HasValue)
-        {
-            var fromDateOnly = DateOnly.FromDateTime(fromDate.Value.Date);
-            dated = dated.Where(x => x.date >= fromDateOnly);
-        }
-        if (toDate.HasValue)
-        {
-            var toDateOnly = DateOnly.FromDateTime(toDate.Value.Date);
-            dated = dated.Where(x => x.date <= toDateOnly);
-        }
-
-        var sorted = dated
-            .OrderBy(x => x.date)
-            .Take(max_results)
-            .ToList();
-
-        if (sorted.Count == 0)
-        {
-            return "[ok] No notes found matching the specified criteria.";
-        }
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"[ok] Knowledge timeline — {sorted.Count} notes:");
-        sb.AppendLine();
-
-        string? lastYear = null;
-        foreach (var (note, date) in sorted)
-        {
-            var year = date.Year.ToString();
-            if (year != lastYear)
-            {
-                sb.AppendLine($"### {year}");
-                lastYear = year;
-            }
-
-            var tagList = note.Metadata.Tags.Any()
-                ? string.Join(", ", note.Metadata.Tags.Take(5))
-                : "—";
-            var status = note.Metadata.Status ?? "—";
-            sb.AppendLine($"- **{date:yyyy-MM-dd}** [{note.Name}]({note.VaultRelativePath}) — {tagList} | status: {status}");
-        }
-
-        return sb.ToString();
-    }
-
     // -------------------------------------------------------------------------
     // get_concept_map
     // -------------------------------------------------------------------------
@@ -250,13 +141,19 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
     [McpServerTool, Description(
         "Returns a comprehensive snapshot of the vault in a single call: " +
         "folder tree with note counts, top tags by frequency, frontmatter coverage stats, " +
-        "and recent activity summary. " +
-        "Replaces the need to call list_notes + get_vault_stats + multiple get_note_metadata.")]
-    public string get_vault_snapshot()
+        "recent activity summary, graph density, unlinked notes, and graph islands. " +
+        "Combines note listing, metadata coverage, and graph analysis in one report.")]
+    public string get_vault_snapshot(
+        [Description("Maximum connected-component size to report as a graph island (default: 3).")] int island_threshold = 3)
     {
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        if (island_threshold < 1)
+        {
+            return "[error] Island threshold must be at least 1.";
         }
 
         var allNotes = vault.GetAllNotes().ToList();
@@ -389,6 +286,64 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
         sb.AppendLine($"- Notes with outgoing links: {notesWithLinks} ({Pct(notesWithLinks, allNotes.Count)}%)");
         sb.AppendLine($"- Orphan notes (no links in or out): {orphans}");
 
+        // --- Consolidated graph analysis ---
+        var backlinkCounts = allNotes
+            .Select(n => (Note: n, Count: vault.GetBacklinks(n.Name).Count()))
+            .ToList();
+        var totalBacklinks = backlinkCounts.Sum(x => x.Count);
+        var notesWithBacklinks = backlinkCounts.Count(x => x.Count > 0);
+        var unlinkedNotes = backlinkCounts
+            .Where(x => x.Count == 0 && x.Note.OutgoingLinks.Count == 0)
+            .Select(x => x.Note)
+            .OrderBy(n => n.Name)
+            .ToList();
+        var avgOutgoing = (double)totalOutgoing / allNotes.Count;
+        var avgBacklinks = (double)totalBacklinks / allNotes.Count;
+
+        sb.AppendLine();
+        sb.AppendLine("## Graph density");
+        sb.AppendLine("Vault Graph Density Metrics:");
+        sb.AppendLine($"  Total notes: {allNotes.Count}");
+        sb.AppendLine($"  Total outgoing links: {totalOutgoing}");
+        sb.AppendLine($"  Total backlinks: {totalBacklinks}");
+        sb.AppendLine($"  Average outgoing links/note: {avgOutgoing:F2}");
+        sb.AppendLine($"  Average backlinks/note: {avgBacklinks:F2}");
+        sb.AppendLine($"  Notes with outgoing links: {notesWithLinks} ({notesWithLinks * 100.0 / allNotes.Count:F1}%)");
+        sb.AppendLine($"  Notes with backlinks: {notesWithBacklinks} ({notesWithBacklinks * 100.0 / allNotes.Count:F1}%)");
+        sb.AppendLine($"  Unlinked notes (isolated): {unlinkedNotes.Count} ({unlinkedNotes.Count * 100.0 / allNotes.Count:F1}%)");
+
+        sb.AppendLine();
+        sb.AppendLine("## Unlinked notes");
+        if (unlinkedNotes.Count == 0)
+        {
+            sb.AppendLine("[info] No unlinked notes found — all notes are part of the graph.");
+        }
+        else
+        {
+            sb.AppendLine($"Found {unlinkedNotes.Count} unlinked note(s):");
+            foreach (var note in unlinkedNotes)
+            {
+                sb.AppendLine($"- {note.Name} (modified: {note.LastModified:yyyy-MM-dd})");
+            }
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("## Graph islands");
+        var islands = FindIslands(allNotes, island_threshold);
+        if (islands.Count == 0)
+        {
+            sb.AppendLine($"[info] No graph islands found (all components > {island_threshold} notes).");
+        }
+        else
+        {
+            sb.AppendLine($"Found {islands.Count} island(s) (max {island_threshold} notes each):");
+            foreach (var island in islands.OrderByDescending(i => i.Count))
+            {
+                var noteNames = string.Join(", ", island.Select(n => n.Name).OrderBy(name => name));
+                sb.AppendLine($"- Island ({island.Count} notes): {noteNames}");
+            }
+        }
+
         return sb.ToString();
     }
 
@@ -400,6 +355,55 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
     private static int Pct(int value, int total) =>
         total == 0 ? 0 : (int)Math.Round(value * 100.0 / total);
+
+    private List<List<Note>> FindIslands(IReadOnlyList<Note> allNotes, int threshold)
+    {
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var islands = new List<List<Note>>();
+        var notesByName = allNotes.ToDictionary(n => n.Name, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var note in allNotes)
+        {
+            if (visited.Contains(note.Name))
+            {
+                continue;
+            }
+
+            var component = new List<Note>();
+            var queue = new Queue<Note>();
+            queue.Enqueue(note);
+            visited.Add(note.Name);
+
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                component.Add(current);
+
+                foreach (var link in current.OutgoingLinks)
+                {
+                    if (notesByName.TryGetValue(link, out var linkedNote) && visited.Add(linkedNote.Name))
+                    {
+                        queue.Enqueue(linkedNote);
+                    }
+                }
+
+                foreach (var backlink in vault.GetBacklinks(current.Name))
+                {
+                    if (visited.Add(backlink.Name))
+                    {
+                        queue.Enqueue(backlink);
+                    }
+                }
+            }
+
+            if (component.Count <= threshold)
+            {
+                islands.Add(component);
+            }
+        }
+
+        return islands;
+    }
 
     // -------------------------------------------------------------------------
     // Graph DTOs

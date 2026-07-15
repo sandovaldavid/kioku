@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Kioku.Mcp.Server.Tests;
@@ -21,13 +20,81 @@ public class NoteQueryToolsTests : IClassFixture<VaultFixture>
     private NoteQueryTools CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
         return new NoteQueryTools(
             _fixture.Index,
             config,
             null!,
-            null!,
-            vaultConfig);
+            null!);
+    }
+
+    private NoteQueryTools CreateToolsWithSearchServices()
+    {
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
+        var embedding = new EmbeddingService(
+            config,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<EmbeddingService>.Instance,
+            new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
+                Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)))));
+        var hybrid = new HybridSearchService(_fixture.Index, embedding);
+        return new NoteQueryTools(_fixture.Index, config, embedding, hybrid);
+    }
+
+    [Fact]
+    public async Task search_notes_hybrid_mode_degrades_without_ollama()
+    {
+        var tools = CreateToolsWithSearchServices();
+
+        var result = await tools.search_notes("note", mode: "hybrid");
+
+        Assert.Contains("result(s)", result);
+        Assert.Contains("keyword only", result);
+    }
+
+    [Fact]
+    public async Task search_notes_semantic_mode_reports_unavailable_without_ollama()
+    {
+        var tools = CreateToolsWithSearchServices();
+
+        var result = await tools.search_notes("note", mode: "semantic");
+
+        Assert.StartsWith("[info]", result);
+        Assert.Contains("Ollama", result);
+    }
+
+    [Fact]
+    public async Task search_notes_unknown_mode_is_rejected()
+    {
+        var tools = CreateToolsWithSearchServices();
+
+        var result = await tools.search_notes("note", mode: "fuzzy");
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("hybrid", result);
+    }
+
+    [Fact]
+    public void get_links_both_directions_reports_backlinks_and_outgoing()
+    {
+        var tools = CreateTools();
+
+        var result = tools.get_links("Note One", direction: "both");
+
+        Assert.Contains("link", result, StringComparison.OrdinalIgnoreCase);
+        var inOnly = tools.get_links("Note One", direction: "in");
+        var outOnly = tools.get_links("Note One", direction: "out");
+        Assert.DoesNotContain("outgoing link(s)", inOnly);
+        Assert.DoesNotContain("note(s) link to", outOnly);
+    }
+
+    [Fact]
+    public void get_links_unknown_direction_is_rejected()
+    {
+        var tools = CreateTools();
+
+        var result = tools.get_links("Note One", direction: "sideways");
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("both", result);
     }
 
     [Fact]
@@ -60,11 +127,11 @@ public class NoteQueryToolsTests : IClassFixture<VaultFixture>
     }
 
     [Fact]
-    public void search_notes_json_returns_results()
+    public async Task search_notes_json_returns_results()
     {
         var tools = CreateTools();
 
-        var json = tools.search_notes("Body of note one", format: "json");
+        var json = await tools.search_notes("Body of note one", mode: "keyword", format: "json");
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -73,11 +140,11 @@ public class NoteQueryToolsTests : IClassFixture<VaultFixture>
     }
 
     [Fact]
-    public void get_note_metadata_json_returns_fields()
+    public async Task read_note_metadata_json_returns_fields()
     {
         var tools = CreateTools();
 
-        var json = tools.get_note_metadata("Note One", format: "json");
+        var json = await tools.read_note("Note One", metadata_only: true, format: "json");
 
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -85,18 +152,4 @@ public class NoteQueryToolsTests : IClassFixture<VaultFixture>
         Assert.Contains("alpha", root.GetProperty("tags").EnumerateArray().Select(t => t.GetString()));
     }
 
-    [Fact]
-    public void get_vault_stats_json_returns_counts()
-    {
-        var tools = CreateTools();
-
-        var json = tools.get_vault_stats(format: "json");
-
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        Assert.True(root.GetProperty("total_notes").GetInt32() >= 6);
-        Assert.True(root.GetProperty("unique_tags").GetInt32() >= 4);
-        Assert.True(root.GetProperty("folders").GetInt32() >= 2);
-        Assert.True(root.GetProperty("index_ready").GetBoolean());
-    }
 }

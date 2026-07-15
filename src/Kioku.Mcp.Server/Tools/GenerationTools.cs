@@ -145,7 +145,7 @@ public sealed class GenerationTools(
         {
             var csvPath = ResolveCsvPath(output_note, found.Name);
             Directory.CreateDirectory(Path.GetDirectoryName(csvPath)!);
-            await File.WriteAllTextAsync(csvPath, rendered, Encoding.UTF8);
+            await File.WriteAllTextAsync(csvPath, rendered, NoteHelpers.Utf8NoBom);
             var relCsvPath = Path.GetRelativePath(config.VaultPath, csvPath).Replace('\\', '/');
             return $"[ok] Generated {actualCount} flashcard(s), written to {relCsvPath}:\n\n{rendered}";
         }
@@ -156,7 +156,7 @@ public sealed class GenerationTools(
             extraFields: new Dictionary<string, string> { ["source"] = $"\"[[{found.Name}]]\"" });
 
         Directory.CreateDirectory(Path.GetDirectoryName(notePath)!);
-        await File.WriteAllTextAsync(notePath, frontmatter + "\n" + rendered, Encoding.UTF8);
+        await File.WriteAllTextAsync(notePath, frontmatter + "\n" + rendered, NoteHelpers.Utf8NoBom);
 
         var relPath = Path.GetRelativePath(config.VaultPath, notePath).Replace('\\', '/');
         return $"[ok] Generated {actualCount} flashcard(s), written to {relPath}";

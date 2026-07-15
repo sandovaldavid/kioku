@@ -6,7 +6,7 @@ using Xunit;
 namespace Kioku.Mcp.Server.Tests;
 
 /// <summary>
-/// Integration tests for ResearchTools.import_bibtex / export_bibtex. Each test gets its own
+/// Integration tests for ResearchTools.import_bibtex / export_citations. Each test gets its own
 /// temporary vault (not shared via IClassFixture) since these tools create and update files.
 /// </summary>
 public class ResearchToolsBibtexTests : IAsyncLifetime
@@ -37,9 +37,21 @@ public class ResearchToolsBibtexTests : IAsyncLifetime
     private ResearchTools CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        var httpClientFactory = new FakeHttpClientFactory(
-            new FakeHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable))));
-        return new ResearchTools(_fixture.Index, config, httpClientFactory, _vaultConfig);
+        return new ResearchTools(_fixture.Index, config, _vaultConfig);
+    }
+
+    private async Task CreateCitationNoteAsync(string name, string citekeyField, string citekey)
+    {
+        var filePath = NoteHelpers.BuildFilePath(name, _fixture.VaultPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+        var frontmatter = NoteHelpers.BuildFrontmatter(
+            ["literature"], "literature", "draft",
+            extraFields: new Dictionary<string, string>
+            {
+                [citekeyField] = citekey,
+                ["title"] = $"Title for {citekey}",
+            });
+        await File.WriteAllTextAsync(filePath, frontmatter + "\n# Citation\n");
     }
 
     [Fact]
@@ -190,11 +202,11 @@ public class ResearchToolsBibtexTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ExportBibtex_NoCitekeys_ReturnsInfoMessage()
+    public async Task ExportCitations_NoCitekeys_ReturnsInfoMessage()
     {
         var tools = CreateTools();
 
-        var result = tools.export_bibtex();
+        var result = tools.export_citations(format: "bibtex");
 
         Assert.Contains("No notes with 'citekey' found", result);
     }
@@ -207,7 +219,7 @@ public class ResearchToolsBibtexTests : IAsyncLifetime
         await tools.import_bibtex(OneEntry);
         await _fixture.Index.RebuildIndexAsync();
 
-        var exported = tools.export_bibtex();
+        var exported = tools.export_citations(format: "bibtex");
 
         Assert.Contains("@article{smith2020,", exported);
         Assert.Contains("author = {Smith, John}", exported);
@@ -223,7 +235,7 @@ public class ResearchToolsBibtexTests : IAsyncLifetime
 
         await tools.import_bibtex(OneEntry);
         await _fixture.Index.RebuildIndexAsync();
-        var exported = tools.export_bibtex();
+        var exported = tools.export_citations(format: "bibtex");
 
         var exportedStart = exported.IndexOf("@article", StringComparison.Ordinal);
         var bibOnly = exported[exportedStart..];
@@ -238,5 +250,45 @@ public class ResearchToolsBibtexTests : IAsyncLifetime
         Assert.Equal(original.Fields["title"], roundTripped.Fields["title"]);
         Assert.Equal(original.Fields["year"], roundTripped.Fields["year"]);
         Assert.Equal(original.Fields["journal"], roundTripped.Fields["journal"]);
+    }
+
+    [Fact]
+    public void ExportCitations_InvalidFormat_ReturnsError()
+    {
+        var tools = CreateTools();
+
+        var result = tools.export_citations(format: "bib");
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("bibtex", result);
+        Assert.Contains("markdown", result);
+    }
+
+    [Fact]
+    public async Task ExportCitations_Markdown_UsesAllCitekeyVariants()
+    {
+        await CreateCitationNoteAsync("Literature/Canonical", "citekey", "canonical2024");
+        await CreateCitationNoteAsync("Literature/CitationKey", "citation-key", "citation2024");
+        await CreateCitationNoteAsync("Literature/Key", "key", "key2024");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = CreateTools().export_citations(format: "markdown");
+
+        Assert.Contains("`canonical2024`", result);
+        Assert.Contains("`citation2024`", result);
+        Assert.Contains("`key2024`", result);
+    }
+
+    [Fact]
+    public async Task ExportCitations_FolderScope_ExcludesNotesOutsideFolder()
+    {
+        await CreateCitationNoteAsync("Literature/In Scope", "citekey", "inside2024");
+        await CreateCitationNoteAsync("Projects/Out Of Scope", "citekey", "outside2024");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = CreateTools().export_citations(format: "markdown", folder: "Literature");
+
+        Assert.Contains("`inside2024`", result);
+        Assert.DoesNotContain("`outside2024`", result);
     }
 }

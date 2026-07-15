@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Text;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
@@ -23,50 +24,6 @@ public sealed class SessionContextTools(
     private static readonly string[] KnownAgentNames =
         ["claude", "codex", "antigravity", "opencode", "cursor", "gemini", "copilot", "windsurf"];
 
-    // get_recent_activity
-
-    [McpServerTool, Description(
-        "Returns the N most recently modified notes in the vault, ordered by last modification time. " +
-        "Useful for the agent to quickly understand what the user has been working on.")]
-    public Task<string> get_recent_activity(
-        [Description("Maximum number of notes to return.")] int n = 10,
-        [Description("Scope to a subfolder (relative to vault root). Leave empty for the full vault.")] string folder = "")
-    {
-        var notes = string.IsNullOrWhiteSpace(folder)
-            ? vault.GetAllNotes()
-            : vault.GetNotesInFolder(folder);
-
-        var recent = notes
-            .OrderByDescending(note => note.LastModified)
-            .Take(n)
-            .ToList();
-
-        if (recent.Count == 0)
-        {
-            return Task.FromResult("[info] No notes found.");
-        }
-
-        var sb = new StringBuilder($"[ok] {recent.Count} most recently modified notes");
-        if (!string.IsNullOrWhiteSpace(folder))
-        {
-            sb.Append($" in '{folder}'");
-        }
-
-        sb.AppendLine(":\n");
-
-        foreach (var note in recent)
-        {
-            var age = FormatAge(note.LastModified);
-            var tagsSummary = note.Metadata.Tags.Count > 0
-                ? $" [{string.Join(", ", note.Metadata.Tags.Take(3).Select(t => "#" + t))}]"
-                : string.Empty;
-            sb.AppendLine($"  {note.VaultRelativePath}{tagsSummary}");
-            sb.AppendLine($"    Last modified: {note.LastModified:yyyy-MM-dd HH:mm} UTC ({age})");
-        }
-
-        return Task.FromResult(sb.ToString());
-    }
-
     // get_work_context
 
     [McpServerTool, Description(
@@ -75,7 +32,9 @@ public sealed class SessionContextTools(
         "Call this at the start of a session to quickly understand where to resume work.")]
     public Task<string> get_work_context(
         [Description("Folder treated as the inbox (relative to vault root). Default: 'Inbox'.")] string inbox_folder = "Inbox",
-        [Description("Maximum number of recent notes to show in each section.")] int max_per_section = 5)
+        [Description("Maximum number of notes to show in the inbox, drafts, and recent sections unless recent_limit is set.")] int max_per_section = 5,
+        [Description("Scope the recently modified section to a subfolder (relative to vault root). Leave empty for the full vault.")] string recent_folder = "",
+        [Description("Maximum number of notes in the recently modified section. Defaults to max_per_section.")] int recent_limit = 0)
     {
         var sb = new StringBuilder("# Work Context Snapshot\n\n");
         sb.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC\n");
@@ -126,12 +85,15 @@ public sealed class SessionContextTools(
         sb.AppendLine();
 
         // Section 3: Recent activity
-        var recent = vault.GetAllNotes()
+        var recent = (string.IsNullOrWhiteSpace(recent_folder)
+                ? vault.GetAllNotes()
+                : vault.GetNotesInFolder(recent_folder))
             .OrderByDescending(n => n.LastModified)
-            .Take(max_per_section)
+            .Take(recent_limit > 0 ? recent_limit : max_per_section)
             .ToList();
 
-        sb.AppendLine($"## Recently Modified ({recent.Count} note(s))");
+        var recentScope = string.IsNullOrWhiteSpace(recent_folder) ? string.Empty : $" in '{recent_folder}'";
+        sb.AppendLine($"## Recently Modified{recentScope} ({recent.Count} note(s))");
         foreach (var n in recent)
         {
             sb.AppendLine($"- [[{n.Name}]] _(modified {FormatAge(n.LastModified)} ago)_");
@@ -192,7 +154,7 @@ public sealed class SessionContextTools(
         {
             // Append to existing session note instead of overwriting
             var appendContent = $"\n\n---\n\n## Session resumed at {timeStr}\n";
-            await File.AppendAllTextAsync(filePath, appendContent, Encoding.UTF8);
+            await File.AppendAllTextAsync(filePath, appendContent, NoteHelpers.Utf8NoBom);
             return $"[ok] Resumed existing session note: {sessions_folder}/{noteName}.md";
         }
 
@@ -217,7 +179,7 @@ public sealed class SessionContextTools(
             noteName)
             ?? BuildDefaultSessionBody(noteName, dateStr, timeStr, goal);
 
-        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
+        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, NoteHelpers.Utf8NoBom);
 
         var relativePath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relativePath);
@@ -341,7 +303,7 @@ public sealed class SessionContextTools(
             sb.AppendLine("_(no notes were modified during this session)_");
         }
 
-        await File.AppendAllTextAsync(sessionNote.FilePath, sb.ToString(), Encoding.UTF8);
+        await File.AppendAllTextAsync(sessionNote.FilePath, sb.ToString(), NoteHelpers.Utf8NoBom);
 
         // Update status to done and surface the summary at the top for the next agent
         var rawContent = await File.ReadAllTextAsync(sessionNote.FilePath, Encoding.UTF8);
@@ -351,7 +313,7 @@ public sealed class SessionContextTools(
             updatedContent = WriteSummarySection(updatedContent, summary);
         }
 
-        await File.WriteAllTextAsync(sessionNote.FilePath, updatedContent, Encoding.UTF8);
+        await File.WriteAllTextAsync(sessionNote.FilePath, updatedContent, NoteHelpers.Utf8NoBom);
         await vault.SynchronizeFileReindexAsync(sessionNote.FilePath);
 
         return $"[ok] Session closed: {sessionNote.VaultRelativePath}\n" +
@@ -360,10 +322,12 @@ public sealed class SessionContextTools(
     }
 
     [McpServerTool, Description(
-        "Lists all work session notes with their dates, status (active/done), and duration if closed.")]
+        "Lists all work session notes with their dates, status (active/done), and duration if closed. " +
+        "Optionally includes the notes modified during each session.")]
     public Task<string> list_work_sessions(
         [Description("Folder where session notes are stored (relative to vault root). Auto-detects if empty.")] string sessions_folder = "",
-        [Description("Project name: lists the sessions under {projects}/{project}/sessions/.")] string project = "")
+        [Description("Project name: lists the sessions under {projects}/{project}/sessions/.")] string project = "",
+        [Description("Include notes modified during each session.")] bool include_activity = false)
     {
         if (!string.IsNullOrWhiteSpace(project))
         {
@@ -413,69 +377,76 @@ public sealed class SessionContextTools(
             }
 
             sb.AppendLine();
-        }
 
-        return Task.FromResult(sb.ToString());
-    }
-
-    [McpServerTool, Description(
-        "Returns all notes created or modified during a specific work session.")]
-    public Task<string> get_session_activity(
-        [Description("Name or path of the session note (e.g., '2025-06-25' or 'Sessions/2025-06-25').")] string session_note)
-    {
-        if (string.IsNullOrWhiteSpace(session_note))
-        {
-            return Task.FromResult("[error] The 'session_note' parameter cannot be empty.");
-        }
-
-        var note = NoteHelpers.ResolveNote(session_note, vault);
-        if (note is null)
-        {
-            return Task.FromResult($"[error] Session note not found: '{session_note}'");
-        }
-
-        var isSession = string.Equals(note.Metadata.NoteType, "session", StringComparison.OrdinalIgnoreCase);
-        if (!isSession)
-        {
-            return Task.FromResult($"[error] '{session_note}' is not a session note (type: session required).");
-        }
-
-        var sessionStart = note.LastModified;
-        var allNotes = vault.GetAllNotes().ToList();
-
-        // Extract the session end time from the note if it's closed
-        var sessionEnd = DateTimeOffset.MaxValue;
-        var endMatch = System.Text.RegularExpressions.Regex.Match(note.RawContent, @"## Session ended — (\d{2}:\d{2}) UTC");
-        if (endMatch.Success && note.Metadata.Status?.Equals("done", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            sessionEnd = note.LastModified;
-        }
-
-        var activityNotes = allNotes
-            .Where(n => n.LastModified >= sessionStart &&
-                        n.LastModified <= sessionEnd &&
-                        !n.FilePath.Equals(note.FilePath, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(n => n.LastModified)
-            .ToList();
-
-        if (activityNotes.Count == 0)
-        {
-            return Task.FromResult($"[info] No notes were modified during this session.");
-        }
-
-        var sb = new StringBuilder($"[ok] {activityNotes.Count} note(s) modified during session '{note.Name}':\n\n");
-
-        foreach (var n in activityNotes)
-        {
-            var ageAtSession = sessionStart - n.LastModified;
-            var ageStr = FormatDuration(ageAtSession);
-            sb.AppendLine($"- {n.VaultRelativePath} (modified {ageStr} after session start)");
+            if (include_activity)
+            {
+                AppendSessionActivity(sb, session);
+            }
         }
 
         return Task.FromResult(sb.ToString());
     }
 
     // Private helpers
+
+    private void AppendSessionActivity(StringBuilder sb, Note session)
+    {
+        var sessionStart = GetSessionStart(session);
+        var sessionEnd = session.Metadata.Status?.Equals("done", StringComparison.OrdinalIgnoreCase) == true
+            ? session.LastModified
+            : DateTimeOffset.MaxValue;
+
+        var activityNotes = vault.GetAllNotes()
+            .Where(n => n.LastModified >= sessionStart &&
+                        n.LastModified <= sessionEnd &&
+                        !n.FilePath.Equals(session.FilePath, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(n => n.LastModified)
+            .ToList();
+
+        if (activityNotes.Count == 0)
+        {
+            sb.AppendLine("  Activity: no notes were modified during this session.");
+            return;
+        }
+
+        sb.AppendLine($"  Activity: {activityNotes.Count} note(s) modified during session '{session.Name}':");
+        foreach (var note in activityNotes)
+        {
+            var elapsed = note.LastModified - sessionStart;
+            sb.AppendLine($"    - {note.VaultRelativePath} (modified {FormatDuration(elapsed)} after session start)");
+        }
+    }
+
+    private static DateTimeOffset GetSessionStart(Note session)
+    {
+        if (session.Metadata.Status?.Equals("done", StringComparison.OrdinalIgnoreCase) != true)
+        {
+            return session.LastModified;
+        }
+
+        var startedMatch = System.Text.RegularExpressions.Regex.Match(
+            session.RawContent,
+            @"(?:\*\*Started:\*\*|Started:\s*)(?:(?<date>\d{4}-\d{2}-\d{2})\s+)?(?<time>\d{2}:\d{2})");
+        if (!startedMatch.Success)
+        {
+            return session.LastModified;
+        }
+
+        var date = startedMatch.Groups["date"].Success
+            ? startedMatch.Groups["date"].Value
+            : session.Metadata.Date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                ?? session.LastModified.LocalDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var dateTimeText = $"{date} {startedMatch.Groups["time"].Value}";
+
+        return DateTime.TryParseExact(
+                dateTimeText,
+                "yyyy-MM-dd HH:mm",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeLocal,
+                out var started)
+            ? new DateTimeOffset(started)
+            : session.LastModified;
+    }
 
     private async Task<string> StartProjectSessionAsync(
         string project, string sessionName, string goal, string agent, McpServer? server)
@@ -535,7 +506,7 @@ public sealed class SessionContextTools(
                 ["agent"] = agentName,
             });
 
-        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
+        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, NoteHelpers.Utf8NoBom);
         await vault.SynchronizeFileReindexAsync(filePath);
 
         var vaultRelPath = workspace.ToVaultRelative(filePath);

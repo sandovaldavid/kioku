@@ -180,11 +180,10 @@ Add to your MCP client configuration:
 | `KIOKU_API_KEY` | No | — | Bearer token for HTTP authentication |
 | `KIOKU_OLLAMA_URL` | No | http://localhost:11434 | Ollama server URL |
 | `KIOKU_EMBEDDING_MODEL` | No | nomic-embed-text | Embedding model name |
-| `KIOKU_GEN_MODEL` | No | — (disabled) | Ollama model for local text generation (`summarize_note`), e.g. `llama3.2` |
+| `KIOKU_GEN_MODEL` | No | — (disabled) | Ollama model for local generation (`summarize_note`, `generate_flashcards`), e.g. `llama3.2` |
 | `KIOKU_MAX_RESULTS` | No | 20 | Maximum number of search results |
 | `KIOKU_OBSIDIAN_PORT` | No | 7765 | WebSocket bridge port |
 | `KIOKU_BRIDGE_TOKEN` | No | — | Shared secret for the WebSocket bridge. Must match the plugin's "Auth token" setting |
-| `KIOKU_GITHUB_TOKEN` | No | — | GitHub token for the `share_as_gist` tool |
 | `KIOKU_ENABLE_METRICS` | No | false | Opt-in anonymous tool-call counters |
 | `KIOKU_SENTRY_DSN` | No | — | Opt-in Sentry crash reporting DSN |
 
@@ -193,7 +192,7 @@ Add to your MCP client configuration:
 Create `.kioku/config.yml` in your vault for advanced settings:
 
 ```yaml
-# Where each note type is created (used by create_zettel, sessions, templates, ...)
+# Where structured notes, sessions, and templates are created
 folders:
   inbox: "Inbox"
   zettel: "Zettelkasten"
@@ -216,11 +215,16 @@ exclude:
 
 # Enable/disable optional tool groups
 capabilities:
-  disabled: []          # e.g. [git, css] — or ["*"] to disable all optional groups
+  disabled: [research, generation, css, assets, bridge, plugin]
 ```
 
 See the [Vault Configuration Guide](vault-config.md) for the full schema, and
 [`vault-config.example.yml`](vault-config.example.yml) for a complete annotated example.
+
+The current surface has 49 tools across 16 classes. The six groups above are disabled by
+default; `git`, `restore`, and `zettelkasten` are removed groups. Use native Git commands for
+repository history and recovery, `manage_trash` for Kioku soft-delete recovery, and
+`create_note` with a structured `kind` for zettel, literature, MOC, or folder-readme notes.
 
 ## Verification
 
@@ -250,7 +254,8 @@ ollama pull nomic-embed-text
 ## Zotero / BibTeX
 
 Kioku can import a BibTeX library as literature notes (`import_bibtex`) and reconstruct a
-`.bib` file from them later (`export_bibtex`), both in `ResearchTools` (group `research`).
+`.bib` file from them later (`export_citations` with `format='bibtex'`), both in `ResearchTools`
+(group `research`, disabled by default).
 There's no live network integration with Zotero yet — the recommended flow is via
 **Better BibTeX**, which keeps a `.bib` file on disk in sync with your Zotero library:
 

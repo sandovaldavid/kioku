@@ -44,6 +44,8 @@ static void ConfigureKiokuServices(IServiceCollection services, KiokuConfigurati
     services.AddSingleton<TaskService>();
     services.AddSingleton<MetricsService>();
     services.AddSingleton<ProjectWorkspaceService>();
+    // NoteCommandTools delegates structured create_note kinds to the shared implementation.
+    services.AddTransient<ZettelkastenTools>();
 
     // Named HttpClient for Ollama
     services.AddHttpClient("ollama", c =>
@@ -81,11 +83,6 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
         builder.WithTools<TaskManagementTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("zettelkasten"))
-    {
-        builder.WithTools<ZettelkastenTools>();
-    }
-
     if (vaultConfig.IsGroupEnabled("organization"))
     {
         builder.WithTools<VaultOrganizationTools>();
@@ -109,6 +106,7 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
     if (vaultConfig.IsGroupEnabled("graph"))
     {
         builder.WithTools<KnowledgeGraphTools>();
+        builder.WithTools<GraphAnalysisTools>();
     }
 
     if (vaultConfig.IsGroupEnabled("research"))
@@ -124,21 +122,6 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
     if (vaultConfig.IsGroupEnabled("plugin"))
     {
         builder.WithTools<PluginIntegrationTools>();
-    }
-
-    if (vaultConfig.IsGroupEnabled("graph-analysis"))
-    {
-        builder.WithTools<GraphAnalysisTools>();
-    }
-
-    if (vaultConfig.IsGroupEnabled("git"))
-    {
-        builder.WithTools<GitTools>();
-    }
-
-    if (vaultConfig.IsGroupEnabled("restore"))
-    {
-        builder.WithTools<RestoreTools>();
     }
 
     if (vaultConfig.IsGroupEnabled("assets"))

@@ -47,62 +47,141 @@ public sealed class EngineeringWorkflowTools(
         ["backlog"] = "backlog",
     };
 
-    // record_adr
-
     [McpServerTool, Description(
-        "Records an architecture decision record (ADR) for a project as " +
-        "{projects}/{project}/decisions/ADR-NNNN-{title}.md with sequential numbering. " +
-        "Scaffolds project folders on first use. " +
-        "To supersede an old ADR later, change its status with update_frontmatter.")]
-    public async Task<string> record_adr(
-        [Description("Project name (folder under the projects root). Use list_projects to discover existing ones.")] string project,
-        [Description("Short decision title, e.g. 'Use PostgreSQL for persistence'.")] string title,
-        [Description("The context: what problem or forces led to this decision.")] string context,
-        [Description("The decision taken, stated in full sentences.")] string decision,
-        [Description("Consequences of the decision (positive and negative).")] string consequences,
-        [Description("Alternatives that were considered and why they were rejected.")] string alternatives = "",
-        [Description("ADR status: proposed, accepted, or superseded.")] string status = "accepted",
-        [Description("Extra tags, comma-separated.")] string tags = "")
+        "Creates an engineering document for a project. doc_type is adr, bug, plan, backlog, or " +
+        "knowledge; knowledge may omit project to create a general knowledge note.")]
+    public async Task<string> create_project_doc(
+        [Description("Document type: adr, bug, plan, backlog, or knowledge.")] string doc_type,
+        [Description("Project name; omit only for general knowledge.")] string project = "",
+        [Description("Short document title.")] string title = "",
+        [Description("Status. ADR: proposed/accepted/superseded; bug: open/fixed; plan: draft/active/done; backlog: proposed/adopted/discarded.")] string status = "",
+        [Description("Extra tags, comma-separated.")] string tags = "",
+        [Description("ADR context.")] string context = "",
+        [Description("ADR decision.")] string decision = "",
+        [Description("ADR consequences.")] string consequences = "",
+        [Description("ADR alternatives.")] string alternatives = "",
+        [Description("Bug symptom.")] string symptom = "",
+        [Description("Bug root cause.")] string root_cause = "",
+        [Description("Bug fix.")] string fix = "",
+        [Description("Bug-related source files, comma-separated.")] string related_files = "",
+        [Description("Plan objective.")] string objective = "",
+        [Description("Plan steps in markdown.")] string steps = "",
+        [Description("Optional plan ticket note name.")] string ticket = "",
+        [Description("Knowledge content in markdown.")] string content = "",
+        [Description("Backlog idea description.")] string description = "")
     {
-        if (ValidateStatus("decision", status) is { } statusError)
+        var normalizedType = doc_type.Trim().ToLowerInvariant();
+        if (normalizedType is not ("adr" or "bug" or "plan" or "backlog" or "knowledge"))
+        {
+            return $"[error] Unknown document type '{doc_type}'. Valid types: adr, bug, plan, backlog, knowledge.";
+        }
+
+        var effectiveStatus = normalizedType switch
+        {
+            "adr" => string.IsNullOrWhiteSpace(status) ? "accepted" : status,
+            "bug" => string.IsNullOrWhiteSpace(status) ? "fixed" : status,
+            "plan" => string.IsNullOrWhiteSpace(status) ? "draft" : status,
+            "backlog" => string.IsNullOrWhiteSpace(status) ? "proposed" : status,
+            _ => "active",
+        };
+        var statusType = normalizedType switch
+        {
+            "adr" => "decision",
+            "backlog" => "idea",
+            _ => normalizedType,
+        };
+        if (normalizedType != "knowledge" && ValidateStatus(statusType, effectiveStatus) is { } statusError)
         {
             return statusError;
         }
 
-        if (ProjectWorkspaceService.ValidateProjectName(project) is { } nameError)
+        if (normalizedType == "knowledge")
         {
-            return nameError;
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("active", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"[error] Invalid status '{status}' for a knowledge. Valid options: active.";
+            }
+
+            if (string.IsNullOrWhiteSpace(project))
+            {
+                return await CreateGeneralKnowledgeAsync(title, content, tags);
+            }
+
+            return await CreateDocAsync(
+                project, "knowledge", NoteHelpers.SanitizeFileName(title), "knowledge", "active", "knowledge", tags,
+                "knowledge", title, new Dictionary<string, string> { ["content"] = content });
         }
 
-        // Holds the per-project ADR lock across both number allocation and the file write in
-        // CreateDocAsync, so concurrent record_adr calls never compute the same next number.
-        using var adrLock = await workspace.AcquireAdrLockAsync(project);
-        var number = workspace.GetNextAdrNumber(project);
-        return await CreateDocAsync(
-            project,
-            subfolderKey: "decisions",
-            fileName: $"ADR-{number:D4}-{NoteHelpers.SanitizeFileName(title)}",
-            type: "decision",
-            status: status,
-            baseTag: "adr",
-            userTags: tags,
-            templateKey: "adr",
-            title: title,
-            variables: new Dictionary<string, string>
+        if (normalizedType == "adr")
+        {
+            if (ProjectWorkspaceService.ValidateProjectName(project) is { } nameError)
             {
-                ["number"] = number.ToString("D4"),
-                ["context"] = context,
-                ["decision"] = decision,
-                ["consequences"] = consequences,
-                ["alternatives"] = string.IsNullOrWhiteSpace(alternatives) ? "_(none recorded)_" : alternatives,
-            },
-            extraFields: new Dictionary<string, string> { ["adr"] = $"\"{number:D4}\"" },
-            aliases: [$"ADR-{number:D4}"]);
+                return nameError;
+            }
+
+            // Allocation and write share the lock so concurrent ADR calls cannot reuse a number.
+            using var adrLock = await workspace.AcquireAdrLockAsync(project);
+            var number = workspace.GetNextAdrNumber(project);
+            return await CreateDocAsync(
+                project, "decisions", $"ADR-{number:D4}-{NoteHelpers.SanitizeFileName(title)}", "decision", effectiveStatus,
+                "adr", tags, "adr", title,
+                new Dictionary<string, string>
+                {
+                    ["number"] = number.ToString("D4"),
+                    ["context"] = context,
+                    ["decision"] = decision,
+                    ["consequences"] = consequences,
+                    ["alternatives"] = string.IsNullOrWhiteSpace(alternatives) ? "_(none recorded)_" : alternatives,
+                },
+                new Dictionary<string, string> { ["adr"] = $"\"{number:D4}\"" }, [$"ADR-{number:D4}"]);
+        }
+
+        if (normalizedType == "bug")
+        {
+            var relatedList = string.IsNullOrWhiteSpace(related_files)
+                ? "_(none recorded)_"
+                : string.Join("\n", related_files.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(f => $"- `{f}`"));
+            return await CreateDocAsync(
+                project, "bugs", $"BUG-{DateTime.Now:yyyy-MM-dd}-{NoteHelpers.SanitizeFileName(title)}", "bug", effectiveStatus,
+                "bug", tags, "bug", title,
+                new Dictionary<string, string>
+                {
+                    ["symptom"] = symptom,
+                    ["root_cause"] = root_cause,
+                    ["fix"] = fix,
+                    ["related_files"] = relatedList,
+                });
+        }
+
+        if (normalizedType == "plan")
+        {
+            return await CreateDocAsync(
+                project, "plans", $"PLAN-{DateTime.Now:yyyy-MM-dd}-{NoteHelpers.SanitizeFileName(title)}", "plan", effectiveStatus,
+                "plan", tags, "plan", title,
+                new Dictionary<string, string>
+                {
+                    ["objective"] = objective,
+                    ["steps"] = steps,
+                    ["ticket"] = string.IsNullOrWhiteSpace(ticket) ? "_(none)_" : $"[[{ticket}]]",
+                },
+                string.IsNullOrWhiteSpace(ticket) ? null : new Dictionary<string, string> { ["ticket"] = $"\"[[{ticket}]]\"" });
+        }
+
+        return await CreateDocAsync(
+            project, "backlog", NoteHelpers.SanitizeFileName(title), "idea", effectiveStatus,
+            "idea", tags, "idea", title, new Dictionary<string, string> { ["description"] = description });
     }
 
+    // Kept as a non-MCP compatibility entry point for existing in-process callers.
+    public Task<string> record_adr(
+        string project, string title, string context, string decision, string consequences,
+        string alternatives = "", string status = "accepted", string tags = "") =>
+        create_project_doc("adr", project, title, status, tags, context, decision, consequences, alternatives);
+
+    // Legacy compatibility wrappers are intentionally not MCP-exposed.
     // log_bug
 
-    [McpServerTool, Description(
+    [Description(
         "Logs a bug and its solution for a project as {projects}/{project}/bugs/BUG-{date}-{title}.md. " +
         "Records the symptom, root cause, and fix so future agents don't re-debug solved problems. " +
         "Scaffolds project folders on first use.")]
@@ -116,39 +195,14 @@ public sealed class EngineeringWorkflowTools(
         [Description("Related source files, comma-separated (e.g. 'src/a.ts, src/b.ts').")] string related_files = "",
         [Description("Extra tags, comma-separated.")] string tags = "")
     {
-        if (ValidateStatus("bug", status) is { } statusError)
-        {
-            return statusError;
-        }
-
-        var relatedList = string.IsNullOrWhiteSpace(related_files)
-            ? "_(none recorded)_"
-            : string.Join("\n", related_files
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(f => $"- `{f}`"));
-
-        return await CreateDocAsync(
-            project,
-            subfolderKey: "bugs",
-            fileName: $"BUG-{DateTime.Now:yyyy-MM-dd}-{NoteHelpers.SanitizeFileName(title)}",
-            type: "bug",
-            status: status,
-            baseTag: "bug",
-            userTags: tags,
-            templateKey: "bug",
-            title: title,
-            variables: new Dictionary<string, string>
-            {
-                ["symptom"] = symptom,
-                ["root_cause"] = root_cause,
-                ["fix"] = fix,
-                ["related_files"] = relatedList,
-            });
+        return await create_project_doc(
+            "bug", project, title, status, tags,
+            symptom: symptom, root_cause: root_cause, fix: fix, related_files: related_files);
     }
 
     // create_plan
 
-    [McpServerTool, Description(
+    [Description(
         "Creates an implementation plan for a project as {projects}/{project}/plans/PLAN-{date}-{title}.md. " +
         "Write steps as a markdown checkbox list (- [ ] step) so task tools can track them. " +
         "When the plan is completed, set status to 'done' with update_frontmatter. " +
@@ -162,35 +216,14 @@ public sealed class EngineeringWorkflowTools(
         [Description("Optional ticket note name this plan implements; linked as a wikilink.")] string ticket = "",
         [Description("Extra tags, comma-separated.")] string tags = "")
     {
-        if (ValidateStatus("plan", status) is { } statusError)
-        {
-            return statusError;
-        }
-
-        return await CreateDocAsync(
-            project,
-            subfolderKey: "plans",
-            fileName: $"PLAN-{DateTime.Now:yyyy-MM-dd}-{NoteHelpers.SanitizeFileName(title)}",
-            type: "plan",
-            status: status,
-            baseTag: "plan",
-            userTags: tags,
-            templateKey: "plan",
-            title: title,
-            variables: new Dictionary<string, string>
-            {
-                ["objective"] = objective,
-                ["steps"] = steps,
-                ["ticket"] = string.IsNullOrWhiteSpace(ticket) ? "_(none)_" : $"[[{ticket}]]",
-            },
-            extraFields: string.IsNullOrWhiteSpace(ticket)
-                ? null
-                : new Dictionary<string, string> { ["ticket"] = $"\"[[{ticket}]]\"" });
+        return await create_project_doc(
+            "plan", project, title, status, tags,
+            objective: objective, steps: steps, ticket: ticket);
     }
 
     // add_knowledge
 
-    [McpServerTool, Description(
+    [Description(
         "Saves a knowledge note. With a project it goes to {projects}/{project}/knowledge/; " +
         "without one it goes to the general knowledge folder. " +
         "Use for lessons learned, how-things-work explanations, and setup guides (e.g. local deployment).")]
@@ -200,68 +233,13 @@ public sealed class EngineeringWorkflowTools(
         [Description("Project name for project-specific knowledge. Leave empty for general knowledge.")] string project = "",
         [Description("Extra tags, comma-separated.")] string tags = "")
     {
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return "[error] The 'title' parameter cannot be empty.";
-        }
-
-        var variables = new Dictionary<string, string> { ["content"] = content };
-
-        if (!string.IsNullOrWhiteSpace(project))
-        {
-            return await CreateDocAsync(
-                project,
-                subfolderKey: "knowledge",
-                fileName: NoteHelpers.SanitizeFileName(title),
-                type: "knowledge",
-                status: "active",
-                baseTag: "knowledge",
-                userTags: tags,
-                templateKey: "knowledge",
-                title: title,
-                variables: variables);
-        }
-
-        // General knowledge: {knowledge}/{Title}.md, no project frontmatter.
-        Directory.CreateDirectory(workspace.KnowledgeRoot);
-        var filePath = Path.Combine(workspace.KnowledgeRoot, NoteHelpers.SanitizeFileName(title) + ".md");
-        if (File.Exists(filePath))
-        {
-            return $"[error] Note already exists: '{workspace.ToVaultRelative(filePath)}'. Use update_note_content or append_to_note to modify it.";
-        }
-
-        var body = NoteHelpers.ExpandTemplateVariables(
-            await workspace.ResolveTemplateAsync("knowledge"), variables, noteTitle: title);
-        var relFolder = workspace.KnowledgeRootRelative;
-        var mergedTags = NoteHelpers.MergeTagsWithInheritance(
-            NoteHelpers.ParseTags(tags).Prepend("knowledge"),
-            vaultConfig.GetInheritedTags(relFolder),
-            vaultConfig.ExcludeFromTags);
-        var frontmatter = NoteHelpers.BuildFrontmatter(
-            mergedTags,
-            type: "knowledge",
-            status: "active",
-            date: DateOnly.FromDateTime(DateTime.Now),
-            domain: vaultConfig.GetDomainForFolder(relFolder),
-            cssClasses: ["kioku-knowledge"]);
-
-        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
-        await vault.SynchronizeFileReindexAsync(filePath);
-
-        var vaultRelPath = workspace.ToVaultRelative(filePath);
-        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, vaultRelPath);
-        if (evalResult.Applied)
-        {
-            await vault.SynchronizeFileReindexAsync(filePath);
-        }
-
-        var result = $"[ok] Knowledge note created: {vaultRelPath}";
-        return evalResult.Warning is null ? result : $"{result}\n   [warning] {evalResult.Warning}";
+        return await create_project_doc(
+            "knowledge", project: project, title: title, tags: tags, content: content);
     }
 
     // add_backlog_item
 
-    [McpServerTool, Description(
+    [Description(
         "Adds a future improvement or idea to a project's backlog as {projects}/{project}/backlog/{title}.md " +
         "with status 'proposed'. Use for out-of-scope improvements worth remembering. " +
         "Later, set status to 'adopted' or 'discarded' with update_frontmatter.")]
@@ -271,17 +249,8 @@ public sealed class EngineeringWorkflowTools(
         [Description("What the improvement is and why it was deferred.")] string description,
         [Description("Extra tags, comma-separated.")] string tags = "")
     {
-        return await CreateDocAsync(
-            project,
-            subfolderKey: "backlog",
-            fileName: NoteHelpers.SanitizeFileName(title),
-            type: "idea",
-            status: "proposed",
-            baseTag: "idea",
-            userTags: tags,
-            templateKey: "idea",
-            title: title,
-            variables: new Dictionary<string, string> { ["description"] = description });
+        return await create_project_doc(
+            "backlog", project: project, title: title, tags: tags, description: description);
     }
 
     // get_project_context
@@ -446,7 +415,7 @@ public sealed class EngineeringWorkflowTools(
         {
             return Task.FromResult(
                 $"[info] No projects yet under '{workspace.ProjectsRootRelative}/'. " +
-                "Use setup_agent_workflow with a project name, or any record tool (record_adr, log_bug, ...) to create one.");
+                "Use setup_agent_workflow with a project name, or create_project_doc to create one.");
         }
 
         var sb = new StringBuilder($"[ok] {projects.Count} project(s) under '{workspace.ProjectsRootRelative}/':\n\n");
@@ -474,11 +443,11 @@ public sealed class EngineeringWorkflowTools(
 
     // list_engineering_templates
 
-    [McpServerTool, Description(
+    [Description(
         "Lists the engineering doc types (adr, bug, plan, knowledge, idea, session, daily, " +
         "ticket, project-moc), whether each has a vault override or falls back to the embedded " +
-        "default, its path, and the {{variables}} it supports. Use before editing a template " +
-        "with set_engineering_template.")]
+         "default, its path, and the {{variables}} it supports. Use manage_templates with " +
+         "scope='engineering' before editing a template.")]
     public async Task<string> list_engineering_templates()
     {
         var sb = new StringBuilder($"[ok] {ProjectWorkspaceService.TemplateKeys.Length} engineering template(s):\n\n");
@@ -501,7 +470,7 @@ public sealed class EngineeringWorkflowTools(
 
     // get_engineering_template
 
-    [McpServerTool, Description(
+    [Description(
         "Reads the current effective body template for an engineering doc type (vault override " +
         "if one exists, otherwise the embedded default), plus the {{variables}} it supports. " +
         "Read this before proposing an edit with set_engineering_template.")]
@@ -530,12 +499,13 @@ public sealed class EngineeringWorkflowTools(
 
     // set_engineering_template
 
-    [McpServerTool, Description(
+    [Description(
         "Creates or updates the vault override template for an engineering doc type at " +
         "{templates}/kioku/{type_key}.md (always overwrites, unlike create_template). " +
         "Pass reset_to_default=true to delete the override and revert to the embedded default. " +
         "Never triggers Templater evaluation: this writes the template itself, which is only " +
-        "evaluated later when a note is generated from it.")]
+         "evaluated later when a note is generated from it. Prefer manage_templates with " +
+         "scope='engineering' for MCP access.")]
     public async Task<string> set_engineering_template(
         [Description("Doc type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc.")] string type_key,
         [Description("New template body content. Ignored when reset_to_default=true.")] string content = "",
@@ -567,7 +537,7 @@ public sealed class EngineeringWorkflowTools(
         Directory.CreateDirectory(targetDir);
         var targetPath = Path.Combine(targetDir, $"{type_key}.md");
 
-        await File.WriteAllTextAsync(targetPath, content, Encoding.UTF8);
+        await File.WriteAllTextAsync(targetPath, content, NoteHelpers.Utf8NoBom);
 
         var recognized = new HashSet<string>(ProjectWorkspaceService.SupportedVariablesFor(type_key), StringComparer.OrdinalIgnoreCase);
         var unknownVars = ProjectWorkspaceService.ExtractTemplateVariableNames(content)
@@ -667,6 +637,51 @@ public sealed class EngineeringWorkflowTools(
 
     // Private helpers
 
+    private async Task<string> CreateGeneralKnowledgeAsync(string title, string content, string tags)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return "[error] The 'title' parameter cannot be empty.";
+        }
+
+        Directory.CreateDirectory(workspace.KnowledgeRoot);
+        var filePath = Path.Combine(workspace.KnowledgeRoot, NoteHelpers.SanitizeFileName(title) + ".md");
+        if (File.Exists(filePath))
+        {
+            return $"[error] Note already exists: '{workspace.ToVaultRelative(filePath)}'. Use edit_note to modify it.";
+        }
+
+        var body = NoteHelpers.ExpandTemplateVariables(
+            await workspace.ResolveTemplateAsync("knowledge"),
+            new Dictionary<string, string> { ["content"] = content },
+            noteTitle: title);
+        var relFolder = workspace.KnowledgeRootRelative;
+        var mergedTags = NoteHelpers.MergeTagsWithInheritance(
+            NoteHelpers.ParseTags(tags).Prepend("knowledge"),
+            vaultConfig.GetInheritedTags(relFolder),
+            vaultConfig.ExcludeFromTags);
+        var frontmatter = NoteHelpers.BuildFrontmatter(
+            mergedTags,
+            type: "knowledge",
+            status: "active",
+            date: DateOnly.FromDateTime(DateTime.Now),
+            domain: vaultConfig.GetDomainForFolder(relFolder),
+            cssClasses: ["kioku-knowledge"]);
+
+        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, NoteHelpers.Utf8NoBom);
+        await vault.SynchronizeFileReindexAsync(filePath);
+
+        var vaultRelPath = workspace.ToVaultRelative(filePath);
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, vaultRelPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(filePath);
+        }
+
+        var result = $"[ok] Knowledge note created: {vaultRelPath}";
+        return evalResult.Warning is null ? result : $"{result}\n   [warning] {evalResult.Warning}";
+    }
+
     private async Task<string> CreateDocAsync(
         string project,
         string subfolderKey,
@@ -697,7 +712,7 @@ public sealed class EngineeringWorkflowTools(
         var filePath = Path.Combine(folder, fileName + ".md");
         if (File.Exists(filePath))
         {
-            return $"[error] Note already exists: '{workspace.ToVaultRelative(filePath)}'. Use update_note_content to modify it.";
+            return $"[error] Note already exists: '{workspace.ToVaultRelative(filePath)}'. Use edit_note to modify it.";
         }
 
         var projectLink = $"[[{ProjectWorkspaceService.ProjectLeafName(project)}]]";
@@ -735,7 +750,7 @@ public sealed class EngineeringWorkflowTools(
             cssClasses: [$"kioku-{baseTag}"],
             extraFields: fields);
 
-        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
+        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, NoteHelpers.Utf8NoBom);
         await vault.SynchronizeFileReindexAsync(filePath);
 
         var vaultRelPath = workspace.ToVaultRelative(filePath);
@@ -870,11 +885,11 @@ public sealed class EngineeringWorkflowTools(
                 return (false, ".kioku/config.yml (engineering section already documented)");
             }
 
-            await File.AppendAllTextAsync(configPath, referenceBlock + "\n", Encoding.UTF8);
+            await File.AppendAllTextAsync(configPath, referenceBlock + "\n", NoteHelpers.Utf8NoBom);
             return (true, ".kioku/config.yml (appended commented engineering reference)");
         }
 
-        await File.WriteAllTextAsync(configPath, referenceBlock.TrimStart('\n') + "\n", Encoding.UTF8);
+        await File.WriteAllTextAsync(configPath, referenceBlock.TrimStart('\n') + "\n", NoteHelpers.Utf8NoBom);
         return (true, ".kioku/config.yml (created with commented engineering reference)");
     }
 }

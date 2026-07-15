@@ -14,40 +14,23 @@ public sealed class UtilityTools(
     EmbeddingService? embedding = null,
     MetricsService? metrics = null)
 {
-    [McpServerTool, Description("Verifies that the Kioku MCP server is active and responding.")]
-    public string ping()
+    [McpServerTool, Description(
+        "Returns the current Kioku server health and status: vault path, indexed note count, " +
+        "cached embeddings, Ollama availability, last update time, index readiness, and — if " +
+        "a re-embedding backlog is being processed in the background — its progress (backlog, " +
+        "rate, ETA).")]
+    public string get_server_status()
     {
         var result = $"[online] Kioku MCP Server\n" +
-                     $"Vault: {config.VaultPath}\n" +
-                     $"Indexed notes: {vault.IndexedCount}\n" +
-                     $"Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
-                     $"Ollama: {(embedding?.IsAvailable == true ? "available" : "unavailable")}\n" +
-                     $"Index ready: {(vault.IsReady ? "Yes" : "No (loading...)")}";
-
-        if (metrics?.Enabled == true)
-        {
-            result += $"\nMetrics: enabled, total tool calls: {metrics.TotalCalls}";
-        }
-
-        result += $"\nUTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
-        return result;
-    }
-
-    [McpServerTool, Description(
-        "Returns the current status of the in-memory index: " +
-        "number of notes, embeddings cached, Ollama availability, " +
-        "last update time, whether the index is ready, and — if a re-embedding backlog " +
-        "is being processed in the background — its progress (backlog, rate, ETA).")]
-    public string get_index_status()
-    {
-        var result = $"Kioku Index Status\n" +
+                     $"Health: healthy\n" +
+                     $"   Vault: {config.VaultPath}\n" +
                      $"   Indexed notes: {vault.IndexedCount}\n" +
                      $"   Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
                      $"   Ollama: {(embedding?.IsAvailable == true ? "[ok] Available" : "[info] Unavailable")}\n" +
                      $"   Embedding model: {config.EmbeddingModel}\n" +
                      $"   Last indexed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n" +
                      $"   Status: {(vault.IsReady ? "[ok] Ready" : "[loading] Loading...")}\n" +
-                     $"   Vault: {config.VaultPath}";
+                     $"   Index ready: {(vault.IsReady ? "Yes" : "No (loading...)")}";
 
         if (embedding?.IsAvailable == true)
         {
@@ -62,6 +45,7 @@ public sealed class UtilityTools(
             result += $"\n   Metrics: enabled, total tool calls: {metrics.TotalCalls}";
         }
 
+        result += $"\nUTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
         return result;
     }
 

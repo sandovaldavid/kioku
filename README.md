@@ -4,7 +4,7 @@
 >
 > Current version: **2.3.0** <!-- x-release-please-version --> · [Documentation Website](https://sandovaldavid.github.io/kioku/) · [View releases](https://github.com/sandovaldavid/kioku/releases)
 
-Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claude Code** and **Antigravity CLI** read, search, write, and organize your Obsidian vault natively, fast, and privately — with 117 MCP tools across 18 classes and 22 plugin bridge commands.
+Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claude Code** and **Antigravity CLI** read, search, write, and organize your Obsidian vault natively, fast, and privately — with 49 MCP tools across 16 classes.
 
 ---
 
@@ -15,12 +15,12 @@ Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claud
 - **Tag management** and taxonomic organization
 - **Wikilink navigation** — backlinks, outgoing links, knowledge graph
 - **Task management** — native checkboxes with filters by tag, date, due date
-- **Zettelkasten** — atomic note creation, MOCs, templates, literature notes
+- **Structured notes** — atomic notes, MOCs, literature notes, and folder readmes through `create_note`
 - **CSS Theming** — snippets and full themes from the agent
 - **Assets** — Excalidraw, images, orphaned files
 - **Obsidian bridge** — open notes, run commands, query status (optional)
 - **On-demand startup** — consumes no resources when not in use
-- **Dual transport** — stdio (v1, local) and HTTP-SSE (v2, multiple agents/VM)
+- **Dual transport** — stdio (local) and HTTP-SSE (multiple agents/VM)
 
 ## Architecture
 
@@ -32,7 +32,7 @@ AI Agent (Claude Code / agy)
     │
     ▼
 Kioku.Mcp.Server (C# .NET 10)
-    ├── 18 Tool Classes (117 MCP tools)
+    ├── 16 Tool Classes (49 MCP tools)
     ├── Services: VaultIndex · Embedding(Ollama) · HybridSearch
     │            TaskService · ObsidianBridge · Persistence
     └── Middleware: ApiKeyMiddleware
@@ -357,44 +357,41 @@ To install the plugin locally in your Obsidian vault:
 | `KIOKU_API_KEY` | ❌ | Bearer token to authenticate the HTTP transport | — |
 | `KIOKU_OLLAMA_URL` | ❌ | Base URL of the local Ollama client | `http://localhost:11434` |
 | `KIOKU_EMBEDDING_MODEL` | ❌ | Ollama model used for embeddings | `nomic-embed-text` |
-| `KIOKU_GEN_MODEL` | ❌ | Ollama model for local generation (`summarize_note`), e.g. `llama3.2` | — (disabled) |
+| `KIOKU_GEN_MODEL` | ❌ | Ollama model for local generation (`summarize_note`, `generate_flashcards`) | — (disabled) |
 | `KIOKU_MAX_RESULTS` | ❌ | Maximum number of search results | `20` |
 | `KIOKU_OBSIDIAN_PORT` | ❌ | WebSocket port for the Obsidian bridge | `7765` |
 | `KIOKU_BRIDGE_TOKEN` | ❌ | Shared token for the WebSocket bridge; must match the plugin's "Auth token" setting | — |
-| `KIOKU_GITHUB_TOKEN` | ❌ | GitHub token for `share_as_gist` | — |
 | `KIOKU_ENABLE_METRICS` | ❌ | In-memory tool usage counters (opt-in) | `false` |
 | `KIOKU_SENTRY_DSN` | ❌ | Sentry DSN for crash reporting (opt-in) | — |
 
 ## Available MCP Tools
 
-117 tools organized into 18 classes. For the full inventory with parameters, see [`docs/commands-reference.md`](docs/commands-reference.md).
+49 tools organized into 16 classes. For the full inventory with parameters, see [`docs/commands-reference.md`](docs/commands-reference.md).
 
 Classes outside the core (query, write, utilities) are enabled or disabled by **capability groups** in `{vault}/.kioku/config.yml` — see [`docs/vault-config.md`](docs/vault-config.md).
 
 | Category | Key Tools |
 |---|---|
-| **Query** | `read_note`, `search_notes`, `search_notes_semantic`, `search_notes_hybrid`, `filter_notes`, `get_note_metadata`, `get_backlinks`, `get_outgoing_links`, `find_similar_notes`, `list_notes` |
-| **Write** | `create_note`, `update_note_content`, `prepend_to_note`, `append_to_note`, `update_frontmatter`, `add_tag`, `remove_tag`, `move_note`, `rename_note`, `delete_note` |
-| **Tasks** | `list_tasks`, `complete_task`, `reopen_task`, `list_tasks_by_tag`, `list_overdue_tasks` |
-| **Zettelkasten** | `create_zettel`, `create_moc`, `create_literature_note`, `link_related_notes`, `create_folder_readme` |
-| **Workflows and Templates** | `create_note_from_template`, `list_templates`, `create_template`, `extract_action_items` |
-| **Organization** | `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`, `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `find_broken_links`, `audit_vault` |
-| **Sessions** | `start_work_session`, `end_work_session`, `get_recent_activity`, `get_work_context`, `list_work_sessions`, `get_session_activity` |
-| **Knowledge graph** | `get_concept_map`, `get_knowledge_timeline`, `get_vault_snapshot` |
-| **Graph analysis** | `find_unlinked_notes`, `find_graph_islands`, `measure_vault_density` |
-| **Research** | `export_citations`, `export_note`, `get_literature_gap`, `get_citation_graph`, `import_bibtex`, `export_bibtex`, `share_as_gist`, `validate_research_notes` |
-| **Local generation** (requires Ollama) | `summarize_note`, `generate_flashcards` |
-| **Restore** | `revert_note`, `list_deleted_notes`, `restore_note_from_trash`, `restore_note_version`, `revert_all_uncommitted` |
-| **CSS Theming** | `apply_css_snippet`, `list_css_snippets`, `remove_css_snippet`, `reload_css_snippets` |
-| **Assets** | `list_excalidraw_files`, `get_asset_metadata`, `find_orphan_assets`, `normalize_attachment_names`, `move_attachments_to_folder`, `reorder_notes_in_folder` |
-| **Git** | `get_git_status`, `list_git_commits`, `stage_note`, `stage_all`, `unstage_note`, `commit_staged`, `fix_merge_conflicts`, `resolve_merge_conflict` |
-| **Plugin Bridge** | `query_dataview`, `apply_template`, `lint_note`, `lint_vault`, `get_installed_plugins` |
-| **Obsidian UI** (requires plugin) | `open_note_in_obsidian`, `get_active_note_in_obsidian`, `get_open_notes_in_obsidian`, `trigger_obsidian_command`, `insert_at_cursor`, `replace_selection`, `create_note_ui`, `scroll_to_block`, `open_in_split`, `get_selection_in_obsidian`, `toggle_reading_mode`, `fold_all_headings`, `unfold_all_headings`, `get_obsidian_status` |
-| **Utilities** | `ping`, `get_vault_stats`, `get_index_status`, `rebuild_index` |
+| **Query** | `read_note`, `list_notes`, `search_notes`, `get_links`, `find_similar_notes` |
+| **Write** | `create_note`, `edit_note`, `update_frontmatter`, `move_note`, `manage_trash` |
+| **Tasks** | `list_tasks`, `set_task_state` |
+| **Organization** | `audit_vault`, `find_duplicate_notes`, `manage_tags`, `process_inbox`, `suggest_folder`, `suggest_tags` |
+| **Sessions** | `start_work_session`, `end_work_session`, `get_work_context`, `list_work_sessions` |
+| **Engineering** | `create_project_doc`, `get_project_context`, `list_projects`, `setup_agent_workflow` |
+| **Templates** | `manage_templates` |
+| **Knowledge graph** | `get_concept_map`, `get_vault_snapshot` |
+| **Graph analysis** | `suggest_links` |
+| **Research** (disabled by default) | `audit_citations`, `export_citations`, `import_bibtex` |
+| **Local generation** (disabled by default; requires Ollama) | `summarize_note`, `generate_flashcards` |
+| **CSS** (disabled by default) | `manage_css_snippets` |
+| **Assets** (disabled by default) | `find_orphan_assets`, `tidy_attachments` |
+| **Plugin bridge** (disabled by default) | `query_dataview`, `apply_template`, `lint`, `get_installed_plugins` |
+| **Obsidian UI** (disabled by default; requires plugin) | `edit_in_obsidian`, `get_obsidian_state`, `open_note_in_obsidian`, `trigger_obsidian_command` |
+| **Utilities** | `get_server_status`, `rebuild_index` |
 
 ## MCP Prompts & Resources
 
-Besides the 116 tools, Kioku exposes the other two MCP primitives (SDK `ModelContextProtocol` 1.4.0). The full inventory lives alongside the tools inventory in [`docs/commands-reference.md`](docs/commands-reference.md).
+Besides the 49 tools, Kioku exposes prompts and resources. The full inventory lives alongside the tools inventory in [`docs/commands-reference.md`](docs/commands-reference.md).
 
 **Prompts** — curated workflows that appear as native slash commands in any MCP client (Claude Code, Cursor, VS Code):
 
@@ -404,6 +401,12 @@ Besides the 116 tools, Kioku exposes the other two MCP primitives (SDK `ModelCon
 | `process_inbox` | `inbox?` | Guides the propose → confirm → apply flow of `process_inbox` |
 | `weekly_review` | — | Weekly review: digest + overdue tasks + orphans + link suggestions |
 | `literature_review` | `topic` | Gathers existing evidence on a topic and synthesizes it with `[[wikilink]]` citations |
+| `resume_project` | `project` | Loads project context before work resumes |
+| `record_decision` | `project`, `topic` | Records an architecture decision |
+| `log_bugfix` | `project` | Records a bug and its fix |
+| `plan_feature` | `project`, `feature` | Drafts an implementation plan |
+| `work_on_ticket` | `project`, `ticket` | Structures a ticket and creates a plan |
+| `write_daily` | `project` | Drafts a project's daily note |
 
 **Resources** — allow mounting vault content as context without spending a tool call:
 
@@ -420,13 +423,14 @@ Besides the 116 tools, Kioku exposes the other two MCP primitives (SDK `ModelCon
 |---|---|
 | **Dataview** | `query_dataview` — runs DQL queries over the vault |
 | **Templater** | `apply_template` — applies templates with variables |
-| **Linter** | `lint_note`, `lint_vault` — formats and fixes notes |
+| **Linter** | `lint` — formats and fixes a note or the vault |
 
 ## Project Status
 
-- **v1** (stdio): ✅ Complete — core tools + 22 plugin bridge commands
-- **v2** (HTTP-SSE): ✅ Complete — dual transport, Ollama embeddings, Bearer Token auth, VM deployment
-- **v3** (Ecosystem Tools): ✅ Complete — 102 tools across 17 classes: templates, tasks, Zettelkasten, CSS theming, assets, Git, restore, graph
+- **v1/v2**: ✅ Complete — stdio and HTTP-SSE transports, Ollama embeddings, and Bearer Token auth
+- **PR2 tool surface**: ✅ Complete — 49 tools across 16 classes with capability gating
+
+For migration from the previous tool surface, see [`docs/migration-v3.md`](docs/migration-v3.md).
 
 ## License
 

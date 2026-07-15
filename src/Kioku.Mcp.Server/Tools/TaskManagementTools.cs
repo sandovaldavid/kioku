@@ -17,16 +17,24 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
 
     [McpServerTool, Description(
         "Lists all tasks (open and completed) across the vault or within a specific note. " +
-        "Supports filtering by completion status. " +
+        "Supports filtering by completion status, tag, and overdue date. " +
         "Returns task text, note name, line number, due date, and inline tags.")]
     public async Task<string> list_tasks(
         [Description("Name or path of a specific note to scan. Leave empty to scan the entire vault.")] string note = "",
         [Description("Filter by completion status: 'open' (default), 'done', or 'all'.")] string status = "open",
-        [Description("Folder to restrict the search (relative to vault root). Only used when 'note' is empty.")] string folder = "")
+        [Description("Folder to restrict the search (relative to vault root). Only used when 'note' is empty.")] string folder = "",
+        [Description("Optional tag to match in task text or note frontmatter, without the '#' prefix.")] string tag = "",
+        [Description("Only return open tasks whose due date is in the past.")] bool overdue_only = false)
     {
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        var normalizedStatus = status?.Trim().ToLowerInvariant() ?? "";
+        if (normalizedStatus is not ("open" or "done" or "completed" or "all"))
+        {
+            return $"[error] Invalid status '{status}'. Use 'open', 'done', or 'all'.";
         }
 
         IReadOnlyList<TaskItem> allTasks;
@@ -46,33 +54,82 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
             allTasks = await tasks.GetAllTasksAsync(string.IsNullOrWhiteSpace(folder) ? null : folder);
         }
 
-        var filtered = status.ToLowerInvariant() switch
+        IEnumerable<TaskItem> filtered = normalizedStatus switch
         {
             "done" or "completed" => allTasks.Where(t => t.IsCompleted),
             "all" => allTasks,
             _ => allTasks.Where(t => !t.IsCompleted),
         };
 
-        var list = filtered.OrderBy(t => t.VaultRelativePath).ThenBy(t => t.LineNumber).ToList();
+        var tagValue = tag?.Trim() ?? "";
+        if (tagValue.Length > 0)
+        {
+            var taggedNotes = vault.GetAllNotes()
+                .Where(n => n.Metadata.Tags.Any(t => t.Equals(tagValue, StringComparison.OrdinalIgnoreCase)))
+                .Select(n => n.FilePath)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            filtered = filtered.Where(t =>
+                t.InlineTags.Any(it => it.Equals(tagValue, StringComparison.OrdinalIgnoreCase)) ||
+                taggedNotes.Contains(t.FilePath));
+        }
+
+        if (overdue_only)
+        {
+            filtered = filtered.Where(t => t.IsOverdue);
+        }
+
+        var list = (overdue_only
+                ? filtered.OrderBy(t => t.DueDate).ThenBy(t => t.VaultRelativePath).ThenBy(t => t.LineNumber)
+                : filtered.OrderBy(t => t.VaultRelativePath).ThenBy(t => t.LineNumber))
+            .ToList();
 
         if (list.Count == 0)
         {
+            if (overdue_only)
+            {
+                return "No overdue tasks found. All caught up!";
+            }
+
+            if (tagValue.Length > 0)
+            {
+                return $"No {(normalizedStatus == "all" ? "" : status + " ")}tasks found with tag '#{tagValue}'.";
+            }
+
             return string.IsNullOrWhiteSpace(note)
-                ? $"No {(status == "all" ? "" : status + " ")}tasks found in the vault."
-                : $"No {(status == "all" ? "" : status + " ")}tasks found in '{note}'.";
+                ? $"No {(normalizedStatus == "all" ? "" : status + " ")}tasks found in the vault."
+                : $"No {(normalizedStatus == "all" ? "" : status + " ")}tasks found in '{note}'.";
+        }
+
+        if (overdue_only)
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var sb = new StringBuilder();
+            sb.AppendLine($"Overdue tasks as of {today:yyyy-MM-dd} ({list.Count} found):\n");
+            sb.Append(FormatTaskList(list, showDueDate: true, highlightOverdue: true));
+            return sb.ToString();
+        }
+
+        if (tagValue.Length > 0)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"Tasks with tag '#{tagValue}' ({list.Count} found):\n");
+            sb.Append(FormatTaskList(list));
+            return sb.ToString();
         }
 
         return FormatTaskList(list);
     }
 
-    // complete_task
+    // set_task_state
 
     [McpServerTool, Description(
-        "Marks a task as completed ('- [x]') at the specified line in a note. " +
+        "Sets a task's completion state at the specified line in a note. " +
         "Use list_tasks first to find the note name and line number of the task.")]
-    public async Task<string> complete_task(
+    public async Task<string> set_task_state(
         [Description("Name or path of the note containing the task.")] string note,
-        [Description("1-based line number of the task within the note.")] int line_number)
+        [Description("1-based line number of the task within the note.")] int line_number,
+        [Description("True to mark the task complete ('- [x]'); false to reopen it ('- [ ]').")] bool completed)
     {
         var found = ResolveNote(note);
         if (found is null)
@@ -80,122 +137,21 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
             return $"[error] Note not found: '{note}'.";
         }
 
-        var result = await tasks.SetTaskCompletionAsync(found.FilePath, line_number, complete: true);
+        var result = await tasks.SetTaskCompletionAsync(found.FilePath, line_number, completed);
 
         if (result is null)
         {
-            return $"[error] Line {line_number} in '{note}' is not a valid task. Use list_tasks to find task line numbers.";
+            var hint = completed
+                ? "Use list_tasks to find task line numbers."
+                : "Use list_tasks with status='done' to find completed task line numbers.";
+            return $"[error] Line {line_number} in '{note}' is not a valid task. {hint}";
         }
 
-        return $"[ok] Task marked as complete in '{found.VaultRelativePath}' (line {line_number}):\n" +
-               $"  ☑ {result.Text}";
-    }
-
-    // reopen_task
-
-    [McpServerTool, Description(
-        "Reopens a completed task by changing '- [x]' back to '- [ ]'. " +
-        "Use list_tasks with status='done' first to find the note and line number.")]
-    public async Task<string> reopen_task(
-        [Description("Name or path of the note containing the task.")] string note,
-        [Description("1-based line number of the task within the note.")] int line_number)
-    {
-        var found = ResolveNote(note);
-        if (found is null)
-        {
-            return $"[error] Note not found: '{note}'.";
-        }
-
-        var result = await tasks.SetTaskCompletionAsync(found.FilePath, line_number, complete: false);
-
-        if (result is null)
-        {
-            return $"[error] Line {line_number} in '{note}' is not a valid task. Use list_tasks with status='done' to find completed task line numbers.";
-        }
-
-        return $"[ok] Task reopened in '{found.VaultRelativePath}' (line {line_number}):\n" +
-               $"  ☐ {result.Text}";
-    }
-
-    // list_tasks_by_tag
-
-    [McpServerTool, Description(
-        "Lists all open tasks that match a given tag. " +
-        "Matches both frontmatter tags of the note and inline '#tag' annotations in the task text. " +
-        "Returns task text, note, line number, and due date.")]
-    public async Task<string> list_tasks_by_tag(
-        [Description("Tag to filter by (without the '#' prefix). E.g. 'project', 'urgent'.")] string tag,
-        [Description("Include completed tasks too (default: false — open tasks only).")] bool include_done = false)
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        if (string.IsNullOrWhiteSpace(tag))
-        {
-            return "[error] 'tag' parameter is required.";
-        }
-
-        var allTasks = await tasks.GetAllTasksAsync();
-
-        // Match tasks that have the tag inline OR whose note has the tag in its frontmatter
-        var taggedNotes = vault.GetAllNotes()
-            .Where(n => n.Metadata.Tags.Any(t => t.Equals(tag, StringComparison.OrdinalIgnoreCase)))
-            .Select(n => n.FilePath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var matched = allTasks
-            .Where(t =>
-                (include_done || !t.IsCompleted) &&
-                (t.InlineTags.Any(it => it.Equals(tag, StringComparison.OrdinalIgnoreCase)) ||
-                 taggedNotes.Contains(t.FilePath)))
-            .OrderBy(t => t.VaultRelativePath)
-            .ThenBy(t => t.LineNumber)
-            .ToList();
-
-        if (matched.Count == 0)
-        {
-            return $"No {(include_done ? "" : "open ")}tasks found with tag '#{tag}'.";
-        }
-
-        var sb = new StringBuilder();
-        sb.AppendLine($"Tasks with tag '#{tag}' ({matched.Count} found):\n");
-        sb.Append(FormatTaskList(matched));
-        return sb.ToString();
-    }
-
-    // list_overdue_tasks
-
-    [McpServerTool, Description(
-        "Lists all open tasks whose due date (📅 YYYY-MM-DD in Obsidian Tasks format) is in the past. " +
-        "Only scans open tasks — completed tasks are never overdue.")]
-    public async Task<string> list_overdue_tasks(
-        [Description("Folder to restrict the search (relative to vault root). Leave empty to scan the entire vault.")] string folder = "")
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        var allTasks = await tasks.GetAllTasksAsync(string.IsNullOrWhiteSpace(folder) ? null : folder);
-
-        var overdue = allTasks
-            .Where(t => t.IsOverdue)
-            .OrderBy(t => t.DueDate)
-            .ThenBy(t => t.VaultRelativePath)
-            .ToList();
-
-        if (overdue.Count == 0)
-        {
-            return "No overdue tasks found. All caught up!";
-        }
-
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        var sb = new StringBuilder();
-        sb.AppendLine($"Overdue tasks as of {today:yyyy-MM-dd} ({overdue.Count} found):\n");
-        sb.Append(FormatTaskList(overdue, showDueDate: true, highlightOverdue: true));
-        return sb.ToString();
+        return completed
+            ? $"[ok] Task marked as complete in '{found.VaultRelativePath}' (line {line_number}):\n" +
+              $"  ☑ {result.Text}"
+            : $"[ok] Task reopened in '{found.VaultRelativePath}' (line {line_number}):\n" +
+              $"  ☐ {result.Text}";
     }
 
     // Private helpers

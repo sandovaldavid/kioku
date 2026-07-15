@@ -7,9 +7,9 @@ using Xunit;
 namespace Kioku.Mcp.Server.Tests;
 
 /// <summary>
-/// Integration tests for find_broken_links/audit_vault resolving links that point at real
-/// files sitting in excluded folders. Each test builds its own temp vault (not VaultFixture)
-/// since the exclude list must exist in .kioku/config.yml before the index is built.
+/// Integration tests for audit_vault resolving links that point at real files sitting in
+/// excluded folders. Each test builds its own temp vault (not VaultFixture) since the exclude
+/// list must exist in .kioku/config.yml before the index is built.
 /// </summary>
 public class VaultOrganizationToolsLinkTests : IAsyncLifetime
 {
@@ -70,17 +70,6 @@ public class VaultOrganizationToolsLinkTests : IAsyncLifetime
 
     private VaultOrganizationTools CreateTools() =>
         new(_index, _config, _hybrid, _embedding, _vaultConfig);
-
-    [Fact]
-    public async Task FindBrokenLinks_TargetInExcludedFolder_NotReportedBroken()
-    {
-        var tools = CreateTools();
-
-        var result = await tools.find_broken_links();
-
-        Assert.DoesNotContain("Example Template", result);
-        Assert.Contains("Nonexistent Note", result);
-    }
 
     [Fact]
     public async Task AuditVault_TargetInExcludedFolder_NotReportedBroken()

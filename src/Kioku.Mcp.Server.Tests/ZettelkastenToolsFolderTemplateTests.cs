@@ -2,6 +2,7 @@ using System.Text;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModelContextProtocol.Server;
 using Xunit;
 
 namespace Kioku.Mcp.Server.Tests;
@@ -22,6 +23,20 @@ public class ZettelkastenToolsFolderTemplateTests : IAsyncLifetime
     }
 
     public Task DisposeAsync() => _fixture.DisposeAsync();
+
+    [Fact]
+    public void ZettelkastenHelpers_AreNotExposedAsMcpTools()
+    {
+        Assert.Null(typeof(ZettelkastenTools).GetCustomAttributes(typeof(McpServerToolTypeAttribute), inherit: true).SingleOrDefault());
+
+        var exposedMethods = typeof(ZettelkastenTools)
+            .GetMethods()
+            .Where(method => method.GetCustomAttributes(typeof(McpServerToolAttribute), inherit: true).Length > 0)
+            .Select(method => method.Name)
+            .ToArray();
+
+        Assert.Empty(exposedMethods);
+    }
 
     private ZettelkastenTools CreateTools(VaultConfigService? vaultConfig = null)
     {
