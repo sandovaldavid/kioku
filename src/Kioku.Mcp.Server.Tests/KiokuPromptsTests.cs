@@ -65,4 +65,79 @@ public class KiokuPromptsTests
         Assert.Contains("[[wikilink]]", result);
         Assert.Contains("export_citations", result);
     }
+
+    [Fact]
+    public void ResumeProject_LoadsContextAndStartsSession()
+    {
+        var result = KiokuPrompts.resume_project("kioku");
+
+        Assert.Contains("get_project_context", result);
+        Assert.Contains("project='kioku'", result);
+        Assert.Contains("start_work_session", result);
+        Assert.Contains("end_work_session", result);
+    }
+
+    [Fact]
+    public void RecordDecision_ChecksPriorAdrsAndHandlesSupersede()
+    {
+        var result = KiokuPrompts.record_decision("kioku", "database choice");
+
+        Assert.Contains("database choice", result);
+        Assert.Contains("types='adr'", result);
+        Assert.Contains("record_adr", result);
+        Assert.Contains("update_frontmatter", result);
+        Assert.Contains("superseded", result);
+        Assert.Contains("suggest_links", result);
+    }
+
+    [Fact]
+    public void LogBugfix_GathersFieldsAndLogsBug()
+    {
+        var result = KiokuPrompts.log_bugfix("kioku");
+
+        Assert.Contains("log_bug", result);
+        Assert.Contains("project='kioku'", result);
+        Assert.Contains("root", result);
+        Assert.Contains("link_related_notes", result);
+    }
+
+    [Fact]
+    public void PlanFeature_ChecksPriorArtAndCreatesPlan()
+    {
+        var result = KiokuPrompts.plan_feature("kioku", "semantic search");
+
+        Assert.Contains("semantic search", result);
+        Assert.Contains("get_project_context", result);
+        Assert.Contains("search_notes_hybrid", result);
+        Assert.Contains("create_plan", result);
+        Assert.Contains("- [ ]", result);
+        Assert.Contains("suggest_links", result);
+    }
+
+    [Fact]
+    public void WorkOnTicket_ReadsStructuresAndLinksPlan()
+    {
+        var result = KiokuPrompts.work_on_ticket("kioku", "add-export");
+
+        Assert.Contains("add-export", result);
+        Assert.Contains("read_note", result);
+        Assert.Contains("create_plan", result);
+        Assert.Contains("ticket='add-export'", result);
+        Assert.Contains("update_frontmatter", result);
+    }
+
+    [Fact]
+    public void WriteDaily_ReadsPreviousDailyAndSessions()
+    {
+        var result = KiokuPrompts.write_daily("kioku");
+
+        Assert.Contains("get_project_context", result);
+        Assert.Contains("types='daily,session'", result);
+        Assert.Contains("create_note_from_template", result);
+        Assert.Contains("project_link=", result);
+        // update_frontmatter only supports tags/status/type — must not claim project= is settable.
+        Assert.DoesNotContain("project='{project}'", result);
+        Assert.Contains("it cannot add a", result);
+        Assert.Contains("`project:`", result);
+    }
 }

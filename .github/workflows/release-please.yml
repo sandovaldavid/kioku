@@ -210,29 +210,18 @@ jobs:
         with:
           dotnet-version: "10.x"
 
-      # RuntimeIdentifiers is overridden to empty for this framework-dependent tool package:
-      # the project declares 4 RIDs for the separate per-platform publish matrix above, but
-      # `dotnet pack` on a PackAsTool project with multiple RuntimeIdentifiers tries to bundle
-      # a self-contained build for every one of them, which fails since only one platform was
-      # ever built here. The NuGet package is meant to be portable (dotnet tool install), not
-      # self-contained, so it doesn't need any RID at all.
+      # Package as a self-contained, multi-RID .NET tool package.
+      # Under .NET 10, the SDK automatically restores, builds, and packs separate NuGet
+      # packages for each RuntimeIdentifier defined in the project, plus an umbrella package.
       - name: Restore dependencies
-        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj -p:RuntimeIdentifiers=
-
-      - name: Build
-        run: |
-          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-            --configuration Release \
-            --no-restore \
-            -p:RuntimeIdentifiers=
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
 
       - name: Pack NuGet package
         run: |
           dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
             --configuration Release \
-            --no-build \
-            --output ./nupkg \
-            -p:RuntimeIdentifiers=
+            --no-restore \
+            --output ./nupkg
 
       # Trusted Publishing: exchanges this job's OIDC token for a NuGet.org API key
       # that's valid for 1 hour, so no long-lived NUGET_API_KEY secret is needed.

@@ -19,7 +19,8 @@ public sealed partial class WorkflowTools(
     KiokuConfiguration config,
     TaskService tasks,
     VaultConfigService vaultConfig,
-    GenerationService generation)
+    GenerationService generation,
+    ObsidianBridgeService bridge)
 {
     private static readonly string[] TemplateFolderCandidates =
         ["Templates", "99_System/Templates", "_templates", "System/Templates"];
@@ -149,8 +150,20 @@ public sealed partial class WorkflowTools(
         var targetDir = Path.GetDirectoryName(targetFilePath)!;
         Directory.CreateDirectory(targetDir);
         await File.WriteAllTextAsync(targetFilePath, rendered, Encoding.UTF8);
+        // Reindex immediately (matches every other creation tool) instead of relying solely on
+        // the FileSystemWatcher's 500ms debounce — a caller following the documented pattern of
+        // an immediate follow-up update_frontmatter call would otherwise race the watcher and
+        // get a spurious "note not found".
+        await vault.SynchronizeFileReindexAsync(targetFilePath);
 
-        var relPath = Path.GetRelativePath(config.VaultPath, targetFilePath);
+        var relPath = Path.GetRelativePath(config.VaultPath, targetFilePath).Replace('\\', '/');
+
+        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(rendered, relPath);
+        if (evalResult.Applied)
+        {
+            await vault.SynchronizeFileReindexAsync(targetFilePath);
+        }
+
         var result = new StringBuilder($"[ok] Note created from template '{template_name}': {relPath}");
 
         if (unresolved.Count > 0)
@@ -158,6 +171,12 @@ public sealed partial class WorkflowTools(
             result.AppendLine();
             result.Append($"   Warning: {unresolved.Count} unresolved variable(s): " +
                           string.Join(", ", unresolved.Select(v => "{{" + v + "}}")));
+        }
+
+        if (evalResult.Warning is not null)
+        {
+            result.AppendLine();
+            result.Append($"   [warning] {evalResult.Warning}");
         }
 
         return result.ToString();
@@ -291,13 +310,10 @@ public sealed partial class WorkflowTools(
     [McpServerTool, Description(
         "Generates a digest note summarizing recent vault activity: notes created or modified, " +
         "overdue and upcoming tasks, newly orphaned notes, and draft/inbox notes awaiting review. " +
-        "period='day' (default) covers today since local midnight; period='week' covers the last " +
-        "7 days. Written as 'Digest {yyyy-MM-dd}.md' in the 'daily' folder (folders.daily in " +
-        ".kioku/config.yml, falling back to target_folder, then the vault root) — re-running on " +
-        "the same day replaces the note, since it's fully regenerated each time. If local " +
-        "generation (KIOKU_GEN_MODEL) is available, adds a short AI-generated Summary section; " +
-        "otherwise the digest is purely structural. Set dry_run=true to preview the markdown " +
-        "without writing anything.")]
+        "period='day' (default, since local midnight) or 'week' (last 7 days). Written as " +
+        "'Digest {yyyy-MM-dd}.md' in the daily folder; re-running the same day regenerates it. " +
+        "Adds an AI Summary section when KIOKU_GEN_MODEL is available. Set dry_run=true to " +
+        "preview without writing.")]
     public async Task<string> generate_digest(
         [Description("Digest period: 'day' (default, since local midnight) or 'week' (last 7 days).")] string period = "day",
         [Description("Destination folder (relative to vault root) used only if folders.daily isn't configured. Leave empty for the vault root.")] string target_folder = "",
@@ -463,6 +479,19 @@ public sealed partial class WorkflowTools(
                 config.VaultPath,
                 Path.Combine(config.VaultPath, overrideFolder));
             return Directory.Exists(path) ? path : null;
+        }
+
+        // folders.templates from .kioku/config.yml wins over the conventional candidates
+        var configured = vaultConfig.GetFolder("templates");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            var configuredPath = NoteHelpers.EnsureInsideVault(
+                config.VaultPath,
+                Path.Combine(config.VaultPath, configured));
+            if (Directory.Exists(configuredPath))
+            {
+                return configuredPath;
+            }
         }
 
         foreach (var candidate in TemplateFolderCandidates)

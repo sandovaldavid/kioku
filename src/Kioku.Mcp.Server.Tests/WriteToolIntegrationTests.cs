@@ -174,4 +174,55 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         Assert.Contains("Would", result);
         Assert.True(_fixture.NoteExists(name));
     }
+
+    [Fact]
+    public async Task UpdateFrontmatter_PreservesExistingAliasesAndUpdated()
+    {
+        var tools = CreateTools();
+        var name = $"AliasesTest-{Guid.NewGuid():N}";
+        var filePath = _fixture.GetNotePath(name);
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+        var content = "---\naliases:\n  - My Alias\nupdated: 2020-01-01\ntype: note\nstatus: draft\ndate: 2020-01-01\n---\nBody text.";
+        await File.WriteAllTextAsync(filePath, content, System.Text.Encoding.UTF8);
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.update_frontmatter(name, status: "done");
+
+        Assert.StartsWith("[ok]", result);
+        var raw = await File.ReadAllTextAsync(filePath, System.Text.Encoding.UTF8);
+        Assert.Contains("aliases:", raw);
+        Assert.Contains("My Alias", raw);
+        Assert.Contains("updated: 2020-01-01", raw);
+        Assert.Contains("status: done", raw);
+    }
+
+    [Fact]
+    public async Task UpdateFrontmatter_WritesFile_NoByteOrderMark()
+    {
+        var tools = CreateTools();
+        var name = $"BomTest-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Body", "", type: "note", status: "draft");
+        await _fixture.Index.RebuildIndexAsync();
+
+        await tools.update_frontmatter(name, status: "done");
+
+        var bytes = await File.ReadAllBytesAsync(_fixture.GetNotePath(name));
+        Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF);
+    }
+
+    [Fact]
+    public async Task UpdateFrontmatter_ThenIndexLookup_ReflectsChangeImmediately()
+    {
+        var tools = CreateTools();
+        var name = $"ReindexTest-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Body", "", type: "note", status: "draft");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.update_frontmatter(name, status: "done");
+
+        Assert.StartsWith("[ok]", result);
+        var found = _fixture.Index.GetNote(_fixture.GetNotePath(name));
+        Assert.NotNull(found);
+        Assert.Equal("done", found!.Metadata.Status);
+    }
 }

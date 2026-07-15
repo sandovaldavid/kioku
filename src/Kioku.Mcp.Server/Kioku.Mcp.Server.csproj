@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;win-arm64;osx-x64;osx-arm64;linux-x64;linux-arm64;linux-musl-x64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -17,14 +17,10 @@
          RID-path complications for `dotnet pack`. -->
     <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
 
-    <!-- Self-Contained: portable binary, doesn't require .NET to be installed.
-         Scoped to an explicit runtime publish only (matches the release workflow's
-         self-contained, per-RID "dotnet publish" calls); unscoped, these forced
-         "dotnet pack" (a framework-dependent PackAsTool package) to try bundling all 4
-         RuntimeIdentifiers even though only the current platform had been built. -->
-    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
-    <PublishSelfContained Condition="'$(RuntimeIdentifier)' != ''">true</PublishSelfContained>
-    <PublishSingleFile Condition="'$(RuntimeIdentifier)' != ''">true</PublishSingleFile>
+    <!-- Self-Contained: portable binary, doesn't require .NET to be installed. -->
+    <SelfContained>true</SelfContained>
+    <PublishSelfContained>true</PublishSelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
 
     <!-- Kioku package metadata -->
     <IsPackable>true</IsPackable>
@@ -45,9 +41,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources/Templates/AgentWorkflow/*.md"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/"/>
     <None Include="README.md" Pack="true" PackagePath="/"/>
     <None Include="../../LICENSE" Pack="true" PackagePath="/"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Kioku.Mcp.Server.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>

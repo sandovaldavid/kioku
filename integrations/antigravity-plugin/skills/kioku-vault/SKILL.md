@@ -1,6 +1,6 @@
 ---
 name: kioku-vault
-description: Use when working with an Obsidian vault via the Kioku MCP server — searching notes, managing tasks, zettelkasten workflows, tags, links, git-backed history, and vault organization. Covers when to use each category of Kioku's 130+ tools and safety notes for destructive operations.
+description: Use when working with an Obsidian vault via the Kioku MCP server — searching notes, managing tasks, zettelkasten workflows, tags, links, git-backed history, and vault organization. Covers when to use each category of Kioku's 128 tools and safety notes for destructive operations.
 ---
 
 # Kioku vault skill
@@ -27,6 +27,14 @@ parameter names.
   `link_related_notes`, `create_folder_readme`.
 - **Templates/workflows** — `create_note_from_template`, `list_templates`, `create_template`,
   `extract_action_items`.
+- **Engineering** (per-project ADRs, bugs, plans, knowledge, backlog) — `record_adr`, `log_bug`,
+  `create_plan`, `add_knowledge`, `add_backlog_item`, `get_project_context`, `list_projects`,
+  `setup_agent_workflow`, template management (`list_engineering_templates`,
+  `get_engineering_template`, `set_engineering_template`). Projects can be grouped in plain
+  folders (e.g. `Atena/api.core`) — use `list_projects` to discover the exact identifier to pass.
+  Call `get_project_context` before resuming work on a project; it's the handoff point between
+  agent sessions. Documents nested in subfolders of `decisions/`, `plans/`, `knowledge/`, etc.
+  (e.g. `knowledge/employee-debt/*.md`) are listed too — no need to flatten them first.
 - **Organization** — `normalize_tags`, `rename_tag_globally`, `merge_tags`, `suggest_tags`,
   `suggest_folder`, `reclassify_note`, `find_duplicate_notes`, `find_broken_links`,
   `audit_vault`.
@@ -55,6 +63,14 @@ parameter names.
 Any group can be disabled per-vault via `.kioku/config.yml` (`capabilities.disabled`) — if a
 tool call fails as "unknown tool," check `get_vault_stats` or the vault's config before assuming
 a bug.
+
+## Reading a specific note
+
+`read_note` takes exactly one note-reference parameter: `note` (plus an optional `format`).
+It accepts a short name, a vault-relative path with or without `.md`, or an absolute path — but
+not `path`, `folder`, or `note_name`, which don't exist on its schema and will fail with a
+generic binding error before any Kioku code runs. If you're unsure a note exists, use
+`search_notes` or `list_notes` first rather than guessing at `read_note`'s parameters.
 
 ## Search strategy
 
@@ -87,6 +103,35 @@ it's ambiguous.
 Tasks are native Markdown checkboxes (`- [ ]`) living inside notes, not a separate task store.
 Use `list_tasks` / `list_overdue_tasks` / `list_tasks_by_tag` to find them and
 `complete_task` / `reopen_task` to change their state.
+
+## Writes reindex immediately
+
+`update_frontmatter`, `update_note_content`, `append_to_note`, and `prepend_to_note` reindex the
+note right after writing — a `get_note_metadata`/`search_notes` call immediately afterward
+already reflects the change. No need to wait or retry on a stale read.
+
+## Sessions and plan status don't auto-sync
+
+`end_work_session` does not inspect or update any plan's `status`, even if every step in a plan
+touched during the session is checked off. If you completed a plan's work in this session, call
+`update_frontmatter` on that plan note yourself to set `status: done` — otherwise it keeps
+showing as active/draft in `get_project_context` indefinitely.
+
+## Reduce the number of loaded tools
+
+Kioku ships 128 tools across 19 groups; every connected client loads the full enabled-tool list
+into context at session start (~19k tokens with everything on). If a vault's `.kioku/config.yml`
+disables groups you don't use, fewer tool schemas get loaded — same functionality for what's
+left, lower fixed cost per session. Check `get_vault_stats` or the vault's config before assuming
+a missing tool is a bug (see "Any group can be disabled" above). Recommended profile for coding
+agents (which run `git` natively in the vault, making the `git`/`restore` groups redundant):
+
+```yaml
+capabilities:
+  disabled: [git, restore, css, assets, generation, research]
+```
+
+`docs/vault-config.md` has the per-group token cost table for finer tuning.
 
 ## Safety notes for destructive or vault-wide tools
 

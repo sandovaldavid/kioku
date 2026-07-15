@@ -20,6 +20,8 @@ public sealed class NoteQueryTools(
     VaultConfigService vaultConfig,
     MetricsService? metrics = null)
 {
+    private const string FormatDescription = "'text' (default) or 'json'.";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = false,
@@ -40,7 +42,7 @@ public sealed class NoteQueryTools(
         "Use format='json' to receive a structured response.")]
     public async Task<string> read_note(
         [Description("Name or path of the note. E.g. 'My Note', 'Projects/Kioku', '/home/user/vault/note.md'")] string note,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(read_note), metrics);
         var found = ResolveNote(note);
@@ -77,7 +79,7 @@ public sealed class NoteQueryTools(
         [Description("Folder to list (relative to the vault). Leave empty to list the entire vault.")] string folder = "",
         [Description("Maximum number of notes to return (default: 50, capped by KIOKU_MAX_RESULTS).")] int limit = 50,
         [Description("Number of notes to skip for pagination.")] int offset = 0,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(list_notes), metrics);
         if (!vault.IsReady)
@@ -162,7 +164,7 @@ public sealed class NoteQueryTools(
     public string search_notes(
         [Description("Text to search. Can include multiple keywords.")] string query,
         [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(search_notes), metrics);
         if (!vault.IsReady)
@@ -245,7 +247,7 @@ public sealed class NoteQueryTools(
         [Description("Filter by note type (e.g. 'note', 'project', 'area').")] string? type = null,
         [Description("Minimum date in frontmatter (format: YYYY-MM-DD).")] string? date_from = null,
         [Description("Maximum date in frontmatter (format: YYYY-MM-DD).")] string? date_to = null,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(filter_notes), metrics);
         if (!vault.IsReady)
@@ -352,7 +354,7 @@ public sealed class NoteQueryTools(
         "Use format='json' to receive a structured response.")]
     public string get_note_metadata(
         [Description("Name or path of the note.")] string note,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(get_note_metadata), metrics);
         var found = ResolveNote(note);
@@ -444,7 +446,7 @@ public sealed class NoteQueryTools(
         "Use format='json' to receive a structured response.")]
     public string get_backlinks(
         [Description("Name of the target note (without .md extension).")] string note_name,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(get_backlinks), metrics);
         if (!vault.IsReady)
@@ -486,7 +488,7 @@ public sealed class NoteQueryTools(
         "Use format='json' to receive a structured response.")]
     public string get_outgoing_links(
         [Description("Name or path of the note.")] string note,
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         var found = ResolveNote(note);
         if (found is null)
@@ -524,7 +526,7 @@ public sealed class NoteQueryTools(
         "folders, and index status. " +
         "Use format='json' to receive a structured response.")]
     public string get_vault_stats(
-        [Description("Output format: 'text' (default) or 'json'.")] string format = "text")
+        [Description(FormatDescription)] string format = "text")
     {
         Count(nameof(get_vault_stats), metrics);
         if (!vault.IsReady)
@@ -577,6 +579,11 @@ public sealed class NoteQueryTools(
 
     // search_notes_semantic
 
+    // Default similarity floor for semantic results: filters unrelated notes that cosine
+    // similarity still scores in the low range. Tune against a golden set with the
+    // Kioku.Eval runner (docs/retrieval-eval.md); pass min_score=0 to disable filtering.
+    private const float DefaultSemanticMinScore = 0.4f;
+
     [McpServerTool, Description(
         "Searches notes by semantic meaning using Ollama embeddings. " +
         "Finds notes conceptually related to the query even without exact keyword matches. " +
@@ -585,7 +592,7 @@ public sealed class NoteQueryTools(
     public async Task<string> search_notes_semantic(
         [Description("Natural language query. E.g. 'notes about stress and burnout'.")] string query,
         [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
-        [Description("Minimum similarity score 0.0–1.0 to include a result (default: 0.0 = no filter). Use 0.7 to keep only high-confidence matches.")] float min_score = 0f)
+        [Description("Minimum similarity score 0.0–1.0 to include a result (default: 0.4). Use 0 to disable filtering or 0.7 to keep only high-confidence matches.")] float min_score = DefaultSemanticMinScore)
     {
         Count(nameof(search_notes_semantic), metrics);
         if (!embedding.IsAvailable)
@@ -603,7 +610,7 @@ public sealed class NoteQueryTools(
             return KiokuError.InvalidArgument("The 'query' parameter cannot be empty.");
         }
 
-        var queryVector = await embedding.EmbedAsync(query);
+        var queryVector = await embedding.EmbedQueryAsync(query);
         if (queryVector is null)
         {
             return KiokuError.DependencyUnavailable("Could not generate embedding for query. Is Ollama running?");
@@ -640,9 +647,8 @@ public sealed class NoteQueryTools(
 
     [McpServerTool, Description(
         "Searches notes combining keyword and semantic search using Reciprocal Rank Fusion (RRF). " +
-        "Finds notes that match by exact terms AND by conceptual meaning. " +
-        "Best general-purpose search when you are unsure whether to use keyword or semantic search. " +
-        "Requires Ollama for the semantic leg — degrades to keyword-only if Ollama is unavailable.")]
+        "Best general-purpose search when unsure which to use. " +
+        "Degrades to keyword-only if Ollama is unavailable.")]
     public async Task<string> search_notes_hybrid(
         [Description("Search query in natural language or keywords.")] string query,
         [Description("Maximum number of results to return (default: 10).")] int max_results = 10,
@@ -663,7 +669,7 @@ public sealed class NoteQueryTools(
         float[]? queryVector = null;
         if (embedding.IsAvailable && semantic_weight > 0f)
         {
-            queryVector = await embedding.EmbedAsync(query);
+            queryVector = await embedding.EmbedQueryAsync(query);
         }
 
         var capped = Math.Min(max_results, config.MaxSearchResults);

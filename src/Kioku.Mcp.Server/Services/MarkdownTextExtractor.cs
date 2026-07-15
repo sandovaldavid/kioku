@@ -48,50 +48,88 @@ public static class MarkdownTextExtractor
 
     /// <summary>
     /// Extracts all [[target]] wikilinks from the content of a note.
+    /// Skips fenced code blocks (``` or ~~~) and inline code spans (`...`) entirely, since
+    /// wikilinks written there are example syntax, not real outgoing links.
     /// </summary>
     public static IReadOnlyList<string> ExtractWikilinks(string content)
     {
         var links = new List<string>();
         var span = content.AsSpan();
         int pos = 0;
+        bool inFence = false;
 
-        while (pos < span.Length - 3)
+        while (pos < span.Length)
         {
-            int open = span[pos..].IndexOf("[[".AsSpan(), StringComparison.Ordinal);
-            if (open < 0)
+            int lineEnd = span[pos..].IndexOfAny('\n', '\r');
+            var line = lineEnd < 0 ? span[pos..] : span.Slice(pos, lineEnd);
+
+            var trimmed = line.TrimStart();
+            if (trimmed.StartsWith("```".AsSpan()) || trimmed.StartsWith("~~~".AsSpan()))
             {
-                break;
+                inFence = !inFence;
+            }
+            else if (!inFence)
+            {
+                ExtractWikilinksFromLine(line, links);
             }
 
-            int absOpen = pos + open + 2;
-            int close = span[absOpen..].IndexOf("]]".AsSpan(), StringComparison.Ordinal);
-            if (close < 0)
+            pos += lineEnd < 0 ? span.Length - pos : lineEnd + 1;
+            if (pos < span.Length && span[pos - 1] == '\r' && span[pos] == '\n')
             {
-                break;
+                pos++;
             }
-
-            var link = span.Slice(absOpen, close);
-            // Support for [[note|alias]] — we only extract the target
-            int pipeIdx = link.IndexOf('|');
-            var target = pipeIdx >= 0 ? link[..pipeIdx] : link;
-
-            // Support for [[note#header]] — we only extract the file
-            int hashIdx = target.IndexOf('#');
-            if (hashIdx >= 0)
-            {
-                target = target[..hashIdx];
-            }
-
-            var targetStr = target.Trim().ToString();
-            if (!string.IsNullOrWhiteSpace(targetStr))
-            {
-                links.Add(targetStr);
-            }
-
-            pos = absOpen + close + 2;
         }
 
         return links;
+    }
+
+    private static void ExtractWikilinksFromLine(ReadOnlySpan<char> line, List<string> links)
+    {
+        int pos = 0;
+        while (pos < line.Length)
+        {
+            // Skip inline code spans entirely: `...` — wikilinks written there are example
+            // syntax, not real links.
+            if (line[pos] == '`')
+            {
+                int closeTick = line[(pos + 1)..].IndexOf('`');
+                pos += closeTick >= 0 ? closeTick + 2 : 1;
+                continue;
+            }
+
+            if (line[pos] == '[' && pos + 1 < line.Length && line[pos + 1] == '[')
+            {
+                int absOpen = pos + 2;
+                int close = line[absOpen..].IndexOf("]]".AsSpan(), StringComparison.Ordinal);
+                if (close < 0)
+                {
+                    break;
+                }
+
+                var link = line.Slice(absOpen, close);
+                // Support for [[note|alias]] — we only extract the target
+                int pipeIdx = link.IndexOf('|');
+                var target = pipeIdx >= 0 ? link[..pipeIdx] : link;
+
+                // Support for [[note#header]] — we only extract the file
+                int hashIdx = target.IndexOf('#');
+                if (hashIdx >= 0)
+                {
+                    target = target[..hashIdx];
+                }
+
+                var targetStr = target.Trim().ToString();
+                if (!string.IsNullOrWhiteSpace(targetStr))
+                {
+                    links.Add(targetStr);
+                }
+
+                pos = absOpen + close + 2;
+                continue;
+            }
+
+            pos++;
+        }
     }
 
     // Private helpers

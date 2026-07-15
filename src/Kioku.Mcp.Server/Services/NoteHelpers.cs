@@ -96,7 +96,10 @@ public static class NoteHelpers
         DateOnly? date = null,
         string? zettelId = null,
         string? domain = null,
-        IReadOnlyDictionary<string, string>? extraFields = null)
+        IEnumerable<string>? aliases = null,
+        IEnumerable<string>? cssClasses = null,
+        IReadOnlyDictionary<string, string>? extraFields = null,
+        DateOnly? updated = null)
     {
         var sb = new StringBuilder("---\n");
 
@@ -107,6 +110,26 @@ public static class NoteHelpers
             foreach (var tag in tagList)
             {
                 sb.AppendLine($"  - {tag}");
+            }
+        }
+
+        var aliasList = aliases?.ToList() ?? [];
+        if (aliasList.Count > 0)
+        {
+            sb.AppendLine("aliases:");
+            foreach (var alias in aliasList)
+            {
+                sb.AppendLine($"  - {alias}");
+            }
+        }
+
+        var cssClassList = cssClasses?.ToList() ?? [];
+        if (cssClassList.Count > 0)
+        {
+            sb.AppendLine("cssclasses:");
+            foreach (var cssClass in cssClassList)
+            {
+                sb.AppendLine($"  - {cssClass}");
             }
         }
 
@@ -128,6 +151,11 @@ public static class NoteHelpers
         if (date.HasValue)
         {
             sb.AppendLine($"date: {date:yyyy-MM-dd}");
+        }
+
+        if (updated.HasValue)
+        {
+            sb.AppendLine($"updated: {updated:yyyy-MM-dd}");
         }
 
         if (!string.IsNullOrWhiteSpace(zettelId))
