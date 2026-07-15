@@ -121,6 +121,46 @@ public class NoteHelpersTests
     }
 
     [Fact]
+    public void SanitizeFileName_NormalizesEmDashAndCollapsesHyphens()
+    {
+        // The reported case: an LLM-authored title with an em dash surrounded by spaces.
+        var result = NoteHelpers.SanitizeFileName("EmployeeDebt Projection — Feature Deep Dive");
+
+        Assert.Equal("EmployeeDebt-Projection-Feature-Deep-Dive", result);
+        Assert.DoesNotContain("—", result);
+        Assert.DoesNotContain("--", result);
+    }
+
+    [Theory]
+    [InlineData("A – B")] // en dash
+    [InlineData("A — B")] // em dash
+    [InlineData("A ― B")] // horizontal bar
+    [InlineData("A ‒ B")] // figure dash
+    [InlineData("A − B")] // minus sign
+    public void SanitizeFileName_NormalizesUnicodeDashes(string input)
+    {
+        var result = NoteHelpers.SanitizeFileName(input);
+
+        Assert.Equal("A-B", result);
+    }
+
+    [Fact]
+    public void SanitizeFileName_CollapsesConsecutiveHyphens()
+    {
+        var result = NoteHelpers.SanitizeFileName("Alpha---Beta");
+
+        Assert.Equal("Alpha-Beta", result);
+    }
+
+    [Fact]
+    public void SanitizeFileName_TreatsNonBreakingSpaceAsHyphen()
+    {
+        var result = NoteHelpers.SanitizeFileName("My Note");
+
+        Assert.Equal("My-Note", result);
+    }
+
+    [Fact]
     public void MergeTagsWithInheritance_NoDuplicates()
     {
         var userTags = new[] { "project", "ai" };

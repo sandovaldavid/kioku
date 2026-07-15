@@ -231,15 +231,38 @@ public static class NoteHelpers
         return beforeClose + value + newline + content[closeIndex..];
     }
 
+    private static readonly Regex ConsecutiveHyphensRegex = new(@"-{2,}", RegexOptions.Compiled);
+
     public static string SanitizeFileName(string name)
     {
         // Use a cross-platform set of invalid filename characters so vaults
         // remain portable across Windows, macOS, and Linux.
         char[] invalid = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
-        return string.Concat(name
-            .Replace(' ', '-')
-            .Where(c => !invalid.Contains(c)))
-            .Trim('-');
+        var mapped = string.Concat(name
+            .Select(c =>
+            {
+                // Any whitespace (regular space, non-breaking space, tab) becomes a hyphen.
+                if (char.IsWhiteSpace(c))
+                {
+                    return '-';
+                }
+
+                // Normalize Unicode dash punctuation — figure dash, en dash, em dash,
+                // horizontal bar, minus sign — to a plain hyphen. LLM-authored titles
+                // routinely contain em dashes ("A — B"); left raw they leak into the
+                // filename and diverge from the human-readable title used in wikilinks.
+                if (c is '‒' or '–' or '—' or '―' or '−')
+                {
+                    return '-';
+                }
+
+                return c;
+            })
+            .Where(c => !invalid.Contains(c)));
+
+        // Collapse runs of hyphens left by adjacent spaces/dashes (e.g. "A — B" → "A-B"),
+        // then trim leading/trailing hyphens.
+        return ConsecutiveHyphensRegex.Replace(mapped, "-").Trim('-');
     }
 
     /// <summary>
