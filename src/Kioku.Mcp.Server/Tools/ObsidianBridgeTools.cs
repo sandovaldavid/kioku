@@ -13,9 +13,10 @@ namespace Kioku.Mcp.Server.Tools;
 public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndexService vault)
 {
     [McpServerTool, Description(
-        "Opens and focuses a specific note within the Obsidian application.")]
+        "Opens and focuses a specific note within Obsidian. Set split=true to open it in a new split pane.")]
     public async Task<string> open_note_in_obsidian(
-        [Description("Name or path of the note to open.")] string note)
+        [Description("Name or path of the note to open.")] string note,
+        [Description("Open the note in a new split pane instead of the current pane.")] bool split = false)
     {
         var found = ResolveNote(note);
         if (found is null)
@@ -28,23 +29,101 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
             ["path"] = found.VaultRelativePath
         };
 
-        var response = await bridge.SendRequestAsync("open-file", payload);
+        var response = await bridge.SendRequestAsync(split ? "open-in-split" : "open-file", payload);
         if (!response.Success)
         {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
+            return FormatBridgeError(response);
         }
 
-        return $"[ok] Note opened in Obsidian: '{found.Name}' ({found.VaultRelativePath})";
+        return split
+            ? $"[ok] Note opened in split pane: '{found.Name}'."
+            : $"[ok] Note opened in Obsidian: '{found.Name}' ({found.VaultRelativePath})";
     }
 
     [McpServerTool, Description(
-        "Returns metadata of the note currently open in Obsidian.")]
-    public async Task<string> get_active_note_in_obsidian()
+        "Returns a snapshot of Obsidian's bridge status, active note, open notes, and selection. " +
+        "Individual sections may report errors if a bridge request fails.")]
+    public async Task<string> get_obsidian_state()
+    {
+        // Sequential on purpose: the bridge multiplexes one ClientWebSocket, and
+        // ClientWebSocket allows only a single outstanding SendAsync — concurrent
+        // sends throw and tear down the connection.
+        var sections = new[]
+        {
+            await GetObsidianStatusAsync(),
+            await GetActiveNoteAsync(),
+            await GetOpenNotesAsync(),
+            await GetSelectionAsync(),
+        };
+
+        return string.Join("\n\n", sections);
+    }
+
+    [McpServerTool, Description(
+        "Triggers an internal Obsidian command by its unique identifier (command ID).")]
+    public async Task<string> trigger_obsidian_command(
+        [Description("Unique ID of the command (e.g., 'app:toggle-left-sidebar', 'workspace:close-others').")] string command_id)
+    {
+        var payload = new JsonObject
+        {
+            ["commandId"] = command_id
+        };
+
+        var response = await bridge.SendRequestAsync("trigger-command", payload);
+        if (!response.Success)
+        {
+            return FormatBridgeError(response);
+        }
+
+        return $"[ok] Command '{command_id}' executed successfully in Obsidian.";
+    }
+
+    [McpServerTool, Description(
+        "Edits the active Obsidian note. mode must be 'insert_at_cursor' or 'replace_selection'.")]
+    public async Task<string> edit_in_obsidian(
+        [Description("Text to insert or use as the replacement.")] string text,
+        [Description("'insert_at_cursor' to insert at the cursor, or 'replace_selection' to replace the current selection.")] string mode)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return "[error] The 'text' parameter cannot be empty.";
+        }
+
+        var normalizedMode = mode?.Trim().ToLowerInvariant();
+        var command = normalizedMode switch
+        {
+            "insert_at_cursor" => "insert-at-cursor",
+            "replace_selection" => "replace-selection",
+            _ => null
+        };
+
+        if (command is null)
+        {
+            return $"[error] Unknown mode '{mode}'. Use 'insert_at_cursor' or 'replace_selection'.";
+        }
+
+        var payload = new JsonObject
+        {
+            ["text"] = text
+        };
+
+        var response = await bridge.SendRequestAsync(command, payload);
+        if (!response.Success)
+        {
+            return FormatBridgeError(response);
+        }
+
+        return normalizedMode == "insert_at_cursor"
+            ? "[ok] Text inserted at cursor."
+            : "[ok] Selection replaced.";
+    }
+
+    private async Task<string> GetActiveNoteAsync()
     {
         var response = await bridge.SendRequestAsync("get-active-note");
         if (!response.Success)
         {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
+            return FormatBridgeError(response);
         }
 
         var data = response.Data;
@@ -77,14 +156,12 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
                $"   Path: {path}{tagsStr}{statusStr}";
     }
 
-    [McpServerTool, Description(
-        "Returns the list of all notes currently open in Obsidian tabs.")]
-    public async Task<string> get_open_notes_in_obsidian()
+    private async Task<string> GetOpenNotesAsync()
     {
         var response = await bridge.SendRequestAsync("get-open-notes");
         if (!response.Success)
         {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
+            return FormatBridgeError(response);
         }
 
         var data = response.Data;
@@ -96,161 +173,23 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         var lines = new List<string>();
         foreach (var node in array)
         {
-            if (node is null)
+            if (node is not null)
             {
-                continue;
+                var name = node["name"]?.ToString();
+                var path = node["path"]?.ToString();
+                lines.Add($"- {name} ({path})");
             }
-
-            var name = node["name"]?.ToString();
-            var path = node["path"]?.ToString();
-            lines.Add($"- {name} ({path})");
         }
 
         return $"{lines.Count} note(s) open in Obsidian:\n" + string.Join("\n", lines);
     }
 
-    [McpServerTool, Description(
-        "Triggers an internal Obsidian command by its unique identifier (command ID).")]
-    public async Task<string> trigger_obsidian_command(
-        [Description("Unique ID of the command (e.g., 'app:toggle-left-sidebar', 'workspace:close-others').")] string command_id)
-    {
-        var payload = new JsonObject
-        {
-            ["commandId"] = command_id
-        };
-
-        var response = await bridge.SendRequestAsync("trigger-command", payload);
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return $"[ok] Command '{command_id}' executed successfully in Obsidian.";
-    }
-
-    [McpServerTool, Description("Insert text at the cursor position in the active Obsidian note.")]
-    public async Task<string> insert_at_cursor(
-        [Description("Text to insert at the current cursor position.")] string text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return "[error] The 'text' parameter cannot be empty.";
-        }
-
-        var payload = new JsonObject
-        {
-            ["text"] = text
-        };
-
-        var response = await bridge.SendRequestAsync("insert-at-cursor", payload);
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return "[ok] Text inserted at cursor.";
-    }
-
-    [McpServerTool, Description("Replace the current text selection in the active Obsidian note.")]
-    public async Task<string> replace_selection(
-        [Description("Text to replace the selection with.")] string text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return "[error] The 'text' parameter cannot be empty.";
-        }
-
-        var payload = new JsonObject
-        {
-            ["text"] = text
-        };
-
-        var response = await bridge.SendRequestAsync("replace-selection", payload);
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return "[ok] Selection replaced.";
-    }
-
-    [McpServerTool, Description("Create a note and open it in Obsidian. Creates the file if it does not exist.")]
-    public async Task<string> create_note_ui(
-        [Description("Vault-relative path of the note to create and open (e.g. 'Projects/NewNote.md').")] string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return "[error] The 'path' parameter cannot be empty.";
-        }
-
-        var payload = new JsonObject
-        {
-            ["path"] = path
-        };
-
-        var response = await bridge.SendRequestAsync("create-note-ui", payload);
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return $"[ok] Note created and opened in Obsidian: '{path}'.";
-    }
-
-    [McpServerTool, Description("Scroll the active Obsidian note to a specific block ID (e.g. '^blockid').")]
-    public async Task<string> scroll_to_block(
-        [Description("Block ID to scroll to (without the ^ prefix, e.g. 'abc123').")] string block_id)
-    {
-        if (string.IsNullOrWhiteSpace(block_id))
-        {
-            return "[error] The 'block_id' parameter cannot be empty.";
-        }
-
-        var payload = new JsonObject
-        {
-            ["blockId"] = block_id
-        };
-
-        var response = await bridge.SendRequestAsync("scroll-to-block", payload);
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return $"[ok] Scrolled to block '^{block_id}'.";
-    }
-
-    [McpServerTool, Description("Open a note in a new split pane in Obsidian.")]
-    public async Task<string> open_in_split(
-        [Description("Name or path of the note to open in a split pane.")] string note)
-    {
-        var found = ResolveNote(note);
-        if (found is null)
-        {
-            return $"[error] Note not found on local disk: '{note}'";
-        }
-
-        var payload = new JsonObject
-        {
-            ["path"] = found.VaultRelativePath
-        };
-
-        var response = await bridge.SendRequestAsync("open-in-split", payload);
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return $"[ok] Note opened in split pane: '{found.Name}'.";
-    }
-
-    [McpServerTool, Description("Returns the text currently selected in the active Obsidian note, if any.")]
-    public async Task<string> get_selection_in_obsidian()
+    private async Task<string> GetSelectionAsync()
     {
         var response = await bridge.SendRequestAsync("get-selection");
         if (!response.Success)
         {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
+            return FormatBridgeError(response);
         }
 
         var data = response.Data;
@@ -265,60 +204,29 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
         return $"Selected text ({length} chars):\n{selection}";
     }
 
-    [McpServerTool, Description("Toggles the active Obsidian note between edit mode and reading (preview) mode.")]
-    public async Task<string> toggle_reading_mode()
-    {
-        var response = await bridge.SendRequestAsync("toggle-reading-mode");
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return "[ok] Reading mode toggled.";
-    }
-
-    [McpServerTool, Description("Folds all headings in the active Obsidian note (collapses all sections).")]
-    public async Task<string> fold_all_headings()
-    {
-        var response = await bridge.SendRequestAsync("fold-all-headings");
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return "[ok] All headings folded.";
-    }
-
-    [McpServerTool, Description("Unfolds all headings in the active Obsidian note (expands all sections).")]
-    public async Task<string> unfold_all_headings()
-    {
-        var response = await bridge.SendRequestAsync("unfold-all-headings");
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return "[ok] All headings unfolded.";
-    }
-
-    [McpServerTool, Description(
-        "Returns Obsidian bridge status: whether the plugin is ready, the Obsidian and Kioku plugin versions, " +
-        "and the open vault's path and name.")]
-    public async Task<string> get_obsidian_status()
+    private async Task<string> GetObsidianStatusAsync()
     {
         var ready = await bridge.SendRequestAsync("is-obsidian-ready");
         if (!ready.Success)
         {
-            return ready.IsUnauthorized() ? ready.Error! : $"[error] Obsidian plugin error: {ready.Error}";
+            return FormatBridgeError(ready);
         }
 
         var version = await bridge.SendRequestAsync("get-app-version");
         var vaultInfo = await bridge.SendRequestAsync("get-vault-path");
 
-        var obsidianVersion = version.Data?["obsidianVersion"]?.ToString() ?? "unknown";
-        var kiokuVersion = version.Data?["kiokuVersion"]?.ToString() ?? "unknown";
-        var vaultPath = vaultInfo.Data?["vaultPath"]?.ToString() ?? "unknown";
-        var vaultName = vaultInfo.Data?["vaultName"]?.ToString() ?? "unknown";
+        var obsidianVersion = version.Success
+            ? version.Data?["obsidianVersion"]?.ToString() ?? "unknown"
+            : FormatBridgeError(version);
+        var kiokuVersion = version.Success
+            ? version.Data?["kiokuVersion"]?.ToString() ?? "unknown"
+            : "unknown";
+        var vaultPath = vaultInfo.Success
+            ? vaultInfo.Data?["vaultPath"]?.ToString() ?? "unknown"
+            : FormatBridgeError(vaultInfo);
+        var vaultName = vaultInfo.Success
+            ? vaultInfo.Data?["vaultName"]?.ToString() ?? "unknown"
+            : "unknown";
 
         return "Obsidian bridge status:\n" +
                "   Ready: true\n" +
@@ -327,7 +235,8 @@ public sealed class ObsidianBridgeTools(ObsidianBridgeService bridge, VaultIndex
                $"   Vault: {vaultName} ({vaultPath})";
     }
 
-    // Private helper
+    private static string FormatBridgeError(BridgeResponse response) =>
+        response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
 
     private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
 }

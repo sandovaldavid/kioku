@@ -94,50 +94,51 @@ public sealed class PluginIntegrationTools(VaultIndexService vault, ObsidianBrid
         return $"[ok] Template applied:\n{json}";
     }
 
-    // lint_note
+    // lint
 
     [McpServerTool, Description(
-        "Runs the Obsidian Linter plugin on a specific note or the currently active note. " +
+        "Runs the Obsidian Linter plugin with scope='note' or scope='vault'. " +
+        "For note scope, lints a specific note or the currently active note; vault scope lints all notes. " +
         "Requires Obsidian to be open with the Kioku plugin and the 'obsidian-linter' plugin enabled. " +
         "Linter fixes formatting issues according to the user's configured Linter rules.")]
-    public async Task<string> lint_note(
-        [Description("Vault-relative path of the note to lint. Leave empty to lint the currently active note.")] string note = "")
+    public async Task<string> lint(
+        [Description("Lint scope: exactly 'note' or 'vault'.")] string scope,
+        [Description("For note scope, vault-relative path of the note to lint. Leave empty to lint the currently active note.")] string note = "")
     {
-        if (!vault.IsReady)
+        if (scope is not ("note" or "vault"))
         {
-            return "[loading] The index is still loading. Wait a moment and try again.";
+            return $"[error] Invalid lint scope '{scope}'. Valid scopes: note, vault.";
         }
 
-        var payload = new JsonObject();
-        if (!string.IsNullOrWhiteSpace(note))
+        if (scope == "note")
         {
-            var resolved = ResolveNote(note);
-            if (resolved is null)
+            if (!vault.IsReady)
             {
-                return $"[error] Note not found: '{note}'";
+                return "[loading] The index is still loading. Wait a moment and try again.";
             }
-            payload["notePath"] = resolved.VaultRelativePath;
+
+            var payload = new JsonObject();
+            if (!string.IsNullOrWhiteSpace(note))
+            {
+                var resolved = ResolveNote(note);
+                if (resolved is null)
+                {
+                    return $"[error] Note not found: '{note}'";
+                }
+                payload["notePath"] = resolved.VaultRelativePath;
+            }
+
+            var noteResult = await bridge.SendRequestAsync("run-linter", payload);
+
+            if (!noteResult.Success)
+            {
+                return noteResult.IsUnauthorized() ? noteResult.Error! : $"[error] {noteResult.Error}";
+            }
+
+            var displayName = string.IsNullOrWhiteSpace(note) ? "active note" : (ResolveNote(note)?.VaultRelativePath ?? note);
+            return $"[ok] Linter executed on '{displayName}'.";
         }
 
-        var result = await bridge.SendRequestAsync("run-linter", payload);
-
-        if (!result.Success)
-        {
-            return result.IsUnauthorized() ? result.Error! : $"[error] {result.Error}";
-        }
-
-        var displayName = string.IsNullOrWhiteSpace(note) ? "active note" : (ResolveNote(note)?.VaultRelativePath ?? note);
-        return $"[ok] Linter executed on '{displayName}'.";
-    }
-
-    // lint_vault
-
-    [McpServerTool, Description(
-        "Runs the Obsidian Linter plugin on all notes in the vault. " +
-        "Requires Obsidian to be open with the Kioku plugin and the 'obsidian-linter' plugin enabled. " +
-        "This is a long-running operation for large vaults.")]
-    public async Task<string> lint_vault()
-    {
         var result = await bridge.SendRequestAsync("run-linter-vault", new JsonObject());
 
         if (!result.Success)

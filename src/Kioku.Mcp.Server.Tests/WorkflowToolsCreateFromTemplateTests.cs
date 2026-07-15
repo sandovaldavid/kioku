@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
@@ -28,15 +27,9 @@ public class WorkflowToolsCreateFromTemplateTests : IAsyncLifetime
     private (WorkflowTools Workflow, NoteCommandTools Commands) CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        var tasks = new TaskService(NullLogger<TaskService>.Instance, config);
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
-        var gen = new GenerationService(
-            config,
-            NullLogger<GenerationService>.Instance,
-            new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
-                Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)))));
         var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
-        var workflow = new WorkflowTools(_fixture.Index, config, tasks, vaultConfig, gen, bridge);
+        var workflow = new WorkflowTools(_fixture.Index, config, vaultConfig, bridge);
         var commands = new NoteCommandTools(_fixture.Index, config, vaultConfig);
         return (workflow, commands);
     }
@@ -74,5 +67,86 @@ public class WorkflowToolsCreateFromTemplateTests : IAsyncLifetime
         var content = await File.ReadAllTextAsync(Path.Combine(_fixture.VaultPath, "Daily", "2026-07-14.md"));
         Assert.Contains("type: daily", content);
         Assert.Contains("status: active", content);
+    }
+
+    [Fact]
+    public async Task ManageTemplates_VaultSetListAndGet_PreservesTemplateBehavior()
+    {
+        var (workflow, _) = CreateTools();
+
+        var setResult = await workflow.manage_templates(
+            scope: "vault", action: "set", name: "daily", content: "# {{date}}\n\n{{title}}");
+
+        Assert.StartsWith("[ok] Template created: Templates/daily.md", setResult);
+        Assert.Contains("{{date}}", setResult);
+
+        var listResult = await workflow.manage_templates(scope: "vault", action: "list");
+        Assert.Contains("**daily**", listResult);
+        Assert.Contains("{{date}}", listResult);
+
+        var getResult = await workflow.manage_templates(scope: "vault", action: "get", name: "daily");
+        Assert.Contains("# {{date}}", getResult);
+        Assert.Contains("{{title}}", getResult);
+    }
+
+    [Fact]
+    public async Task ManageTemplates_VaultSetDoesNotOverwriteExistingTemplate()
+    {
+        var (workflow, _) = CreateTools();
+        await workflow.manage_templates(scope: "vault", action: "set", name: "daily", content: "FIRST");
+
+        var result = await workflow.manage_templates(scope: "vault", action: "set", name: "daily", content: "SECOND");
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("already exists", result);
+    }
+
+    [Fact]
+    public async Task ManageTemplates_EngineeringSetGetListAndReset_UsesVaultOverride()
+    {
+        var (workflow, _) = CreateTools();
+
+        var setResult = await workflow.manage_templates(
+            scope: "engineering", action: "set", type_key: "adr", content: "CUSTOM: {{decision}}");
+        Assert.StartsWith("[ok]", setResult);
+
+        var getResult = await workflow.manage_templates(scope: "engineering", action: "get", type_key: "adr");
+        Assert.Contains("override:", getResult);
+        Assert.Contains("CUSTOM: {{decision}}", getResult);
+
+        var listResult = await workflow.manage_templates(scope: "engineering", action: "list");
+        Assert.Contains("**adr**", listResult);
+        Assert.Contains("using embedded default", listResult);
+        Assert.Contains("override at Templates/kioku/adr.md", listResult);
+
+        var resetResult = await workflow.manage_templates(
+            scope: "engineering", action: "set", type_key: "adr", reset_to_default: true);
+        Assert.StartsWith("[ok]", resetResult);
+        Assert.Contains("embedded default", resetResult);
+    }
+
+    [Theory]
+    [InlineData("other", "list")]
+    [InlineData("vault", "delete")]
+    public async Task ManageTemplates_InvalidScopeOrAction_ReturnsError(string scope, string action)
+    {
+        var (workflow, _) = CreateTools();
+
+        var result = await workflow.manage_templates(scope, action);
+
+        Assert.StartsWith("[error]", result);
+    }
+
+    [Fact]
+    public async Task ManageTemplates_EngineeringSetUnknownVariable_ReturnsWarning()
+    {
+        var (workflow, _) = CreateTools();
+
+        var result = await workflow.manage_templates(
+            scope: "engineering", action: "set", type_key: "adr", content: "{{not_a_real_var}}");
+
+        Assert.Contains("[ok]", result);
+        Assert.Contains("[warning]", result);
+        Assert.Contains("not_a_real_var", result);
     }
 }

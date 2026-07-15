@@ -9,38 +9,78 @@ namespace Kioku.Mcp.Server.Tools;
 /// <summary>
 /// MCP tools for Obsidian CSS snippet management.
 /// Writes to .obsidian/snippets/ — does NOT use app.customCss (private API).
-/// After creating/updating a snippet, call reload_css_snippets to apply changes without
+/// After creating/updating a snippet, use trigger_obsidian_command to apply changes without
 /// restarting Obsidian.
 /// </summary>
 [McpServerToolType]
-public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeService bridge)
+public sealed class CssThemingTools(KiokuConfiguration config)
 {
     private string SnippetsFolder => Path.Combine(config.VaultPath, ".obsidian", "snippets");
     private string AppJsonPath => Path.Combine(config.VaultPath, ".obsidian", "app.json");
 
-    // apply_css_snippet
-
     [McpServerTool, Description(
-        "Creates or updates a CSS snippet file in the Obsidian vault's .obsidian/snippets/ folder. " +
+        "Manages CSS snippets in the Obsidian vault's .obsidian/snippets/ folder. " +
+        "action='list' lists snippets, action='apply' creates or updates one, and action='remove' deletes one. " +
         "Use Obsidian CSS variables (--color-base-00, --text-normal, etc.) for best compatibility. " +
-        "After applying, call trigger_obsidian_command with 'app:reload-css-snippets' to activate it.")]
-    public async Task<string> apply_css_snippet(
-        [Description("Snippet filename without .css extension (e.g. 'sepia-editor', 'custom-tags').")] string name,
-        [Description("Valid CSS content. Use Obsidian CSS variables for theme compatibility.")] string css_content,
+        "After applying changes, call trigger_obsidian_command with 'app:reload-css-snippets' to activate them.")]
+    public async Task<string> manage_css_snippets(
+        [Description("Action to perform: 'list', 'apply', or 'remove'.")]
+        string action = "list",
+        [Description("Snippet filename without .css extension. Required for 'apply' and 'remove'.")]
+        string? name = null,
+        [Description("Valid CSS content. Required for 'apply'. Use Obsidian CSS variables for theme compatibility.")]
+        string? css_content = null,
         [Description(
-            "If true, adds the snippet to Obsidian's enabled snippets list in app.json. " +
-            "Requires 'app:reload-css-snippets' plugin command to take effect.")] bool enable = true)
+            "For 'apply', if true (the default), adds the snippet to Obsidian's enabledCssSnippets list in app.json. " +
+            "Requires 'app:reload-css-snippets' plugin command to take effect.")]
+        bool? enable = null)
     {
+        var normalizedAction = action?.Trim().ToLowerInvariant();
+        if (normalizedAction is not ("list" or "apply" or "remove"))
+        {
+            return $"[error] Invalid CSS snippet action '{action}'. Valid actions: list, apply, remove.";
+        }
+
+        if (normalizedAction == "list")
+        {
+            if (name is not null || css_content is not null || enable.HasValue)
+            {
+                return "[error] Action 'list' does not accept name, css_content, or enable parameters.";
+            }
+
+            return await ListSnippetsAsync();
+        }
+
         if (string.IsNullOrWhiteSpace(name))
         {
-            return "[error] Snippet name cannot be empty.";
+            return $"[error] Action '{normalizedAction}' requires a snippet name.";
         }
 
-        if (string.IsNullOrWhiteSpace(css_content))
+        if (normalizedAction == "apply")
         {
-            return "[error] CSS content cannot be empty.";
+            if (string.IsNullOrWhiteSpace(css_content))
+            {
+                return "[error] Action 'apply' requires non-empty css_content.";
+            }
+
+            if (enable is null)
+            {
+                enable = true;
+            }
+
+            return await ApplySnippetAsync(name, css_content, enable.Value);
         }
 
+        if (css_content is not null || enable.HasValue)
+        {
+            return "[error] Action 'remove' only accepts the name parameter.";
+        }
+
+        return await RemoveSnippetAsync(name);
+    }
+
+    private async Task<string> ApplySnippetAsync(string name, string cssContent, bool enable)
+    {
         // Sanitize name — no path traversal
         var safeName = Path.GetFileNameWithoutExtension(name)
             .Replace("..", string.Empty)
@@ -56,16 +96,11 @@ public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeSer
         var filePath = Path.Combine(SnippetsFolder, safeName + ".css");
         var isNew = !File.Exists(filePath);
 
-        await File.WriteAllTextAsync(filePath, css_content, Encoding.UTF8);
+        await File.WriteAllTextAsync(filePath, cssContent, NoteHelpers.Utf8NoBom);
 
-        var enableResult = string.Empty;
-        if (enable)
-        {
-            enableResult = await EnableSnippetInAppJson(safeName);
-        }
-
-        var action = isNew ? "created" : "updated";
-        var result = $"[ok] CSS snippet '{safeName}' {action}: .obsidian/snippets/{safeName}.css";
+        var enableResult = enable ? await EnableSnippetInAppJson(safeName) : string.Empty;
+        var operation = isNew ? "created" : "updated";
+        var result = $"[ok] CSS snippet '{safeName}' {operation}: .obsidian/snippets/{safeName}.css";
 
         if (!string.IsNullOrEmpty(enableResult))
         {
@@ -76,17 +111,12 @@ public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeSer
         return result;
     }
 
-    // list_css_snippets
-
-    [McpServerTool, Description(
-        "Lists all CSS snippet files in the vault's .obsidian/snippets/ folder, " +
-        "showing their enabled/disabled status and a preview of their content.")]
-    public async Task<string> list_css_snippets()
+    private async Task<string> ListSnippetsAsync()
     {
         if (!Directory.Exists(SnippetsFolder))
         {
             return "[info] No snippets folder found (.obsidian/snippets/). " +
-                   "Use apply_css_snippet to create your first snippet.";
+                   "Use manage_css_snippets(action='apply') to create your first snippet.";
         }
 
         var snippetFiles = Directory.EnumerateFiles(SnippetsFolder, "*.css").OrderBy(f => f).ToList();
@@ -95,9 +125,7 @@ public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeSer
             return "[info] No CSS snippets found in .obsidian/snippets/.";
         }
 
-        // Read enabled snippets from app.json
         var enabledSnippets = await GetEnabledSnippets();
-
         var sb = new StringBuilder($"[ok] {snippetFiles.Count} CSS snippet(s):\n\n");
 
         foreach (var file in snippetFiles)
@@ -120,19 +148,9 @@ public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeSer
         return sb.ToString();
     }
 
-    // remove_css_snippet
-
-    [McpServerTool, Description(
-        "Removes a CSS snippet file from the Obsidian vault's .obsidian/snippets/ folder. " +
-        "Also removes it from the enabledCssSnippets list in app.json.")]
-    public async Task<string> remove_css_snippet(
-        [Description("Snippet name without .css extension (e.g. 'sepia-editor').")] string name)
+    private async Task<string> RemoveSnippetAsync(string name)
     {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return "[error] Snippet name cannot be empty.";
-        }
-
+        // Sanitize name — no path traversal
         var safeName = Path.GetFileNameWithoutExtension(name)
             .Replace("..", string.Empty)
             .Replace("/", string.Empty)
@@ -168,20 +186,6 @@ public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeSer
         {
             return $"[error] Failed to delete snippet: {ex.Message}";
         }
-    }
-
-    [McpServerTool, Description(
-        "Reloads CSS snippets in Obsidian so changes made with apply_css_snippet or " +
-        "remove_css_snippet take effect without restarting Obsidian.")]
-    public async Task<string> reload_css_snippets()
-    {
-        var response = await bridge.SendRequestAsync("reload-snippets");
-        if (!response.Success)
-        {
-            return response.IsUnauthorized() ? response.Error! : $"[error] Obsidian plugin error: {response.Error}";
-        }
-
-        return "[ok] CSS snippets reloaded.";
     }
 
     // Private helpers
@@ -221,7 +225,7 @@ public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeSer
                 dict["enabledCssSnippets"] = enabledSnippets;
 
                 var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(AppJsonPath, updatedJson, Encoding.UTF8);
+                await File.WriteAllTextAsync(AppJsonPath, updatedJson, NoteHelpers.Utf8NoBom);
 
                 return $"   Snippet removed from enabledCssSnippets in app.json.";
             }
@@ -277,7 +281,7 @@ public sealed class CssThemingTools(KiokuConfiguration config, ObsidianBridgeSer
                 dict["enabledCssSnippets"] = enabledSnippets;
 
                 var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(AppJsonPath, updatedJson, Encoding.UTF8);
+                await File.WriteAllTextAsync(AppJsonPath, updatedJson, NoteHelpers.Utf8NoBom);
 
                 return $"   Snippet added to enabledCssSnippets in app.json.";
             }

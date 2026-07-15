@@ -9,7 +9,7 @@ using Xunit;
 namespace Kioku.Mcp.Server.Tests;
 
 /// <summary>
-/// Integration tests for GraphAnalysisTools.suggest_links / apply_link_suggestions. Each test
+/// Integration tests for GraphAnalysisTools.suggest_links. Each test
 /// gets its own temporary vault (not shared via IClassFixture) since these tools write files
 /// and rely on a controlled, deterministic fake embedding backend.
 /// </summary>
@@ -76,21 +76,21 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
     // suggest_links — per-note mode
 
     [Fact]
-    public void SuggestLinks_NoteNotFound_ReturnsNotFound()
+    public async Task SuggestLinks_NoteNotFound_ReturnsNotFound()
     {
         var tools = CreateToolsWithoutEmbeddings();
 
-        var result = tools.suggest_links("Nonexistent Note");
+        var result = await tools.suggest_links("Nonexistent Note");
 
         Assert.Contains("[error] [NOT_FOUND]", result);
     }
 
     [Fact]
-    public void SuggestLinks_PerNote_WithoutEmbeddings_ReturnsDependencyUnavailable()
+    public async Task SuggestLinks_PerNote_WithoutEmbeddings_ReturnsDependencyUnavailable()
     {
         var tools = CreateToolsWithoutEmbeddings();
 
-        var result = tools.suggest_links("Note One");
+        var result = await tools.suggest_links("Note One");
 
         Assert.Contains("[error] [DEPENDENCY_UNAVAILABLE]", result);
     }
@@ -103,10 +103,26 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
         await _fixture.Index.RebuildIndexAsync();
         var (tools, _) = await CreateToolsWithEmbeddingsAsync();
 
-        var result = tools.suggest_links("Python Note A", min_similarity: 0.5f);
+        var result = await tools.suggest_links("Python Note A", min_similarity: 0.5f);
 
         Assert.Contains("[[Python Note A]] → [[Python Note B]]", result);
         Assert.Contains("semantic-similarity", result);
+    }
+
+    [Fact]
+    public async Task SuggestLinks_PerNote_ApplyAddsSemanticCandidate()
+    {
+        await _fixture.CreateNoteAsync("Python Note A", "A note about python programming.");
+        await _fixture.CreateNoteAsync("Python Note B", "Another note about python programming.");
+        await _fixture.Index.RebuildIndexAsync();
+        var (tools, _) = await CreateToolsWithEmbeddingsAsync();
+
+        var result = await tools.suggest_links("Python Note A", apply: true, min_similarity: 0.5f);
+        var body = await _fixture.ReadNoteBodyAsync("Python Note A");
+
+        Assert.Contains("Added 1 related link(s)", result);
+        Assert.Contains("## Related", body);
+        Assert.Contains("[[Python Note B]]", body);
     }
 
     [Fact]
@@ -123,7 +139,7 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
         var hybrid = new HybridSearchService(_fixture.Index, embedding);
         var tools = new GraphAnalysisTools(_fixture.Index, hybrid, embedding, config);
 
-        var result = tools.suggest_links("Python Note C", min_similarity: 0.5f);
+        var result = await tools.suggest_links("Python Note C", min_similarity: 0.5f);
 
         Assert.DoesNotContain("Python Note D", result);
         Assert.Contains("Python Note E", result);
@@ -132,11 +148,11 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
     // suggest_links — vault-wide mode
 
     [Fact]
-    public void SuggestLinksVault_WithoutEmbeddings_ReturnsStructuralFallback()
+    public async Task SuggestLinksVault_WithoutEmbeddings_ReturnsStructuralFallback()
     {
         var tools = CreateToolsWithoutEmbeddings();
 
-        var result = tools.suggest_links();
+        var result = await tools.suggest_links();
 
         Assert.Contains("[info] Semantic link suggestions require Ollama", result);
         Assert.Contains("unlinked note", result, StringComparison.OrdinalIgnoreCase);
@@ -156,7 +172,7 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
         var hybrid = new HybridSearchService(_fixture.Index, embedding);
         var tools = new GraphAnalysisTools(_fixture.Index, hybrid, embedding, config);
 
-        var result = tools.suggest_links(min_similarity: 0.5f, max_suggestions: 20);
+        var result = await tools.suggest_links(min_similarity: 0.5f, max_suggestions: 20);
 
         Assert.Contains("[[Orphan Python Note]]", result);
         Assert.Contains("orphan-rescue", result);
@@ -177,20 +193,18 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
         var hybrid = new HybridSearchService(_fixture.Index, embedding);
         var tools = new GraphAnalysisTools(_fixture.Index, hybrid, embedding, config);
 
-        var result = tools.suggest_links(min_similarity: 0.5f, max_suggestions: 20);
+        var result = await tools.suggest_links(min_similarity: 0.5f, max_suggestions: 20);
 
         Assert.Contains("island-bridge", result);
         Assert.Contains("Music Hub", result);
     }
-
-    // apply_link_suggestions
 
     [Fact]
     public async Task ApplyLinkSuggestions_NoteNotFound_ReturnsNotFound()
     {
         var tools = CreateToolsWithoutEmbeddings();
 
-        var result = await tools.apply_link_suggestions("Nonexistent Note", "Note One");
+        var result = await tools.suggest_links("Nonexistent Note", targets: "Note One", apply: true);
 
         Assert.Contains("[error] [NOT_FOUND]", result);
     }
@@ -201,7 +215,7 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
         var tools = CreateToolsWithoutEmbeddings();
         var before = await _fixture.ReadNoteBodyAsync("Note One");
 
-        var result = await tools.apply_link_suggestions("Note One", "Note Two", dry_run: true);
+        var result = await tools.suggest_links("Note One", targets: "Note Two");
         var after = await _fixture.ReadNoteBodyAsync("Note One");
 
         Assert.Contains("dry_run=true", result);
@@ -214,7 +228,7 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
     {
         var tools = CreateToolsWithoutEmbeddings();
 
-        var result = await tools.apply_link_suggestions("Note One", "Note Two");
+        var result = await tools.suggest_links("Note One", targets: "Note Two", apply: true);
         var body = await _fixture.ReadNoteBodyAsync("Note One");
 
         Assert.Contains("[ok] Added 1 link(s)", result);
@@ -227,10 +241,10 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
     {
         var tools = CreateToolsWithoutEmbeddings();
 
-        await tools.apply_link_suggestions("Note One", "Note Two");
+        await tools.suggest_links("Note One", targets: "Note Two", apply: true);
         var afterFirst = await _fixture.ReadNoteBodyAsync("Note One");
 
-        var secondResult = await tools.apply_link_suggestions("Note One", "Note Two");
+        var secondResult = await tools.suggest_links("Note One", targets: "Note Two", apply: true);
         var afterSecond = await _fixture.ReadNoteBodyAsync("Note One");
 
         Assert.Contains("already linked", secondResult);
@@ -242,7 +256,7 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
     {
         var tools = CreateToolsWithoutEmbeddings();
 
-        var result = await tools.apply_link_suggestions("Note One", "Note Two, Nonexistent Target");
+        var result = await tools.suggest_links("Note One", targets: "Note Two, Nonexistent Target", apply: true);
 
         Assert.Contains("[ok] Added 1 link(s)", result);
         Assert.Contains("Could not resolve: Nonexistent Target", result);
@@ -253,10 +267,23 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
     {
         var tools = CreateToolsWithoutEmbeddings();
 
-        await tools.apply_link_suggestions("Note One", "Note Two", section: "See Also");
+        await tools.suggest_links("Note One", targets: "Note Two", section: "See Also", apply: true);
         var body = await _fixture.ReadNoteBodyAsync("Note One");
 
         Assert.Contains("## See Also", body);
         Assert.DoesNotContain("## Related", body);
+    }
+
+    [Fact]
+    public void VaultSnapshot_ContainsConsolidatedGraphAnalysis()
+    {
+        var tools = new KnowledgeGraphTools(_fixture.Index);
+
+        var result = tools.get_vault_snapshot();
+
+        Assert.Contains("## Graph density", result);
+        Assert.Contains("Average backlinks/note", result);
+        Assert.Contains("## Unlinked notes", result);
+        Assert.Contains("## Graph islands", result);
     }
 }

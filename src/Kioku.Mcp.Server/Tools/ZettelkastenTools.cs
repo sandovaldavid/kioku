@@ -2,16 +2,12 @@ using System.ComponentModel;
 using System.Text;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
-using ModelContextProtocol.Server;
 
 namespace Kioku.Mcp.Server.Tools;
 
 /// <summary>
-/// MCP tools for Zettelkasten-style note creation and knowledge graph management.
-/// Focused on creating structured, interconnected notes that follow
-/// the Zettelkasten method for building a personal knowledge base.
+/// Internal helper for Zettelkasten-style note creation delegated by NoteCommandTools.
 /// </summary>
-[McpServerToolType]
 public sealed class ZettelkastenTools(
     VaultIndexService vault,
     EmbeddingService embedding,
@@ -22,7 +18,7 @@ public sealed class ZettelkastenTools(
 {
     // create_zettel
 
-    [McpServerTool, Description(
+    [Description(
         "Creates a Zettelkasten note with a unique timestamp ID (YYYYMMDDHHMMSS) as the filename. " +
         "Optionally finds semantically related notes and adds wikilinks to them. " +
         "Returns the created note's path and ID.")]
@@ -91,7 +87,7 @@ public sealed class ZettelkastenTools(
 
         var dir = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
+        await File.WriteAllTextAsync(filePath, fullContent, NoteHelpers.Utf8NoBom);
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
@@ -124,7 +120,7 @@ public sealed class ZettelkastenTools(
 
     // create_moc
 
-    [McpServerTool, Description(
+    [Description(
         "Generates a Map of Content (MOC) note for a given vault folder. " +
         "The MOC lists all notes in the folder with their tags and a brief description, " +
         "organized hierarchically by subfolder. Overwrites any existing MOC for the same folder.")]
@@ -178,7 +174,7 @@ public sealed class ZettelkastenTools(
         var filePath = BuildFilePath(fullMocName);
         var dir = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
+        await File.WriteAllTextAsync(filePath, fullContent, NoteHelpers.Utf8NoBom);
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
@@ -193,7 +189,7 @@ public sealed class ZettelkastenTools(
 
     // create_folder_readme
 
-    [McpServerTool, Description(
+    [Description(
         "Creates a folder note (named after the folder, e.g. Projects.md inside Projects/) " +
         "listing all its notes. Compatible with the Obsidian Folder Notes plugin. " +
         "Acts as a lightweight, non-Zettelkasten alternative to create_moc. " +
@@ -261,73 +257,15 @@ public sealed class ZettelkastenTools(
             Path.Combine(config.VaultPath, folder.TrimEnd('/'), $"{folderTitle}.md"));
         var dir = Path.GetDirectoryName(folderNotePath)!;
         Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(folderNotePath, sb.ToString(), Encoding.UTF8);
+        await File.WriteAllTextAsync(folderNotePath, sb.ToString(), NoteHelpers.Utf8NoBom);
 
         var relPath = Path.GetRelativePath(config.VaultPath, folderNotePath).Replace('\\', '/');
         return $"[ok] Folder note created: {relPath} ({notes.Count} notes listed)";
     }
 
-    // link_related_notes
-
-    [McpServerTool, Description(
-        "Finds notes that are semantically related to a given note and appends wikilinks to them " +
-        "in a 'Related' section at the end of the note. " +
-        "Requires Ollama to be running (semantic search). " +
-        "Does not add links that already exist in the note.")]
-    public async Task<string> link_related_notes(
-        [Description("Name or path of the note to find related notes for and link.")] string note,
-        [Description("Maximum number of related notes to link (default 5).")] int max_links = 5,
-        [Description("Minimum similarity score (0.0–1.0). Notes below this threshold are excluded. Default: 0.65.")] double min_similarity = 0.65)
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        if (!embedding.IsAvailable)
-        {
-            return "[info] Semantic search is unavailable. Ensure Ollama is running to use link_related_notes.";
-        }
-
-        var found = ResolveNote(note);
-        if (found is null)
-        {
-            return $"[error] Note not found: '{note}'.";
-        }
-
-        // Use FindSimilar which handles vector lookup and note dictionary internally
-        var similar = hybrid.FindSimilar(found, max_links + 5, (float)min_similarity)
-            .Take(max_links)
-            .ToList();
-
-        if (similar.Count == 0)
-        {
-            return $"[info] No notes found with similarity >= {min_similarity:P0} to '{found.Name}'.";
-        }
-
-        // Read current content, check which links already exist
-        var currentContent = await File.ReadAllTextAsync(found.FilePath);
-        var existingLinks = found.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var updatedContent = NoteHelpers.AppendLinkSection(
-            currentContent, existingLinks, "Related",
-            similar.Select(r => (r.Note.Name, (string?)$"{r.Score:P0} similar")));
-
-        if (updatedContent is null)
-        {
-            return $"[info] All {similar.Count} related notes are already linked from '{found.Name}'.";
-        }
-
-        await File.WriteAllTextAsync(found.FilePath, updatedContent, Encoding.UTF8);
-
-        var newLinks = similar.Where(r => !existingLinks.Contains(r.Note.Name)).ToList();
-        return $"[ok] Added {newLinks.Count} related links to '{found.Name}':\n" +
-               string.Join("\n", newLinks.Select(r => $"  - [[{r.Note.Name}]] ({r.Score:P0})"));
-    }
-
     // create_literature_note
 
-    [McpServerTool, Description(
+    [Description(
         "Creates a structured literature note for a book, article, or paper " +
         "using the standard Zettelkasten literature note template. " +
         "The note includes fields for author, year, title, source, and a summary section.")]
@@ -382,7 +320,7 @@ public sealed class ZettelkastenTools(
 
         var dir = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
+        await File.WriteAllTextAsync(filePath, fullContent, NoteHelpers.Utf8NoBom);
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);

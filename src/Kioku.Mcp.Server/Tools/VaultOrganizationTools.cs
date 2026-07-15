@@ -19,167 +19,68 @@ public sealed class VaultOrganizationTools(
     EmbeddingService embedding,
     VaultConfigService vaultConfig)
 {
-    // normalize_tags
+    // manage_tags
 
     [McpServerTool, Description(
-        "Normalizes tag formatting across all notes in the vault. " +
-        "Converts tags to lowercase and replaces spaces/underscores with hyphens. " +
+        "Manages tags across the entire vault. operation must be 'normalize', 'rename', or 'merge'. " +
+        "Rename uses old_tag/new_tag; merge uses source_tag/target_tag. " +
         "Use dry_run=true to preview changes without modifying files.")]
-    public async Task<string> normalize_tags(
-        [Description("If true, returns a preview of what would change without modifying any files.")] bool dry_run = false)
-    {
-        var notes = vault.GetAllNotes().ToList();
-        var changes = new List<(string NotePath, string OldTag, string NewTag)>();
-
-        foreach (var note in notes)
-        {
-            foreach (var tag in note.Metadata.Tags)
-            {
-                var normalized = NormalizeTag(tag);
-                if (!string.Equals(tag, normalized, StringComparison.Ordinal))
-                {
-                    changes.Add((note.VaultRelativePath, tag, normalized));
-                }
-            }
-        }
-
-        if (changes.Count == 0)
-        {
-            return "[ok] All tags are already normalized. No changes needed.";
-        }
-
-        if (dry_run)
-        {
-            var sb = new StringBuilder($"[info] dry_run=true — {changes.Count} tag(s) would be normalized:\n\n");
-            foreach (var (path, old, @new) in changes)
-            {
-                sb.AppendLine($"  {path}: #{old} → #{@new}");
-            }
-            return sb.ToString();
-        }
-
-        // Group by note path and apply all changes to each note at once
-        var byNote = changes.GroupBy(c => c.NotePath).ToList();
-        var updatedCount = 0;
-
-        foreach (var group in byNote)
-        {
-            var note = vault.GetNote(group.Key) ?? vault.GetNoteByName(Path.GetFileNameWithoutExtension(group.Key));
-            if (note is null)
-            {
-                continue;
-            }
-
-            var rawContent = await File.ReadAllTextAsync(note.FilePath, Encoding.UTF8);
-            var newContent = rawContent;
-
-            foreach (var (_, old, @new) in group)
-            {
-                // Replace in frontmatter tag lines: "  - OldTag"
-                newContent = Regex.Replace(newContent,
-                    $@"(^\s*-\s+){Regex.Escape(old)}(\s*$)",
-                    $"$1{@new}$2",
-                    RegexOptions.Multiline | RegexOptions.IgnoreCase);
-            }
-
-            if (!string.Equals(rawContent, newContent, StringComparison.Ordinal))
-            {
-                await File.WriteAllTextAsync(note.FilePath, newContent, Encoding.UTF8);
-                updatedCount++;
-            }
-        }
-
-        return $"[ok] Normalized {changes.Count} tag(s) across {updatedCount} note(s).";
-    }
-
-    // rename_tag_globally
-
-    [McpServerTool, Description(
-        "Renames a tag in every note across the entire vault. " +
-        "Use dry_run=true to preview which notes would be affected without modifying files.")]
-    public async Task<string> rename_tag_globally(
-        [Description("The tag to rename (without the # prefix).")] string old_tag,
-        [Description("The new tag name (without the # prefix).")] string new_tag,
-        [Description("If true, returns a preview of which notes would change without modifying any files.")] bool dry_run = false)
-    {
-        if (string.IsNullOrWhiteSpace(old_tag) || string.IsNullOrWhiteSpace(new_tag))
-        {
-            return "[error] Both old_tag and new_tag are required.";
-        }
-
-        var affected = vault.GetAllNotes()
-            .Where(n => n.Metadata.Tags.Any(t => t.Equals(old_tag, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
-        if (affected.Count == 0)
-        {
-            return $"[info] Tag '#{old_tag}' not found in any note.";
-        }
-
-        if (dry_run)
-        {
-            var sb = new StringBuilder($"[info] dry_run=true — #{old_tag} → #{new_tag} would affect {affected.Count} note(s):\n\n");
-            foreach (var note in affected)
-            {
-                sb.AppendLine($"  {note.VaultRelativePath}");
-            }
-            return sb.ToString();
-        }
-
-        var updatedCount = 0;
-        foreach (var note in affected)
-        {
-            var rawContent = await File.ReadAllTextAsync(note.FilePath, Encoding.UTF8);
-
-            // Replace in YAML list format: "  - old_tag"
-            var newContent = Regex.Replace(rawContent,
-                $@"(^\s*-\s+){Regex.Escape(old_tag)}(\s*$)",
-                $"$1{new_tag}$2",
-                RegexOptions.Multiline | RegexOptions.IgnoreCase);
-
-            if (!string.Equals(rawContent, newContent, StringComparison.Ordinal))
-            {
-                await File.WriteAllTextAsync(note.FilePath, newContent, Encoding.UTF8);
-                updatedCount++;
-            }
-        }
-
-        return $"[ok] Renamed #{old_tag} → #{new_tag} in {updatedCount} note(s).";
-    }
-
-    // merge_tags
-
-    [McpServerTool, Description(
-        "Merges two tags into one across the entire vault. " +
-        "All notes containing source_tag will have it replaced with target_tag. " +
-        "Use dry_run=true to preview changes without modifying files.")]
-    public async Task<string> merge_tags(
-        [Description("The tag to merge away (will be replaced).")] string source_tag,
-        [Description("The tag to merge into (will remain).")] string target_tag,
+    public async Task<string> manage_tags(
+        [Description("Operation to perform: normalize, rename, or merge.")] string operation,
+        [Description("Tag to rename from when operation is 'rename'.")] string old_tag = "",
+        [Description("Tag to rename to when operation is 'rename'.")] string new_tag = "",
+        [Description("Tag to merge away when operation is 'merge'.")] string source_tag = "",
+        [Description("Tag to keep when operation is 'merge'.")] string target_tag = "",
         [Description("If true, returns a preview without modifying any files.")] bool dry_run = false)
     {
-        if (string.IsNullOrWhiteSpace(source_tag) || string.IsNullOrWhiteSpace(target_tag))
+        var normalizedOperation = operation?.Trim().ToLowerInvariant();
+        if (normalizedOperation is not ("normalize" or "rename" or "merge"))
         {
-            return "[error] Both source_tag and target_tag are required.";
+            return $"[error] Unknown tag operation '{operation}'. Use 'normalize', 'rename', or 'merge'.";
         }
 
-        if (source_tag.Equals(target_tag, StringComparison.OrdinalIgnoreCase))
+        if (normalizedOperation == "rename" &&
+            (string.IsNullOrWhiteSpace(old_tag) || string.IsNullOrWhiteSpace(new_tag)))
+        {
+            return "[error] Both old_tag and new_tag are required for rename.";
+        }
+
+        if (normalizedOperation == "merge" &&
+            (string.IsNullOrWhiteSpace(source_tag) || string.IsNullOrWhiteSpace(target_tag)))
+        {
+            return "[error] Both source_tag and target_tag are required for merge.";
+        }
+
+        if (normalizedOperation == "merge" && source_tag.Equals(target_tag, StringComparison.OrdinalIgnoreCase))
         {
             return "[error] source_tag and target_tag cannot be the same.";
         }
 
-        var affected = vault.GetAllNotes()
-            .Where(n => n.Metadata.Tags.Any(t => t.Equals(source_tag, StringComparison.OrdinalIgnoreCase)))
+        var notes = vault.GetAllNotes().ToList();
+        var affected = notes
+            .Where(note => note.Metadata.Tags.Any(tag => TagWouldChange(
+                tag, note.Metadata.Tags, normalizedOperation, old_tag, new_tag, source_tag, target_tag)))
             .ToList();
 
         if (affected.Count == 0)
         {
-            return $"[info] Tag '#{source_tag}' not found in any note. Nothing to merge.";
+            return normalizedOperation switch
+            {
+                "normalize" => "[ok] All tags are already normalized. No changes needed.",
+                "rename" => $"[info] Tag '#{old_tag}' not found in any note.",
+                _ => $"[info] Tag '#{source_tag}' not found in any note. Nothing to merge.",
+            };
         }
 
         if (dry_run)
         {
-            var sb = new StringBuilder($"[info] dry_run=true — #{source_tag} → #{target_tag} would affect {affected.Count} note(s):\n\n");
+            var description = normalizedOperation switch
+            {
+                "normalize" => $"{CountTagChanges(affected, normalizedOperation, old_tag, new_tag, source_tag, target_tag)} tag(s) would be normalized",
+                "rename" => $"#{old_tag} → #{new_tag} would affect {affected.Count} note(s)",
+                _ => $"#{source_tag} → #{target_tag} would affect {affected.Count} note(s)",
+            };
+            var sb = new StringBuilder($"[info] dry_run=true — {description}:\n\n");
             foreach (var note in affected)
             {
                 sb.AppendLine($"  {note.VaultRelativePath}");
@@ -187,75 +88,64 @@ public sealed class VaultOrganizationTools(
             return sb.ToString();
         }
 
-        var updatedCount = 0;
-        foreach (var note in affected)
+        var (changedTags, updatedNotes) = await RewriteTagsAsync(
+            affected, normalizedOperation, old_tag, new_tag, source_tag, target_tag);
+
+        return normalizedOperation switch
         {
-            var rawContent = await File.ReadAllTextAsync(note.FilePath, Encoding.UTF8);
-
-            // If target_tag already exists, just remove source_tag line
-            var hasTarget = note.Metadata.Tags.Any(t => t.Equals(target_tag, StringComparison.OrdinalIgnoreCase));
-
-            string newContent;
-            if (hasTarget)
-            {
-                // Remove the source_tag line entirely
-                newContent = Regex.Replace(rawContent,
-                    $@"^\s*-\s+{Regex.Escape(source_tag)}\s*\n?",
-                    string.Empty,
-                    RegexOptions.Multiline | RegexOptions.IgnoreCase);
-            }
-            else
-            {
-                // Replace source_tag with target_tag
-                newContent = Regex.Replace(rawContent,
-                    $@"(^\s*-\s+){Regex.Escape(source_tag)}(\s*$)",
-                    $"$1{target_tag}$2",
-                    RegexOptions.Multiline | RegexOptions.IgnoreCase);
-            }
-
-            if (!string.Equals(rawContent, newContent, StringComparison.Ordinal))
-            {
-                await File.WriteAllTextAsync(note.FilePath, newContent, Encoding.UTF8);
-                updatedCount++;
-            }
-        }
-
-        return $"[ok] Merged #{source_tag} → #{target_tag} in {updatedCount} note(s).";
+            "normalize" => $"[ok] Normalized {changedTags} tag(s) across {updatedNotes} note(s).",
+            "rename" => $"[ok] Renamed #{old_tag} → #{new_tag} in {updatedNotes} note(s).",
+            _ => $"[ok] Merged #{source_tag} → #{target_tag} in {updatedNotes} note(s).",
+        };
     }
 
     // suggest_tags
 
     [McpServerTool, Description(
-        "Suggests existing tags from the vault that are relevant to the given note's content. " +
-        "Uses keyword overlap between the note's text and existing tags.")]
+        "Reports a note's existing, folder-inherited, and excluded tag state, then suggests " +
+        "relevant existing vault tags using keyword overlap.")]
     public Task<string> suggest_tags(
-        [Description("Name or path of the note to suggest tags for.")] string note,
+        [Description("Name or path of the note to inspect and suggest tags for.")] string note,
         [Description("Maximum number of tag suggestions to return.")] int max_suggestions = 10)
     {
-        var found = vault.GetNote(note) ?? vault.GetNoteByName(note);
+        var found = NoteHelpers.ResolveNote(note, vault);
         if (found is null)
         {
             return Task.FromResult($"[error] Note not found: '{note}'");
         }
 
-        var scored = ScoreTagSuggestions(found, max_suggestions);
+        var folder = Path.GetDirectoryName(found.VaultRelativePath)?.Replace('\\', '/') ?? "";
+        var inherited = vaultConfig.GetInheritedTags(folder);
+        var excluded = vaultConfig.ExcludeFromTags;
+        var scored = ScoreTagSuggestions(found, Math.Max(0, max_suggestions), inherited, excluded);
 
+        var sb = new StringBuilder($"[ok] Tag state for '{found.Name}':\n\n");
+        sb.AppendLine($"Existing tags: {FormatTags(found.Metadata.Tags)}");
+        sb.AppendLine($"Inherited tags: {FormatTags(inherited)}");
+        sb.AppendLine($"Excluded from tags (frontmatter fields): {FormatTags(excluded, prefix: "")}");
+        sb.AppendLine();
+        sb.AppendLine($"Suggested tags ({scored.Count}):");
         if (scored.Count == 0)
         {
-            return Task.FromResult($"[info] No relevant tags found for '{found.Name}'. The note may need more content.");
+            sb.Append("  (none)");
         }
-
-        var sb = new StringBuilder($"[ok] Suggested tags for '{found.Name}' ({scored.Count} suggestions):\n\n");
-        foreach (var tag in scored)
+        else
         {
-            sb.AppendLine($"  #{tag}");
+            foreach (var tag in scored)
+            {
+                sb.AppendLine($"  #{tag}");
+            }
         }
 
         return Task.FromResult(sb.ToString());
     }
 
     /// <summary>Scores existing vault tags by keyword overlap with a note's content and title.</summary>
-    private List<string> ScoreTagSuggestions(Note found, int maxSuggestions)
+    private List<string> ScoreTagSuggestions(
+        Note found,
+        int maxSuggestions,
+        IEnumerable<string>? inheritedTags = null,
+        IEnumerable<string>? excludedTags = null)
     {
         // Get all unique tags across the vault
         var allTags = vault.GetAllNotes()
@@ -263,14 +153,17 @@ public sealed class VaultOrganizationTools(
             .GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
-        var existingTags = found.Metadata.Tags.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var blockedTags = found.Metadata.Tags
+            .Concat(inheritedTags ?? [])
+            .Concat(excludedTags ?? [])
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Score tags by word overlap with note content + title
         var noteWords = TokenizeText(found.PlainText + " " + found.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return allTags
-            .Where(kv => !existingTags.Contains(kv.Key))
+            .Where(kv => !blockedTags.Contains(kv.Key))
             .Select(kv =>
             {
                 var tagWords = TokenizeText(kv.Key.Replace('-', ' ').Replace('_', ' '));
@@ -340,60 +233,6 @@ public sealed class VaultOrganizationTools(
         return Task.FromResult(sb.ToString());
     }
 
-    // find_broken_links
-
-    [McpServerTool, Description(
-        "Scans the entire vault for broken wikilinks — links that point to notes that do not exist.")]
-    public Task<string> find_broken_links(
-        [Description("Folder to scope the scan (relative to vault root). Leave empty for full vault.")] string folder = "")
-    {
-        var notes = string.IsNullOrWhiteSpace(folder)
-            ? vault.GetAllNotes()
-            : vault.GetNotesInFolder(folder);
-
-        var allNotesList = vault.GetAllNotes().ToList();
-        var allNoteNames = allNotesList
-            .Select(n => n.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var allNotePaths = allNotesList
-            .Select(n => n.VaultRelativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-                ? n.VaultRelativePath[..^3]
-                : n.VaultRelativePath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var broken = new List<(string NoteRelPath, string BrokenLink)>();
-
-        foreach (var note in notes)
-        {
-            foreach (var link in note.OutgoingLinks)
-            {
-                // Strip anchor fragments (#heading)
-                var linkTarget = link.Split('#')[0].Trim();
-                if (!string.IsNullOrWhiteSpace(linkTarget)
-                    && !allNoteNames.Contains(linkTarget)
-                    && !allNotePaths.Contains(linkTarget)
-                    && !ExistsOnDisk(config.VaultPath, linkTarget))
-                {
-                    broken.Add((note.VaultRelativePath, link));
-                }
-            }
-        }
-
-        if (broken.Count == 0)
-        {
-            var scopeDesc = string.IsNullOrWhiteSpace(folder) ? "vault" : $"'{folder}'";
-            return Task.FromResult($"[ok] No broken links found in {scopeDesc}.");
-        }
-
-        var sb = new StringBuilder($"[ok] Found {broken.Count} broken link(s):\n\n");
-        foreach (var (path, link) in broken.OrderBy(x => x.NoteRelPath))
-        {
-            sb.AppendLine($"  {path}: [[{link}]]");
-        }
-
-        return Task.FromResult(sb.ToString());
-    }
-
     // audit_vault
 
     [McpServerTool, Description(
@@ -410,22 +249,7 @@ public sealed class VaultOrganizationTools(
         var emptyNotes = notes.Where(n => string.IsNullOrWhiteSpace(n.PlainText)).ToList();
         var stale = notes.Where(n => n.LastModified < cutoff).ToList();
 
-        // Broken links
-        var allNoteNames = notes.Select(n => n.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var allNotePaths = notes
-            .Select(n => n.VaultRelativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-                ? n.VaultRelativePath[..^3]
-                : n.VaultRelativePath)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var brokenLinks = notes
-            .SelectMany(n => n.OutgoingLinks
-                .Select(l => l.Split('#')[0].Trim())
-                .Where(l => !string.IsNullOrWhiteSpace(l)
-                    && !allNoteNames.Contains(l)
-                    && !allNotePaths.Contains(l)
-                    && !ExistsOnDisk(config.VaultPath, l))
-                .Select(l => (Note: n.VaultRelativePath, Link: l)))
-            .ToList();
+        var brokenLinks = ScanBrokenLinks(notes);
 
         var sb = new StringBuilder("# Kioku — Vault Audit Report\n\n");
         sb.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
@@ -507,7 +331,7 @@ public sealed class VaultOrganizationTools(
         }
 
         sb.AppendLine();
-        sb.Append("Made a mistake? Undo with revert_all_uncommitted (group `restore`) or git directly.");
+        sb.Append("Made a mistake? Use native git commands or manual file recovery to undo this apply.");
 
         if (!embedding.IsAvailable)
         {
@@ -564,7 +388,7 @@ public sealed class VaultOrganizationTools(
         }
 
         sb.AppendLine();
-        sb.Append("Set apply=true to execute this plan. Undo with revert_all_uncommitted or git if needed.");
+        sb.Append("Set apply=true to execute this plan. Native git commands or manual file recovery can undo it if needed.");
 
         return sb.ToString();
     }
@@ -612,7 +436,7 @@ public sealed class VaultOrganizationTools(
             var frontmatter = NoteHelpers.BuildFrontmatter(
                 mergedTags, meta.NoteType, meta.Status, meta.Date, domain: meta.Domain, extraFields: meta.ExtraFields);
 
-            await File.WriteAllTextAsync(current.FilePath, frontmatter + body, Encoding.UTF8);
+            await File.WriteAllTextAsync(current.FilePath, frontmatter + body, NoteHelpers.Utf8NoBom);
             await vault.SynchronizeFileReindexAsync(current.FilePath);
             current = vault.GetNote(current.FilePath) ?? current;
 
@@ -627,7 +451,7 @@ public sealed class VaultOrganizationTools(
                 relatedSection.AppendLine($"- [[{related.Name}]]");
             }
 
-            await File.AppendAllTextAsync(current.FilePath, relatedSection.ToString(), Encoding.UTF8);
+            await File.AppendAllTextAsync(current.FilePath, relatedSection.ToString(), NoteHelpers.Utf8NoBom);
             await vault.SynchronizeFileReindexAsync(current.FilePath);
 
             actions.Add($"linked: {string.Join(", ", plan.RelatedNotes.Select(n => $"[[{n.Name}]]"))}");
@@ -679,7 +503,7 @@ public sealed class VaultOrganizationTools(
                 continue;
             }
 
-            await File.WriteAllTextAsync(source.FilePath, result.NewContent, Encoding.UTF8);
+            await File.WriteAllTextAsync(source.FilePath, result.NewContent, NoteHelpers.Utf8NoBom);
             await vault.SynchronizeFileReindexAsync(source.FilePath);
             updatedLinks += result.ReplacedCount;
         }
@@ -692,12 +516,228 @@ public sealed class VaultOrganizationTools(
 
     // Private helpers
 
+    private static bool TagWouldChange(
+        string tag,
+        IReadOnlyList<string> noteTags,
+        string operation,
+        string oldTag,
+        string newTag,
+        string sourceTag,
+        string targetTag)
+    {
+        var replacement = GetTagReplacement(tag, noteTags, operation, oldTag, newTag, sourceTag, targetTag);
+        return replacement is null || !string.Equals(tag, replacement, StringComparison.Ordinal);
+    }
+
+    private static int CountTagChanges(
+        IEnumerable<Note> notes,
+        string operation,
+        string oldTag,
+        string newTag,
+        string sourceTag,
+        string targetTag)
+    {
+        return notes.Sum(note => note.Metadata.Tags.Count(tag => TagWouldChange(
+            tag, note.Metadata.Tags, operation, oldTag, newTag, sourceTag, targetTag)));
+    }
+
+    private async Task<(int ChangedTags, int UpdatedNotes)> RewriteTagsAsync(
+        IEnumerable<Note> affected,
+        string operation,
+        string oldTag,
+        string newTag,
+        string sourceTag,
+        string targetTag)
+    {
+        var changedTags = 0;
+        var updatedNotes = 0;
+
+        foreach (var note in affected)
+        {
+            var transform = new Func<string, string?>(tag => GetTagReplacement(
+                tag, note.Metadata.Tags, operation, oldTag, newTag, sourceTag, targetTag));
+            var rawContent = await File.ReadAllTextAsync(note.FilePath, Encoding.UTF8);
+            var newContent = RewriteTagFrontmatter(rawContent, transform);
+
+            if (string.Equals(rawContent, newContent, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            await File.WriteAllTextAsync(note.FilePath, newContent, NoteHelpers.Utf8NoBom);
+            await vault.SynchronizeFileReindexAsync(note.FilePath);
+            changedTags += note.Metadata.Tags.Count(tag => TagWouldChange(
+                tag, note.Metadata.Tags, operation, oldTag, newTag, sourceTag, targetTag));
+            updatedNotes++;
+        }
+
+        return (changedTags, updatedNotes);
+    }
+
+    private static string? GetTagReplacement(
+        string tag,
+        IReadOnlyList<string> noteTags,
+        string operation,
+        string oldTag,
+        string newTag,
+        string sourceTag,
+        string targetTag)
+    {
+        return operation switch
+        {
+            "normalize" => NormalizeTag(tag),
+            "rename" when tag.Equals(oldTag, StringComparison.OrdinalIgnoreCase) => newTag,
+            "merge" when tag.Equals(sourceTag, StringComparison.OrdinalIgnoreCase) =>
+                noteTags.Any(t => t.Equals(targetTag, StringComparison.OrdinalIgnoreCase)) ? null : targetTag,
+            _ => tag,
+        };
+    }
+
     /// <summary>
-    /// Fallback check for find_broken_links/audit_vault: a link that doesn't resolve against
-    /// the in-memory index might still point at a real file sitting in a folder excluded from
-    /// indexing (.kioku/config.yml's exclude: list) — that's not actually broken. A full path
-    /// (containing '/') is checked directly; a bare note name is searched for by filename
-    /// anywhere in the vault, since Obsidian resolves bare wikilinks across folders.
+    /// Rewrites only the frontmatter tags/tag field. This deliberately avoids replacing list
+    /// items in the Markdown body and supports YAML list, inline-list, and scalar forms.
+    /// </summary>
+    private static string RewriteTagFrontmatter(string content, Func<string, string?> transform)
+    {
+        var bodyStart = FrontmatterParser.GetBodyStart(content);
+        if (bodyStart == 0)
+        {
+            return content;
+        }
+
+        var frontmatter = content[..bodyStart];
+        var newline = frontmatter.Contains("\r\n", StringComparison.Ordinal)
+            ? "\r\n"
+            : frontmatter.Contains('\n') ? "\n" : "\r";
+        var lines = frontmatter.Split(["\r\n", "\n", "\r"], StringSplitOptions.None).ToList();
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var root = Regex.Match(lines[i], @"^(\s*)(tags?|tag)(\s*:\s*)(.*)$", RegexOptions.IgnoreCase);
+            if (!root.Success)
+            {
+                continue;
+            }
+
+            var value = root.Groups[4].Value;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                var item = i + 1;
+                while (item < lines.Count && Regex.IsMatch(lines[item], @"^\s+-\s+"))
+                {
+                    var listItem = Regex.Match(lines[item], @"^(\s*-\s+)(.*?)(\s*)$");
+                    if (listItem.Success)
+                    {
+                        var replacement = TransformTagValue(listItem.Groups[2].Value, transform);
+                        if (replacement is null)
+                        {
+                            lines.RemoveAt(item);
+                            continue;
+                        }
+
+                        lines[item] = listItem.Groups[1].Value + replacement + listItem.Groups[3].Value;
+                    }
+
+                    item++;
+                }
+
+                i = item - 1;
+                continue;
+            }
+
+            var rewritten = RewriteScalarTagValue(value, transform);
+            lines[i] = root.Groups[1].Value + root.Groups[2].Value + root.Groups[3].Value + rewritten;
+        }
+
+        return string.Join(newline, lines) + content[bodyStart..];
+    }
+
+    private static string RewriteScalarTagValue(string value, Func<string, string?> transform)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith('[') && trimmed.EndsWith(']'))
+        {
+            var items = trimmed[1..^1]
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(item => TransformTagValue(item, transform))
+                .Where(item => item is not null)
+                .ToList();
+            return $"[{string.Join(", ", items)}]";
+        }
+
+        var separator = trimmed.Contains(',') ? ", " : " ";
+        var scalarItems = Regex.Split(trimmed, @"[,\s]+")
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => TransformTagValue(item, transform))
+            .Where(item => item is not null);
+        return string.Join(separator, scalarItems);
+    }
+
+    private static string? TransformTagValue(string rawValue, Func<string, string?> transform)
+    {
+        var trimmed = rawValue.Trim();
+        if (trimmed.Length == 0)
+        {
+            return rawValue;
+        }
+
+        var quoted = trimmed.Length >= 2 &&
+                     ((trimmed[0] == '"' && trimmed[^1] == '"') ||
+                      (trimmed[0] == '\'' && trimmed[^1] == '\''));
+        var quote = quoted ? trimmed[0].ToString() : "";
+        var semantic = quoted ? trimmed[1..^1] : trimmed;
+        var hashPrefix = semantic.StartsWith('#');
+        semantic = semantic.TrimStart('#').Trim();
+
+        var replacement = transform(semantic);
+        if (replacement is null)
+        {
+            return null;
+        }
+
+        return $"{quote}{(hashPrefix ? "#" : "")}{replacement}{quote}";
+    }
+
+    private static string FormatTags(IEnumerable<string> tags, string prefix = "#")
+    {
+        var values = tags
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Select(tag => prefix + tag)
+            .ToList();
+        return values.Count == 0 ? "(none)" : string.Join(", ", values);
+    }
+
+    /// <summary>
+    /// Finds links that don't resolve against the in-memory index. A link might still point at
+    /// a real file sitting in a folder excluded from indexing (.kioku/config.yml's exclude:
+    /// list) — that's not actually broken. A full path (containing '/') is checked directly; a
+    /// bare note name is searched for by filename anywhere in the vault, since Obsidian resolves
+    /// bare wikilinks across folders.
+    /// </summary>
+    private List<(string Note, string Link)> ScanBrokenLinks(IReadOnlyCollection<Note> notes)
+    {
+        var allNoteNames = notes
+            .Select(n => n.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allNotePaths = notes
+            .Select(n => StripMdExtension(n.VaultRelativePath))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return notes
+            .SelectMany(note => note.OutgoingLinks
+                .Select(link => (Note: note.VaultRelativePath, Link: link, Target: link.Split('#')[0].Trim()))
+                .Where(link => !string.IsNullOrWhiteSpace(link.Target)
+                    && !allNoteNames.Contains(link.Target)
+                    && !allNotePaths.Contains(link.Target)
+                    && !ExistsOnDisk(config.VaultPath, link.Target))
+                .Select(link => (Note: link.Note, Link: link.Link)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Checks whether a link target exists on disk when its note is excluded from indexing. A
+    /// full path (containing '/') is checked directly; a bare note name is searched for by
+    /// filename anywhere in the vault, since Obsidian resolves bare wikilinks across folders.
     /// </summary>
     private static bool ExistsOnDisk(string vaultPath, string linkTarget)
     {
@@ -825,64 +865,6 @@ public sealed class VaultOrganizationTools(
         }
 
         return sb.ToString();
-    }
-
-    [McpServerTool, Description("Move a note to the most appropriate folder based on its content. Uses the same scoring as suggest_folder.")]
-    public string reclassify_note(
-        [Description("Name or path of the note to reclassify.")] string note,
-        [Description("If true, returns the suggested destination without moving the file.")] bool dry_run = false)
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        if (string.IsNullOrWhiteSpace(note))
-        {
-            return "[error] The 'note' parameter cannot be empty.";
-        }
-
-        var found = vault.GetNote(note) ?? vault.GetNoteByName(note);
-        if (found is null)
-        {
-            return $"[error] Note not found: '{note}'";
-        }
-
-        var ranked = FolderRanker.RankFolders(found, 1, vault, hybrid, embedding);
-
-        if (ranked.Count == 0)
-        {
-            return "[info] Could not determine a suitable folder. The vault may have too few notes or embeddings may not be loaded yet.";
-        }
-
-        var (bestFolder, bestScore) = ranked[0];
-        var currentFolder = Path.GetDirectoryName(found.VaultRelativePath) ?? "";
-
-        if (bestFolder.Equals(currentFolder, StringComparison.OrdinalIgnoreCase))
-        {
-            return $"[info] Note is already in the best-matching folder: '{currentFolder}'.";
-        }
-
-        if (dry_run)
-        {
-            return $"[info] dry_run=true — would move '{found.Name}':\n  From: {currentFolder}\n  To:   {bestFolder}  (score: {bestScore:F2})";
-        }
-
-        var destDir = NoteHelpers.EnsureInsideVault(
-            config.VaultPath,
-            Path.Combine(config.VaultPath, bestFolder));
-        Directory.CreateDirectory(destDir);
-        var destPath = Path.Combine(destDir, Path.GetFileName(found.FilePath));
-
-        if (File.Exists(destPath))
-        {
-            return $"[error] A note named '{found.Name}' already exists in '{bestFolder}'.";
-        }
-
-        File.Move(found.FilePath, destPath);
-        var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
-
-        return $"[ok] Note reclassified:\n   Before: {found.VaultRelativePath}\n   After:  {newRelativePath}";
     }
 
     private static void AppendSection(StringBuilder sb, string title, IEnumerable<string> items)

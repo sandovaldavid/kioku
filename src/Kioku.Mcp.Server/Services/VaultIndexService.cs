@@ -116,9 +116,13 @@ public sealed class VaultIndexService : IDisposable
         var absFolder = Path.IsPathRooted(folderPath)
             ? folderPath
             : Path.Combine(_vaultPath, folderPath);
+        absFolder = Path.GetFullPath(absFolder);
+        var folderPrefix = absFolder.EndsWith(Path.DirectorySeparatorChar)
+            ? absFolder
+            : absFolder + Path.DirectorySeparatorChar;
 
         return _notesByPath.Values
-            .Where(n => n.FilePath.StartsWith(absFolder, StringComparison.OrdinalIgnoreCase));
+            .Where(n => n.FilePath.StartsWith(folderPrefix, StringComparison.OrdinalIgnoreCase));
     }
 
     // Okapi BM25 constants: k1 controls term-frequency saturation, b controls how much
@@ -268,12 +272,12 @@ public sealed class VaultIndexService : IDisposable
                 return false;
             }
 
-            if (dateFrom.HasValue && note.Metadata.Date.HasValue && note.Metadata.Date < dateFrom)
+            if (dateFrom.HasValue && (!note.Metadata.Date.HasValue || note.Metadata.Date < dateFrom))
             {
                 return false;
             }
 
-            if (dateTo.HasValue && note.Metadata.Date.HasValue && note.Metadata.Date > dateTo)
+            if (dateTo.HasValue && (!note.Metadata.Date.HasValue || note.Metadata.Date > dateTo))
             {
                 return false;
             }

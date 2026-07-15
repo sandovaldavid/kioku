@@ -49,6 +49,104 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         return new SessionContextTools(_fixture.Index, config, vaultConfig, workspace, bridge);
     }
 
+    [Fact]
+    public async Task CreateProjectDoc_CreatesAllFiveDocumentTypes()
+    {
+        var (tools, workspace) = CreateTools();
+
+        var adr = await tools.create_project_doc(
+            "adr", project: "demo", title: "Use SQLite", context: "ctx", decision: "decision", consequences: "cons");
+        var bug = await tools.create_project_doc(
+            "bug", project: "demo", title: "Crash", symptom: "symptom", root_cause: "cause", fix: "fix",
+            related_files: "src/a.cs, src/b.cs");
+        var plan = await tools.create_project_doc(
+            "plan", project: "demo", title: "Search", objective: "objective", steps: "- [ ] step", ticket: "T-1");
+        var backlog = await tools.create_project_doc(
+            "backlog", project: "demo", title: "Faster index", description: "deferred improvement");
+        var projectKnowledge = await tools.create_project_doc(
+            "knowledge", project: "demo", title: "Deploy notes", content: "staging setup");
+        var generalKnowledge = await tools.create_project_doc(
+            "knowledge", title: "Local setup", content: "Run docker compose up.");
+
+        Assert.All(new[] { adr, bug, plan, backlog, projectKnowledge, generalKnowledge },
+            result => Assert.StartsWith("[ok]", result));
+        Assert.Contains("ADR-0001-Use-SQLite", adr);
+        Assert.Contains("project: demo", await File.ReadAllTextAsync(
+            Path.Combine(workspace.GetSubfolder("demo", "knowledge"), "Deploy-notes.md")));
+        var bugContent = await File.ReadAllTextAsync(
+            Directory.GetFiles(workspace.GetSubfolder("demo", "bugs"), "BUG-*.md").Single());
+        Assert.Contains("- `src/a.cs`", bugContent);
+        Assert.Contains("- `src/b.cs`", bugContent);
+        var planContent = await File.ReadAllTextAsync(
+            Directory.GetFiles(workspace.GetSubfolder("demo", "plans"), "PLAN-*.md").Single());
+        Assert.Contains("[[T-1]]", planContent);
+        Assert.Contains("ticket: \"[[T-1]]\"", planContent);
+        var general = await File.ReadAllTextAsync(Path.Combine(workspace.KnowledgeRoot, "Local-setup.md"));
+        Assert.DoesNotContain("project:", general);
+        Assert.Contains("staging setup", await File.ReadAllTextAsync(
+            Path.Combine(workspace.GetSubfolder("demo", "knowledge"), "Deploy-notes.md")));
+    }
+
+    [Theory]
+    [InlineData("banana")]
+    [InlineData("")]
+    public async Task CreateProjectDoc_InvalidType_ReturnsError(string docType)
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.create_project_doc(docType, title: "T");
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("adr", result);
+    }
+
+    [Theory]
+    [InlineData("adr", "banana")]
+    [InlineData("bug", "proposed")]
+    [InlineData("plan", "fixed")]
+    [InlineData("backlog", "done")]
+    [InlineData("knowledge", "draft")]
+    public async Task CreateProjectDoc_InvalidStatus_ReturnsError(string docType, string status)
+    {
+        var (tools, _) = CreateTools();
+
+        var result = await tools.create_project_doc(docType, project: "demo", title: "T", status: status);
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("Valid options", result);
+    }
+
+    [Fact]
+    public async Task CreateProjectDoc_AdrNumberingIsSerialized()
+    {
+        var (tools, workspace) = CreateTools();
+
+        var first = tools.create_project_doc("adr", project: "demo", title: "First");
+        var second = tools.create_project_doc("adr", project: "demo", title: "Second");
+        await Task.WhenAll(first, second);
+
+        var files = Directory.GetFiles(workspace.GetSubfolder("demo", "decisions"), "ADR-*.md");
+        Assert.Equal(2, files.Length);
+        Assert.Equal(2, files.Select(f => Path.GetFileName(f)[4..8]).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task CreateProjectDoc_UsesTypeTemplateAndPreservesAdrMetadata()
+    {
+        var (tools, workspace) = CreateTools();
+        await tools.set_engineering_template("adr", "CUSTOM: {{decision}}");
+
+        await tools.create_project_doc(
+            "adr", project: "demo", title: "Custom", decision: "the decision", tags: "important");
+
+        var file = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "decisions"), "ADR-*.md"));
+        var content = await File.ReadAllTextAsync(file);
+        Assert.Contains("CUSTOM: the decision", content);
+        Assert.Contains("adr: \"0001\"", content);
+        Assert.Contains("  - ADR-0001", content);
+        Assert.Contains("  - important", content);
+    }
+
     // ADR numbering
 
     [Fact]
@@ -811,6 +909,51 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var logIndex = content.IndexOf("## Log", StringComparison.Ordinal);
         Assert.True(summaryIndex >= 0, "summary not written");
         Assert.True(summaryIndex < logIndex, "summary should appear before the ## Log section");
+    }
+
+    [Fact]
+    public async Task GetWorkContext_RecentActivityCanBeScopedAndLimited()
+    {
+        var sessions = CreateSessionTools();
+
+        var result = await sessions.get_work_context(recent_folder: "Projects", recent_limit: 1);
+
+        Assert.Contains("## Recently Modified in 'Projects' (1 note(s))", result);
+        var recentSection = result[result.IndexOf("## Recently Modified", StringComparison.Ordinal)..];
+        Assert.Contains("[[Project", recentSection);
+        Assert.DoesNotContain("[[Note One]]", recentSection);
+    }
+
+    [Fact]
+    public async Task ListWorkSessions_ActivityIsOptInAndReportsPositiveElapsedTime()
+    {
+        var sessions = CreateSessionTools();
+        await sessions.start_work_session(project: "demo", agent: "claude");
+
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
+        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, CreateBridge(config));
+        var sessionFile = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "sessions")));
+        var sessionTimestamp = File.GetLastWriteTimeUtc(sessionFile);
+        await _fixture.CreateNoteAsync("Activity/Changed", "Changed during the session.");
+        var activityFile = _fixture.GetNotePath("Activity/Changed");
+        File.SetLastWriteTimeUtc(activityFile, sessionTimestamp.AddMinutes(1));
+        await _fixture.Index.SynchronizeFileReindexAsync(activityFile);
+
+        var withoutActivity = await sessions.list_work_sessions(project: "demo");
+        var withActivity = await sessions.list_work_sessions(project: "demo", include_activity: true);
+
+        Assert.DoesNotContain("Activity:", withoutActivity);
+        Assert.Contains("Activity/Changed", withActivity);
+        Assert.Contains("after session start", withActivity);
+        Assert.DoesNotContain("modified -", withActivity);
+    }
+
+    [Fact]
+    public void SessionTools_RemoveConsolidatedMethods()
+    {
+        Assert.Null(typeof(SessionContextTools).GetMethod("get_recent_activity"));
+        Assert.Null(typeof(SessionContextTools).GetMethod("get_session_activity"));
     }
 
     [Fact]

@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Text;
-using System.Text.Json.Nodes;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using ModelContextProtocol.Server;
@@ -19,146 +18,32 @@ public sealed class GraphAnalysisTools(
 {
     private const int IslandThreshold = 3;
 
-    [McpServerTool, Description(
-        "Finds all notes with no outgoing links and no backlinks (completely isolated from the graph).")]
-    public string find_unlinked_notes()
-    {
-        var unlinked = FindOrphanNotes().OrderBy(n => n.Name).ToList();
-
-        if (unlinked.Count == 0)
-        {
-            return "[info] No unlinked notes found — all notes are part of the graph.";
-        }
-
-        var lines = new List<string>
-        {
-            $"Found {unlinked.Count} unlinked note(s):",
-        };
-
-        foreach (var note in unlinked)
-        {
-            lines.Add($"- {note.Name} (modified: {note.LastModified:yyyy-MM-dd})");
-        }
-
-        return string.Join("\n", lines);
-    }
-
-    [McpServerTool, Description(
-        "Finds connected components in the graph smaller than a threshold (graph islands). Small isolated clusters often indicate notes that should be linked to the main graph.")]
-    public string find_graph_islands(
-        [Description("Maximum size of a connected component to be considered an island (default: 3).")] int threshold = 3)
-    {
-        if (threshold < 1)
-        {
-            return "[error] Threshold must be at least 1.";
-        }
-
-        var allNotes = vault.GetAllNotes().ToList();
-        if (allNotes.Count == 0)
-        {
-            return "[info] Vault is empty.";
-        }
-
-        var islands = FindIslands(threshold);
-
-        if (islands.Count == 0)
-        {
-            return $"[info] No graph islands found (all components > {threshold} notes).";
-        }
-
-        var lines = new List<string>
-        {
-            $"Found {islands.Count} island(s) (max {threshold} notes each):",
-        };
-
-        foreach (var island in islands.OrderByDescending(i => i.Count))
-        {
-            var noteNames = string.Join(", ", island.Select(n => n.Name).OrderBy(x => x));
-            lines.Add($"- Island ({island.Count} notes): {noteNames}");
-        }
-
-        return string.Join("\n", lines);
-    }
-
-    [McpServerTool, Description(
-        "Computes vault graph density metrics: average links per note, percentage of notes with backlinks, connectivity profile.")]
-    public string measure_vault_density()
-    {
-        var allNotes = vault.GetAllNotes().ToList();
-
-        if (allNotes.Count == 0)
-        {
-            return "[info] Vault is empty.";
-        }
-
-        var totalOutgoing = 0;
-        var totalBacklinks = 0;
-        var notesWithOutgoing = 0;
-        var notesWithBacklinks = 0;
-        var unlinked = 0;
-
-        foreach (var note in allNotes)
-        {
-            var outgoing = note.OutgoingLinks.Count;
-            var backlinks = vault.GetBacklinks(note.Name).Count();
-
-            totalOutgoing += outgoing;
-            totalBacklinks += backlinks;
-
-            if (outgoing > 0)
-            {
-                notesWithOutgoing++;
-            }
-
-            if (backlinks > 0)
-            {
-                notesWithBacklinks++;
-            }
-
-            if (outgoing == 0 && backlinks == 0)
-            {
-                unlinked++;
-            }
-        }
-
-        var avgOutgoing = allNotes.Count > 0 ? (double)totalOutgoing / allNotes.Count : 0;
-        var avgBacklinks = allNotes.Count > 0 ? (double)totalBacklinks / allNotes.Count : 0;
-        var percentageWithOutgoing = (double)notesWithOutgoing / allNotes.Count * 100;
-        var percentageWithBacklinks = (double)notesWithBacklinks / allNotes.Count * 100;
-        var percentageUnlinked = (double)unlinked / allNotes.Count * 100;
-
-        var lines = new List<string>
-        {
-            "Vault Graph Density Metrics:",
-            $"  Total notes: {allNotes.Count}",
-            $"  Total outgoing links: {totalOutgoing}",
-            $"  Total backlinks: {totalBacklinks}",
-            $"  Average outgoing links/note: {avgOutgoing:F2}",
-            $"  Average backlinks/note: {avgBacklinks:F2}",
-            $"  Notes with outgoing links: {notesWithOutgoing} ({percentageWithOutgoing:F1}%)",
-            $"  Notes with backlinks: {notesWithBacklinks} ({percentageWithBacklinks:F1}%)",
-            $"  Unlinked notes (isolated): {unlinked} ({percentageUnlinked:F1}%)",
-        };
-
-        return string.Join("\n", lines);
-    }
-
     // suggest_links
 
     [McpServerTool, Description(
-        "Suggests wikilinks that don't exist yet. With 'note': semantic candidates for that note, " +
-        "excluding any pair already linked in either direction. Without 'note' (vault-wide mode): " +
-        "prioritizes orphaned notes and small graph islands, proposing a bridge for each. Requires " +
-        "Ollama for semantic scoring — per-note mode fails without it; vault-wide mode degrades to " +
-        "a structural report of orphans/islands with no specific targets.")]
-    public string suggest_links(
-        [Description("Name or path of a note to suggest links for. Leave empty for vault-wide mode (orphans + islands).")] string note = "",
-        [Description("Maximum number of suggestions to return.")] int max_suggestions = 10,
-        [Description("Minimum similarity score 0.0–1.0 (default: 0.7).")] float min_similarity = 0.7f)
+        "Suggests or adds wikilinks that don't exist yet. Provide 'targets' to explicitly choose " +
+        "targets; otherwise semantic candidates are generated for 'note', or for the whole vault " +
+        "when 'note' is empty. Suggestions are a dry run by default. Set apply=true to apply " +
+        "them. Explicit targets work without Ollama; semantic mode falls back to structural " +
+        "orphan/island analysis when Ollama is unavailable.")]
+    public async Task<string> suggest_links(
+        [Description("Name or path of a note to suggest or add links for. Leave empty for vault-wide mode.")] string note = "",
+        [Description("Comma-separated target note names/paths. When provided, these explicit targets take precedence over semantic suggestions.")] string targets = "",
+        [Description("Heading for the links section (default: 'Related').")] string section = "Related",
+        [Description("If true, apply the suggestions. The default false only previews them.")] bool apply = false,
+        [Description("Maximum number of semantic suggestions to return or apply (default: 10).")]
+        int max_suggestions = 10,
+        [Description("Minimum semantic similarity score 0.0–1.0 (default: 0.7).")]
+        float min_similarity = 0.7f)
     {
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(targets))
+        {
+            return await ApplyExplicitTargets(note, targets, section, !apply);
         }
 
         if (!string.IsNullOrWhiteSpace(note))
@@ -176,7 +61,9 @@ public sealed class GraphAnalysisTools(
             }
 
             var suggestions = SuggestLinksForNote(found, max_suggestions, min_similarity);
-            return FormatSuggestions(suggestions, $"'{found.Name}'");
+            return !apply
+                ? FormatSuggestions(suggestions, $"'{found.Name}'")
+                : await ApplySemanticSuggestions(suggestions, section);
         }
 
         if (!embedding.IsAvailable)
@@ -185,98 +72,9 @@ public sealed class GraphAnalysisTools(
         }
 
         var vaultSuggestions = SuggestLinksForVault(max_suggestions, min_similarity);
-        return FormatSuggestions(vaultSuggestions, "the vault");
-    }
-
-    // apply_link_suggestions
-
-    [McpServerTool, Description(
-        "Applies accepted link suggestions: appends (or extends) a section at the end of a note " +
-        "with wikilinks to the given targets. Idempotent — targets already linked from the note " +
-        "are skipped, so running it again with the same targets adds nothing new. " +
-        "Set dry_run=true to preview without writing.")]
-    public async Task<string> apply_link_suggestions(
-        [Description("Name or path of the note to add links to.")] string note,
-        [Description("Comma-separated list of target note names/paths to link.")] string targets,
-        [Description("Heading for the links section (default: 'Related').")] string section = "Related",
-        [Description("If true, previews the change without writing any file.")] bool dry_run = false)
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        var found = NoteHelpers.ResolveNote(note, vault);
-        if (found is null)
-        {
-            return KiokuError.NotFound($"Note not found: '{note}'");
-        }
-
-        var targetNames = targets.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (targetNames.Length == 0)
-        {
-            return KiokuError.InvalidArgument("The 'targets' parameter cannot be empty.");
-        }
-
-        var resolvedTargets = new List<Note>();
-        var missing = new List<string>();
-        foreach (var t in targetNames)
-        {
-            var resolved = NoteHelpers.ResolveNote(t, vault);
-            if (resolved is null)
-            {
-                missing.Add(t);
-            }
-            else if (!resolved.FilePath.Equals(found.FilePath, StringComparison.OrdinalIgnoreCase))
-            {
-                resolvedTargets.Add(resolved);
-            }
-        }
-
-        if (resolvedTargets.Count == 0)
-        {
-            return missing.Count > 0
-                ? KiokuError.NotFound($"None of the targets could be resolved: {string.Join(", ", missing)}")
-                : "[info] No valid targets to link (cannot link a note to itself).";
-        }
-
-        var currentContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
-        var existingLinks = found.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var updatedContent = NoteHelpers.AppendLinkSection(
-            currentContent, existingLinks, section,
-            resolvedTargets.Select(t => (t.Name, (string?)null)));
-
-        var newTargets = resolvedTargets.Where(t => !existingLinks.Contains(t.Name)).ToList();
-
-        if (updatedContent is null)
-        {
-            return $"[info] All {resolvedTargets.Count} target(s) are already linked from '{found.Name}'.";
-        }
-
-        if (dry_run)
-        {
-            var preview = $"[info] dry_run=true — would add {newTargets.Count} link(s) to '{found.Name}' under '## {section}':\n" +
-                          string.Join("\n", newTargets.Select(t => $"  - [[{t.Name}]]"));
-            if (missing.Count > 0)
-            {
-                preview += $"\n\n[info] Could not resolve: {string.Join(", ", missing)}";
-            }
-
-            return preview;
-        }
-
-        await File.WriteAllTextAsync(found.FilePath, updatedContent, Encoding.UTF8);
-        await vault.SynchronizeFileReindexAsync(found.FilePath);
-
-        var result = $"[ok] Added {newTargets.Count} link(s) to '{found.Name}' under '## {section}':\n" +
-                     string.Join("\n", newTargets.Select(t => $"  - [[{t.Name}]]"));
-        if (missing.Count > 0)
-        {
-            result += $"\n\n[info] Could not resolve: {string.Join(", ", missing)}";
-        }
-
-        return result;
+        return !apply
+            ? FormatSuggestions(vaultSuggestions, "the vault")
+            : await ApplySemanticSuggestions(vaultSuggestions, section);
     }
 
     // Private helpers — link suggestions
@@ -357,13 +155,176 @@ public sealed class GraphAnalysisTools(
         return sb.ToString();
     }
 
+    private async Task<string> ApplyExplicitTargets(
+        string note,
+        string targets,
+        string section,
+        bool dryRun)
+    {
+        if (string.IsNullOrWhiteSpace(note))
+        {
+            return KiokuError.InvalidArgument("The 'note' parameter is required when 'targets' is provided.");
+        }
+
+        var found = NoteHelpers.ResolveNote(note, vault);
+        if (found is null)
+        {
+            return KiokuError.NotFound($"Note not found: '{note}'");
+        }
+
+        var targetNames = targets.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (targetNames.Length == 0)
+        {
+            return KiokuError.InvalidArgument("The 'targets' parameter cannot be empty.");
+        }
+
+        var resolvedTargets = new List<Note>();
+        var missing = new List<string>();
+        foreach (var targetName in targetNames)
+        {
+            var resolved = NoteHelpers.ResolveNote(targetName, vault);
+            if (resolved is null)
+            {
+                missing.Add(targetName);
+            }
+            else if (!resolved.FilePath.Equals(found.FilePath, StringComparison.OrdinalIgnoreCase) &&
+                     resolvedTargets.All(t => !t.FilePath.Equals(resolved.FilePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                resolvedTargets.Add(resolved);
+            }
+        }
+
+        if (resolvedTargets.Count == 0)
+        {
+            var result = missing.Count > 0
+                ? KiokuError.NotFound($"None of the targets could be resolved: {string.Join(", ", missing)}")
+                : "[info] No valid targets to link (cannot link a note to itself).";
+            return result;
+        }
+
+        var currentContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+        var existingLinks = found.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newTargets = resolvedTargets.Where(t => !existingLinks.Contains(t.Name)).ToList();
+        var updatedContent = NoteHelpers.AppendLinkSection(
+            currentContent,
+            existingLinks,
+            section,
+            newTargets.Select(t => (t.Name, (string?)null)));
+
+        if (updatedContent is null)
+        {
+            var result = $"[info] All {resolvedTargets.Count} target(s) are already linked from '{found.Name}'.";
+            return AppendMissingTargets(result, missing);
+        }
+
+        if (dryRun)
+        {
+            var preview = $"[info] dry_run=true — would add {newTargets.Count} link(s) to '{found.Name}' under '## {section}':\n" +
+                          string.Join("\n", newTargets.Select(t => $"  - [[{t.Name}]]"));
+            return AppendMissingTargets(preview, missing);
+        }
+
+        await File.WriteAllTextAsync(found.FilePath, updatedContent, NoteHelpers.Utf8NoBom);
+        await vault.SynchronizeFileReindexAsync(found.FilePath);
+
+        var applied = $"[ok] Added {newTargets.Count} link(s) to '{found.Name}' under '## {section}':\n" +
+                      string.Join("\n", newTargets.Select(t => $"  - [[{t.Name}]]"));
+        return AppendMissingTargets(applied, missing);
+    }
+
+    private async Task<string> ApplySemanticSuggestions(IReadOnlyList<LinkSuggestion> suggestions, string section)
+    {
+        if (suggestions.Count == 0)
+        {
+            return "[info] No link suggestions to apply.";
+        }
+
+        var applied = new List<(Note Source, List<LinkSuggestion> Suggestions)>();
+        foreach (var sourceGroup in suggestions.GroupBy(s => s.Source.FilePath, StringComparer.OrdinalIgnoreCase))
+        {
+            var source = sourceGroup.First().Source;
+            var currentContent = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
+            var existingLinks = source.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var newSuggestions = sourceGroup
+                .Where(s => !existingLinks.Contains(s.Target.Name))
+                .ToList();
+            if (newSuggestions.Count == 0)
+            {
+                continue;
+            }
+
+            var updatedContent = NoteHelpers.AppendLinkSection(
+                currentContent,
+                existingLinks,
+                section,
+                newSuggestions.Select(s => (s.Target.Name, (string?)$"{s.Score:P0} similar")));
+            if (updatedContent is null)
+            {
+                continue;
+            }
+
+            await File.WriteAllTextAsync(source.FilePath, updatedContent, NoteHelpers.Utf8NoBom);
+            await vault.SynchronizeFileReindexAsync(source.FilePath);
+            applied.Add((source, newSuggestions));
+        }
+
+        if (applied.Count == 0)
+        {
+            return "[info] All suggested targets are already linked.";
+        }
+
+        var sb = new StringBuilder();
+        foreach (var (source, sourceSuggestions) in applied)
+        {
+            sb.AppendLine($"[ok] Added {sourceSuggestions.Count} related link(s) to '{source.Name}':");
+            foreach (var suggestion in sourceSuggestions)
+            {
+                sb.AppendLine($"  - [[{suggestion.Target.Name}]] ({suggestion.Score:P0})");
+            }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string AppendMissingTargets(string result, IReadOnlyList<string> missing) =>
+        missing.Count == 0
+            ? result
+            : $"{result}\n\n[info] Could not resolve: {string.Join(", ", missing)}";
+
     private string FormatStructuralFallback()
     {
         var sb = new StringBuilder(
             "[info] Semantic link suggestions require Ollama — showing structural analysis instead:\n\n");
-        sb.AppendLine(find_unlinked_notes());
+        var unlinked = FindOrphanNotes().OrderBy(n => n.Name).ToList();
+        if (unlinked.Count == 0)
+        {
+            sb.AppendLine("[info] No unlinked notes found — all notes are part of the graph.");
+        }
+        else
+        {
+            sb.AppendLine($"Found {unlinked.Count} unlinked note(s):");
+            foreach (var note in unlinked)
+            {
+                sb.AppendLine($"- {note.Name} (modified: {note.LastModified:yyyy-MM-dd})");
+            }
+        }
+
         sb.AppendLine();
-        sb.AppendLine(find_graph_islands(IslandThreshold));
+        var islands = FindIslands(IslandThreshold);
+        if (islands.Count == 0)
+        {
+            sb.AppendLine($"[info] No graph islands found (all components > {IslandThreshold} notes).");
+        }
+        else
+        {
+            sb.AppendLine($"Found {islands.Count} island(s) (max {IslandThreshold} notes each):");
+            foreach (var island in islands.OrderByDescending(i => i.Count))
+            {
+                var noteNames = string.Join(", ", island.Select(n => n.Name).OrderBy(x => x));
+                sb.AppendLine($"- Island ({island.Count} notes): {noteNames}");
+            }
+        }
+
         return sb.ToString();
     }
 
