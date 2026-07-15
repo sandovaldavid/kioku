@@ -148,7 +148,7 @@ or after a cache invalidation from an embedding model change).
 
 Keyword indexing itself is fast and never blocked by embeddings — the server reports
 `Status: [ok] Ready` and answers `search_notes`/`list_notes`/etc. as soon as the vault's
-file index is built. Semantic search (`search_notes_semantic`) is what's degraded while a
+file index is built. Semantic search (`search_notes(mode='semantic')`) is what's degraded while a
 re-embedding backlog is being processed: it silently returns fewer or no semantic results
 until the backlog clears (keyword-only tools are unaffected).
 
@@ -157,7 +157,7 @@ time, to avoid saturating a CPU-only machine) and never blocks the server from s
 serving keyword search. A note whose content hasn't changed since the last run is never
 re-embedded — only new or edited notes enter the backlog.
 
-**Check progress** with `get_index_status`:
+**Check progress** with `get_server_status`:
 ```
 Embedding backlog: 42
 Embedded this session: 158
@@ -174,7 +174,7 @@ Estimated remaining: 1.7m
      - Attachments
    ```
 2. Let the backlog drain in the background (subsequent starts are faster since unchanged
-   notes are skipped — see `get_index_status`)
+   notes are skipped — see `get_server_status`)
 3. Consider splitting into multiple vaults
 
 #### High Memory Usage

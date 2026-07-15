@@ -7,8 +7,7 @@ The server exposes vault tools via stdio MCP; the plugin bridges via WebSocket o
 
 ```
 src/Kioku.Mcp.Server/       C# MCP server (stdio transport)
-  Tools/                    MCP tools: NoteQueryTools, NoteCommandTools,
-                              ObsidianBridgeTools, UtilityTools
+  Tools/                    MCP tools: 16 classes, 49 tools; see commands-reference.md
   Services/                 VaultIndexService, EmbeddingService, EmbeddingPersistence,
                               ObsidianBridgeService, FrontmatterParser, MarkdownTextExtractor
   Domain/                   Note, NoteMetadata, SearchResult
@@ -70,6 +69,16 @@ git checkout -b feat/my-feature origin/develop
 gh pr create --base develop
 ```
 
+## MCP tool surface
+
+The server exposes 49 tools across 16 classes. `NoteQueryTools`, `NoteCommandTools`, and
+`UtilityTools` are always enabled. The default-disabled groups are `research`, `generation`,
+`css`, `assets`, `bridge`, and `plugin`. `git`, `restore`, and `zettelkasten` are removed groups;
+use native Git, `manage_trash`, and structured `create_note` kinds instead.
+
+Use [`docs/commands-reference.md`](docs/commands-reference.md) as the authoritative inventory.
+The migration table is in [`docs/migration-v3.md`](docs/migration-v3.md).
+
 ## Environment variables (server)
 
 | Variable | Required | Default | Description |
@@ -82,8 +91,10 @@ gh pr create --base develop
 
 ## Semantic search
 
-The server uses Ollama to generate embeddings for semantic (`search_notes_semantic`) queries.
-If Ollama is unavailable at startup, the service degrades gracefully: keyword search still works.
+The server uses Ollama to generate embeddings for semantic searches
+(`search_notes` with `mode='semantic'`).
+If Ollama is unavailable at startup, the service degrades gracefully: keyword and hybrid search
+still work.
 
 ```bash
 # Pull the embedding model once

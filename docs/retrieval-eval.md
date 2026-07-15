@@ -1,7 +1,7 @@
 # Retrieval quality evaluation
 
-How Kioku measures whether its search tools (`search_notes`, `search_notes_semantic`,
-`search_notes_hybrid`) actually return the right notes, and how to compare configurations
+How Kioku measures whether `search_notes` in keyword, semantic, and hybrid modes actually returns
+the right notes, and how to compare configurations
 (embedding model, thresholds, scoring changes) with numbers instead of gut feeling.
 
 ## Scope
@@ -113,7 +113,7 @@ Recall@10 dips marginally because IDF demotes one weakly-relevant match. Kept pe
 
 ### Semantic threshold default
 
-`search_notes_semantic` now defaults to `min_score = 0.4` (explicit `0` disables the
+`search_notes` with `mode='semantic'` now defaults to `min_score = 0.4` (explicit `0` disables the
 filter). The value is a conservative starting point for nomic-embed-text with task
 prefixes; validate it against your own golden set by sweeping `--min-score` with the
 runner and watching Precision@k versus the no-answer probes.
