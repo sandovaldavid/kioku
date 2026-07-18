@@ -20,7 +20,7 @@ public enum VaultFileAccess
 /// errors cannot disclose unrelated host locations.
 /// </summary>
 public sealed class VaultAccessDeniedException(string operation)
-    : UnauthorizedAccessException(
+    : InvalidOperationException(
         $"File-system access denied for {operation}. The requested path is outside the configured vault or an allowed external root.")
 {
     public const string ErrorCode = "ACCESS_DENIED";
@@ -37,13 +37,9 @@ public sealed class VaultPathPolicy
 {
     private readonly string _vaultRoot;
     private readonly ReadOnlyCollection<string> _externalReadRoots;
-    private readonly StringComparison _pathComparison;
 
     public VaultPathPolicy(KiokuConfiguration config)
     {
-        _pathComparison = OperatingSystem.IsWindows()
-            ? StringComparison.OrdinalIgnoreCase
-            : StringComparison.Ordinal;
         _vaultRoot = ResolvePathWithLinks(config.VaultPath);
         AllowExternalReads = config.AllowExternalReads;
         AllowPermanentDelete = config.AllowPermanentDelete;
@@ -170,7 +166,8 @@ public sealed class VaultPathPolicy
         {
             return IsWithinRoot(_vaultRoot, ResolvePathWithLinks(candidate));
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or ArgumentException or VaultAccessDeniedException)
         {
             return false;
         }
@@ -187,6 +184,7 @@ public sealed class VaultPathPolicy
             throw new ArgumentException("Root and candidate paths are required.");
         }
 
+        var originalRoot = Path.GetFullPath(root);
         var canonicalRoot = ResolvePathWithLinks(root);
         var combined = Path.IsPathRooted(candidate)
             ? candidate
@@ -197,7 +195,9 @@ public sealed class VaultPathPolicy
             throw new VaultAccessDeniedException("vault access");
         }
 
-        return canonicalCandidate;
+        return PathsEqual(canonicalRoot, canonicalCandidate)
+            ? originalRoot
+            : canonicalCandidate;
     }
 
     private static string ResolvePathWithLinks(string path)
@@ -284,6 +284,12 @@ public sealed class VaultPathPolicy
                 !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) &&
                 !relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal));
     }
+
+    private static bool PathsEqual(string left, string right) =>
+        string.Equals(
+            Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     private static StringComparer GetPathComparer() =>
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
