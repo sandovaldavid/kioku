@@ -29,29 +29,39 @@ public sealed class VaultAccessDeniedException(string operation)
 }
 
 /// <summary>
-/// Central filesystem security boundary for Kioku. Vault-relative paths are resolved from the
-/// configured vault root, absolute paths are accepted only when they resolve inside that root,
-/// and external reads require both an explicit feature flag and an allowlisted root.
+/// Central filesystem security boundary for Kioku. Authorization uses canonical paths with
+/// symbolic links resolved, while callers receive stable operational paths based on the configured
+/// vault spelling. This distinction matters on platforms such as macOS, where /var aliases
+/// /private/var.
 /// </summary>
 public sealed class VaultPathPolicy
 {
     private readonly string _vaultRoot;
+    private readonly string _canonicalVaultRoot;
     private readonly ReadOnlyCollection<string> _externalReadRoots;
+    private readonly ReadOnlyCollection<string> _canonicalExternalReadRoots;
 
     public VaultPathPolicy(KiokuConfiguration config)
     {
-        _vaultRoot = ResolvePathWithLinks(config.VaultPath);
+        _vaultRoot = Path.GetFullPath(config.VaultPath);
+        _canonicalVaultRoot = ResolvePathWithLinks(_vaultRoot);
         AllowExternalReads = config.AllowExternalReads;
         AllowPermanentDelete = config.AllowPermanentDelete;
-        _externalReadRoots = config.ExternalReadRoots
+
+        var externalRoots = config.ExternalReadRoots
             .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Select(Path.GetFullPath)
+            .Distinct(GetPathComparer())
+            .ToList();
+        _externalReadRoots = externalRoots.AsReadOnly();
+        _canonicalExternalReadRoots = externalRoots
             .Select(ResolvePathWithLinks)
             .Distinct(GetPathComparer())
             .ToList()
             .AsReadOnly();
     }
 
-    /// <summary>The canonical vault root used by all policy decisions.</summary>
+    /// <summary>The operational vault root used in returned paths and vault-relative output.</summary>
     public string VaultRoot => _vaultRoot;
 
     /// <summary>Whether external reads may be evaluated against <see cref="ExternalReadRoots"/>.</summary>
@@ -60,7 +70,7 @@ public sealed class VaultPathPolicy
     /// <summary>Whether irreversible deletion is enabled for write tools.</summary>
     public bool AllowPermanentDelete { get; }
 
-    /// <summary>Canonical roots from which explicitly enabled external reads are permitted.</summary>
+    /// <summary>Operational roots from which explicitly enabled external reads are permitted.</summary>
     public IReadOnlyList<string> ExternalReadRoots => _externalReadRoots;
 
     public string ResolveVaultReadPath(string candidate) =>
@@ -83,16 +93,16 @@ public sealed class VaultPathPolicy
             throw new ArgumentException("A filesystem path is required.", nameof(candidate));
         }
 
-        var combined = Path.IsPathRooted(candidate)
+        var operationalPath = Path.GetFullPath(Path.IsPathRooted(candidate)
             ? candidate
-            : Path.Combine(_vaultRoot, candidate);
-        var resolved = ResolvePathWithLinks(combined);
-        if (!IsWithinRoot(_vaultRoot, resolved))
+            : Path.Combine(_vaultRoot, candidate));
+        var canonicalPath = ResolvePathWithLinks(operationalPath);
+        if (!IsWithinRoot(_canonicalVaultRoot, canonicalPath))
         {
             throw new VaultAccessDeniedException(access.ToString().ToLowerInvariant());
         }
 
-        return resolved;
+        return operationalPath;
     }
 
     /// <summary>
@@ -107,18 +117,20 @@ public sealed class VaultPathPolicy
             return ResolveVaultReadPath(candidate);
         }
 
-        var resolved = ResolvePathWithLinks(candidate);
-        if (IsWithinRoot(_vaultRoot, resolved))
+        var operationalPath = Path.GetFullPath(candidate);
+        var canonicalPath = ResolvePathWithLinks(operationalPath);
+        if (IsWithinRoot(_canonicalVaultRoot, canonicalPath))
         {
-            return resolved;
+            return operationalPath;
         }
 
-        if (!AllowExternalReads || !_externalReadRoots.Any(root => IsWithinRoot(root, resolved)))
+        if (!AllowExternalReads ||
+            !_canonicalExternalReadRoots.Any(root => IsWithinRoot(root, canonicalPath)))
         {
             throw new VaultAccessDeniedException("external read");
         }
 
-        return resolved;
+        return operationalPath;
     }
 
     /// <summary>Validates both sides of a move before the caller performs any mutation.</summary>
@@ -164,7 +176,7 @@ public sealed class VaultPathPolicy
 
         try
         {
-            return IsWithinRoot(_vaultRoot, ResolvePathWithLinks(candidate));
+            return IsWithinRoot(_canonicalVaultRoot, ResolvePathWithLinks(candidate));
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or ArgumentException or VaultAccessDeniedException)
@@ -184,20 +196,18 @@ public sealed class VaultPathPolicy
             throw new ArgumentException("Root and candidate paths are required.");
         }
 
-        var originalRoot = Path.GetFullPath(root);
-        var canonicalRoot = ResolvePathWithLinks(root);
-        var combined = Path.IsPathRooted(candidate)
+        var operationalRoot = Path.GetFullPath(root);
+        var canonicalRoot = ResolvePathWithLinks(operationalRoot);
+        var operationalCandidate = Path.GetFullPath(Path.IsPathRooted(candidate)
             ? candidate
-            : Path.Combine(canonicalRoot, candidate);
-        var canonicalCandidate = ResolvePathWithLinks(combined);
+            : Path.Combine(operationalRoot, candidate));
+        var canonicalCandidate = ResolvePathWithLinks(operationalCandidate);
         if (!IsWithinRoot(canonicalRoot, canonicalCandidate))
         {
             throw new VaultAccessDeniedException("vault access");
         }
 
-        return PathsEqual(canonicalRoot, canonicalCandidate)
-            ? originalRoot
-            : canonicalCandidate;
+        return operationalCandidate;
     }
 
     private static string ResolvePathWithLinks(string path)
@@ -284,12 +294,6 @@ public sealed class VaultPathPolicy
                 !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) &&
                 !relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal));
     }
-
-    private static bool PathsEqual(string left, string right) =>
-        string.Equals(
-            Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-            Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
 
     private static StringComparer GetPathComparer() =>
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
