@@ -14,6 +14,9 @@ public static class KiokuError
     /// <summary>Authentication or authorization failed.</summary>
     public const string UnauthorizedCode = "UNAUTHORIZED";
 
+    /// <summary>A filesystem operation crossed the configured vault or external-read boundary.</summary>
+    public const string AccessDeniedCode = "ACCESS_DENIED";
+
     /// <summary>An internal or unexpected failure occurred.</summary>
     public const string InternalCode = "INTERNAL";
 
@@ -31,6 +34,10 @@ public static class KiokuError
 
     /// <summary>Creates an unauthorized error.</summary>
     public static string Unauthorized(string message) => Format(UnauthorizedCode, message);
+
+    /// <summary>Creates a filesystem access-denied error without host path disclosure.</summary>
+    public static string AccessDenied(string message = "The requested filesystem operation is outside Kioku's configured security boundary.") =>
+        Format(AccessDeniedCode, message);
 
     /// <summary>Creates an internal error.</summary>
     public static string Internal(string message) => Format(InternalCode, message);
