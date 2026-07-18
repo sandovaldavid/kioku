@@ -41,13 +41,10 @@ public sealed class FrontmatterDocument
         HasFrontmatter = hasFrontmatter;
     }
 
-    /// <summary>The Markdown body after the closing frontmatter delimiter.</summary>
     public string Body { get; private set; }
 
-    /// <summary>The line ending detected in the source document.</summary>
     public string NewLine { get; }
 
-    /// <summary>Whether the source document originally contained frontmatter.</summary>
     public bool HasFrontmatter { get; private set; }
 
     /// <summary>
@@ -65,8 +62,11 @@ public sealed class FrontmatterDocument
         }
 
         var yaml = content.Substring(yamlStart, yamlLength);
-        var root = ParseMapping(yaml);
-        return new FrontmatterDocument(root, content[bodyStart..], newLine, hasFrontmatter: true);
+        return new FrontmatterDocument(
+            ParseMapping(yaml),
+            content[bodyStart..],
+            newLine,
+            hasFrontmatter: true);
     }
 
     /// <summary>Creates a new frontmatter document from a typed model.</summary>
@@ -76,15 +76,8 @@ public sealed class FrontmatterDocument
         string newLine = "\n")
     {
         ArgumentNullException.ThrowIfNull(frontmatter);
-        ValidateNewLine(newLine);
 
-        var document = new FrontmatterDocument(
-            new YamlMappingNode(),
-            body,
-            newLine,
-            hasFrontmatter: true);
-
-        document.Merge(frontmatter.ExtraFields);
+        var document = CreateFromFields(frontmatter.ExtraFields, body, newLine);
         document.SetStringList("tags", frontmatter.Tags);
         document.SetStringList("aliases", frontmatter.Aliases);
         document.SetStringList("cssclasses", frontmatter.CssClasses);
@@ -94,24 +87,38 @@ public sealed class FrontmatterDocument
         document.SetDate("date", frontmatter.Date);
         document.SetDate("updated", frontmatter.Updated);
         document.SetString("zettel_id", frontmatter.ZettelId);
-
         return document;
     }
 
-    /// <summary>Returns the known Kioku fields plus all unknown values as nested CLR objects.</summary>
+    /// <summary>
+    /// Rehydrates a document from a complete structured field map. Used when an existing note is
+    /// projected through <see cref="NoteMetadata"/> and then rebuilt by a legacy tool path.
+    /// </summary>
+    internal static FrontmatterDocument CreateFromFields(
+        IReadOnlyDictionary<string, object?> fields,
+        string body = "",
+        string newLine = "\n")
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        ValidateNewLine(newLine);
+
+        var document = new FrontmatterDocument(
+            new YamlMappingNode(),
+            body,
+            newLine,
+            hasFrontmatter: true);
+        document.Merge(fields);
+        return document;
+    }
+
     public NoteFrontmatter ToFrontmatter()
     {
         var extras = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (keyNode, valueNode) in _root.Children)
+        foreach (var (key, value) in ToFieldDictionary())
         {
-            if (keyNode is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value))
+            if (!KnownKeys.Contains(key))
             {
-                continue;
-            }
-
-            if (!KnownKeys.Contains(key.Value))
-            {
-                extras[key.Value] = ToObject(valueNode);
+                extras[key] = value;
             }
         }
 
@@ -134,10 +141,10 @@ public sealed class FrontmatterDocument
     public NoteMetadata ToNoteMetadata()
     {
         var typed = ToFrontmatter();
-        var extras = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var legacyExtras = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in typed.ExtraFields)
         {
-            extras[key] = ToLegacyString(value);
+            legacyExtras[key] = ToLegacyString(value);
         }
 
         return new NoteMetadata
@@ -149,18 +156,16 @@ public sealed class FrontmatterDocument
             Status = typed.Status,
             NoteType = typed.NoteType,
             Domain = typed.Domain,
-            ExtraFields = extras,
+            ExtraFields = new PreservedFrontmatterFields(legacyExtras, ToFieldDictionary()),
         };
     }
 
-    /// <summary>Replaces the Markdown body. Frontmatter mutations never call this implicitly.</summary>
     public void ReplaceBody(string body)
     {
         ArgumentNullException.ThrowIfNull(body);
         Body = body;
     }
 
-    /// <summary>Sets or removes a string field using a YAML-safe scalar representation.</summary>
     public void SetString(string key, string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -172,7 +177,6 @@ public sealed class FrontmatterDocument
         SetNode(key, CreateStringNode(value));
     }
 
-    /// <summary>Sets a sequence of strings, or removes the field when the sequence is empty.</summary>
     public void SetStringList(string key, IEnumerable<string>? values)
     {
         var normalized = values?
@@ -191,7 +195,6 @@ public sealed class FrontmatterDocument
         {
             sequence.Add(CreateStringNode(value));
         }
-
         SetNode(key, sequence);
     }
 
@@ -213,14 +216,12 @@ public sealed class FrontmatterDocument
 
         var existingKey = FindKeyNode([preferredKey, .. aliases]);
         var key = existingKey?.Value ?? preferredKey;
-        var scalar = new YamlScalarNode(value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+        SetNode(key, new YamlScalarNode(value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
         {
             Style = ScalarStyle.Plain,
-        };
-        SetNode(key, scalar);
+        });
     }
 
-    /// <summary>Sets a scalar, list, or nested mapping field.</summary>
     public void SetValue(string key, object? value)
     {
         if (value is null)
@@ -228,11 +229,9 @@ public sealed class FrontmatterDocument
             Remove(key);
             return;
         }
-
         SetNode(key, ToYamlNode(value));
     }
 
-    /// <summary>Merges fields without clearing keys absent from <paramref name="values"/>.</summary>
     public void Merge(IReadOnlyDictionary<string, object?> values)
     {
         ArgumentNullException.ThrowIfNull(values);
@@ -242,25 +241,21 @@ public sealed class FrontmatterDocument
         }
     }
 
-    /// <summary>Removes a field case-insensitively.</summary>
     public bool Remove(string key)
     {
         var keyNode = FindKeyNode([key]);
         return keyNode is not null && _root.Children.Remove(keyNode);
     }
 
-    /// <summary>Serializes the complete Markdown document.</summary>
     public string Serialize()
     {
         if (!HasFrontmatter && _root.Children.Count == 0)
         {
             return Body;
         }
-
         return SerializeFrontmatter() + Body;
     }
 
-    /// <summary>Serializes only the delimited YAML block, including its trailing newline.</summary>
     public string SerializeFrontmatter()
     {
         HasFrontmatter = true;
@@ -275,12 +270,21 @@ public sealed class FrontmatterDocument
         return builder.ToString();
     }
 
-    /// <summary>
-    /// Finds the index immediately after the closing frontmatter delimiter and its newline.
-    /// Returns zero when a complete frontmatter block is not present.
-    /// </summary>
     internal static int GetBodyStart(string content) =>
         TryFindFrontmatterBounds(content, out _, out _, out var bodyStart) ? bodyStart : 0;
+
+    private IReadOnlyDictionary<string, object?> ToFieldDictionary()
+    {
+        var fields = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (keyNode, valueNode) in _root.Children)
+        {
+            if (keyNode is YamlScalarNode { Value: not null } key)
+            {
+                fields[key.Value] = ToObject(valueNode);
+            }
+        }
+        return fields;
+    }
 
     private static YamlMappingNode ParseMapping(string yaml)
     {
@@ -302,7 +306,6 @@ public sealed class FrontmatterDocument
         {
             throw new InvalidDataException("Obsidian frontmatter must contain a single YAML mapping document.");
         }
-
         return mapping;
     }
 
@@ -351,7 +354,6 @@ public sealed class FrontmatterDocument
             {
                 break;
             }
-
             lineStart = lf + 1;
         }
 
@@ -362,11 +364,6 @@ public sealed class FrontmatterDocument
     private IReadOnlyList<string> ReadTags()
     {
         var node = FindValueNode("tags", "tag");
-        if (node is null)
-        {
-            return [];
-        }
-
         if (node is YamlSequenceNode sequence)
         {
             return sequence.Children
@@ -378,16 +375,12 @@ public sealed class FrontmatterDocument
         }
 
         var scalar = ReadScalar(node);
-        if (string.IsNullOrWhiteSpace(scalar))
-        {
-            return [];
-        }
-
-        return scalar
-            .Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(tag => tag.TrimStart('#'))
-            .Where(tag => tag.Length > 0)
-            .ToList();
+        return string.IsNullOrWhiteSpace(scalar)
+            ? []
+            : scalar.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(tag => tag.TrimStart('#'))
+                .Where(tag => tag.Length > 0)
+                .ToList();
     }
 
     private IReadOnlyList<string> ReadStringList(params string[] keys)
@@ -433,7 +426,7 @@ public sealed class FrontmatterDocument
     private void SetNode(string key, YamlNode value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        EnsureFrontmatter();
+        HasFrontmatter = true;
 
         var existing = FindKeyNode([key]);
         if (existing is not null)
@@ -441,15 +434,11 @@ public sealed class FrontmatterDocument
             _root.Children[existing] = value;
             return;
         }
-
         _root.Add(new YamlScalarNode(key), value);
     }
 
-    private void EnsureFrontmatter() => HasFrontmatter = true;
-
-    private static string? ReadScalar(YamlNode? node) => node is YamlScalarNode scalar
-        ? scalar.Value
-        : null;
+    private static string? ReadScalar(YamlNode? node) =>
+        node is YamlScalarNode scalar ? scalar.Value : null;
 
     private static YamlScalarNode CreateStringNode(string value) => new(value)
     {
@@ -493,7 +482,7 @@ public sealed class FrontmatterDocument
                         }
 
                         mapping.Add(
-                            new YamlScalarNode(Convert.ToString(entry.Key, CultureInfo.InvariantCulture)),
+                            new YamlScalarNode(Convert.ToString(entry.Key, CultureInfo.InvariantCulture) ?? string.Empty),
                             entry.Value is null
                                 ? new YamlScalarNode("null") { Style = ScalarStyle.Plain }
                                 : ToYamlNode(entry.Value));
@@ -564,22 +553,18 @@ public sealed class FrontmatterDocument
         {
             lines.RemoveAt(0);
         }
-
         while (lines.Count > 0 && string.IsNullOrEmpty(lines[^1]))
         {
             lines.RemoveAt(lines.Count - 1);
         }
-
         if (lines.Count > 0 && lines[^1].Trim().Equals("...", StringComparison.Ordinal))
         {
             lines.RemoveAt(lines.Count - 1);
         }
-
         while (lines.Count > 0 && string.IsNullOrEmpty(lines[^1]))
         {
             lines.RemoveAt(lines.Count - 1);
         }
-
         return string.Join(newLine, lines);
     }
 
@@ -593,4 +578,32 @@ public sealed class FrontmatterDocument
             throw new ArgumentException("Line ending must be LF or CRLF.", nameof(newLine));
         }
     }
+}
+
+/// <summary>
+/// Compatibility dictionary that exposes scalar strings to existing index consumers while also
+/// carrying the complete structured YAML field map for loss-aware rebuilds.
+/// </summary>
+internal sealed class PreservedFrontmatterFields(
+    IReadOnlyDictionary<string, string> legacyValues,
+    IReadOnlyDictionary<string, object?> allFields)
+    : IReadOnlyDictionary<string, string>
+{
+    public IReadOnlyDictionary<string, object?> AllFields { get; } = allFields;
+
+    public string this[string key] => legacyValues[key];
+
+    public IEnumerable<string> Keys => legacyValues.Keys;
+
+    public IEnumerable<string> Values => legacyValues.Values;
+
+    public int Count => legacyValues.Count;
+
+    public bool ContainsKey(string key) => legacyValues.ContainsKey(key);
+
+    public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => legacyValues.GetEnumerator();
+
+    public bool TryGetValue(string key, out string value) => legacyValues.TryGetValue(key, out value!);
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
