@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
@@ -17,10 +18,6 @@ public static class NoteHelpers
     /// Ensures that a candidate path remains inside the vault root after canonicalization.
     /// Throws <see cref="InvalidOperationException"/> if the path escapes the vault.
     /// </summary>
-    /// <param name="vaultRoot">Absolute path to the vault root directory.</param>
-    /// <param name="candidate">Candidate path to validate (may be relative or absolute).</param>
-    /// <returns>The canonicalized absolute path, guaranteed to be inside the vault.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the path escapes the vault.</exception>
     public static string EnsureInsideVault(string vaultRoot, string candidate)
     {
         var root = Path.GetFullPath(vaultRoot);
@@ -43,14 +40,12 @@ public static class NoteHelpers
     {
         var all = vault.GetAllNotes();
 
-        // Try exact absolute path (fast path)
         var byPath = vault.GetNote(nameOrPath);
         if (byPath is not null)
         {
             return byPath;
         }
 
-        // Try vault-relative path (with or without .md extension)
         var normalized = nameOrPath.TrimStart('/').Replace('\\', '/');
         var byRelPath = all.SingleOrDefault(n =>
             n.VaultRelativePath.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
@@ -60,7 +55,6 @@ public static class NoteHelpers
             return byRelPath;
         }
 
-        // Try exact filename only when it is unambiguous. Duplicate basenames are valid in a vault.
         var nameOnly = Path.GetFileNameWithoutExtension(nameOrPath);
         if (!normalized.Contains('/'))
         {
@@ -71,7 +65,6 @@ public static class NoteHelpers
             }
         }
 
-        // Finally resolve a unique frontmatter alias. Ambiguous aliases are deliberately rejected.
         var byAlias = all
             .Where(n => n.Metadata.Aliases.Any(alias => alias.Equals(nameOrPath, StringComparison.OrdinalIgnoreCase)))
             .ToList();
@@ -87,8 +80,7 @@ public static class NoteHelpers
             normalized += ".md";
         }
 
-        var combined = Path.Combine(vaultPath, normalized);
-        return EnsureInsideVault(vaultPath, combined);
+        return EnsureInsideVault(vaultPath, Path.Combine(vaultPath, normalized));
     }
 
     public static List<string> ParseTags(string tags)
@@ -184,12 +176,11 @@ public static class NoteHelpers
         }
         catch (Exception exception) when (exception is YamlException or InvalidDataException)
         {
-            // A write helper must never replace malformed user YAML with a partial reconstruction.
             return content;
         }
     }
 
-    private static string NormalizeLegacyFrontmatterValue(string value)
+    private static object NormalizeLegacyFrontmatterValue(string value)
     {
         var trimmed = value.Trim();
         if (trimmed.Length >= 2 &&
@@ -199,6 +190,11 @@ public static class NoteHelpers
             return trimmed[1..^1];
         }
 
+        if (decimal.TryParse(trimmed, NumberStyles.Number, CultureInfo.InvariantCulture, out var number))
+        {
+            return number;
+        }
+
         return value;
     }
 
@@ -206,22 +202,15 @@ public static class NoteHelpers
 
     public static string SanitizeFileName(string name)
     {
-        // Use a cross-platform set of invalid filename characters so vaults
-        // remain portable across Windows, macOS, and Linux.
         char[] invalid = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
         var mapped = string.Concat(name
             .Select(c =>
             {
-                // Any whitespace (regular space, non-breaking space, tab) becomes a hyphen.
                 if (char.IsWhiteSpace(c))
                 {
                     return '-';
                 }
 
-                // Normalize Unicode dash punctuation — figure dash, en dash, em dash,
-                // horizontal bar, minus sign — to a plain hyphen. LLM-authored titles
-                // routinely contain em dashes ("A — B"); left raw they leak into the
-                // filename and diverge from the human-readable title used in wikilinks.
                 if (c is '‒' or '–' or '—' or '―' or '−')
                 {
                     return '-';
@@ -231,16 +220,9 @@ public static class NoteHelpers
             })
             .Where(c => !invalid.Contains(c)));
 
-        // Collapse runs of hyphens left by adjacent spaces/dashes (e.g. "A — B" → "A-B"),
-        // then trim leading/trailing hyphens.
         return ConsecutiveHyphensRegex.Replace(mapped, "-").Trim('-');
     }
 
-    /// <summary>
-    /// Merges user-provided tags with inherited folder tags, removing duplicates
-    /// and filtering out values that appear in excludedFields.
-    /// Order: user tags first, then inherited additions.
-    /// </summary>
     public static List<string> MergeTagsWithInheritance(
         IEnumerable<string> userTags,
         IEnumerable<string> inheritedTags,
@@ -261,13 +243,6 @@ public static class NoteHelpers
         return result;
     }
 
-    /// <summary>
-    /// Appends a Markdown wikilink section (e.g. "## Related") to note content, skipping any
-    /// target already present in existingOutgoingLinks — shared by link_related_notes and
-    /// apply_link_suggestions so neither duplicates the other's insertion logic.
-    /// Returns null when every target is already linked (caller should treat this as a no-op
-    /// and skip writing the file, which is what makes repeated calls idempotent).
-    /// </summary>
     public static string? AppendLinkSection(
         string currentContent,
         IReadOnlySet<string> existingOutgoingLinks,
@@ -298,17 +273,6 @@ public static class NoteHelpers
         return currentContent.TrimEnd() + section;
     }
 
-    /// <summary>
-    /// Expands {{variable}} placeholders in a template string.
-    /// Unknown placeholders are left as-is. Variables are matched case-insensitively.
-    /// Built-in variables are supported: {{date}}, {{time}}, {{datetime}}, {{year}}, {{month}},
-    /// {{day}}, {{title}}, and {{uid}}. User-provided variables take precedence over built-ins.
-    /// </summary>
-    /// <param name="template">Template string with {{variable}} placeholders.</param>
-    /// <param name="variables">Key-value pairs of variable name to value.</param>
-    /// <param name="noteTitle">Optional note title for the {{title}} built-in.</param>
-    /// <param name="now">Optional timestamp for date/time built-ins. Defaults to UTC now.</param>
-    /// <returns>Template with all known placeholders replaced.</returns>
     public static string ExpandTemplateVariables(
         string template,
         IReadOnlyDictionary<string, string> variables,
@@ -318,7 +282,6 @@ public static class NoteHelpers
         var timestamp = now ?? DateTimeOffset.UtcNow;
         var merged = new Dictionary<string, string>(variables, StringComparer.OrdinalIgnoreCase);
 
-        // User-provided values take precedence; only add built-ins that are absent.
         merged.TryAdd("date", timestamp.ToString("yyyy-MM-dd"));
         merged.TryAdd("time", timestamp.ToString("HH:mm:ss"));
         merged.TryAdd("datetime", timestamp.ToString("yyyy-MM-dd HH:mm:ss"));
