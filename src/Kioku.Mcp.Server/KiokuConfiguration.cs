@@ -93,6 +93,26 @@ public sealed class KiokuConfiguration
     public string? SentryDsn { get; init; }
 
     /// <summary>
+    /// Enables reads outside the vault only when the canonical source is also under one of
+    /// <see cref="ExternalReadRoots"/>. Default: false.
+    /// Environment variable: KIOKU_ALLOW_EXTERNAL_READS
+    /// </summary>
+    public bool AllowExternalReads { get; init; }
+
+    /// <summary>
+    /// Explicit roots allowed for external read-only imports. Entries are separated with the
+    /// platform path separator (';' on Windows, ':' on Unix).
+    /// Environment variable: KIOKU_EXTERNAL_READ_ROOTS
+    /// </summary>
+    public IReadOnlyList<string> ExternalReadRoots { get; init; } = [];
+
+    /// <summary>
+    /// Enables irreversible file deletion. Soft-delete remains available when disabled.
+    /// Default: false. Environment variable: KIOKU_ALLOW_PERMANENT_DELETE
+    /// </summary>
+    public bool AllowPermanentDelete { get; init; }
+
+    /// <summary>
     /// Returns true when the server is running in HTTP-SSE transport mode.
     /// </summary>
     public bool IsHttpTransport => Transport.Equals("http", StringComparison.OrdinalIgnoreCase);
@@ -135,6 +155,14 @@ public sealed class KiokuConfiguration
         var enableMetrics = bool.TryParse(
             Environment.GetEnvironmentVariable("KIOKU_ENABLE_METRICS"), out var em) && em;
         var sentryDsn = Environment.GetEnvironmentVariable("KIOKU_SENTRY_DSN");
+        var allowExternalReads = bool.TryParse(
+            Environment.GetEnvironmentVariable("KIOKU_ALLOW_EXTERNAL_READS"), out var aer) && aer;
+        var externalReadRoots = (Environment.GetEnvironmentVariable("KIOKU_EXTERNAL_READ_ROOTS") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Path.GetFullPath)
+            .ToArray();
+        var allowPermanentDelete = bool.TryParse(
+            Environment.GetEnvironmentVariable("KIOKU_ALLOW_PERMANENT_DELETE"), out var apd) && apd;
 
         return new KiokuConfiguration
         {
@@ -151,6 +179,9 @@ public sealed class KiokuConfiguration
             GitHubToken = githubToken,
             EnableMetrics = enableMetrics,
             SentryDsn = sentryDsn,
+            AllowExternalReads = allowExternalReads,
+            ExternalReadRoots = externalReadRoots,
+            AllowPermanentDelete = allowPermanentDelete,
         };
     }
 }
