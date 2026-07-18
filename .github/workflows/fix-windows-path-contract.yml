@@ -1,0 +1,85 @@
+name: fix-windows-path-contract
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'agent/enforce-filesystem-sandbox' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Normalize cross-platform path contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              file.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace_once(
+              'src/Kioku.Mcp.Server/Services/VaultIndexService.cs',
+              '        var relativePath = Path.GetRelativePath(_vaultPath, filePath);',
+              "        var relativePath = Path.GetRelativePath(_vaultPath, filePath).Replace('\\\\', '/');",
+              'vault-relative index path')
+
+          replace_once(
+              'src/Kioku.Mcp.Server/Services/NoteHelpers.cs',
+              '        return EnsureInsideVault(vaultPath, Path.Combine(vaultPath, normalized));',
+              '''        var candidate = Path.Combine(vaultPath, normalized);
+                  _ = EnsureInsideVault(vaultPath, candidate);
+                  return candidate;''',
+              'legacy build path shape')
+
+          replace_once(
+              'src/Kioku.Mcp.Server/Tools/WorkflowTools.cs',
+              '''            var result = new StringBuilder($"[ok] Template '{name}' ({Path.GetRelativePath(config.VaultPath, filePath)}):\\n\\n");''',
+              '''            var templateRelativePath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\\\', '/');
+                      var result = new StringBuilder($"[ok] Template '{name}' ({templateRelativePath}):\\n\\n");''',
+              'template get path')
+
+          replace_once(
+              'src/Kioku.Mcp.Server/Tools/WorkflowTools.cs',
+              '        var relPath = Path.GetRelativePath(config.VaultPath, filePath);',
+              "        var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\\\', '/');",
+              'template set path')
+          PY
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore server
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+
+      - name: Restore tests
+        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+
+      - name: Format server
+        run: dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --no-restore --verbosity minimal
+
+      - name: Format tests
+        run: dotnet format src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --no-restore --verbosity minimal
+
+      - name: Commit normalized paths
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Kioku.Mcp.Server src/Kioku.Mcp.Server.Tests
+          git commit -m "fix: normalize cross-platform path contracts"
+          git push origin HEAD:${{ github.head_ref }}
