@@ -29,7 +29,7 @@ public sealed class PermanentDeletePolicyTests : IAsyncLifetime
 
         Assert.StartsWith("[error] [ACCESS_DENIED]", result);
         Assert.True(File.Exists(filePath));
-        Assert.NotNull(_fixture.Index.GetNote("Delete/Protected"));
+        Assert.NotNull(_fixture.Index.ResolveNote("Delete/Protected"));
     }
 
     [Fact]
