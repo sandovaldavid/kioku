@@ -311,7 +311,10 @@ internal sealed partial class WorkSessionService
                 $"started: {FormatUtc(session.StartedAt)} — duration: {FormatDuration(end - session.StartedAt)}");
             if (includeActivity)
             {
-                AppendActivity(sb, session, end);
+                var activityEnd = session.Status.Equals("active", StringComparison.OrdinalIgnoreCase)
+                    ? DateTimeOffset.MaxValue
+                    : end;
+                AppendActivity(sb, session, activityEnd);
             }
         }
 
