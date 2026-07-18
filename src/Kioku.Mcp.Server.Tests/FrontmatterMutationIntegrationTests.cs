@@ -23,7 +23,7 @@ public sealed class FrontmatterMutationIntegrationTests : IAsyncLifetime
         var name = $"FrontmatterMutation-{Guid.NewGuid():N}";
         var filePath = _fixture.GetNotePath(name);
         const string body = "# Body\n\nstatus: draft in Markdown must remain unchanged.\n";
-        var source = FrontmatterDocument.Parse("""
+        const string frontmatter = """
             ---
             tags: [alpha]
             aliases: [My Alias]
@@ -34,7 +34,9 @@ public sealed class FrontmatterMutationIntegrationTests : IAsyncLifetime
               owner: human
               flags: [keep, me]
             ---
-            """ + body);
+
+            """;
+        var source = FrontmatterDocument.Parse(frontmatter + body);
         await File.WriteAllTextAsync(filePath, source.Serialize(), NoteHelpers.Utf8NoBom);
         await _fixture.Index.RebuildIndexAsync();
 
