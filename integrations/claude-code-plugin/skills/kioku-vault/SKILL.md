@@ -61,6 +61,16 @@ For project work, call `get_project_context` before resuming. Use `create_projec
 `update_frontmatter` for follow-up changes. Use `start_work_session` and `end_work_session` for
 handoffs. Use `manage_templates` for vault or engineering template overrides.
 
+### Concurrent work sessions
+
+- Save the `session_id` returned by `start_work_session`; it is the durable identity for resume and close operations.
+- Resume after a client/server restart with `start_work_session(session_id='...')`.
+- Close with `end_work_session(session_id='...', summary='...')` whenever the ID is available.
+- Use `parent_session_id` when one agent explicitly hands work to another.
+- Implicit close is intentionally conservative: it succeeds only when one active session matches the project and current client/agent.
+- When `AMBIGUOUS_SESSION` is returned, choose one of the candidate `session_id` values instead of retrying without a selector.
+- Do not infer start time from the note filename or modification time; Kioku persists `started_at` and `ended_at` as UTC timestamps.
+
 For a user request that involves substantial work on a named project, use the focused
 `kioku-project-workflow` skill when available, or follow the `project_task` MCP prompt. That
 workflow decides whether the task needs a session, plan, bug, ADR, knowledge note, or no document
