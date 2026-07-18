@@ -27,32 +27,24 @@ jobs:
         run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
 
       - name: Build
-        run: |
-          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-            --configuration Release \
-            --no-restore \
-            --runtime linux-x64
+        run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --runtime linux-x64
 
       - name: Build (osx-arm64 cross-check)
-        run: |
-          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-            --configuration Release \
-            --no-restore \
-            --runtime osx-arm64
+        run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --runtime osx-arm64
 
       - name: Format check
-        run: |
-          dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-            --verify-no-changes \
-            --verbosity diagnostic
+        run: dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --verify-no-changes --verbosity minimal
 
       - name: Vulnerability check
-        run: |
-          dotnet list src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj package --vulnerable
+        run: dotnet list src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj package --vulnerable
 
   test-server:
-    name: test-server (ubuntu-latest)
-    runs-on: ubuntu-latest
+    name: test-server (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v7
@@ -66,15 +58,10 @@ jobs:
         run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
 
       - name: Test with coverage
-        run: |
-          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
-            --configuration Release \
-            --no-restore \
-            --verbosity normal \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ./coverage
+        run: dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore --verbosity minimal --collect:"XPlat Code Coverage" --results-directory ./coverage
 
       - name: Upload coverage to Codecov
+        if: runner.os == 'Linux'
         uses: codecov/codecov-action@v7
         with:
           files: ./coverage/**/coverage.cobertura.xml
