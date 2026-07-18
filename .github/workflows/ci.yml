@@ -58,10 +58,21 @@ jobs:
         run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
 
       - name: Test with coverage
-        run: dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore --verbosity minimal --collect:"XPlat Code Coverage" --results-directory ./coverage
+        run: dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore --verbosity minimal --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --results-directory ./coverage
+
+      - name: Upload failed test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: server-test-results-${{ runner.os }}
+          path: |
+            coverage/**/*.trx
+            coverage/**/coverage.cobertura.xml
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload coverage to Codecov
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && success()
         uses: codecov/codecov-action@v7
         with:
           files: ./coverage/**/coverage.cobertura.xml
