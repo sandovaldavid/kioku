@@ -75,7 +75,9 @@ public static class NoteHelpers
             normalized += ".md";
         }
 
-        return EnsureInsideVault(vaultPath, Path.Combine(vaultPath, normalized));
+        var candidate = Path.Combine(vaultPath, normalized);
+        _ = EnsureInsideVault(vaultPath, candidate);
+        return candidate;
     }
 
     public static List<string> ParseTags(string tags)

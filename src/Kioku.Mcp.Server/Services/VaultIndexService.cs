@@ -490,7 +490,7 @@ public sealed class VaultIndexService : IDisposable
         var plainText = MarkdownTextExtractor.Extract(content, bodyStart);
         var outgoingLinks = MarkdownTextExtractor.ExtractWikilinks(content);
         var name = Path.GetFileNameWithoutExtension(filePath);
-        var relativePath = Path.GetRelativePath(_vaultPath, filePath);
+        var relativePath = Path.GetRelativePath(_vaultPath, filePath).Replace('\\', '/');
 
         return new Note
         {
