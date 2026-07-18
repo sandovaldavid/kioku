@@ -27,7 +27,7 @@ public static class NoteHelpers
         }
         catch (VaultAccessDeniedException exception)
         {
-            throw new InvalidOperationException(exception.Message, exception);
+            throw new InvalidOperationException("The requested path escapes the vault security boundary.", exception);
         }
     }
 
