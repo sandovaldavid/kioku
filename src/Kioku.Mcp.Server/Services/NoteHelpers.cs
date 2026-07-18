@@ -113,6 +113,32 @@ public static class NoteHelpers
         IReadOnlyDictionary<string, string>? extraFields = null,
         DateOnly? updated = null)
     {
+        if (extraFields is PreservedFrontmatterFields preserved)
+        {
+            var document = FrontmatterDocument.CreateFromFields(preserved.AllFields);
+            document.SetStringList("tags", tags);
+            document.SetString("type", type);
+            document.SetString("status", status);
+            document.SetDate("date", date, "created");
+            document.SetString("domain", domain);
+            document.SetDate("updated", updated, "modified");
+
+            if (aliases is not null)
+            {
+                document.SetStringList("aliases", aliases);
+            }
+            if (cssClasses is not null)
+            {
+                document.SetStringList("cssclasses", cssClasses);
+            }
+            if (zettelId is not null)
+            {
+                document.SetString("zettel_id", zettelId);
+            }
+
+            return document.SerializeFrontmatter();
+        }
+
         var extras = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (extraFields is not null)
         {
