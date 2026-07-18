@@ -15,26 +15,12 @@ public static class NoteHelpers
     public static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>
-    /// Ensures that a candidate path remains inside the vault root after canonicalization.
-    /// Throws <see cref="InvalidOperationException"/> if the path escapes the vault.
+    /// Ensures that a candidate path remains inside the vault root after canonicalization and
+    /// symbolic-link resolution. Throws <see cref="VaultAccessDeniedException"/> when the path
+    /// crosses the configured boundary.
     /// </summary>
-    public static string EnsureInsideVault(string vaultRoot, string candidate)
-    {
-        var root = Path.GetFullPath(vaultRoot);
-        var full = Path.GetFullPath(candidate);
-        var rootWithSep = root.EndsWith(Path.DirectorySeparatorChar)
-            ? root
-            : root + Path.DirectorySeparatorChar;
-
-        if (!full.StartsWith(rootWithSep, StringComparison.Ordinal) &&
-            !full.Equals(root, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"Path escapes the vault: '{candidate}' resolves outside '{vaultRoot}'.");
-        }
-
-        return full;
-    }
+    public static string EnsureInsideVault(string vaultRoot, string candidate) =>
+        VaultPathPolicy.EnsureInsideRoot(vaultRoot, candidate);
 
     public static Note? ResolveNote(string nameOrPath, VaultIndexService vault)
     {
