@@ -44,19 +44,24 @@ public sealed class FrontmatterDocument
 
     public bool HasFrontmatter { get; private set; }
 
+    /// <summary>
+    /// Parses a Markdown document and removes an optional UTF-8 BOM from the in-memory
+    /// representation. All subsequent writes therefore remain UTF-8 without BOM.
+    /// </summary>
     public static FrontmatterDocument Parse(string content)
     {
         ArgumentNullException.ThrowIfNull(content);
 
-        var newLine = DetectNewLine(content);
-        if (!TryFindFrontmatterBounds(content, out var yamlStart, out var yamlLength, out var bodyStart))
+        var normalized = RemoveBom(content, out _);
+        var newLine = DetectNewLine(normalized);
+        if (!TryFindFrontmatterBounds(normalized, out var yamlStart, out var yamlLength, out var bodyStart))
         {
-            return new FrontmatterDocument(new YamlMappingNode(), content, newLine, hasFrontmatter: false);
+            return new FrontmatterDocument(new YamlMappingNode(), normalized, newLine, hasFrontmatter: false);
         }
 
         return new FrontmatterDocument(
-            ParseMapping(content.Substring(yamlStart, yamlLength)),
-            content[bodyStart..],
+            ParseMapping(normalized.Substring(yamlStart, yamlLength)),
+            normalized[bodyStart..],
             newLine,
             hasFrontmatter: true);
     }
@@ -96,14 +101,9 @@ public sealed class FrontmatterDocument
 
     public NoteFrontmatter ToFrontmatter()
     {
-        var extras = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (key, value) in ToFieldDictionary())
-        {
-            if (!KnownKeys.Contains(key))
-            {
-                extras[key] = value;
-            }
-        }
+        var extras = ToFieldDictionary()
+            .Where(pair => !KnownKeys.Contains(pair.Key))
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
 
         return new NoteFrontmatter
         {
@@ -182,7 +182,7 @@ public sealed class FrontmatterDocument
 
     /// <summary>
     /// Sets a date using an existing alias when present, preserving vaults that use
-    /// `created`/`modified` instead of `date`/`updated`.
+    /// <c>created</c>/<c>modified</c> instead of <c>date</c>/<c>updated</c>.
     /// </summary>
     public void SetDate(string preferredKey, DateOnly? value, params string[] aliases)
     {
@@ -197,7 +197,8 @@ public sealed class FrontmatterDocument
         }
 
         var existingKey = FindKeyNode([preferredKey, .. aliases]);
-        SetNode(existingKey?.Value ?? preferredKey,
+        SetNode(
+            existingKey?.Value ?? preferredKey,
             new YamlScalarNode(value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
             {
                 Style = ScalarStyle.Plain,
@@ -254,8 +255,14 @@ public sealed class FrontmatterDocument
         return builder.ToString();
     }
 
-    internal static int GetBodyStart(string content) =>
-        TryFindFrontmatterBounds(content, out _, out _, out var bodyStart) ? bodyStart : 0;
+    internal static int GetBodyStart(string content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        var normalized = RemoveBom(content, out var bomLength);
+        return TryFindFrontmatterBounds(normalized, out _, out _, out var bodyStart)
+            ? bodyStart + bomLength
+            : 0;
+    }
 
     private IReadOnlyDictionary<string, object?> ToFieldDictionary()
     {
@@ -339,6 +346,7 @@ public sealed class FrontmatterDocument
             {
                 break;
             }
+
             lineStart = lf + 1;
         }
 
@@ -436,7 +444,8 @@ public sealed class FrontmatterDocument
 
     private static bool CanUsePlainScalar(string value)
     {
-        if (string.IsNullOrEmpty(value) || !value.Equals(value.Trim(), StringComparison.Ordinal) ||
+        if (string.IsNullOrEmpty(value) ||
+            !value.Equals(value.Trim(), StringComparison.Ordinal) ||
             AmbiguousPlainScalars.Contains(value))
         {
             return false;
@@ -488,49 +497,57 @@ public sealed class FrontmatterDocument
                     Style = ScalarStyle.Plain,
                 };
             case IReadOnlyDictionary<string, object?> readOnlyMapping:
-                {
-                    var mapping = new YamlMappingNode();
-                    foreach (var (key, item) in readOnlyMapping)
-                    {
-                        mapping.Add(new YamlScalarNode(key), item is null
-                            ? new YamlScalarNode("null") { Style = ScalarStyle.Plain }
-                            : ToYamlNode(item));
-                    }
-                    return mapping;
-                }
+                return ToMappingNode(readOnlyMapping);
             case IDictionary dictionary:
-                {
-                    var mapping = new YamlMappingNode();
-                    foreach (DictionaryEntry entry in dictionary)
-                    {
-                        if (entry.Key is null)
-                        {
-                            continue;
-                        }
-
-                        mapping.Add(
-                            new YamlScalarNode(Convert.ToString(entry.Key, CultureInfo.InvariantCulture) ?? string.Empty),
-                            entry.Value is null
-                                ? new YamlScalarNode("null") { Style = ScalarStyle.Plain }
-                                : ToYamlNode(entry.Value));
-                    }
-                    return mapping;
-                }
+                return ToMappingNode(dictionary);
             case IEnumerable sequence:
-                {
-                    var yamlSequence = new YamlSequenceNode();
-                    foreach (var item in sequence)
-                    {
-                        yamlSequence.Add(item is null
-                            ? new YamlScalarNode("null") { Style = ScalarStyle.Plain }
-                            : ToYamlNode(item));
-                    }
-                    return yamlSequence;
-                }
+                return ToSequenceNode(sequence);
             default:
                 return CreateStringNode(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty);
         }
     }
+
+    private static YamlMappingNode ToMappingNode(IReadOnlyDictionary<string, object?> values)
+    {
+        var mapping = new YamlMappingNode();
+        foreach (var (key, value) in values)
+        {
+            mapping.Add(new YamlScalarNode(key), ToNullableYamlNode(value));
+        }
+        return mapping;
+    }
+
+    private static YamlMappingNode ToMappingNode(IDictionary values)
+    {
+        var mapping = new YamlMappingNode();
+        foreach (DictionaryEntry entry in values)
+        {
+            if (entry.Key is null)
+            {
+                continue;
+            }
+
+            mapping.Add(
+                new YamlScalarNode(Convert.ToString(entry.Key, CultureInfo.InvariantCulture) ?? string.Empty),
+                ToNullableYamlNode(entry.Value));
+        }
+        return mapping;
+    }
+
+    private static YamlSequenceNode ToSequenceNode(IEnumerable values)
+    {
+        var sequence = new YamlSequenceNode();
+        foreach (var value in values)
+        {
+            sequence.Add(ToNullableYamlNode(value));
+        }
+        return sequence;
+    }
+
+    private static YamlNode ToNullableYamlNode(object? value) =>
+        value is null
+            ? new YamlScalarNode("null") { Style = ScalarStyle.Plain }
+            : ToYamlNode(value);
 
     private static object? ToObject(YamlNode node) => node switch
     {
@@ -552,8 +569,7 @@ public sealed class FrontmatterDocument
             null => string.Empty,
             string text => text,
             IEnumerable<object?> sequence => string.Join(", ", sequence.Select(ToLegacyString)),
-            IReadOnlyDictionary<string, object?> mapping => SerializeMapping(
-                (YamlMappingNode)ToYamlNode(mapping), "\n"),
+            IReadOnlyDictionary<string, object?> mapping => SerializeMapping(ToMappingNode(mapping), "\n"),
             _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
         };
     }
@@ -568,7 +584,10 @@ public sealed class FrontmatterDocument
 
         var stream = new YamlStream(new YamlDocument(mapping));
         using var writer = new StringWriter(CultureInfo.InvariantCulture) { NewLine = "\n" };
-        stream.Save(writer, assignAnchors: false);
+        var settings = EmitterSettings.Default
+            .WithNewLine("\n")
+            .WithIndentedSequences();
+        stream.Save(new Emitter(writer, settings), assignAnchors: false);
 
         var lines = writer.ToString()
             .Replace("\r\n", "\n", StringComparison.Ordinal)
@@ -594,6 +613,18 @@ public sealed class FrontmatterDocument
         }
 
         return string.Join(newLine, lines);
+    }
+
+    private static string RemoveBom(string content, out int bomLength)
+    {
+        if (content.Length > 0 && content[0] == '\uFEFF')
+        {
+            bomLength = 1;
+            return content[1..];
+        }
+
+        bomLength = 0;
+        return content;
     }
 
     private static string DetectNewLine(string content) =>
