@@ -454,9 +454,9 @@ public sealed class VaultIndexService : IDisposable
 
             Interlocked.Increment(ref _indexedCount);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            _logger.Warn("Could not index {File}: {Error}", filePath, ex.Message);
+            _logger.Error(ex, "Could not index {File}", filePath);
         }
     }
 
@@ -621,11 +621,23 @@ public sealed class VaultIndexService : IDisposable
     /// Removes the old path and re-indexes the new path.
     /// Use this from tools that move/rename files to avoid race conditions with FileSystemWatcher.
     /// </summary>
+    /// <summary>
+    /// Synchronously updates the index after a file rename or move.
+    /// Removes the old path and re-indexes the new path.
+    /// Never throws — same contract as <see cref="SynchronizeFileReindexAsync"/>.
+    /// </summary>
     public async Task SynchronizeFileMoveAsync(string oldPath, string newPath)
     {
-        _embedding?.Move(oldPath, newPath);
-        RemoveFromIndex(oldPath, removeEmbedding: false);
-        await IndexFileAsync(newPath);
+        try
+        {
+            _embedding?.Move(oldPath, newPath);
+            RemoveFromIndex(oldPath, removeEmbedding: false);
+            await IndexFileAsync(newPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "SynchronizeFileMoveAsync failed for {OldPath} -> {NewPath}. Index may be stale.", oldPath, newPath);
+        }
     }
 
     /// <summary>
@@ -640,11 +652,20 @@ public sealed class VaultIndexService : IDisposable
     /// <summary>
     /// Synchronously re-indexes a file (removes old entry, re-reads from disk).
     /// Use after reverting a file via git to refresh the in-memory index.
+    /// Never throws — callers (MCP tools that already wrote the file) must not crash
+    /// from a re-index failure. The index self-heals via FileSystemWatcher debouncing.
     /// </summary>
     public async Task SynchronizeFileReindexAsync(string filePath)
     {
-        RemoveFromIndex(filePath);
-        await IndexFileAsync(filePath);
+        try
+        {
+            RemoveFromIndex(filePath);
+            await IndexFileAsync(filePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "SynchronizeFileReindexAsync failed for {File}. Index may be stale until the next FileSystemWatcher debounce.", filePath);
+        }
     }
 
     // Indexes
