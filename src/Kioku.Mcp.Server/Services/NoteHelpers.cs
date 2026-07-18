@@ -16,11 +16,20 @@ public static class NoteHelpers
 
     /// <summary>
     /// Ensures that a candidate path remains inside the vault root after canonicalization and
-    /// symbolic-link resolution. Throws <see cref="VaultAccessDeniedException"/> when the path
-    /// crosses the configured boundary.
+    /// symbolic-link resolution. The legacy facade preserves its exact InvalidOperationException
+    /// contract while the policy itself exposes VaultAccessDeniedException to new callers.
     /// </summary>
-    public static string EnsureInsideVault(string vaultRoot, string candidate) =>
-        VaultPathPolicy.EnsureInsideRoot(vaultRoot, candidate);
+    public static string EnsureInsideVault(string vaultRoot, string candidate)
+    {
+        try
+        {
+            return VaultPathPolicy.EnsureInsideRoot(vaultRoot, candidate);
+        }
+        catch (VaultAccessDeniedException exception)
+        {
+            throw new InvalidOperationException(exception.Message, exception);
+        }
+    }
 
     public static Note? ResolveNote(string nameOrPath, VaultIndexService vault)
     {
