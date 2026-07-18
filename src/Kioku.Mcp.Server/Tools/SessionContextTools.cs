@@ -166,15 +166,12 @@ public sealed class SessionContextTools(
             return $"[ok] Resumed existing session note: {sessions_folder}/{noteName}.md";
         }
 
-        var frontmatter = new StringBuilder();
-        frontmatter.AppendLine("---");
-        frontmatter.AppendLine("tags:");
-        frontmatter.AppendLine("  - session");
-        frontmatter.AppendLine("  - work-log");
-        frontmatter.AppendLine($"type: session");
-        frontmatter.AppendLine($"status: active");
-        frontmatter.AppendLine($"date: {dateStr}");
-        frontmatter.AppendLine("---");
+        var frontmatter = NoteHelpers.BuildFrontmatter(
+            ["session", "work-log"],
+            type: "session",
+            status: "active",
+            date: DateOnly.FromDateTime(now),
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
         var body = await TryRenderFolderTemplateAsync(
             sessions_folder,
@@ -313,15 +310,16 @@ public sealed class SessionContextTools(
 
         await File.AppendAllTextAsync(sessionNote.FilePath, sb.ToString(), NoteHelpers.Utf8NoBom);
 
-        // Update status to done and surface the summary at the top for the next agent
+        // Update only the YAML status field and surface the summary at the top for the next agent.
         var rawContent = await File.ReadAllTextAsync(sessionNote.FilePath, Encoding.UTF8);
-        var updatedContent = rawContent.Replace("status: active", "status: done");
+        var document = FrontmatterDocument.Parse(rawContent);
+        document.SetString("status", "done");
         if (!string.IsNullOrWhiteSpace(summary))
         {
-            updatedContent = WriteSummarySection(updatedContent, summary);
+            document.ReplaceBody(WriteSummarySection(document.Body, summary));
         }
 
-        await File.WriteAllTextAsync(sessionNote.FilePath, updatedContent, NoteHelpers.Utf8NoBom);
+        await File.WriteAllTextAsync(sessionNote.FilePath, document.Serialize(), NoteHelpers.Utf8NoBom);
         await vault.SynchronizeFileReindexAsync(sessionNote.FilePath);
 
         return $"[ok] Session closed: {sessionNote.VaultRelativePath}\n" +
@@ -474,7 +472,7 @@ public sealed class SessionContextTools(
         if (File.Exists(filePath))
         {
             await File.AppendAllTextAsync(
-                filePath, $"\n\n---\n\n## Session resumed at {now:HH:mm}\n", Encoding.UTF8);
+                filePath, $"\n\n---\n\n## Session resumed at {now:HH:mm}\n", NoteHelpers.Utf8NoBom);
             return $"[ok] Resumed existing session note: {workspace.ToVaultRelative(filePath)}";
         }
 
@@ -511,7 +509,7 @@ public sealed class SessionContextTools(
             extraFields: new Dictionary<string, string>
             {
                 ["project"] = project,
-                ["project_link"] = $"\"{projectLink}\"",
+                ["project_link"] = projectLink,
                 ["agent"] = agentName,
             });
 
