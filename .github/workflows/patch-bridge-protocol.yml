@@ -1,0 +1,214 @@
+name: patch-bridge-protocol
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'agent/harden-obsidian-bridge' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Apply protocol negotiation changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str, label: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              if new in text:
+                  print(f'{label}: already applied')
+                  return
+              if old not in text:
+                  raise SystemExit(f'{label}: expected source pattern not found')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+              print(f'{label}: applied')
+
+          service = 'src/Kioku.Mcp.Server/Services/ObsidianBridgeService.cs'
+          replace_once(
+              service,
+              '    private readonly string? _bridgeToken;\n    private readonly ConcurrentDictionary<string, TaskCompletionSource<BridgeResponse>> _pendingRequests = new();',
+              '    private readonly string? _bridgeToken;\n    private int _negotiatedProtocolVersion = BridgeProtocol.Version;\n    private IReadOnlySet<string> _capabilities = new HashSet<string>(StringComparer.Ordinal);\n    private readonly ConcurrentDictionary<string, TaskCompletionSource<BridgeResponse>> _pendingRequests = new();',
+              'negotiation fields')
+
+          replace_once(
+              service,
+              '            ProtocolVersion = BridgeProtocol.Version\n',
+              '            ProtocolVersion = _negotiatedProtocolVersion\n',
+              'negotiated request version')
+
+          replace_once(
+              service,
+              '            await AuthenticateAsync(cancellationToken);',
+              '            await NegotiateAsync(cancellationToken);',
+              'connect negotiation call')
+
+          old_method = '''    /// <summary>
+    /// Sends the "auth" handshake as the first message on a freshly established connection.
+    /// Required on every (re)connection — the plugin tracks authentication per WebSocket
+    /// connection, not per token. A no-op on the plugin side when no token is configured there.
+    /// </summary>
+    private async Task AuthenticateAsync(CancellationToken cancellationToken)
+    {
+        var payload = new JsonObject();
+        if (!string.IsNullOrEmpty(_bridgeToken))
+        {
+            payload["token"] = _bridgeToken;
+        }
+
+        var response = await SendOverExistingConnectionAsync("auth", payload, cancellationToken);
+        if (!response.Success)
+        {
+            await CloseAndResetAsync();
+            throw new InvalidOperationException(
+                response.Error ?? "[error] [UNAUTHORIZED] Obsidian bridge authentication failed.");
+        }
+    }
+'''
+          new_method = '''    /// <summary>
+    /// Sends the authenticated protocol/capability handshake as the first message on every
+    /// connection. The command name remains "auth" for wire compatibility, but protocol v3
+    /// requires version-range and capability negotiation before any runtime command is accepted.
+    /// </summary>
+    private async Task NegotiateAsync(CancellationToken cancellationToken)
+    {
+        var requestedCapabilities = new JsonArray
+        {
+            "read",
+            "ui-navigation",
+            "editor-mutation",
+            "third-party-dataview",
+            "third-party-templater",
+            "third-party-linter",
+            "vault-wide",
+            "unsafe-command"
+        };
+        var payload = new JsonObject
+        {
+            ["minProtocolVersion"] = BridgeProtocol.MinVersion,
+            ["maxProtocolVersion"] = BridgeProtocol.MaxVersion,
+            ["clientName"] = "kioku-mcp-server",
+            ["requestedCapabilities"] = requestedCapabilities
+        };
+        if (!string.IsNullOrEmpty(_bridgeToken))
+        {
+            payload["token"] = _bridgeToken;
+        }
+
+        var response = await SendOverExistingConnectionAsync("auth", payload, cancellationToken);
+        if (!response.Success)
+        {
+            await CloseAndResetAsync();
+            throw new InvalidOperationException(
+                response.Error ?? "[error] [UNAUTHORIZED] Obsidian bridge handshake failed.");
+        }
+
+        var negotiatedNode = response.Data?["negotiatedProtocolVersion"];
+        var negotiatedVersion = negotiatedNode is null
+            ? response.ProtocolVersion ?? BridgeProtocol.Version
+            : negotiatedNode.GetValue<int>();
+        if (negotiatedVersion < BridgeProtocol.MinVersion || negotiatedVersion > BridgeProtocol.MaxVersion)
+        {
+            await CloseAndResetAsync();
+            throw new InvalidOperationException(
+                $"[error] [UNSUPPORTED_PROTOCOL] Plugin negotiated unsupported bridge protocol v{negotiatedVersion}.");
+        }
+
+        _negotiatedProtocolVersion = negotiatedVersion;
+        if (response.Data?["capabilities"] is JsonArray capabilityArray)
+        {
+            _capabilities = capabilityArray
+                .Where(node => node is not null)
+                .Select(node => node!.ToString())
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        else
+        {
+            _capabilities = new HashSet<string>(StringComparer.Ordinal);
+        }
+    }
+'''
+          replace_once(service, old_method, new_method, 'handshake implementation')
+
+          replace_once(
+              service,
+              '        // Cancel and clean up pending requests\n        var pending = _pendingRequests.Values.ToList();',
+              '        _negotiatedProtocolVersion = BridgeProtocol.Version;\n        _capabilities = new HashSet<string>(StringComparer.Ordinal);\n\n        // Cancel and clean up pending requests\n        var pending = _pendingRequests.Values.ToList();',
+              'negotiation reset')
+
+          replace_once(
+              service,
+              '''public static class BridgeProtocol
+{
+    public const int Version = 2;
+}
+''',
+              '''public static class BridgeProtocol
+{
+    public const int MinVersion = 3;
+    public const int MaxVersion = 3;
+    public const int Version = MaxVersion;
+}
+''',
+              'protocol version')
+
+          replace_once(
+              service,
+              '''    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    [JsonPropertyName("protocolVersion")]''',
+              '''    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
+    [JsonPropertyName("protocolVersion")]''',
+              'stable error code')
+
+          replace_once(
+              service,
+              '    public bool IsUnauthorized() => Error?.Contains("[UNAUTHORIZED]", StringComparison.Ordinal) == true;',
+              '    public bool IsUnauthorized() =>\n        ErrorCode?.Equals("UNAUTHORIZED", StringComparison.Ordinal) == true ||\n        Error?.Contains("[UNAUTHORIZED]", StringComparison.Ordinal) == true;',
+              'unauthorized classification')
+
+          tests = Path('src/Kioku.Mcp.Server.Tests/ObsidianBridgeServiceTests.cs')
+          text = tests.read_text(encoding='utf-8')
+          text = text.replace('PROTOCOL_VERSION 2', 'PROTOCOL_VERSION 3')
+          text = text.replace('Assert.Equal(2, message.GetProperty("protocolVersion").GetInt32());', 'Assert.Equal(3, message.GetProperty("protocolVersion").GetInt32());')
+          text = text.replace('protocolVersion = 2', 'protocolVersion = 3')
+          tests.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+
+      - name: Format
+        run: dotnet format src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --no-restore --verbosity minimal
+
+      - name: Commit protocol changes
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Kioku.Mcp.Server src/Kioku.Mcp.Server.Tests
+          git commit -m "security(server): negotiate Obsidian bridge protocol capabilities"
+          git push origin HEAD:${{ github.head_ref }}
