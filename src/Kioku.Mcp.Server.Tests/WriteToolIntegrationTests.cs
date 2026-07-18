@@ -19,9 +19,13 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         _fixture = fixture;
     }
 
-    private NoteCommandTools CreateTools()
+    private NoteCommandTools CreateTools(bool allowPermanentDelete = false)
     {
-        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
+        var config = new KiokuConfiguration
+        {
+            VaultPath = _fixture.VaultPath,
+            AllowPermanentDelete = allowPermanentDelete,
+        };
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
         var embedding = new EmbeddingService(
             config,
@@ -205,7 +209,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     [Fact]
     public async Task DeleteNote_PermanentDelete_RemovesFile()
     {
-        var tools = CreateTools();
+        var tools = CreateTools(allowPermanentDelete: true);
         var name = $"PermDelete-{Guid.NewGuid():N}";
         await tools.create_note(name, "Permanent delete body", tags: "");
         await _fixture.Index.RebuildIndexAsync();

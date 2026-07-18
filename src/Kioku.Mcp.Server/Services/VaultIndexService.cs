@@ -15,6 +15,7 @@ namespace Kioku.Mcp.Server.Services;
 public sealed class VaultIndexService : IDisposable
 {
     private readonly ILogger<VaultIndexService> _logger;
+    private readonly VaultPathPolicy _paths;
     private readonly string _vaultPath;
 
     // Main index: absolute path -> note
@@ -45,10 +46,16 @@ public sealed class VaultIndexService : IDisposable
     private readonly EmbeddingService? _embedding;
     private readonly HashSet<string> _excludeFolders = [];
 
-    public VaultIndexService(ILogger<VaultIndexService> logger, KiokuConfiguration config, EmbeddingService? embedding = null, VaultConfigService? vaultConfig = null)
+    public VaultIndexService(
+        ILogger<VaultIndexService> logger,
+        KiokuConfiguration config,
+        EmbeddingService? embedding = null,
+        VaultConfigService? vaultConfig = null,
+        VaultPathPolicy? pathPolicy = null)
     {
         _logger = logger;
-        _vaultPath = config.VaultPath;
+        _paths = pathPolicy ?? new VaultPathPolicy(config);
+        _vaultPath = _paths.VaultRoot;
         _embedding = embedding;
         if (vaultConfig is not null)
         {
@@ -96,8 +103,16 @@ public sealed class VaultIndexService : IDisposable
     /// <summary>Gets a note by its absolute path or vault-relative path.</summary>
     public Note? GetNote(string path)
     {
-        var absPath = Path.GetFullPath(ResolveAbsolutePath(path));
-        return _notesByPath.TryGetValue(absPath, out var note) ? note : null;
+        try
+        {
+            var absPath = _paths.ResolveVaultReadPath(path);
+            return _notesByPath.TryGetValue(absPath, out var note) ? note : null;
+        }
+        catch (Exception exception) when (
+            exception is VaultAccessDeniedException or ArgumentException or IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Gets a note by its name (without extension).</summary>
@@ -157,16 +172,18 @@ public sealed class VaultIndexService : IDisposable
     /// <summary>Returns all notes in a specific folder.</summary>
     public IEnumerable<Note> GetNotesInFolder(string folderPath)
     {
-        var absFolder = Path.IsPathRooted(folderPath)
-            ? folderPath
-            : Path.Combine(_vaultPath, folderPath);
-        absFolder = Path.GetFullPath(absFolder);
-        var folderPrefix = absFolder.EndsWith(Path.DirectorySeparatorChar)
-            ? absFolder
-            : absFolder + Path.DirectorySeparatorChar;
+        string absFolder;
+        try
+        {
+            absFolder = _paths.ResolveVaultReadPath(folderPath);
+        }
+        catch (Exception exception) when (
+            exception is VaultAccessDeniedException or ArgumentException or IOException)
+        {
+            return [];
+        }
 
-        return _notesByPath.Values
-            .Where(n => n.FilePath.StartsWith(folderPrefix, StringComparison.OrdinalIgnoreCase));
+        return _notesByPath.Values.Where(note => IsPathWithin(absFolder, note.FilePath));
     }
 
     // Okapi BM25 constants: k1 controls term-frequency saturation, b controls how much
@@ -411,8 +428,8 @@ public sealed class VaultIndexService : IDisposable
 
     private async Task IndexVaultAsync(CancellationToken cancellationToken)
     {
-        var mdFiles = Directory.EnumerateFiles(_vaultPath, "*.md", SearchOption.AllDirectories)
-            .Where(p => !IsExcludedPath(p));
+        var mdFiles = _paths.EnumerateVaultFiles("*.md", recursive: true)
+            .Where(path => !IsExcludedPath(path));
         var tasks = mdFiles.Select(path => IndexFileAsync(path, cancellationToken));
         await Task.WhenAll(tasks);
         _lastIndexed = DateTimeOffset.UtcNow;
@@ -422,6 +439,12 @@ public sealed class VaultIndexService : IDisposable
     {
         try
         {
+            filePath = _paths.ResolveVaultReadPath(filePath);
+            if (!File.Exists(filePath))
+            {
+                return;
+            }
+
             var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
             var note = BuildNote(filePath, content);
 
@@ -467,7 +490,7 @@ public sealed class VaultIndexService : IDisposable
         var plainText = MarkdownTextExtractor.Extract(content, bodyStart);
         var outgoingLinks = MarkdownTextExtractor.ExtractWikilinks(content);
         var name = Path.GetFileNameWithoutExtension(filePath);
-        var relativePath = Path.GetRelativePath(_vaultPath, filePath);
+        var relativePath = Path.GetRelativePath(_vaultPath, filePath).Replace('\\', '/');
 
         return new Note
         {
@@ -630,9 +653,10 @@ public sealed class VaultIndexService : IDisposable
     {
         try
         {
-            _embedding?.Move(oldPath, newPath);
-            RemoveFromIndex(oldPath, removeEmbedding: false);
-            await IndexFileAsync(newPath);
+            var move = _paths.ResolveVaultMove(oldPath, newPath);
+            _embedding?.Move(move.Source, move.Destination);
+            RemoveFromIndex(move.Source, removeEmbedding: false);
+            await IndexFileAsync(move.Destination);
         }
         catch (Exception ex)
         {
@@ -646,7 +670,10 @@ public sealed class VaultIndexService : IDisposable
     /// </summary>
     public void SynchronizeFileDelete(string filePath)
     {
-        RemoveFromIndex(filePath);
+        if (_paths.IsInsideVault(filePath))
+        {
+            RemoveFromIndex(filePath);
+        }
     }
 
     /// <summary>
@@ -709,11 +736,14 @@ public sealed class VaultIndexService : IDisposable
 
     // Helpers
 
-    private string ResolveAbsolutePath(string path)
+    private static bool IsPathWithin(string directory, string candidate)
     {
-        return Path.IsPathRooted(path)
-            ? path
-            : Path.Combine(_vaultPath, path);
+        var relative = Path.GetRelativePath(directory, candidate);
+        return relative == "." ||
+            (!Path.IsPathRooted(relative) &&
+             relative != ".." &&
+             !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) &&
+             !relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal));
     }
 
     private static string NormalizeVaultPath(string path)
@@ -773,6 +803,11 @@ public sealed class VaultIndexService : IDisposable
 
     private bool IsExcludedPath(string filePath)
     {
+        if (!_paths.IsInsideVault(filePath))
+        {
+            return true;
+        }
+
         var relative = Path.GetRelativePath(_vaultPath, filePath);
 
         // Exclude hidden paths (starting with .)

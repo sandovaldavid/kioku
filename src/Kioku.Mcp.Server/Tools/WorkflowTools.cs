@@ -195,7 +195,8 @@ public sealed partial class WorkflowTools(
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(v => v)
                 .ToList();
-            var result = new StringBuilder($"[ok] Template '{name}' ({Path.GetRelativePath(config.VaultPath, filePath)}):\n\n");
+            var templateRelativePath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
+            var result = new StringBuilder($"[ok] Template '{name}' ({templateRelativePath}):\n\n");
             result.AppendLine($"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
             result.AppendLine();
             result.AppendLine("```markdown");
@@ -215,7 +216,7 @@ public sealed partial class WorkflowTools(
             .Select(m => m.Groups["var"].Value)
             .Distinct()
             .ToList();
-        var relPath = Path.GetRelativePath(config.VaultPath, filePath);
+        var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var setResult = $"[ok] Template created: {relPath}";
         return variables.Count == 0
             ? setResult

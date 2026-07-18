@@ -7,8 +7,13 @@ using ModelContextProtocol.Server;
 namespace Kioku.Mcp.Server.Tools;
 
 [McpServerToolType]
-public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration config)
+public sealed class AssetTools(
+    VaultIndexService vault,
+    KiokuConfiguration config,
+    VaultPathPolicy? pathPolicy = null)
 {
+    private readonly VaultPathPolicy _paths = pathPolicy ?? new VaultPathPolicy(config);
+
     [McpServerTool, Description("Find asset files (images, PDFs, Excalidraw) not referenced by any note. When dry_run=false, moves orphans to .trash/.kioku-orphans/.")]
     public string find_orphan_assets(
         [Description("If true (default), lists orphans without moving them.")] bool dry_run = true)
@@ -20,8 +25,9 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
 
         var targetExtensions = new[] { ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".pdf", ".excalidraw", ".canvas" };
 
-        // Enumerate all candidate asset files
-        var assetFiles = Directory.EnumerateFiles(config.VaultPath, "*", SearchOption.AllDirectories)
+        // Enumerate through the central policy so symlink/reparse-point directories are never
+        // traversed outside the configured vault.
+        var assetFiles = _paths.EnumerateVaultFiles("*", recursive: true)
             .Where(p => !IsHiddenPath(p, config.VaultPath) && targetExtensions.Contains(Path.GetExtension(p).ToLowerInvariant()))
             .ToList();
 
@@ -80,15 +86,16 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
         }
 
         // Move to trash
-        var trashDir = Path.Combine(config.VaultPath, ".trash", ".kioku-orphans");
+        var trashDir = _paths.ResolveVaultWritePath(Path.Combine(".trash", ".kioku-orphans"));
         Directory.CreateDirectory(trashDir);
 
         var movedCount = 0;
         foreach (var orphan in orphans)
         {
             var filename = Path.GetFileName(orphan);
-            var destPath = Path.Combine(trashDir, filename);
-            File.Move(orphan, destPath, overwrite: true);
+            var destPath = _paths.ResolveVaultWritePath(Path.Combine(trashDir, filename));
+            var move = _paths.ResolveVaultMove(orphan, destPath);
+            File.Move(move.Source, move.Destination, overwrite: true);
             movedCount++;
         }
 
@@ -111,9 +118,15 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
             return "[error] The 'target_folder' parameter cannot be empty.";
         }
 
-        var targetPath = NoteHelpers.EnsureInsideVault(
-            config.VaultPath,
-            Path.Combine(config.VaultPath, target_folder));
+        string targetPath;
+        try
+        {
+            targetPath = _paths.ResolveVaultWritePath(target_folder);
+        }
+        catch (VaultAccessDeniedException exception)
+        {
+            return exception.ToToolError();
+        }
 
         if (File.Exists(targetPath))
         {
@@ -127,13 +140,14 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
 
         var targetFiles = Directory.Exists(targetPath)
             ? Directory.EnumerateFiles(targetPath)
+                .Select(_paths.ResolveVaultReadPath)
                 .Where(p => !IsHiddenPath(p, config.VaultPath) && targetExtensions.Contains(Path.GetExtension(p)))
                 .ToList()
             : [];
 
         // Compare canonical directory boundaries rather than using a string prefix. A folder
         // named "Attachments-old" must not be treated as a child of "Attachments".
-        var assetFiles = Directory.EnumerateFiles(config.VaultPath, "*", SearchOption.AllDirectories)
+        var assetFiles = _paths.EnumerateVaultFiles("*", recursive: true)
             .Where(p => !IsHiddenPath(p, config.VaultPath) && targetExtensions.Contains(Path.GetExtension(p)))
             .Where(p => !IsPathWithin(targetPath, p))
             .OrderBy(p => ToVaultRelativePath(p, config.VaultPath), StringComparer.OrdinalIgnoreCase)
@@ -150,7 +164,7 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
         {
             var fileName = Path.GetFileName(file);
             var destinationName = GetAvailableFileName(fileName, reservedNames);
-            var destinationPath = Path.Combine(targetPath, destinationName);
+            var destinationPath = _paths.ResolveVaultWritePath(Path.Combine(targetPath, destinationName));
             moves.Add(new AssetMove(file, destinationPath));
             reservedNames.Add(destinationName);
         }
@@ -168,8 +182,8 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
         {
             foreach (var (file, index) in filesAfterMove.Select((file, index) => (file, index)))
             {
-                var desiredPath = Path.Combine(targetPath,
-                    $"attachment-{index + 1:D3}{Path.GetExtension(file.CurrentPath)}");
+                var desiredPath = _paths.ResolveVaultWritePath(Path.Combine(targetPath,
+                    $"attachment-{index + 1:D3}{Path.GetExtension(file.CurrentPath)}"));
 
                 if (!PathsEqual(file.CurrentPath, desiredPath))
                 {
@@ -215,7 +229,8 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
 
         foreach (var move in moves)
         {
-            File.Move(move.OldPath, move.NewPath);
+            var validated = _paths.ResolveVaultMove(move.OldPath, move.NewPath);
+            File.Move(validated.Source, validated.Destination);
         }
 
         ApplyRenamesSafely(renames, targetPath);
@@ -309,19 +324,22 @@ public sealed class AssetTools(VaultIndexService vault, KiokuConfiguration confi
         return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), comparison);
     }
 
-    private static void ApplyRenamesSafely(IEnumerable<AssetRename> renames, string targetPath)
+    private void ApplyRenamesSafely(IEnumerable<AssetRename> renames, string targetPath)
     {
         var staged = new List<(string TemporaryPath, string NewPath)>();
         foreach (var rename in renames)
         {
-            var temporaryPath = Path.Combine(targetPath, $".kioku-tidy-{Guid.NewGuid():N}.tmp");
-            File.Move(rename.OldPath, temporaryPath);
+            var temporaryPath = _paths.ResolveVaultWritePath(
+                Path.Combine(targetPath, $".kioku-tidy-{Guid.NewGuid():N}.tmp"));
+            var stagedMove = _paths.ResolveVaultMove(rename.OldPath, temporaryPath);
+            File.Move(stagedMove.Source, stagedMove.Destination);
             staged.Add((temporaryPath, rename.NewPath));
         }
 
         foreach (var (temporaryPath, newPath) in staged)
         {
-            File.Move(temporaryPath, newPath);
+            var finalMove = _paths.ResolveVaultMove(temporaryPath, newPath);
+            File.Move(finalMove.Source, finalMove.Destination);
         }
     }
 

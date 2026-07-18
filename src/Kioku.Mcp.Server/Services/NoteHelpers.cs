@@ -15,25 +15,20 @@ public static class NoteHelpers
     public static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
     /// <summary>
-    /// Ensures that a candidate path remains inside the vault root after canonicalization.
-    /// Throws <see cref="InvalidOperationException"/> if the path escapes the vault.
+    /// Ensures that a candidate path remains inside the vault root after canonicalization and
+    /// symbolic-link resolution. The legacy facade preserves its exact InvalidOperationException
+    /// contract while the policy itself exposes VaultAccessDeniedException to new callers.
     /// </summary>
     public static string EnsureInsideVault(string vaultRoot, string candidate)
     {
-        var root = Path.GetFullPath(vaultRoot);
-        var full = Path.GetFullPath(candidate);
-        var rootWithSep = root.EndsWith(Path.DirectorySeparatorChar)
-            ? root
-            : root + Path.DirectorySeparatorChar;
-
-        if (!full.StartsWith(rootWithSep, StringComparison.Ordinal) &&
-            !full.Equals(root, StringComparison.Ordinal))
+        try
         {
-            throw new InvalidOperationException(
-                $"Path escapes the vault: '{candidate}' resolves outside '{vaultRoot}'.");
+            return VaultPathPolicy.EnsureInsideRoot(vaultRoot, candidate);
         }
-
-        return full;
+        catch (VaultAccessDeniedException exception)
+        {
+            throw new InvalidOperationException("The requested path escapes the vault security boundary.", exception);
+        }
     }
 
     public static Note? ResolveNote(string nameOrPath, VaultIndexService vault)
@@ -80,7 +75,9 @@ public static class NoteHelpers
             normalized += ".md";
         }
 
-        return EnsureInsideVault(vaultPath, Path.Combine(vaultPath, normalized));
+        var candidate = Path.Combine(vaultPath, normalized);
+        _ = EnsureInsideVault(vaultPath, candidate);
+        return candidate;
     }
 
     public static List<string> ParseTags(string tags)

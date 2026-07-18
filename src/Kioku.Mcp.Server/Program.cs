@@ -36,6 +36,7 @@ return await RunStdioAsync(config);
 static void ConfigureKiokuServices(IServiceCollection services, KiokuConfiguration config)
 {
     services.AddSingleton(config);
+    services.AddSingleton<VaultPathPolicy>();
     services.AddSingleton<EmbeddingService>();
     services.AddSingleton<GenerationService>();
     services.AddSingleton<VaultIndexService>();
@@ -111,7 +112,7 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
 
     if (vaultConfig.IsGroupEnabled("research"))
     {
-        builder.WithTools<ResearchTools>();
+        builder.WithTools<SecureResearchTools>();
     }
 
     if (vaultConfig.IsGroupEnabled("bridge"))
