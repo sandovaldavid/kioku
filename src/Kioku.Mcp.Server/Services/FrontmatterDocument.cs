@@ -603,7 +603,17 @@ internal sealed class PreservedFrontmatterFields(
 
     public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => legacyValues.GetEnumerator();
 
-    public bool TryGetValue(string key, out string value) => legacyValues.TryGetValue(key, out value!);
+    public bool TryGetValue(string key, out string value)
+    {
+        if (legacyValues.TryGetValue(key, out var found))
+        {
+            value = found;
+            return true;
+        }
+
+        value = string.Empty;
+        return false;
+    }
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
