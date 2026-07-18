@@ -6,91 +6,11 @@ on:
   pull_request:
     branches: [main, develop]
 
-permissions:
-  contents: write
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  normalize-bridge-source:
-    if: github.head_ref == 'agent/harden-obsidian-bridge' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-
-      - name: Apply exact protocol fixture fixes
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          test = Path('src/obsidian-kioku-mcp/src/bridge.test.ts')
-          text = test.read_text(encoding='utf-8')
-          text = text.replace('  MAX_MESSAGE_BYTES,\n', '')
-          marker = 'import { DEFAULT_SETTINGS, PROTOCOL_VERSION } from "./types";\n'
-          addition = 'import { MAX_MESSAGE_BYTES } from "./protocol";\n'
-          if addition not in text:
-              if marker not in text:
-                  raise SystemExit('bridge.test import marker missing')
-              text = text.replace(marker, addition + marker, 1)
-          test.write_text(text, encoding='utf-8')
-
-          for path in Path('src/Kioku.Mcp.Server.Tests').glob('*.cs'):
-              content = path.read_text(encoding='utf-8')
-              updated = content.replace('PROTOCOL_VERSION 2', 'PROTOCOL_VERSION 3')
-              updated = updated.replace('protocolVersion = 2', 'protocolVersion = 3')
-              updated = updated.replace(
-                  'Assert.Equal(2, message.GetProperty("protocolVersion").GetInt32());',
-                  'Assert.Equal(3, message.GetProperty("protocolVersion").GetInt32());')
-              if updated != content:
-                  path.write_text(updated, encoding='utf-8')
-          PY
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 11.9.0
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: "pnpm-lock.yaml"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Format plugin
-        run: pnpm --filter obsidian-kioku-mcp run format
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.x"
-
-      - name: Restore .NET tests
-        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
-
-      - name: Format .NET
-        run: dotnet format src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --no-restore --verbosity minimal
-
-      - name: Commit normalized source
-        run: |
-          if git diff --quiet; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/obsidian-kioku-mcp/src src/Kioku.Mcp.Server src/Kioku.Mcp.Server.Tests
-          git commit -m "style: normalize bridge protocol implementation"
-          git push origin HEAD:${{ github.head_ref }}
-
   build-server:
     name: build-server (ubuntu-latest)
     runs-on: ubuntu-latest
@@ -228,16 +148,28 @@ jobs:
           pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json 2>&1 | tee plugin-typecheck.log
 
       - name: Lint
-        run: pnpm --filter obsidian-kioku-mcp run lint
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run lint 2>&1 | tee plugin-lint.log
 
       - name: Format check
-        run: pnpm --filter obsidian-kioku-mcp run format:check
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run format:check 2>&1 | tee plugin-format.log
 
       - name: Test
-        run: pnpm --filter obsidian-kioku-mcp run test
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run test 2>&1 | tee plugin-test.log
 
       - name: Build
-        run: pnpm --filter obsidian-kioku-mcp run build
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run build 2>&1 | tee plugin-build.log
 
       - name: Upload plugin diagnostics
         if: failure()
@@ -245,7 +177,7 @@ jobs:
         with:
           name: plugin-diagnostics
           path: |
-            plugin-typecheck.log
+            plugin-*.log
             src/obsidian-kioku-mcp/coverage/**
           if-no-files-found: warn
           retention-days: 7
