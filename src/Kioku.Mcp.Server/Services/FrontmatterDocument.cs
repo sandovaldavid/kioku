@@ -9,8 +9,8 @@ namespace Kioku.Mcp.Server.Services;
 
 /// <summary>
 /// Loss-aware representation of an Obsidian Markdown document with YAML frontmatter.
-/// Known Kioku fields are exposed through <see cref="ToFrontmatter"/>, while the original
-/// YAML node graph remains intact so unknown lists and nested mappings survive mutations.
+/// The YAML node graph is retained so fields owned by users and third-party plugins survive
+/// mutations of Kioku fields.
 /// </summary>
 public sealed class FrontmatterDocument
 {
@@ -18,22 +18,19 @@ public sealed class FrontmatterDocument
 
     private static readonly HashSet<string> KnownKeys = new(StringComparer.OrdinalIgnoreCase)
     {
-        "tags", "tag",
-        "aliases", "alias",
-        "cssclasses", "cssclass",
-        "type", "status", "domain",
-        "date", "created",
-        "updated", "modified",
-        "zettel_id",
+        "tags", "tag", "aliases", "alias", "cssclasses", "cssclass",
+        "type", "status", "domain", "date", "created", "updated", "modified", "zettel_id",
+    };
+
+    private static readonly HashSet<string> AmbiguousPlainScalars = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "null", "~", "true", "false", "yes", "no", "on", "off",
+        ".nan", ".inf", "+.inf", "-.inf",
     };
 
     private readonly YamlMappingNode _root;
 
-    private FrontmatterDocument(
-        YamlMappingNode root,
-        string body,
-        string newLine,
-        bool hasFrontmatter)
+    private FrontmatterDocument(YamlMappingNode root, string body, string newLine, bool hasFrontmatter)
     {
         _root = root;
         Body = body;
@@ -47,10 +44,6 @@ public sealed class FrontmatterDocument
 
     public bool HasFrontmatter { get; private set; }
 
-    /// <summary>
-    /// Parses a complete Markdown document. Invalid YAML is rejected instead of being rewritten,
-    /// preventing a mutation from silently corrupting user-maintained frontmatter.
-    /// </summary>
     public static FrontmatterDocument Parse(string content)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -61,15 +54,13 @@ public sealed class FrontmatterDocument
             return new FrontmatterDocument(new YamlMappingNode(), content, newLine, hasFrontmatter: false);
         }
 
-        var yaml = content.Substring(yamlStart, yamlLength);
         return new FrontmatterDocument(
-            ParseMapping(yaml),
+            ParseMapping(content.Substring(yamlStart, yamlLength)),
             content[bodyStart..],
             newLine,
             hasFrontmatter: true);
     }
 
-    /// <summary>Creates a new frontmatter document from a typed model.</summary>
     public static FrontmatterDocument Create(
         NoteFrontmatter frontmatter,
         string body = "",
@@ -90,10 +81,6 @@ public sealed class FrontmatterDocument
         return document;
     }
 
-    /// <summary>
-    /// Rehydrates a document from a complete structured field map. Used when an existing note is
-    /// projected through <see cref="NoteMetadata"/> and then rebuilt by a legacy tool path.
-    /// </summary>
     internal static FrontmatterDocument CreateFromFields(
         IReadOnlyDictionary<string, object?> fields,
         string body = "",
@@ -102,11 +89,7 @@ public sealed class FrontmatterDocument
         ArgumentNullException.ThrowIfNull(fields);
         ValidateNewLine(newLine);
 
-        var document = new FrontmatterDocument(
-            new YamlMappingNode(),
-            body,
-            newLine,
-            hasFrontmatter: true);
+        var document = new FrontmatterDocument(new YamlMappingNode(), body, newLine, hasFrontmatter: true);
         document.Merge(fields);
         return document;
     }
@@ -137,15 +120,13 @@ public sealed class FrontmatterDocument
         };
     }
 
-    /// <summary>Projects the YAML document into the existing index metadata contract.</summary>
     public NoteMetadata ToNoteMetadata()
     {
         var typed = ToFrontmatter();
-        var legacyExtras = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (key, value) in typed.ExtraFields)
-        {
-            legacyExtras[key] = ToLegacyString(value);
-        }
+        var legacyExtras = typed.ExtraFields.ToDictionary(
+            pair => pair.Key,
+            pair => ToLegacyString(pair.Value),
+            StringComparer.OrdinalIgnoreCase);
 
         return new NoteMetadata
         {
@@ -195,12 +176,13 @@ public sealed class FrontmatterDocument
         {
             sequence.Add(CreateStringNode(value));
         }
+
         SetNode(key, sequence);
     }
 
     /// <summary>
-    /// Sets a date using the existing canonical or alias key when present. This preserves vaults
-    /// that use `created`/`modified` instead of Kioku's default `date`/`updated` names.
+    /// Sets a date using an existing alias when present, preserving vaults that use
+    /// `created`/`modified` instead of `date`/`updated`.
     /// </summary>
     public void SetDate(string preferredKey, DateOnly? value, params string[] aliases)
     {
@@ -215,11 +197,11 @@ public sealed class FrontmatterDocument
         }
 
         var existingKey = FindKeyNode([preferredKey, .. aliases]);
-        var key = existingKey?.Value ?? preferredKey;
-        SetNode(key, new YamlScalarNode(value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
-        {
-            Style = ScalarStyle.Plain,
-        });
+        SetNode(existingKey?.Value ?? preferredKey,
+            new YamlScalarNode(value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+            {
+                Style = ScalarStyle.Plain,
+            });
     }
 
     public void SetValue(string key, object? value)
@@ -229,6 +211,7 @@ public sealed class FrontmatterDocument
             Remove(key);
             return;
         }
+
         SetNode(key, ToYamlNode(value));
     }
 
@@ -253,6 +236,7 @@ public sealed class FrontmatterDocument
         {
             return Body;
         }
+
         return SerializeFrontmatter() + Body;
     }
 
@@ -306,6 +290,7 @@ public sealed class FrontmatterDocument
         {
             throw new InvalidDataException("Obsidian frontmatter must contain a single YAML mapping document.");
         }
+
         return mapping;
     }
 
@@ -434,18 +419,49 @@ public sealed class FrontmatterDocument
             _root.Children[existing] = value;
             return;
         }
+
         _root.Add(new YamlScalarNode(key), value);
     }
 
     private static string? ReadScalar(YamlNode? node) =>
         node is YamlScalarNode scalar ? scalar.Value : null;
 
-    private static YamlScalarNode CreateStringNode(string value) => new(value)
+    private static YamlScalarNode CreateStringNode(string value)
     {
-        Style = value.Contains('\n') || value.Contains('\r')
+        var style = value.Contains('\n') || value.Contains('\r')
             ? ScalarStyle.Literal
-            : ScalarStyle.DoubleQuoted,
-    };
+            : CanUsePlainScalar(value) ? ScalarStyle.Plain : ScalarStyle.DoubleQuoted;
+        return new YamlScalarNode(value) { Style = style };
+    }
+
+    private static bool CanUsePlainScalar(string value)
+    {
+        if (string.IsNullOrEmpty(value) || !value.Equals(value.Trim(), StringComparison.Ordinal) ||
+            AmbiguousPlainScalars.Contains(value))
+        {
+            return false;
+        }
+
+        if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out _) ||
+            DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+        {
+            return false;
+        }
+
+        if (value[0] is '-' or '?' or ':' or '!' or '&' or '*' or '#' or '{' or '}' or '[' or ']' or ',' or '|' or '>' or '@' or '`')
+        {
+            return false;
+        }
+
+        return !value.Contains(':') &&
+               !value.Contains('#') &&
+               !value.Contains('"') &&
+               !value.Contains('\'') &&
+               !value.Contains('{') &&
+               !value.Contains('}') &&
+               !value.Contains('[') &&
+               !value.Contains(']');
+    }
 
     private static YamlNode ToYamlNode(object value)
     {
@@ -471,6 +487,17 @@ public sealed class FrontmatterDocument
                 {
                     Style = ScalarStyle.Plain,
                 };
+            case IReadOnlyDictionary<string, object?> readOnlyMapping:
+                {
+                    var mapping = new YamlMappingNode();
+                    foreach (var (key, item) in readOnlyMapping)
+                    {
+                        mapping.Add(new YamlScalarNode(key), item is null
+                            ? new YamlScalarNode("null") { Style = ScalarStyle.Plain }
+                            : ToYamlNode(item));
+                    }
+                    return mapping;
+                }
             case IDictionary dictionary:
                 {
                     var mapping = new YamlMappingNode();
@@ -565,6 +592,7 @@ public sealed class FrontmatterDocument
         {
             lines.RemoveAt(lines.Count - 1);
         }
+
         return string.Join(newLine, lines);
     }
 
