@@ -24,7 +24,7 @@ jobs:
       - name: Apply asserted source patches
         shell: bash
         run: |
-          python - <<'PY'
+          python - <<'PY' > patch-diagnostic.txt 2>&1
           from pathlib import Path
 
           workflow = Path('.github/workflows/format-fix-branch.yml').read_text(encoding='utf-8')
@@ -33,6 +33,15 @@ jobs:
           script = '\n'.join(line[10:] if line.startswith('          ') else line for line in body.splitlines())
           exec(compile(script, 'apply-sandbox-patch.py', 'exec'))
           PY
+
+      - name: Upload patch diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sandbox-patch-diagnostic
+          path: patch-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
