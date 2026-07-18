@@ -16,7 +16,7 @@ public sealed class FrontmatterBomTests
 
         Assert.DoesNotContain('\uFEFF', serialized);
         Assert.StartsWith("---\n", serialized);
-        Assert.Equal(1, CountOccurrences(serialized, "---\n"));
+        Assert.Equal(2, CountOccurrences(serialized, "---\n"));
         Assert.Contains("status: done", serialized);
         Assert.Contains("custom: keep", serialized);
         Assert.EndsWith("# Body\n", serialized);
