@@ -1,0 +1,45 @@
+name: format-fix-branch
+
+on:
+  push:
+    branches: [agent/enforce-filesystem-sandbox]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: format-fix-agent-enforce-filesystem-sandbox
+  cancel-in-progress: true
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/enforce-filesystem-sandbox
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+
+      - name: Apply formatter
+        run: dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --no-restore --verbosity minimal
+
+      - name: Commit formatting
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Kioku.Mcp.Server src/Kioku.Mcp.Server.Tests
+          git commit -m "style: apply dotnet formatting"
+          git push origin HEAD:agent/enforce-filesystem-sandbox
