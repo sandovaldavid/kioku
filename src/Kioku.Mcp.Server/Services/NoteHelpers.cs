@@ -1,14 +1,12 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
+using YamlDotNet.Core;
 
 namespace Kioku.Mcp.Server.Services;
 
 public static class NoteHelpers
 {
-    private static readonly Regex UpdatedFieldRegex = new(
-        @"^(?<key>updated|modified):.*$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Multiline);
     /// <summary>
     /// UTF-8 without BOM for every vault write. Obsidian/Node-authored files never carry a
     /// BOM; Encoding.UTF8 writes one by default, which would leak into touched notes.
@@ -115,78 +113,30 @@ public static class NoteHelpers
         IReadOnlyDictionary<string, string>? extraFields = null,
         DateOnly? updated = null)
     {
-        var sb = new StringBuilder("---\n");
-
-        var tagList = tags.ToList();
-        if (tagList.Count > 0)
-        {
-            sb.AppendLine("tags:");
-            foreach (var tag in tagList)
-            {
-                sb.AppendLine($"  - {tag}");
-            }
-        }
-
-        var aliasList = aliases?.ToList() ?? [];
-        if (aliasList.Count > 0)
-        {
-            sb.AppendLine("aliases:");
-            foreach (var alias in aliasList)
-            {
-                sb.AppendLine($"  - {alias}");
-            }
-        }
-
-        var cssClassList = cssClasses?.ToList() ?? [];
-        if (cssClassList.Count > 0)
-        {
-            sb.AppendLine("cssclasses:");
-            foreach (var cssClass in cssClassList)
-            {
-                sb.AppendLine($"  - {cssClass}");
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(type))
-        {
-            sb.AppendLine($"type: {type}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            sb.AppendLine($"status: {status}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(domain))
-        {
-            sb.AppendLine($"domain: {domain}");
-        }
-
-        if (date.HasValue)
-        {
-            sb.AppendLine($"date: {date:yyyy-MM-dd}");
-        }
-
-        if (updated.HasValue)
-        {
-            sb.AppendLine($"updated: {updated:yyyy-MM-dd}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(zettelId))
-        {
-            sb.AppendLine($"zettel_id: \"{zettelId}\"");
-        }
-
+        var extras = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         if (extraFields is not null)
         {
-            foreach (var (k, v) in extraFields)
+            foreach (var (key, value) in extraFields)
             {
-                sb.AppendLine($"{k}: {v}");
+                extras[key] = NormalizeLegacyFrontmatterValue(value);
             }
         }
 
-        sb.AppendLine("---");
-        return sb.ToString();
+        var model = new NoteFrontmatter
+        {
+            Tags = tags.Where(tag => !string.IsNullOrWhiteSpace(tag)).ToList(),
+            Aliases = aliases?.Where(alias => !string.IsNullOrWhiteSpace(alias)).ToList() ?? [],
+            CssClasses = cssClasses?.Where(cssClass => !string.IsNullOrWhiteSpace(cssClass)).ToList() ?? [],
+            NoteType = type,
+            Status = status,
+            Date = date,
+            Updated = updated,
+            ZettelId = zettelId,
+            Domain = domain,
+            ExtraFields = extras,
+        };
+
+        return FrontmatterDocument.Create(model).SerializeFrontmatter();
     }
 
     /// <summary>
@@ -200,35 +150,30 @@ public static class NoteHelpers
             return content;
         }
 
-        var bodyStart = FrontmatterParser.GetBodyStart(content);
-        var value = $"updated: {date:yyyy-MM-dd}";
-        if (bodyStart == 0)
+        try
         {
-            return $"---\n{value}\n---\n{content}";
+            var document = FrontmatterDocument.Parse(content);
+            document.SetDate("updated", date, "modified");
+            return document.Serialize();
         }
-
-        if (UpdatedFieldRegex.IsMatch(content[..bodyStart]))
+        catch (Exception exception) when (exception is YamlException or InvalidDataException)
         {
-            return UpdatedFieldRegex.Replace(
-                content,
-                match => $"{match.Groups["key"].Value}: {date:yyyy-MM-dd}",
-                1);
-        }
-
-        var closeIndex = content.LastIndexOf("---", bodyStart - 1, StringComparison.Ordinal);
-        if (closeIndex < 0)
-        {
+            // A write helper must never replace malformed user YAML with a partial reconstruction.
             return content;
         }
+    }
 
-        var newline = content.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        var beforeClose = content[..closeIndex];
-        if (!beforeClose.EndsWith(newline, StringComparison.Ordinal))
+    private static string NormalizeLegacyFrontmatterValue(string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length >= 2 &&
+            ((trimmed[0] == '"' && trimmed[^1] == '"') ||
+             (trimmed[0] == '\'' && trimmed[^1] == '\'')))
         {
-            beforeClose += newline;
+            return trimmed[1..^1];
         }
 
-        return beforeClose + value + newline + content[closeIndex..];
+        return value;
     }
 
     private static readonly Regex ConsecutiveHyphensRegex = new(@"-{2,}", RegexOptions.Compiled);
