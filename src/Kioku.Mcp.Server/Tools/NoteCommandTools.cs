@@ -17,11 +17,13 @@ public sealed partial class NoteCommandTools(
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
     ZettelkastenTools? zettelkasten = null,
-    MetricsService? metrics = null)
+    MetricsService? metrics = null,
+    VaultPathPolicy? pathPolicy = null)
 {
     private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
 
     private static readonly UTF8Encoding Utf8NoBom = NoteHelpers.Utf8NoBom;
+    private readonly VaultPathPolicy _paths = pathPolicy ?? new VaultPathPolicy(config);
 
     // Serializes trash destination-name allocation per vault. The soft-delete path computes a
     // unique name in .trash and then moves the file; without a lock two concurrent delete_note
@@ -476,13 +478,28 @@ public sealed partial class NoteCommandTools(
             return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
+        if (permanent && !_paths.AllowPermanentDelete)
+        {
+            return KiokuError.AccessDenied(
+                "Permanent deletion is disabled. Use soft delete or explicitly enable KIOKU_ALLOW_PERMANENT_DELETE.");
+        }
+
         if (dry_run)
         {
             var action = permanent ? "permanently delete" : "move to trash";
             return $"[info] Would {action}: {found.VaultRelativePath}";
         }
 
-        var filePath = found.FilePath;
+        string filePath;
+        try
+        {
+            filePath = _paths.ResolveVaultDeletePath(found.FilePath);
+        }
+        catch (VaultAccessDeniedException)
+        {
+            return KiokuError.AccessDenied();
+        }
+
 
         if (permanent)
         {
@@ -495,7 +512,7 @@ public sealed partial class NoteCommandTools(
         else
         {
             // Soft delete: move to .trash
-            var trashDir = Path.Combine(config.VaultPath, ".trash");
+            var trashDir = _paths.ResolveVaultWritePath(".trash");
             if (!Directory.Exists(trashDir))
             {
                 Directory.CreateDirectory(trashDir);
@@ -525,7 +542,9 @@ public sealed partial class NoteCommandTools(
 
                 // overwrite: false so a name collision fails loudly instead of losing a note,
                 // even if some future caller reaches this move without holding the lock.
-                File.Move(filePath, trashPath, overwrite: false);
+                var move = _paths.ResolveVaultMove(filePath, trashPath);
+                File.Move(move.Source, move.Destination, overwrite: false);
+                trashPath = move.Destination;
             }
 
             vault.SynchronizeFileDelete(filePath);
@@ -627,10 +646,20 @@ public sealed partial class NoteCommandTools(
                         return KiokuError.NotFound($"Note not found in trash: '{note}'");
                     }
 
+                    string sourcePath;
+                    try
+                    {
+                        sourcePath = _paths.ResolveVaultDeletePath(trashFile);
+                    }
+                    catch (VaultAccessDeniedException)
+                    {
+                        return KiokuError.AccessDenied();
+                    }
+
                     var destPath = string.IsNullOrWhiteSpace(destination)
-                        ? Path.Combine(config.VaultPath, Path.GetFileName(trashFile))
-                        : Path.Combine(config.VaultPath, destination, Path.GetFileName(trashFile));
-                    destPath = NoteHelpers.EnsureInsideVault(config.VaultPath, destPath);
+                        ? Path.Combine(config.VaultPath, Path.GetFileName(sourcePath))
+                        : Path.Combine(config.VaultPath, destination, Path.GetFileName(sourcePath));
+                    destPath = _paths.ResolveVaultWritePath(destPath);
 
                     if (File.Exists(destPath))
                     {
@@ -651,7 +680,8 @@ public sealed partial class NoteCommandTools(
                         Directory.CreateDirectory(destDir);
                     }
 
-                    File.Move(trashFile, destPath);
+                    var restore = _paths.ResolveVaultMove(sourcePath, destPath);
+                    File.Move(restore.Source, restore.Destination);
                     await vault.SynchronizeFileReindexAsync(destPath);
                     return $"[ok] Note restored to: {Path.GetRelativePath(config.VaultPath, destPath)}";
                 }
