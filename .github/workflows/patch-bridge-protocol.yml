@@ -1,17 +1,21 @@
-name: prepare-bridge-source-artifact
+name: prepare-bridge-source-commit
 
 on:
   pull_request:
     branches: [develop]
 
+permissions:
+  contents: write
+
 jobs:
   prepare:
-    if: github.head_ref == 'agent/harden-obsidian-bridge'
+    if: github.head_ref == 'agent/harden-obsidian-bridge' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
       - name: Apply exact protocol fixture fixes
         run: |
@@ -70,22 +74,14 @@ jobs:
       - name: Format .NET
         run: dotnet format src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --no-restore --verbosity minimal
 
-      - name: Collect formatted source
+      - name: Commit and publish staging branch
         run: |
-          mkdir -p prepared/src/obsidian-kioku-mcp
-          mkdir -p prepared/src/Kioku.Mcp.Server/Services
-          mkdir -p prepared/src/Kioku.Mcp.Server.Tests
-          cp -R src/obsidian-kioku-mcp/src prepared/src/obsidian-kioku-mcp/
-          cp src/Kioku.Mcp.Server/Services/ObsidianBridgeService.cs prepared/src/Kioku.Mcp.Server/Services/
-          cp src/Kioku.Mcp.Server.Tests/ObsidianBridgeServiceTests.cs prepared/src/Kioku.Mcp.Server.Tests/
-          cp src/Kioku.Mcp.Server.Tests/TemplaterInteropTests.cs prepared/src/Kioku.Mcp.Server.Tests/
-          cp src/Kioku.Mcp.Server.Tests/PluginIntegrationToolsTests.cs prepared/src/Kioku.Mcp.Server.Tests/
-          git diff -- src/obsidian-kioku-mcp/src src/Kioku.Mcp.Server src/Kioku.Mcp.Server.Tests > prepared/formatted.patch
-
-      - name: Upload formatted source
-        uses: actions/upload-artifact@v6
-        with:
-          name: prepared-bridge-source
-          path: prepared
-          if-no-files-found: error
-          retention-days: 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/obsidian-kioku-mcp/src src/Kioku.Mcp.Server src/Kioku.Mcp.Server.Tests
+          if git diff --cached --quiet; then
+            echo "No source changes required."
+            exit 0
+          fi
+          git commit -m "test(bridge): align protocol v3 fixtures and formatting"
+          git push --force-with-lease origin HEAD:automation/harden-obsidian-bridge-formatted
