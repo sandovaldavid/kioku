@@ -250,7 +250,7 @@ function cmdTriggerCommand(
   requestId?: string
 ): BridgeResponse {
   const { commandId } = payload;
-  const executed = executeObsidianCommand(commandId);
+  const executed = executeObsidianCommand(app, commandId);
   if (!executed) {
     return {
       requestId,
@@ -262,7 +262,7 @@ function cmdTriggerCommand(
 }
 
 function cmdToggleReadingMode(app: App, requestId?: string): BridgeResponse {
-  const executed = executeObsidianCommand("markdown:toggle-preview");
+  const executed = executeObsidianCommand(app, "markdown:toggle-preview");
   if (!executed) {
     return {
       requestId,
@@ -292,7 +292,7 @@ function cmdGetSelection(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdFoldAll(app: App, requestId?: string): BridgeResponse {
-  const executed = executeObsidianCommand("editor:fold-all");
+  const executed = executeObsidianCommand(app, "editor:fold-all");
   if (!executed) {
     return {
       requestId,
@@ -304,7 +304,7 @@ function cmdFoldAll(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdUnfoldAll(app: App, requestId?: string): BridgeResponse {
-  const executed = executeObsidianCommand("editor:unfold-all");
+  const executed = executeObsidianCommand(app, "editor:unfold-all");
   if (!executed) {
     return {
       requestId,
@@ -316,7 +316,7 @@ function cmdUnfoldAll(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdReloadSnippets(app: App, requestId?: string): BridgeResponse {
-  const executed = executeObsidianCommand("app:reload-css-snippets");
+  const executed = executeObsidianCommand(app, "app:reload-css-snippets");
   if (!executed) {
     return {
       requestId,
@@ -530,7 +530,7 @@ function cmdRunLinter(
     return { requestId, success: false, error: "No note specified and no active note." };
   }
   const cmdId = "obsidian-linter:lint-file";
-  const executed = executeObsidianCommand(cmdId);
+  const executed = executeObsidianCommand(app, cmdId);
   if (!executed) {
     return {
       requestId,
@@ -543,7 +543,7 @@ function cmdRunLinter(
 
 function cmdRunLinterVault(app: App, requestId?: string): BridgeResponse {
   const cmdId = "obsidian-linter:lint-all-files";
-  const executed = executeObsidianCommand(cmdId);
+  const executed = executeObsidianCommand(app, cmdId);
   if (!executed) {
     return {
       requestId,
