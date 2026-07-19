@@ -127,6 +127,9 @@ jobs:
       - name: Build plugin
         run: pnpm --filter obsidian-kioku-mcp run build
 
+      - name: Validate plugin release assets
+        run: pnpm --filter obsidian-kioku-mcp run validate:release
+
       - name: Package plugin as ZIP
         run: |
           mkdir -p kioku-mcp
