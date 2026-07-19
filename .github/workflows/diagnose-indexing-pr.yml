@@ -25,14 +25,33 @@ jobs:
       - name: Restore
         run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
 
-      - name: Build tests once
-        run: >-
-          dotnet build src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
-          --configuration Release
-          --no-restore
-          --verbosity minimal
+      - name: Capture test project build diagnostics
+        id: build_tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set +e
+          dotnet build src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity minimal > build-diagnostics.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '### Focused temporary test build diagnostics'
+              echo
+              echo '```text'
+              grep -E 'error CS|warning CS|Build FAILED|[0-9]+ Error\(s\)' build-diagnostics.log | tail -n 180
+              echo '```'
+            } > build-comment.md
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file build-comment.md
+          fi
+          exit "$status"
 
       - name: Capture test diagnostics
+        if: steps.build_tests.outcome == 'success'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
