@@ -7,7 +7,7 @@ namespace Kioku.Mcp.Server.Services;
 /// interface makes concurrency, cancellation, debounce, and reconciliation behavior testable
 /// without an MCP host or direct access to the index implementation.
 /// </summary>
-internal interface IVaultIndexOperations
+public interface IVaultIndexOperations
 {
     IReadOnlyCollection<Note> GetNotesSnapshot();
 
