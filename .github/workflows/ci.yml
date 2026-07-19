@@ -23,20 +23,26 @@ jobs:
         with:
           dotnet-version: "10.x"
 
-      - name: Restore
-        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
 
-      - name: Build
+      - name: Build solution
+        run: dotnet build Kioku.slnx --configuration Release --no-restore
+
+      - name: Build server (linux-x64)
         run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --runtime linux-x64
 
-      - name: Build (osx-arm64 cross-check)
+      - name: Build server (osx-arm64 cross-check)
         run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --runtime osx-arm64
 
+      - name: Pack .NET tool
+        run: dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --output ./artifacts/packages
+
       - name: Format check
-        run: dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --verify-no-changes --verbosity minimal
+        run: dotnet format Kioku.slnx --verify-no-changes --no-restore --verbosity minimal
 
       - name: Vulnerability check
-        run: dotnet list src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj package --vulnerable
+        run: dotnet list Kioku.slnx package --vulnerable --include-transitive
 
   test-server:
     name: test-server (ubuntu-latest)
@@ -50,8 +56,8 @@ jobs:
         with:
           dotnet-version: "10.x"
 
-      - name: Restore
-        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
 
       - name: Test with coverage
         run: dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore --verbosity minimal --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --results-directory ./coverage
