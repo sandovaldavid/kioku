@@ -1,0 +1,75 @@
+name: diagnose-indexing-pr
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  diagnose-server:
+    if: github.event.pull_request.head.ref == 'agent/bounded-indexing-pipeline'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+
+      - name: Capture test diagnostics
+        id: tests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set +e
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity normal > test-diagnostics.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '### Temporary test diagnostics'
+              echo
+              echo '```text'
+              tail -n 160 test-diagnostics.log
+              echo '```'
+            } > test-comment.md
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file test-comment.md
+          fi
+          exit "$status"
+
+      - name: Capture format diagnostics
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set +e
+          dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --verify-no-changes \
+            --verbosity diagnostic > format-diagnostics.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '### Temporary format diagnostics'
+              echo
+              echo '```text'
+              tail -n 160 format-diagnostics.log
+              echo '```'
+            } > format-comment.md
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file format-comment.md
+          fi
+          exit "$status"
