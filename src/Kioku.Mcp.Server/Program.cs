@@ -82,22 +82,66 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
         .WithTools<NoteCommandTools>()
         .WithTools<UtilityTools>();
 
-    if (vaultConfig.IsGroupEnabled("tasks")) builder.WithTools<TaskManagementTools>();
-    if (vaultConfig.IsGroupEnabled("organization")) builder.WithTools<VaultOrganizationTools>();
-    if (vaultConfig.IsGroupEnabled("sessions")) builder.WithTools<SessionContextTools>();
-    if (vaultConfig.IsGroupEnabled("workflows")) builder.WithTools<WorkflowTools>();
-    if (vaultConfig.IsGroupEnabled("css")) builder.WithTools<CssThemingTools>();
+    if (vaultConfig.IsGroupEnabled("tasks"))
+    {
+        builder.WithTools<TaskManagementTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("organization"))
+    {
+        builder.WithTools<VaultOrganizationTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("sessions"))
+    {
+        builder.WithTools<SessionContextTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("workflows"))
+    {
+        builder.WithTools<WorkflowTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("css"))
+    {
+        builder.WithTools<CssThemingTools>();
+    }
+
     if (vaultConfig.IsGroupEnabled("graph"))
     {
         builder.WithTools<KnowledgeGraphTools>();
         builder.WithTools<GraphAnalysisTools>();
     }
-    if (vaultConfig.IsGroupEnabled("research")) builder.WithTools<SecureResearchTools>();
-    if (vaultConfig.IsGroupEnabled("bridge")) builder.WithTools<ObsidianBridgeTools>();
-    if (vaultConfig.IsGroupEnabled("plugin")) builder.WithTools<PluginIntegrationTools>();
-    if (vaultConfig.IsGroupEnabled("assets")) builder.WithTools<AssetTools>();
-    if (vaultConfig.IsGroupEnabled("generation")) builder.WithTools<GenerationTools>();
-    if (vaultConfig.IsGroupEnabled("engineering")) builder.WithTools<EngineeringWorkflowTools>();
+
+    if (vaultConfig.IsGroupEnabled("research"))
+    {
+        builder.WithTools<SecureResearchTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("bridge"))
+    {
+        builder.WithTools<ObsidianBridgeTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("plugin"))
+    {
+        builder.WithTools<PluginIntegrationTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("assets"))
+    {
+        builder.WithTools<AssetTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("generation"))
+    {
+        builder.WithTools<GenerationTools>();
+    }
+
+    if (vaultConfig.IsGroupEnabled("engineering"))
+    {
+        builder.WithTools<EngineeringWorkflowTools>();
+    }
 
     builder.WithKiokuTypedResults();
 }
@@ -133,7 +177,11 @@ static void ConfigureLogging(ILoggingBuilder logging)
 
 static void ConfigureSentry(KiokuConfiguration config)
 {
-    if (string.IsNullOrWhiteSpace(config.SentryDsn)) return;
+    if (string.IsNullOrWhiteSpace(config.SentryDsn))
+    {
+        return;
+    }
+
     SentrySdk.Init(options =>
     {
         options.Dsn = config.SentryDsn;
@@ -216,7 +264,10 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     }
 
     await generation.InitializeAsync(lifetime.ApplicationStopping);
-    readiness.SetOptionalDependencies(embedding.IsAvailable, !string.IsNullOrWhiteSpace(generation.GenerationModel), generation.IsAvailable);
+    readiness.SetOptionalDependencies(
+        embedding.IsAvailable,
+        !string.IsNullOrWhiteSpace(generation.GenerationModel),
+        generation.IsAvailable);
     lifetime.ApplicationStopping.Register(() =>
     {
         logger.Info("Shutting down: flushing embedding cache...");
