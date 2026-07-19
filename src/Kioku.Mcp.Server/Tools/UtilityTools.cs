@@ -25,8 +25,12 @@ public sealed class UtilityTools(
     {
         var indexReady = indexing?.IsReady ?? vault.IsReady;
         var indexedCount = indexing?.GetNotesSnapshot().Count ?? vault.IndexedCount;
-        var lastIndexed = indexing?.LastScanUtc ??
-            (vault.LastIndexed == default ? null : vault.LastIndexed);
+        DateTimeOffset? lastIndexed = indexing?.LastScanUtc;
+        if (lastIndexed is null && vault.LastIndexed != default)
+        {
+            lastIndexed = vault.LastIndexed;
+        }
+
         var result = $"[online] Kioku MCP Server\n" +
                      $"Health: healthy\n" +
                      $"   Vault: {config.VaultPath}\n" +
@@ -93,7 +97,11 @@ public sealed class UtilityTools(
             return "0s (backlog clear)";
         }
 
-        return ts.TotalHours >= 1 ? $"{ts.TotalHours:F1}h" : ts.TotalMinutes >= 1 ? $"{ts.TotalMinutes:F1}m" : $"{ts.TotalSeconds:F0}s";
+        return ts.TotalHours >= 1
+            ? $"{ts.TotalHours:F1}h"
+            : ts.TotalMinutes >= 1
+                ? $"{ts.TotalMinutes:F1}m"
+                : $"{ts.TotalSeconds:F0}s";
     }
 
     [McpServerTool, Description(
