@@ -86,9 +86,11 @@ docs(docs): add WebSocket protocol reference
 
 ## Code style
 
-- **C#**: format with `dotnet format Kioku.slnx` before committing. Repository-wide
-  nullable, deterministic build, code-style, analyzer, and warnings-as-errors settings live in
-  `Directory.Build.props`; package versions live in `Directory.Packages.props`. No
+- **C#**: run `dotnet format Kioku.slnx whitespace` and
+  `dotnet format Kioku.slnx style` before committing. Repository-wide nullable,
+  deterministic build, code-style, analyzer, and warnings-as-errors settings live in
+  `Directory.Build.props`; package versions live in `Directory.Packages.props`. Analyzer
+  enforcement happens during `dotnet build`, independently from the formatting checks. No
   separator comments (`// ── Name ──`) — use plain `// Name`. Inject `ILogger<T>` and use
   the `.Info()/.Warn()/.Error()/.Debug()` extensions from `Kioku.Mcp.Server.Logging`.
 - **TypeScript**: format with `pnpm format:plugin`, lint with `pnpm lint:plugin`. Use
@@ -120,11 +122,15 @@ variables or capability groups, also update the root `README.md`,
 
 ## Submitting a pull request
 
-1. For .NET changes, run the single repository verification command below (equivalent
-   `pnpm` commands apply to plugin changes):
+1. For .NET changes, run the repository verification commands below (equivalent `pnpm`
+   commands apply to plugin changes):
 
    ```bash
-   dotnet restore Kioku.slnx && dotnet build Kioku.slnx -c Release --no-restore && dotnet test Kioku.slnx -c Release --no-build && dotnet format Kioku.slnx --verify-no-changes --no-restore
+   dotnet restore Kioku.slnx
+   dotnet build Kioku.slnx -c Release --no-restore
+   dotnet test Kioku.slnx -c Release --no-build
+   dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
+   dotnet format Kioku.slnx style --verify-no-changes --no-restore
    ```
 2. Push your branch and open a PR against `develop` with a clear summary of what changed
    and why, plus how you tested it.
