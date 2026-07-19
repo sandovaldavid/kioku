@@ -31,6 +31,7 @@ The queue is intentionally bounded. When it cannot accept another watcher event,
 - A successful recovery scan returns readiness to `ready`; an unrecoverable scan failure reports `failed`.
 - Transient `IOException` and `UnauthorizedAccessException` failures use three bounded retries with cancellation-aware backoff.
 - Embedding backlog enumeration uses `Parallel.ForEachAsync`; it no longer creates one task for every stale note.
+- Server startup remains non-blocking while embeddings are generated. Semantic workflows that require a complete initial corpus, such as link suggestions, wait for the tracked backlog with a bounded timeout.
 - Shutdown disables the watcher, completes the channel, drains pending work, and only then allows the host lifecycle to persist the embedding cache.
 
 ## Observability
