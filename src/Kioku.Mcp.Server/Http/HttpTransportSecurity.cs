@@ -1,6 +1,7 @@
 using System.Net;
 using Kioku.Mcp.Server.Middleware;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kioku.Mcp.Server.Http;
 
@@ -18,6 +19,9 @@ internal static class HttpTransportSecurity
             options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(2);
         });
 
+        // The full Kioku host registers this through AddKiokuRuntime. TryAdd keeps standalone
+        // HTTP fixtures and embedders working without creating a second singleton in production.
+        builder.Services.TryAddSingleton<HttpReadinessState>();
         builder.Services.AddCors(options =>
             options.AddDefaultPolicy(policy =>
                 policy
