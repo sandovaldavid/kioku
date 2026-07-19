@@ -19,7 +19,7 @@ namespace Kioku.Mcp.Server.Tests;
 /// Obsidian server on an ephemeral port, mirroring the plugin side's protocol.contract.test.ts
 /// approach of using a real socket instead of a mocked one.
 ///
-/// Since PROTOCOL_VERSION 2, the client always sends an "auth" handshake as the first message
+/// Since PROTOCOL_VERSION 3, the client always sends an "auth" handshake as the first message
 /// on every (re)connection, so every test here must answer it before answering the real command
 /// — see FakeObsidianServer.AcceptAuthenticatedConnectionAsync/ExpectAuthAsync.
 /// </summary>
@@ -39,7 +39,7 @@ public class ObsidianBridgeServiceTests
             var message = JsonDocument.Parse(raw).RootElement;
 
             Assert.Equal("ping", message.GetProperty("command").GetString());
-            Assert.Equal(2, message.GetProperty("protocolVersion").GetInt32());
+            Assert.Equal(3, message.GetProperty("protocolVersion").GetInt32());
             var requestId = message.GetProperty("requestId").GetString();
 
             var response = JsonSerializer.Serialize(new
@@ -48,7 +48,7 @@ public class ObsidianBridgeServiceTests
                 success = true,
                 data = new { pong = true },
                 error = (string?)null,
-                protocolVersion = 2
+                protocolVersion = 3
             });
             await server.SendAsync(socket, response);
         });
@@ -79,7 +79,7 @@ public class ObsidianBridgeServiceTests
                 success = false,
                 data = (object?)null,
                 error = "Unknown command: does-not-exist",
-                protocolVersion = 2
+                protocolVersion = 3
             });
             await server.SendAsync(socket, response);
         });
@@ -149,7 +149,7 @@ public class ObsidianBridgeServiceTests
                 success = true,
                 data = new { pong = true },
                 error = (string?)null,
-                protocolVersion = 2
+                protocolVersion = 3
             });
             await server.SendAsync(socket, response);
         });
@@ -212,7 +212,7 @@ public class ObsidianBridgeServiceTests
                 success = true,
                 data = (object?)null,
                 error = (string?)null,
-                protocolVersion = 2
+                protocolVersion = 3
             });
             await server.SendAsync(socket, authResponse);
 
@@ -225,7 +225,7 @@ public class ObsidianBridgeServiceTests
                 success = true,
                 data = new { pong = true },
                 error = (string?)null,
-                protocolVersion = 2
+                protocolVersion = 3
             });
             await server.SendAsync(socket, pingResponse);
         });
@@ -348,7 +348,7 @@ internal sealed class FakeObsidianServer : IAsyncDisposable
             success,
             data = (object?)null,
             error = success ? null : (error ?? "[error] [UNAUTHORIZED] Invalid or missing authentication token."),
-            protocolVersion = 2
+            protocolVersion = 3
         });
         await SendAsync(socket, response, cancellationToken);
         return message;

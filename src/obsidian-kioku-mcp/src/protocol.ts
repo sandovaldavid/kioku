@@ -117,7 +117,10 @@ function validateAuthPayload(payload: unknown): payload is AuthPayload {
   if (!isOptionalString(payload.clientVersion, 128)) return false;
 
   if (payload.requestedCapabilities !== undefined) {
-    if (!Array.isArray(payload.requestedCapabilities) || payload.requestedCapabilities.length > 32) {
+    if (
+      !Array.isArray(payload.requestedCapabilities) ||
+      payload.requestedCapabilities.length > 32
+    ) {
       return false;
     }
     if (!payload.requestedCapabilities.every(isCapability)) return false;
@@ -131,7 +134,11 @@ function validatePayload<Command extends BridgeCommand>(
   payload: unknown
 ): payload is CommandPayloadMap[Command] {
   if (NO_PAYLOAD_COMMANDS.has(command)) {
-    return payload === undefined || payload === null || (isRecord(payload) && Object.keys(payload).length === 0);
+    return (
+      payload === undefined ||
+      payload === null ||
+      (isRecord(payload) && Object.keys(payload).length === 0)
+    );
   }
 
   if (command === "auth") return validateAuthPayload(payload);
@@ -148,10 +155,7 @@ function validatePayload<Command extends BridgeCommand>(
     case "replace-selection":
       return isNonEmptyString(payload.text, MAX_TEXT_LENGTH);
     case "scroll-to-block":
-      return (
-        isNonEmptyString(payload.blockId, 128) &&
-        /^[a-zA-Z0-9_-]+$/.test(payload.blockId)
-      );
+      return isNonEmptyString(payload.blockId, 128) && /^[a-zA-Z0-9_-]+$/.test(payload.blockId);
     case "run-dataview-query":
       return isNonEmptyString(payload.query, MAX_QUERY_LENGTH);
     case "run-templater":
@@ -170,7 +174,10 @@ function validatePayload<Command extends BridgeCommand>(
 
 export function parseBridgeMessage(value: unknown): ProtocolValidationResult {
   if (!isRecord(value)) {
-    return { ok: false, error: { code: "INVALID_MESSAGE", message: "Bridge message must be an object." } };
+    return {
+      ok: false,
+      error: { code: "INVALID_MESSAGE", message: "Bridge message must be an object." },
+    };
   }
 
   const requestId = isNonEmptyString(value.requestId, MAX_REQUEST_ID_LENGTH)
@@ -194,7 +201,11 @@ export function parseBridgeMessage(value: unknown): ProtocolValidationResult {
   if (!isIntegerInRange(value.protocolVersion, 1, 1000)) {
     return {
       ok: false,
-      error: { code: "INVALID_MESSAGE", message: "A valid protocolVersion is required.", requestId },
+      error: {
+        code: "INVALID_MESSAGE",
+        message: "A valid protocolVersion is required.",
+        requestId,
+      },
     };
   }
 

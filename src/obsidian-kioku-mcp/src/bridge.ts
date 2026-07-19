@@ -2,11 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import WebSocket, { WebSocketServer, type RawData } from "ws";
 import { authorizeCommand, getBridgeCapabilities } from "./command-policy";
 import { log } from "./logger";
-import {
-  MAX_MESSAGE_BYTES,
-  bridgeError,
-  parseBridgeMessage,
-} from "./protocol";
+import { MAX_MESSAGE_BYTES, bridgeError, parseBridgeMessage } from "./protocol";
 import type {
   AuthPayload,
   BridgeMessage,
@@ -201,13 +197,19 @@ export class BridgeServer {
     isBinary: boolean
   ): Promise<void> {
     if (isBinary) {
-      this.sendResponse(ws, bridgeError("INVALID_MESSAGE", "Binary bridge messages are not supported."));
+      this.sendResponse(
+        ws,
+        bridgeError("INVALID_MESSAGE", "Binary bridge messages are not supported.")
+      );
       ws.close(1003, "Text messages required");
       return;
     }
 
     if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
-      this.sendResponse(ws, bridgeError("BACKPRESSURE", "The bridge client is not consuming responses."));
+      this.sendResponse(
+        ws,
+        bridgeError("BACKPRESSURE", "The bridge client is not consuming responses.")
+      );
       ws.close(1013, "Backpressure");
       return;
     }
@@ -238,7 +240,11 @@ export class BridgeServer {
     if (!this.rememberRequestId(state, message.requestId)) {
       this.sendResponse(
         ws,
-        bridgeError("REPLAY_DETECTED", "The requestId was already used on this connection.", message.requestId)
+        bridgeError(
+          "REPLAY_DETECTED",
+          "The requestId was already used on this connection.",
+          message.requestId
+        )
       );
       return;
     }
@@ -398,7 +404,9 @@ export class BridgeServer {
 
     const expectedBuffer = Buffer.from(this.authToken, "utf8");
     const actualBuffer = Buffer.from(actual, "utf8");
-    return expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer);
+    return (
+      expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer)
+    );
   }
 
   private async dispatchWithTimeout(

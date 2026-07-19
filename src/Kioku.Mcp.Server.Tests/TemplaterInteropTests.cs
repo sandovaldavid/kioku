@@ -148,7 +148,7 @@ public class TemplaterInteropTests : IAsyncLifetime
                 success = true,
                 data = new { path = notePath },
                 error = (string?)null,
-                protocolVersion = 2,
+                protocolVersion = 3,
             });
             await server.SendAsync(socket, response);
         });

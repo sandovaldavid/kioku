@@ -4,12 +4,12 @@ import {
   BRIDGE_HOST,
   HEARTBEAT_INTERVAL_MS,
   MAX_BRIDGE_CLIENTS,
-  MAX_MESSAGE_BYTES,
   RATE_LIMIT_REQUESTS,
   REQUEST_TIMEOUT_MS,
   BridgeServer,
 } from "./bridge";
 import type { BridgeMessage, BridgeResponse, CommandHandler, KiokuSettings } from "./types";
+import { MAX_MESSAGE_BYTES } from "./protocol";
 import { DEFAULT_SETTINGS, PROTOCOL_VERSION } from "./types";
 
 function internalServer(server: BridgeServer): WebSocketServer {
@@ -93,7 +93,11 @@ function handlers(overrides: Record<string, CommandHandler> = {}): Record<string
 }
 
 function serverWith(
-  options: { token?: string; settings?: KiokuSettings; handlerMap?: Record<string, CommandHandler> } = {}
+  options: {
+    token?: string;
+    settings?: KiokuSettings;
+    handlerMap?: Record<string, CommandHandler>;
+  } = {}
 ): BridgeServer {
   const server = new BridgeServer(
     0,
@@ -196,9 +200,7 @@ describe("BridgeServer hardening", () => {
     expect((await handshake(accepted, { token: "s3cr3t", requestId: "auth-2" })).success).toBe(
       true
     );
-    expect(
-      (await send(accepted, command("is-obsidian-ready", "ready-1"))).success
-    ).toBe(true);
+    expect((await send(accepted, command("is-obsidian-ready", "ready-1"))).success).toBe(true);
 
     accepted.close();
     await server.stop();
@@ -257,12 +259,8 @@ describe("BridgeServer hardening", () => {
     await handshake(client);
 
     expect(
-      (
-        await send(
-          client,
-          command("trigger-command", "cmd-1", { commandId: "custom-plugin:run" })
-        )
-      ).success
+      (await send(client, command("trigger-command", "cmd-1", { commandId: "custom-plugin:run" })))
+        .success
     ).toBe(true);
     expect(handler).toHaveBeenCalledTimes(1);
 

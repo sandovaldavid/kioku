@@ -44,29 +44,26 @@ describe("command authorization", () => {
   it("requires both unsafe mode and an explicit command ID", () => {
     const commandId = "third-party:custom-command";
     expect(
-      authorizeCommand(
-        message("trigger-command", { commandId }),
-        { ...DEFAULT_SETTINGS, allowUnsafeCommands: true }
-      ).allowed
+      authorizeCommand(message("trigger-command", { commandId }), {
+        ...DEFAULT_SETTINGS,
+        allowUnsafeCommands: true,
+      }).allowed
     ).toBe(false);
 
     expect(
-      authorizeCommand(
-        message("trigger-command", { commandId }),
-        {
-          ...DEFAULT_SETTINGS,
-          allowUnsafeCommands: true,
-          additionalAllowedCommandIds: [commandId],
-        }
-      ).allowed
+      authorizeCommand(message("trigger-command", { commandId }), {
+        ...DEFAULT_SETTINGS,
+        allowUnsafeCommands: true,
+        additionalAllowedCommandIds: [commandId],
+      }).allowed
     ).toBe(true);
   });
 
   it("gates editor mutations independently", () => {
-    const result = authorizeCommand(
-      message("insert-at-cursor", { text: "hello" }),
-      { ...DEFAULT_SETTINGS, allowEditorMutations: false }
-    );
+    const result = authorizeCommand(message("insert-at-cursor", { text: "hello" }), {
+      ...DEFAULT_SETTINGS,
+      allowEditorMutations: false,
+    });
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("CAPABILITY_DENIED");
   });
@@ -78,30 +75,27 @@ describe("command authorization", () => {
     );
     expect(denied.allowed).toBe(false);
 
-    const allowed = authorizeCommand(
-      message("run-dataview-query", { query: "LIST" }),
-      { ...DEFAULT_SETTINGS, allowThirdPartyIntegrations: true }
-    );
+    const allowed = authorizeCommand(message("run-dataview-query", { query: "LIST" }), {
+      ...DEFAULT_SETTINGS,
+      allowThirdPartyIntegrations: true,
+    });
     expect(allowed.allowed).toBe(true);
   });
 
   it("requires third-party and vault-wide permissions for lint-all", () => {
     expect(
-      authorizeCommand(
-        message("run-linter-vault"),
-        { ...DEFAULT_SETTINGS, allowVaultWideOperations: true }
-      ).allowed
+      authorizeCommand(message("run-linter-vault"), {
+        ...DEFAULT_SETTINGS,
+        allowVaultWideOperations: true,
+      }).allowed
     ).toBe(false);
 
     expect(
-      authorizeCommand(
-        message("run-linter-vault"),
-        {
-          ...DEFAULT_SETTINGS,
-          allowThirdPartyIntegrations: true,
-          allowVaultWideOperations: true,
-        }
-      ).allowed
+      authorizeCommand(message("run-linter-vault"), {
+        ...DEFAULT_SETTINGS,
+        allowThirdPartyIntegrations: true,
+        allowVaultWideOperations: true,
+      }).allowed
     ).toBe(true);
   });
 });

@@ -83,10 +83,7 @@ export function authorizeCommand(
     }
 
     const explicitAllowlist = settings.additionalAllowedCommandIds ?? [];
-    if (
-      enabled(settings.allowUnsafeCommands, false) &&
-      explicitAllowlist.includes(commandId)
-    ) {
+    if (enabled(settings.allowUnsafeCommands, false) && explicitAllowlist.includes(commandId)) {
       return { allowed: true, risk: "unsafe-custom" };
     }
 
@@ -144,8 +141,6 @@ export function authorizeCommand(
   return {
     allowed: true,
     risk:
-      command.startsWith("get-") || command === "is-obsidian-ready"
-        ? "read-only"
-        : "ui-navigation",
+      command.startsWith("get-") || command === "is-obsidian-ready" ? "read-only" : "ui-navigation",
   };
 }

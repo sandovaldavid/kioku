@@ -374,7 +374,9 @@ class KiokuSettingTab extends PluginSettingTab {
             this.plugin.settings.additionalAllowedCommandIds = value
               .split(",")
               .map((entry) => entry.trim())
-              .filter((entry, index, entries) => entry.length > 0 && entries.indexOf(entry) === index)
+              .filter(
+                (entry, index, entries) => entry.length > 0 && entries.indexOf(entry) === index
+              )
               .slice(0, 64);
             await this.plugin.saveSettings();
             await this.plugin.restartBridge(false);
