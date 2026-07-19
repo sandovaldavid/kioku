@@ -37,7 +37,7 @@ public sealed class KiokuOptionsValidatorTests : IDisposable
         options.EmbeddingConcurrency = 129;
 
         var result = new KiokuOptionsValidator().Validate(Options.DefaultName, options);
-        var failures = result.Failures.ToArray();
+        var failures = result.Failures?.ToArray() ?? [];
 
         Assert.True(result.Failed);
         Assert.Contains(failures, failure => failure.Contains("KIOKU_TRANSPORT", StringComparison.Ordinal));
@@ -58,7 +58,7 @@ public sealed class KiokuOptionsValidatorTests : IDisposable
         var result = new KiokuOptionsValidator().Validate(Options.DefaultName, options);
 
         Assert.Contains(
-            result.Failures,
+            result.Failures ?? [],
             failure => failure.Contains("KIOKU_API_KEY", StringComparison.Ordinal));
     }
 
