@@ -1,5 +1,6 @@
 using Kioku.Mcp.Server.Http;
 using Kioku.Mcp.Server.Services;
+using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Options;
 
 namespace Kioku.Mcp.Server.Hosting;
