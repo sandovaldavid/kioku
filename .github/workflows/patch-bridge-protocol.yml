@@ -74,14 +74,33 @@ jobs:
       - name: Format .NET
         run: dotnet format src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --no-restore --verbosity minimal
 
-      - name: Commit and publish staging branch
+      - name: Create staged commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/obsidian-kioku-mcp/src src/Kioku.Mcp.Server src/Kioku.Mcp.Server.Tests
           if git diff --cached --quiet; then
-            echo "No source changes required."
-            exit 0
+            git rev-parse HEAD > staged-commit-sha.txt
+          else
+            git commit -m "test(bridge): align protocol v3 fixtures and formatting"
+            git rev-parse HEAD > staged-commit-sha.txt
           fi
-          git commit -m "test(bridge): align protocol v3 fixtures and formatting"
-          git push --force-with-lease origin HEAD:automation/harden-obsidian-bridge-formatted
+          git rev-parse HEAD^{tree} > staged-tree-sha.txt
+          git bundle create staged-bridge-commit.bundle HEAD
+          git show --stat --oneline HEAD > staged-commit-summary.txt
+
+      - name: Attempt staging push
+        continue-on-error: true
+        run: git push --force-with-lease origin HEAD:automation/harden-obsidian-bridge-formatted
+
+      - name: Upload staged commit
+        uses: actions/upload-artifact@v6
+        with:
+          name: staged-bridge-commit
+          path: |
+            staged-commit-sha.txt
+            staged-tree-sha.txt
+            staged-commit-summary.txt
+            staged-bridge-commit.bundle
+          if-no-files-found: error
+          retention-days: 1
