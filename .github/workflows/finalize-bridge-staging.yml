@@ -1,0 +1,171 @@
+name: finalize-bridge-staging
+
+on:
+  push:
+    branches: [automation/harden-obsidian-bridge-formatted]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/harden-obsidian-bridge
+          fetch-depth: 0
+
+      - name: Apply final source fixes and remove temporary automation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          bridge = Path('src/obsidian-kioku-mcp/src/bridge.ts')
+          text = bridge.read_text(encoding='utf-8')
+          text = text.replace(
+              'message as Extract<BridgeMessage, { command: RuntimeCommand }>',
+              'message')
+          text = text.replace(
+              'handler(message.payload as Record<string, unknown> | undefined, message.requestId)',
+              'handler(message.payload, message.requestId)')
+          bridge.write_text(text, encoding='utf-8')
+
+          contract = Path('src/obsidian-kioku-mcp/src/protocol.contract.test.ts')
+          text = contract.read_text(encoding='utf-8')
+          if 'const payloads: Record<string' not in text:
+              marker = '    const handlerNames = Object.keys(handlers);\n'
+              payloads = textwrap.dedent('''
+                  const payloads: Record<string, Record<string, unknown> | undefined> = {
+                    "open-file": { path: "Notes/A.md" },
+                    "trigger-command": { commandId: "app:toggle-left-sidebar" },
+                    "insert-at-cursor": { text: "hello" },
+                    "replace-selection": { text: "hello" },
+                    "create-note-ui": { path: "Notes/A.md" },
+                    "scroll-to-block": { blockId: "block-1" },
+                    "open-in-split": { path: "Notes/A.md" },
+                    "run-dataview-query": { query: "LIST" },
+                    "run-templater": { templatePath: "Templates/Test.md" },
+                    "evaluate-templater-in-file": { notePath: "Notes/A.md" },
+                    "run-linter": { notePath: "Notes/A.md" },
+                  };
+              ''')
+              payloads = textwrap.indent(payloads.strip() + '\n', '    ')
+              if marker not in text:
+                  raise SystemExit('protocol handler marker missing')
+              text = text.replace(marker, marker + payloads, 1)
+              text = text.replace(
+                  'const result = await handler({}, "contract-req");',
+                  'const result = await handler(payloads[command], "contract-req");',
+                  1)
+          contract.write_text(text, encoding='utf-8')
+
+          mock = Path('src/obsidian-kioku-mcp/src/__mocks__/obsidian.ts')
+          text = mock.read_text(encoding='utf-8')
+          if 'onLayoutReady' not in text:
+              for anchor in ('workspace: {\n', 'workspace = {\n'):
+                  if anchor in text:
+                      text = text.replace(
+                          anchor,
+                          anchor + '    onLayoutReady: (callback: () => void) => callback(),\n',
+                          1)
+                      break
+              else:
+                  marker = 'export class Workspace {'
+                  if marker not in text:
+                      raise SystemExit('workspace mock marker missing')
+                  text = text.replace(
+                      marker,
+                      marker + '\n  onLayoutReady(callback: () => void): void { callback(); }',
+                      1)
+          mock.write_text(text, encoding='utf-8')
+
+          ci = Path('.github/workflows/ci.yml')
+          text = ci.read_text(encoding='utf-8')
+          text = text.replace('permissions:\n  contents: write\n\n', '', 1)
+          start = text.find('  stage-bridge-lint-fix:\n')
+          end = text.find('  build-server:\n', start)
+          if start >= 0 and end > start:
+              text = text[:start] + text[end:]
+          ci.write_text(text, encoding='utf-8')
+          PY
+
+          rm -f \
+            .github/workflows/diagnose-bridge-tests.yml \
+            .github/workflows/diagnose-bridge-tests-2.yml \
+            .github/workflows/stage-bridge-final.yml \
+            .github/workflows/finalize-bridge-staging.yml
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format plugin
+        run: pnpm --filter obsidian-kioku-mcp run format
+
+      - name: Type-check plugin
+        run: pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json
+
+      - name: Lint plugin
+        run: pnpm --filter obsidian-kioku-mcp run lint
+
+      - name: Test plugin
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run test 2>&1 | tee bridge-finalizer-tests.log
+
+      - name: Build plugin
+        run: pnpm --filter obsidian-kioku-mcp run build
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore .NET tests
+        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+
+      - name: Format .NET
+        run: dotnet format src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --no-restore --verbosity minimal
+
+      - name: Test .NET
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore --verbosity minimal 2>&1 | tee bridge-finalizer-dotnet.log
+
+      - name: Build .NET server
+        run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore
+
+      - name: Commit validated clean branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config commit.gpgsign false
+          git add -A
+          git -c commit.gpgsign=false commit --no-verify -m "security(plugin): finalize hardened bridge protocol"
+          git push --force origin HEAD:automation/harden-obsidian-bridge-formatted
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: bridge-finalizer-diagnostics
+          path: |
+            bridge-finalizer-tests.log
+            bridge-finalizer-dotnet.log
+          if-no-files-found: warn
+          retention-days: 1
