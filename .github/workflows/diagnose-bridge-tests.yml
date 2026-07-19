@@ -1,0 +1,66 @@
+name: diagnose-bridge-tests
+
+on:
+  pull_request:
+    branches: [develop]
+
+jobs:
+  diagnose:
+    if: github.head_ref == 'agent/harden-obsidian-bridge'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Apply pending lint fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/obsidian-kioku-mcp/src/bridge.ts')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'message as Extract<BridgeMessage, { command: RuntimeCommand }>',
+              'message',
+              1)
+          text = text.replace(
+              'handler(message.payload as Record<string, unknown> | undefined, message.requestId)',
+              'handler(message.payload, message.requestId)',
+              1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run bridge tests with diagnostics
+        id: tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run test 2>&1 | tee bridge-test-diagnostics.log
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: bridge-test-diagnostics
+          path: bridge-test-diagnostics.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Preserve failure status
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
