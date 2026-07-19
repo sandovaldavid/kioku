@@ -3,7 +3,10 @@ export interface BridgeStatus {
   port: number;
   clients: number;
   protocolVersion: number;
+  minProtocolVersion: number;
+  maxProtocolVersion: number;
   pluginVersion: string;
+  authenticationEnabled: boolean;
 }
 
 export function formatStatusBarText(running: boolean, port: number, clients: number): string {

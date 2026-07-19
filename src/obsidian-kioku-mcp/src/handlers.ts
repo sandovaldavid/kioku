@@ -1,8 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
 import { MarkdownView, Notice } from "obsidian";
 import type { App } from "obsidian";
-import type { BridgeResponse, KiokuDataAdapter, KiokuSettings, PluginManifest } from "./types";
-import { asKiokuApp } from "./types";
+import type { BridgeResponse, KiokuSettings, PluginManifest } from "./types";
+import {
+  executeObsidianCommand,
+  getObsidianVersion,
+  getThirdPartyPluginApi,
+  getVaultBasePath,
+  listInstalledPlugins,
+} from "./obsidian-compat";
 
 function validatePayload(
   payload: Record<string, unknown> | undefined,
@@ -196,15 +202,15 @@ function cmdGetActiveNote(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdGetVaultPath(app: App, requestId?: string): BridgeResponse {
-  // Note: vault.adapter is an internal Obsidian API. We cast to KiokuDataAdapter
-  // to access basePath. If this API changes, we return "unknown" as fallback.
-  const adapter = app.vault.adapter as unknown as KiokuDataAdapter;
-  const vaultPath = adapter?.basePath ?? "unknown";
-
+  const vaultPath = getVaultBasePath(app);
   return {
     requestId,
     success: true,
-    data: { vaultPath, vaultName: app.vault.getName() },
+    data: {
+      vaultPath: vaultPath ?? "unknown",
+      vaultName: app.vault.getName(),
+      available: vaultPath !== null,
+    },
   };
 }
 
@@ -213,12 +219,11 @@ function cmdGetAppVersion(
   pluginManifest: PluginManifest,
   requestId?: string
 ): BridgeResponse {
-  const kiokuApp = asKiokuApp(app);
   return {
     requestId,
     success: true,
     data: {
-      obsidianVersion: kiokuApp.version,
+      obsidianVersion: getObsidianVersion(app) ?? "unknown",
       kiokuVersion: pluginManifest.version,
     },
   };
@@ -245,7 +250,7 @@ function cmdTriggerCommand(
   requestId?: string
 ): BridgeResponse {
   const { commandId } = payload;
-  const executed = asKiokuApp(app).commands.executeCommandById(commandId);
+  const executed = executeObsidianCommand(commandId);
   if (!executed) {
     return {
       requestId,
@@ -257,7 +262,7 @@ function cmdTriggerCommand(
 }
 
 function cmdToggleReadingMode(app: App, requestId?: string): BridgeResponse {
-  const executed = asKiokuApp(app).commands.executeCommandById("markdown:toggle-preview");
+  const executed = executeObsidianCommand("markdown:toggle-preview");
   if (!executed) {
     return {
       requestId,
@@ -287,7 +292,7 @@ function cmdGetSelection(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdFoldAll(app: App, requestId?: string): BridgeResponse {
-  const executed = asKiokuApp(app).commands.executeCommandById("editor:fold-all");
+  const executed = executeObsidianCommand("editor:fold-all");
   if (!executed) {
     return {
       requestId,
@@ -299,7 +304,7 @@ function cmdFoldAll(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdUnfoldAll(app: App, requestId?: string): BridgeResponse {
-  const executed = asKiokuApp(app).commands.executeCommandById("editor:unfold-all");
+  const executed = executeObsidianCommand("editor:unfold-all");
   if (!executed) {
     return {
       requestId,
@@ -311,7 +316,7 @@ function cmdUnfoldAll(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdReloadSnippets(app: App, requestId?: string): BridgeResponse {
-  const executed = asKiokuApp(app).commands.executeCommandById("app:reload-css-snippets");
+  const executed = executeObsidianCommand("app:reload-css-snippets");
   if (!executed) {
     return {
       requestId,
@@ -415,7 +420,7 @@ async function cmdRunDataviewQuery(
   payload: { query: string },
   requestId?: string
 ): Promise<BridgeResponse> {
-  const dvApi = asKiokuApp(app).plugins.plugins.dataview as
+  const dvApi = getThirdPartyPluginApi(app, "dataview") as
     | { api: { query: (q: string) => Promise<unknown> } }
     | undefined;
   if (!dvApi) {
@@ -438,8 +443,7 @@ async function cmdRunTemplater(
   payload: { templatePath: string; targetNote?: string },
   requestId?: string
 ): Promise<BridgeResponse> {
-  const plugins = asKiokuApp(app).plugins.plugins;
-  const templater = plugins["templater-obsidian"] as
+  const templater = getThirdPartyPluginApi(app, "templater-obsidian") as
     | {
         templater: {
           create_new_note_from_template: (f: unknown, p: unknown, n: string) => Promise<void>;
@@ -488,8 +492,7 @@ async function cmdEvaluateTemplaterInFile(
   payload: { notePath: string },
   requestId?: string
 ): Promise<BridgeResponse> {
-  const plugins = asKiokuApp(app).plugins.plugins;
-  const templater = plugins["templater-obsidian"] as
+  const templater = getThirdPartyPluginApi(app, "templater-obsidian") as
     | {
         templater: {
           overwrite_file_commands: (file: unknown, activeFile?: boolean) => Promise<void>;
@@ -527,7 +530,7 @@ function cmdRunLinter(
     return { requestId, success: false, error: "No note specified and no active note." };
   }
   const cmdId = "obsidian-linter:lint-file";
-  const executed = asKiokuApp(app).commands.executeCommandById(cmdId);
+  const executed = executeObsidianCommand(cmdId);
   if (!executed) {
     return {
       requestId,
@@ -540,7 +543,7 @@ function cmdRunLinter(
 
 function cmdRunLinterVault(app: App, requestId?: string): BridgeResponse {
   const cmdId = "obsidian-linter:lint-all-files";
-  const executed = asKiokuApp(app).commands.executeCommandById(cmdId);
+  const executed = executeObsidianCommand(cmdId);
   if (!executed) {
     return {
       requestId,
@@ -553,16 +556,9 @@ function cmdRunLinterVault(app: App, requestId?: string): BridgeResponse {
 }
 
 function cmdGetInstalledPlugins(app: App, requestId?: string): BridgeResponse {
-  const kiokuApp = asKiokuApp(app);
-  const manifests = kiokuApp.plugins.manifests;
-  const enabledPlugins = kiokuApp.plugins.enabledPlugins ?? new Set<string>();
-  const plugins = Object.entries(manifests).map(([id, manifest]: [string, PluginManifest]) => ({
-    id,
-    name: manifest.name,
-    version: manifest.version,
-    author: manifest.author,
-    description: manifest.description,
-    enabled: enabledPlugins.has(id),
-  }));
-  return { requestId, success: true, data: plugins };
+  return {
+    requestId,
+    success: true,
+    data: listInstalledPlugins(app),
+  };
 }

@@ -1,36 +1,8 @@
-import type { App } from "obsidian";
-
 export interface PluginManifest {
   name: string;
   version: string;
   author?: string;
   description?: string;
-}
-
-/**
- * Internal Obsidian App interface extension.
- *
- * These APIs are undocumented and may change between Obsidian versions. Every caller must
- * handle unavailable commands/plugins without exposing implementation details to bridge clients.
- */
-export interface KiokuApp extends App {
-  version: string;
-  commands: {
-    executeCommandById(commandId: string): boolean;
-  };
-  plugins: {
-    manifests: Record<string, PluginManifest>;
-    enabledPlugins: Set<string>;
-    plugins: Record<string, unknown>;
-  };
-}
-
-export function asKiokuApp(app: App): KiokuApp {
-  return app as unknown as KiokuApp;
-}
-
-export interface KiokuDataAdapter {
-  basePath: string;
 }
 
 export interface KiokuSettings {

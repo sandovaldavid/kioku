@@ -98,7 +98,11 @@ describe("createHandlers", () => {
       );
       const result = handlers["get-vault-path"](undefined, "req-1");
       expect(result.success).toBe(true);
-      expect(result.data).toEqual({ vaultPath: "/home/user/vault", vaultName: "TestVault" });
+      expect(result.data).toEqual({
+        vaultPath: "/home/user/vault",
+        vaultName: "TestVault",
+        available: true,
+      });
     });
   });
 
@@ -157,7 +161,7 @@ describe("createHandlers", () => {
       const handlers = createHandlers(makeApp(), settings, manifest);
       const result = handlers["get-app-version"](undefined, "req-1");
       expect(result.success).toBe(true);
-      expect(result.data).toEqual({ obsidianVersion: "1.8.0", kiokuVersion: "1.8.0-beta.5" });
+      expect(result.data).toEqual({ obsidianVersion: "1.13.1", kiokuVersion: "1.8.0-beta.5" });
     });
   });
 

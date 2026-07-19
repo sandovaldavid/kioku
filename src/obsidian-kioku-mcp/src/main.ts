@@ -6,8 +6,9 @@ import { createHandlers } from "./handlers";
 import { log } from "./logger";
 import type { BridgeStatus } from "./status";
 import { formatStatusBarText, statusBarCssClass } from "./status";
+import { formatBridgeStatusDescription, normalizeSettings } from "./settings";
 import type { KiokuSettings } from "./types";
-import { DEFAULT_SETTINGS, PROTOCOL_VERSION } from "./types";
+import { PROTOCOL_MAX_VERSION, PROTOCOL_MIN_VERSION, PROTOCOL_VERSION } from "./types";
 
 export default class KiokuPlugin extends Plugin {
   declare settings: KiokuSettings;
@@ -16,23 +17,31 @@ export default class KiokuPlugin extends Plugin {
   private statusBarItem: HTMLElement | null = null;
 
   async onload(): Promise<void> {
+    const loadedAt = performance.now();
     await this.loadSettings();
     this.addSettingTab(new KiokuSettingTab(this.app, this));
     this.refreshStatusBarVisibility();
 
     this.app.workspace.onLayoutReady(() => {
-      void this.startBridge();
+      const deferredMs = Math.round(performance.now() - loadedAt);
+      void this.startBridge().then((started) => {
+        log.info(
+          started
+            ? `Bridge started after workspace layout became ready (${deferredMs} ms after plugin load).`
+            : `Bridge did not start after workspace layout became ready (${deferredMs} ms after plugin load).`
+        );
+      });
     });
 
     this.addCommand({
       id: "kioku-restart-bridge",
-      name: "Restart Kioku MCP Bridge",
+      name: "Restart bridge",
       callback: () => this.restartBridge(),
     });
 
     this.addCommand({
       id: "kioku-stop-bridge",
-      name: "Stop Kioku MCP Bridge",
+      name: "Stop bridge",
       callback: async () => {
         await this.stopBridge();
         new Notice("Kioku MCP Bridge stopped.");
@@ -41,7 +50,7 @@ export default class KiokuPlugin extends Plugin {
 
     this.addCommand({
       id: "kioku-start-bridge",
-      name: "Start Kioku MCP Bridge",
+      name: "Start bridge",
       callback: async () => {
         const started = await this.startBridge();
         if (started) {
@@ -52,15 +61,9 @@ export default class KiokuPlugin extends Plugin {
 
     this.addCommand({
       id: "kioku-copy-status",
-      name: "Copy Kioku bridge status",
+      name: "Copy bridge status",
       callback: async () => {
-        const status: BridgeStatus = {
-          running: this.bridge?.isRunning ?? false,
-          port: this.settings.bridgePort,
-          clients: this.bridge?.clientCount ?? 0,
-          protocolVersion: PROTOCOL_VERSION,
-          pluginVersion: this.manifest.version,
-        };
+        const status = this.getBridgeStatus();
         await navigator.clipboard.writeText(JSON.stringify(status, null, 2));
         new Notice("Kioku bridge status copied to clipboard.");
       },
@@ -68,7 +71,7 @@ export default class KiokuPlugin extends Plugin {
 
     this.addCommand({
       id: "kioku-copy-auth-token",
-      name: "Copy Kioku bridge auth token",
+      name: "Copy bridge auth token",
       callback: async () => {
         if (!this.settings.authToken) {
           new Notice("Kioku bridge has no auth token configured.");
@@ -88,14 +91,20 @@ export default class KiokuPlugin extends Plugin {
     log.info("Plugin unloaded.");
   }
 
-  async restartBridge(showNotice = true): Promise<void> {
+  async restartBridge(showNotice = true): Promise<boolean> {
+    let started = false;
     await this.enqueueBridgeTransition(async () => {
       await this.stopBridgeInternal();
-      this.startBridgeInternal();
+      started = this.startBridgeInternal();
     });
     if (showNotice) {
-      new Notice("Kioku MCP Bridge restarted on port " + this.settings.bridgePort);
+      new Notice(
+        started
+          ? "Kioku MCP Bridge restarted on port " + this.settings.bridgePort
+          : "Kioku MCP Bridge could not restart. Check the developer console for details."
+      );
     }
+    return started;
   }
 
   async startBridge(): Promise<boolean> {
@@ -169,6 +178,19 @@ export default class KiokuPlugin extends Plugin {
     this.updateStatusBar();
   }
 
+  getBridgeStatus(): BridgeStatus {
+    return {
+      running: this.bridge?.isRunning ?? false,
+      port: this.settings.bridgePort,
+      clients: this.bridge?.clientCount ?? 0,
+      protocolVersion: PROTOCOL_VERSION,
+      minProtocolVersion: PROTOCOL_MIN_VERSION,
+      maxProtocolVersion: PROTOCOL_MAX_VERSION,
+      pluginVersion: this.manifest.version,
+      authenticationEnabled: Boolean(this.settings.authToken),
+    };
+  }
+
   refreshStatusBarVisibility(): void {
     if (this.settings.showStatusBar) {
       if (!this.statusBarItem) {
@@ -205,11 +227,7 @@ export default class KiokuPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as Partial<KiokuSettings> | null;
-    this.settings = {
-      ...DEFAULT_SETTINGS,
-      ...(saved ?? {}),
-      additionalAllowedCommandIds: saved?.additionalAllowedCommandIds ?? [],
-    };
+    this.settings = normalizeSettings(saved);
   }
 
   async saveSettings(): Promise<void> {
@@ -229,8 +247,6 @@ class KiokuSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Kioku MCP — Settings" });
-
     containerEl.createEl("p", {
       text:
         "Kioku connects your Obsidian vault with the Kioku MCP server. The bridge only binds to " +
@@ -246,6 +262,20 @@ class KiokuSettingTab extends PluginSettingTab {
         cls: "kioku-security-warning",
       });
     }
+
+    const bridgeStatus = this.plugin.getBridgeStatus();
+    new Setting(containerEl)
+      .setName("Bridge status")
+      .setDesc(formatBridgeStatusDescription(bridgeStatus))
+      .addButton((button) =>
+        button
+          .setButtonText(bridgeStatus.running ? "Restart" : "Start")
+          .setTooltip("Apply the saved configuration and refresh bridge status")
+          .onClick(async () => {
+            await this.plugin.restartBridge(false);
+            this.display();
+          })
+      );
 
     new Setting(containerEl)
       .setName("Bridge port")
@@ -319,7 +349,7 @@ class KiokuSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", { text: "Bridge permissions" });
+    new Setting(containerEl).setName("Bridge permissions").setHeading();
 
     this.addRestartingToggle(
       containerEl,
