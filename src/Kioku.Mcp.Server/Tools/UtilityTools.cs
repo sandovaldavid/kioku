@@ -13,7 +13,8 @@ public sealed class UtilityTools(
     KiokuConfiguration config,
     EmbeddingService? embedding = null,
     MetricsService? metrics = null,
-    VaultConfigService? vaultConfig = null)
+    VaultConfigService? vaultConfig = null,
+    VaultIndexingPipeline? indexing = null)
 {
     [McpServerTool, Description(
         "Returns the current Kioku server health and status: vault path, indexed note count, " +
@@ -22,16 +23,33 @@ public sealed class UtilityTools(
         "rate, ETA).")]
     public string get_server_status()
     {
+        var indexReady = indexing?.IsReady ?? vault.IsReady;
+        var indexedCount = indexing?.GetNotesSnapshot().Count ?? vault.IndexedCount;
+        var lastIndexed = indexing?.LastScanUtc ??
+            (vault.LastIndexed == default ? null : vault.LastIndexed);
         var result = $"[online] Kioku MCP Server\n" +
                      $"Health: healthy\n" +
                      $"   Vault: {config.VaultPath}\n" +
-                     $"   Indexed notes: {vault.IndexedCount}\n" +
+                     $"   Indexed notes: {indexedCount}\n" +
                      $"   Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
                      $"   Ollama: {(embedding?.IsAvailable == true ? "[ok] Available" : "[info] Unavailable")}\n" +
                      $"   Embedding model: {config.EmbeddingModel}\n" +
-                     $"   Last indexed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n" +
-                     $"   Status: {(vault.IsReady ? "[ok] Ready" : "[loading] Loading...")}\n" +
-                     $"   Index ready: {(vault.IsReady ? "Yes" : "No (loading...)")}";
+                     $"   Last indexed: {FormatLastIndexed(lastIndexed)}\n" +
+                     $"   Status: {(indexReady ? "[ok] Ready" : "[loading] Loading/rebuilding...")}\n" +
+                     $"   Index ready: {(indexReady ? "Yes" : "No (loading or rebuilding)")}";
+
+        if (indexing is not null)
+        {
+            var indexMetrics = indexing.Metrics;
+            result += $"\n   Indexing pipeline:" +
+                      $"\n      Queue depth: {indexMetrics.QueueDepth}" +
+                      $"\n      Processed changes: {indexMetrics.ProcessedChanges}" +
+                      $"\n      Failed changes: {indexMetrics.FailedChanges}" +
+                      $"\n      Coalesced changes: {indexMetrics.CoalescedChanges}" +
+                      $"\n      Reconciliations: {indexMetrics.ReconciliationCount}" +
+                      $"\n      Last scan: {indexMetrics.LastScanDuration.TotalMilliseconds:F0} ms" +
+                      $"\n      Max concurrency observed: {indexMetrics.MaximumObservedConcurrency}";
+        }
 
         if (embedding?.IsAvailable == true)
         {
@@ -59,6 +77,9 @@ public sealed class UtilityTools(
         return result;
     }
 
+    private static string FormatLastIndexed(DateTimeOffset? value) =>
+        value is null ? "not completed" : $"{value.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+
     private static string FormatEstimatedRemaining(TimeSpan? remaining)
     {
         if (remaining is null)
@@ -80,6 +101,13 @@ public sealed class UtilityTools(
         "Useful if the index got out of sync or massive changes were made outside of Obsidian.")]
     public async Task<string> rebuild_index()
     {
+        if (indexing is not null)
+        {
+            await indexing.ReconcileAsync("mcp_tool");
+            return $"[ok] Re-indexing completed. {indexing.GetNotesSnapshot().Count} notes indexed.\n" +
+                   $"Completed: {FormatLastIndexed(indexing.LastScanUtc)}";
+        }
+
         await vault.RebuildIndexAsync();
         return $"[ok] Re-indexing completed. {vault.IndexedCount} notes indexed.\n" +
                $"Completed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
