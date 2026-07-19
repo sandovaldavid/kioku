@@ -25,6 +25,9 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<EmbeddingService>();
         services.AddSingleton<GenerationService>();
         services.AddSingleton<VaultIndexService>();
+        services.AddSingleton<IVaultIndexOperations, VaultIndexOperations>();
+        services.AddSingleton<VaultIndexingMetrics>();
+        services.AddSingleton<VaultIndexingPipeline>();
         services.AddSingleton<ObsidianBridgeService>();
         services.AddSingleton<HybridSearchService>();
         services.AddSingleton<TaskService>();
@@ -34,7 +37,15 @@ internal static class KiokuHostingExtensions
         services.AddTransient<ZettelkastenTools>();
 
         services.AddSingleton<IKiokuRuntime, KiokuRuntime>();
-        services.AddHostedService<KiokuLifecycleService>();
+        services.AddSingleton<KiokuLifecycleService>();
+
+        // Hosted services start in registration order and stop in reverse order. The lifecycle
+        // performs the cold scan first; the pipeline is therefore stopped and drained before the
+        // lifecycle persists the embedding cache during shutdown.
+        services.AddSingleton<IHostedService>(provider =>
+            provider.GetRequiredService<KiokuLifecycleService>());
+        services.AddSingleton<IHostedService>(provider =>
+            provider.GetRequiredService<VaultIndexingPipeline>());
 
         services.AddHttpClient("ollama")
             .ConfigureHttpClient((provider, client) =>
@@ -73,13 +84,21 @@ internal sealed record KiokuRuntimeStatus(
     bool GenerationAvailable);
 
 internal sealed class KiokuRuntime(
-    VaultIndexService vaultIndex,
+    VaultIndexingPipeline indexing,
+    VaultIndexingMetrics indexingMetrics,
     EmbeddingService embedding,
-    GenerationService generation) : IKiokuRuntime
+    GenerationService generation,
+    TimeProvider timeProvider) : IKiokuRuntime
 {
     public async Task<KiokuRuntimeStatus> InitializeAsync(CancellationToken cancellationToken)
     {
-        await vaultIndex.InitializeAsync(cancellationToken);
+        await indexing.InitializeAsync(cancellationToken);
+
+        var embeddingStartedAt = timeProvider.GetTimestamp();
+        await embedding.InitializeAsync(indexing.GetNotesSnapshot(), cancellationToken);
+        indexingMetrics.EmbeddingInitializationCompleted(
+            timeProvider.GetElapsedTime(embeddingStartedAt));
+
         await generation.InitializeAsync(cancellationToken);
 
         return new KiokuRuntimeStatus(

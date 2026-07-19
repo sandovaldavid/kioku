@@ -29,6 +29,12 @@ public sealed class HttpReadinessState
         Touch();
     }
 
+    public void MarkIndexRebuilding()
+    {
+        Volatile.Write(ref _indexState, (int)ComponentState.Rebuilding);
+        Touch();
+    }
+
     public void MarkIndexFailed()
     {
         Volatile.Write(ref _indexState, (int)ComponentState.Failed);
@@ -66,6 +72,7 @@ public sealed class HttpReadinessState
     private static string FormatState(int state) => (ComponentState)state switch
     {
         ComponentState.Ready => "ready",
+        ComponentState.Rebuilding => "rebuilding",
         ComponentState.Degraded => "degraded",
         ComponentState.Disabled => "disabled",
         ComponentState.Failed => "failed",
@@ -76,6 +83,7 @@ public sealed class HttpReadinessState
     {
         Starting,
         Ready,
+        Rebuilding,
         Degraded,
         Disabled,
         Failed,
