@@ -1,4 +1,5 @@
 using Kioku.Mcp.Server;
+using Kioku.Mcp.Server.Hosting;
 using Kioku.Mcp.Server.Http;
 using Kioku.Mcp.Server.Logging;
 using Kioku.Mcp.Server.Prompts;
@@ -7,75 +8,59 @@ using Kioku.Mcp.Server.Resources;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Sentry;
 
-KiokuConfiguration config;
+var configuration = KiokuOptionsConfiguration.Build(args);
+KiokuOptions options;
 try
 {
-    config = KiokuConfiguration.FromEnvironment();
+    options = KiokuOptionsConfiguration.GetValidated(configuration);
 }
-catch (InvalidOperationException ex)
+catch (OptionsValidationException ex)
 {
-    BootstrapLogger.Error($"Configuration: {ex.Message}");
+    foreach (var failure in ex.Failures)
+    {
+        BootstrapLogger.Error($"Configuration: {failure}");
+    }
+
     return 1;
 }
 
-var useHttp = config.IsHttpTransport || args.Contains("--http");
-if (useHttp)
+var config = options.ToConfiguration();
+try
 {
-    try
+    return options.IsHttpTransport
+        ? await RunHttpAsync(configuration, config, args)
+        : await RunStdioAsync(configuration, config, args);
+}
+catch (OptionsValidationException ex)
+{
+    foreach (var failure in ex.Failures)
     {
-        config.ValidateHttpTransport();
-    }
-    catch (InvalidOperationException ex)
-    {
-        BootstrapLogger.Error($"Streamable HTTP configuration: {ex.Message}");
-        return 1;
+        BootstrapLogger.Error($"Configuration: {failure}");
     }
 
-    return await RunHttpAsync(config, args);
+    return 1;
+}
+catch (DirectoryNotFoundException ex)
+{
+    BootstrapLogger.Error($"Vault initialization: {ex.Message}");
+    return 2;
+}
+catch (OperationCanceledException)
+{
+    return 0;
+}
+catch (Exception ex)
+{
+    BootstrapLogger.Error($"Startup failed: {ex.Message}");
+    return 1;
 }
 
-return await RunStdioAsync(config);
-
-static void ConfigureKiokuServices(IServiceCollection services, KiokuConfiguration config)
-{
-    services.AddSingleton(config);
-    services.AddSingleton<VaultPathPolicy>();
-    services.AddSingleton<EmbeddingService>();
-    services.AddSingleton<GenerationService>();
-    services.AddSingleton<VaultIndexService>();
-    services.AddSingleton<ObsidianBridgeService>();
-    services.AddSingleton<HybridSearchService>();
-    services.AddSingleton<TaskService>();
-    services.AddSingleton<MetricsService>();
-    services.AddSingleton<ProjectWorkspaceService>();
-    services.AddTransient<ZettelkastenTools>();
-
-    services.AddHttpClient("ollama", c =>
-    {
-        c.BaseAddress = new Uri(config.OllamaUrl);
-        c.Timeout = TimeSpan.FromSeconds(30);
-    }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-    {
-        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-        MaxConnectionsPerServer = 4,
-    });
-
-    services.AddHttpClient("web", c =>
-    {
-        c.Timeout = TimeSpan.FromSeconds(30);
-    }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-    {
-        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-    });
-}
-
-static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService vaultConfig)
+static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultCapabilityProfile capabilities)
 {
     builder
         .WithTools<NoteQueryTools>()
@@ -83,63 +68,63 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
         .WithTools<FocusedCreationTools>()
         .WithTools<UtilityTools>();
 
-    if (vaultConfig.IsGroupEnabled("tasks"))
+    if (capabilities.IsEnabled("tasks"))
     {
         builder.WithTools<TaskManagementTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("organization"))
+    if (capabilities.IsEnabled("organization"))
     {
         builder.WithTools<VaultOrganizationTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("sessions"))
+    if (capabilities.IsEnabled("sessions"))
     {
         builder.WithTools<SessionContextTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("workflows"))
+    if (capabilities.IsEnabled("workflows"))
     {
         builder.WithTools<WorkflowTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("css"))
+    if (capabilities.IsEnabled("css"))
     {
         builder.WithTools<CssThemingTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("graph"))
+    if (capabilities.IsEnabled("graph"))
     {
         builder.WithTools<KnowledgeGraphTools>();
         builder.WithTools<GraphAnalysisTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("research"))
+    if (capabilities.IsEnabled("research"))
     {
         builder.WithTools<SecureResearchTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("bridge"))
+    if (capabilities.IsEnabled("bridge"))
     {
         builder.WithTools<ObsidianBridgeTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("plugin"))
+    if (capabilities.IsEnabled("plugin"))
     {
         builder.WithTools<PluginIntegrationTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("assets"))
+    if (capabilities.IsEnabled("assets"))
     {
         builder.WithTools<AssetTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("generation"))
+    if (capabilities.IsEnabled("generation"))
     {
         builder.WithTools<GenerationTools>();
     }
 
-    if (vaultConfig.IsGroupEnabled("engineering"))
+    if (capabilities.IsEnabled("engineering"))
     {
         builder.WithTools<EngineeringWorkflowTools>();
     }
@@ -172,7 +157,7 @@ static void ConfigureKiokuPromptsAndResources(IMcpServerBuilder builder)
 static void ConfigureLogging(ILoggingBuilder logging)
 {
     logging.ClearProviders();
-    logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
+    logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
     logging.SetMinimumLevel(LogLevel.Information);
 }
 
@@ -195,13 +180,18 @@ static void ConfigureSentry(KiokuConfiguration config)
     });
 }
 
-static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
+static async Task<int> RunHttpAsync(
+    IConfiguration configuration,
+    KiokuConfiguration config,
+    string[] args)
 {
-    var webBuilder = WebApplication.CreateBuilder(args);
-    webBuilder.WebHost.UseUrls(config.HttpListenUrl);
+    var builder = WebApplication.CreateBuilder(args);
+    builder.Configuration.AddConfiguration(configuration);
+    builder.WebHost.UseUrls(config.HttpListenUrl);
+
     if (!string.IsNullOrWhiteSpace(config.SentryDsn))
     {
-        webBuilder.WebHost.UseSentry(options =>
+        builder.WebHost.UseSentry(options =>
         {
             options.Dsn = config.SentryDsn;
             options.Release = typeof(Program).Assembly.GetName().Version?.ToString();
@@ -213,113 +203,56 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
         });
     }
 
-    ConfigureLogging(webBuilder.Logging);
-    ConfigureKiokuServices(webBuilder.Services, config);
-    HttpTransportSecurity.ConfigureBuilder(webBuilder, config);
+    ConfigureLogging(builder.Logging);
+    builder.Services.AddKiokuRuntime(builder.Configuration);
+    HttpTransportSecurity.ConfigureBuilder(builder, config);
 
-    using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
-    var vaultConfig = new VaultConfigService(config, loggerFactory.CreateLogger<VaultConfigService>());
-    webBuilder.Services.AddSingleton(vaultConfig);
+    var capabilities = VaultCapabilityProfile.Load(config.VaultPath);
+    var mcpBuilder = builder.Services.AddMcpServer().WithHttpTransport();
+    ConfigureKiokuTools(mcpBuilder, capabilities);
+    ConfigureKiokuPromptsAndResources(mcpBuilder);
 
-    var httpMcpBuilder = webBuilder.Services.AddMcpServer().WithHttpTransport();
-    ConfigureKiokuTools(httpMcpBuilder, vaultConfig);
-    ConfigureKiokuPromptsAndResources(httpMcpBuilder);
-
-    var webApp = webBuilder.Build();
-    var logger = webApp.Services.GetRequiredService<ILogger<Program>>();
+    var app = builder.Build();
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
     logger.Info("Kioku MCP Server starting in Streamable HTTP mode...");
     logger.Info("Vault:     {VaultPath}", config.VaultPath);
     logger.Info("Endpoint:  {ListenUrl}/mcp", config.HttpListenUrl);
     logger.Info("Auth:      {AuthStatus}", config.HasApiKey ? "Bearer token enabled" : "disabled (loopback only)");
     if (!config.IsLoopbackHttpBinding && !config.HasApiKey)
     {
-        logger.Warn("UNSAFE OVERRIDE: unauthenticated Streamable HTTP is listening on non-loopback host {Host}.", config.HttpHost);
+        logger.Warn(
+            "UNSAFE OVERRIDE: unauthenticated Streamable HTTP is listening on non-loopback host {Host}.",
+            config.HttpHost);
     }
 
-    HttpTransportSecurity.Use(webApp, config);
-    HttpTransportSecurity.MapHealthEndpoints(webApp);
-    webApp.MapMcp("/mcp");
+    HttpTransportSecurity.Use(app, config);
+    HttpTransportSecurity.MapHealthEndpoints(app);
+    app.MapMcp("/mcp");
 
-    var vaultIndex = webApp.Services.GetRequiredService<VaultIndexService>();
-    var embedding = webApp.Services.GetRequiredService<EmbeddingService>();
-    var generation = webApp.Services.GetRequiredService<GenerationService>();
-    var readiness = webApp.Services.GetRequiredService<HttpReadinessState>();
-    var lifetime = webApp.Services.GetRequiredService<IHostApplicationLifetime>();
-    await webApp.StartAsync();
-    try
-    {
-        await vaultIndex.InitializeAsync(lifetime.ApplicationStopping);
-        readiness.MarkIndexReady();
-    }
-    catch (DirectoryNotFoundException)
-    {
-        readiness.MarkIndexFailed();
-        await webApp.StopAsync();
-        return 2;
-    }
-    catch
-    {
-        readiness.MarkIndexFailed();
-        await webApp.StopAsync();
-        throw;
-    }
-
-    await generation.InitializeAsync(lifetime.ApplicationStopping);
-    readiness.SetOptionalDependencies(
-        embedding.IsAvailable,
-        !string.IsNullOrWhiteSpace(generation.GenerationModel),
-        generation.IsAvailable);
-    lifetime.ApplicationStopping.Register(() =>
-    {
-        logger.Info("Shutting down: flushing embedding cache...");
-        embedding.SaveAsync().GetAwaiter().GetResult();
-        logger.Info("Embedding cache flushed.");
-    });
-
-    await webApp.WaitForShutdownAsync();
+    await app.RunAsync();
     return 0;
 }
 
-static async Task<int> RunStdioAsync(KiokuConfiguration config)
+static async Task<int> RunStdioAsync(
+    IConfiguration configuration,
+    KiokuConfiguration config,
+    string[] args)
 {
     ConfigureSentry(config);
-    var builder = Host.CreateApplicationBuilder();
+    var builder = Host.CreateApplicationBuilder(args);
+    builder.Configuration.AddConfiguration(configuration);
     ConfigureLogging(builder.Logging);
-    ConfigureKiokuServices(builder.Services, config);
+    builder.Services.AddKiokuRuntime(builder.Configuration);
 
-    using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
-    var vaultConfig = new VaultConfigService(config, loggerFactory.CreateLogger<VaultConfigService>());
-    builder.Services.AddSingleton(vaultConfig);
+    var capabilities = VaultCapabilityProfile.Load(config.VaultPath);
+    var mcpBuilder = builder.Services.AddMcpServer().WithStdioServerTransport();
+    ConfigureKiokuTools(mcpBuilder, capabilities);
+    ConfigureKiokuPromptsAndResources(mcpBuilder);
 
-    var stdioMcpBuilder = builder.Services.AddMcpServer().WithStdioServerTransport();
-    ConfigureKiokuTools(stdioMcpBuilder, vaultConfig);
-    ConfigureKiokuPromptsAndResources(stdioMcpBuilder);
-
-    var host = builder.Build();
-    var vaultIndex = host.Services.GetRequiredService<VaultIndexService>();
-    var embedding = host.Services.GetRequiredService<EmbeddingService>();
-    var generation = host.Services.GetRequiredService<GenerationService>();
-    var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+    using var host = builder.Build();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
     logger.Info("Kioku MCP Server starting in stdio mode...");
     logger.Info("Vault: {VaultPath}", config.VaultPath);
-
-    try
-    {
-        await vaultIndex.InitializeAsync();
-    }
-    catch (DirectoryNotFoundException)
-    {
-        return 2;
-    }
-
-    await generation.InitializeAsync();
-    lifetime.ApplicationStopping.Register(() =>
-    {
-        logger.Info("Shutting down: flushing embedding cache...");
-        embedding.SaveAsync().GetAwaiter().GetResult();
-        logger.Info("Embedding cache flushed.");
-    });
 
     await host.RunAsync();
     return 0;
