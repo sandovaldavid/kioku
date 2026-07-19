@@ -1,0 +1,69 @@
+name: diagnose-dotnet-restore
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.head_ref == 'agent/dotnet-repo-standardization' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/dotnet-repo-standardization
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Recreate proposed repository files
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/prepare-dotnet-standardization.yml').read_text(encoding='utf-8')
+          marker = "          python3 <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end = workflow.index("\n          PY", start)
+          script = textwrap.dedent(workflow[start:end])
+          exec(compile(script, 'prepare-dotnet-standardization.py', 'exec'))
+          PY
+
+          rm -f Kioku.sln Kioku.slnx
+          dotnet new sln --name Kioku --format slnx
+          dotnet sln Kioku.slnx add \
+            src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            scripts/Kioku.Benchmarks/Kioku.Benchmarks.csproj \
+            scripts/Kioku.Eval/Kioku.Eval.csproj \
+            scripts/GenerateCommandsRef/GenerateCommandsRef.csproj
+
+      - name: Restore with diagnostics
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet restore Kioku.slnx --verbosity normal 2>&1 | tee dotnet-restore.log
+
+      - name: Upload restore diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: dotnet-restore-diagnostics
+          path: |
+            dotnet-restore.log
+            Kioku.slnx
+            global.json
+            Directory.Build.props
+            Directory.Packages.props
+            NuGet.config
+          if-no-files-found: error
+          retention-days: 7
