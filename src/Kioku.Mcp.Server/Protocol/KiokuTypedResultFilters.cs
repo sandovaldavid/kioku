@@ -66,9 +66,13 @@ internal static class KiokuTypedResultFilters
             filters.AddListToolsFilter(next => async (context, cancellationToken) =>
             {
                 var result = await next(context, cancellationToken);
-                foreach (var tool in result.Tools.Where(tool => MigratedTools.Contains(tool.Name)))
+                foreach (var tool in result.Tools)
                 {
-                    tool.OutputSchema = OutputSchema;
+                    tool.Annotations = KiokuToolAnnotations.Create(tool.Name);
+                    if (MigratedTools.Contains(tool.Name))
+                    {
+                        tool.OutputSchema = OutputSchema;
+                    }
                 }
 
                 return result;
