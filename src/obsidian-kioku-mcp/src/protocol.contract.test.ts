@@ -170,10 +170,23 @@ describe("Bridge protocol contract", () => {
   describe("handler responses", () => {
     const handlers = createHandlers(makeApp(), DEFAULT_SETTINGS, manifest);
     const handlerNames = Object.keys(handlers);
+    const payloads: Record<string, Record<string, unknown> | undefined> = {
+      "open-file": { path: "Notes/A.md" },
+      "trigger-command": { commandId: "app:toggle-left-sidebar" },
+      "insert-at-cursor": { text: "hello" },
+      "replace-selection": { text: "hello" },
+      "create-note-ui": { path: "Notes/A.md" },
+      "scroll-to-block": { blockId: "block-1" },
+      "open-in-split": { path: "Notes/A.md" },
+      "run-dataview-query": { query: "LIST" },
+      "run-templater": { templatePath: "Templates/Test.md" },
+      "evaluate-templater-in-file": { notePath: "Notes/A.md" },
+      "run-linter": { notePath: "Notes/A.md" },
+    };
 
     it.each(handlerNames)("%s returns a BridgeResponse shape", async (command) => {
       const handler = handlers[command as keyof typeof handlers];
-      const result = await handler({}, "contract-req");
+      const result = await handler(payloads[command], "contract-req");
       expect(isValidBridgeResponse(result)).toBe(true);
       expect(result.requestId).toBe("contract-req");
     });
