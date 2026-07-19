@@ -81,7 +81,7 @@ description: Kioku (記憶) is an MCP server and Obsidian plugin that bridges th
       Plugin["Obsidian Plugin <br/> (TypeScript 6)"]
       Vault[("Obsidian Vault <br/> (.md files)")]
 
-      Agent -->|stdio v1 local / HTTP-SSE v2 VM| Server
+      Agent -->|stdio v1 local / Streamable HTTP v2 VM| Server
       Server <-->|WebSocket Port 7765| Plugin
       Server -->|Direct File I/O| Vault
   </div>
@@ -114,7 +114,7 @@ docker exec kioku-ollama ollama pull nomic-embed-text</code></pre>
   </div>
   
   <div id="dotnet-tab" class="tab-pane">
-    <p>Install the server directly on your host machine. Requires the <a href="https://dotnet.microsoft.com/download/dotnet/10.0" target="_blank">ASP.NET Core 10 Runtime</a> (contains Web Sdk dependencies for HTTP-SSE).</p>
+    <p>Install the server directly on your host machine. Requires the <a href="https://dotnet.microsoft.com/download/dotnet/10.0" target="_blank">ASP.NET Core 10 Runtime</a> (contains Web Sdk dependencies for Streamable HTTP).</p>
     <pre><code># Install global tool
 dotnet tool install -g kioku-mcp-server
 
@@ -169,7 +169,7 @@ claude plugin marketplace add sandovaldavid/kioku &amp;&amp; claude plugin insta
     <div class="doc-card">
       <div>
         <h4>Authentication &amp; Security</h4>
-        <p>Secure the HTTP-SSE transport with API Keys, setup Sentry crash logs, and configure local bridge tokens.</p>
+        <p>Secure the Streamable HTTP transport with API Keys, setup Sentry crash logs, and configure local bridge tokens.</p>
       </div>
       <a href="{{ site.baseurl }}/deploy/auth-options.html" class="doc-card-link">View Security</a>
     </div>

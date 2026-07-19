@@ -65,7 +65,7 @@ body:
       label: Transport
       options:
         - stdio (local)
-        - HTTP-SSE (remote/VM)
+        - Streamable HTTP (remote/VM)
         - Not applicable
     validations:
       required: false

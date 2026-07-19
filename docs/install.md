@@ -27,7 +27,7 @@ docker exec kioku-ollama ollama pull nomic-embed-text
 ```
 
 #### .NET Tool
-Requires the [ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (not just the base .NET Runtime) — the server targets `Microsoft.NET.Sdk.Web` to support the HTTP-SSE transport.
+Requires the [ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (not just the base .NET Runtime) — the server targets `Microsoft.NET.Sdk.Web` to support the Streamable HTTP transport.
 ```bash
 # Install globally
 dotnet tool install -g kioku-mcp-server
@@ -153,12 +153,12 @@ Add to your MCP client configuration:
 }
 ```
 
-#### HTTP Transport (Remote)
+#### Streamable HTTP Transport (Remote)
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "type": "sse",
+      "type": "http",
       "url": "http://localhost:5173/mcp",
       "headers": {
         "Authorization": "Bearer your-api-key"
@@ -176,8 +176,14 @@ Add to your MCP client configuration:
 |----------|----------|---------|-------------|
 | `KIOKU_VAULT_PATH` | Yes | — | Absolute path to your Obsidian vault |
 | `KIOKU_TRANSPORT` | No | stdio | MCP transport: `stdio` or `http` |
+| `KIOKU_HTTP_HOST` | No | 127.0.0.1 | Streamable HTTP listener; non-loopback requires authentication |
 | `KIOKU_HTTP_PORT` | No | 5173 | HTTP server port |
-| `KIOKU_API_KEY` | No | — | Bearer token for HTTP authentication |
+| `KIOKU_API_KEY` | No | — | Bearer token; required for a non-loopback HTTP listener |
+| `KIOKU_HTTP_ALLOWED_ORIGINS` | No | loopback + Obsidian | Exact comma-separated browser Origin allowlist |
+| `KIOKU_HTTP_TRUSTED_PROXIES` | No | — | Exact comma-separated proxy IPs trusted for forwarded headers |
+| `KIOKU_HTTP_MAX_REQUEST_BODY_BYTES` | No | 1048576 | Maximum HTTP request body |
+| `KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS` | No | 300 | Timeout for MCP POST calls |
+| `KIOKU_ALLOW_INSECURE_HTTP` | No | false | Explicit unsafe non-loopback/no-auth override |
 | `KIOKU_OLLAMA_URL` | No | http://localhost:11434 | Ollama server URL |
 | `KIOKU_EMBEDDING_MODEL` | No | nomic-embed-text | Embedding model name |
 | `KIOKU_GEN_MODEL` | No | — (disabled) | Ollama model for local generation (`summarize_note`, `generate_flashcards`), e.g. `llama3.2` |
@@ -233,9 +239,16 @@ repository history and recovery, `manage_trash` for Kioku soft-delete recovery, 
 # stdio transport
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | kioku
 
-# HTTP transport
-curl http://localhost:5173/health
+# Streamable HTTP transport
+curl --fail http://127.0.0.1:5173/health/live
+
+curl --fail \
+  -H "Authorization: Bearer $KIOKU_API_KEY" \
+  http://127.0.0.1:5173/health/ready
 ```
+
+See [Streamable HTTP security](deploy/auth-options.md) before configuring a remote listener or
+reverse proxy.
 
 ### Check Plugin Connection
 1. Open Obsidian

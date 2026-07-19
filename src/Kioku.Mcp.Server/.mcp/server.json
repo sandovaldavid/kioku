@@ -47,11 +47,35 @@
         },
         {
           "name": "KIOKU_HTTP_PORT",
-          "description": "HTTP-SSE transport port when KIOKU_TRANSPORT=http (default: 5173)"
+          "description": "Streamable HTTP transport port when KIOKU_TRANSPORT=http (default: 5173)"
+        },
+        {
+          "name": "KIOKU_HTTP_HOST",
+          "description": "Streamable HTTP bind host (default: 127.0.0.1)"
         },
         {
           "name": "KIOKU_API_KEY",
-          "description": "Bearer token required by the HTTP transport when set"
+          "description": "Bearer token required by the HTTP transport when set; required for non-loopback binds unless the unsafe override is enabled"
+        },
+        {
+          "name": "KIOKU_HTTP_ALLOWED_ORIGINS",
+          "description": "Comma-separated exact browser origins allowed to call the HTTP transport"
+        },
+        {
+          "name": "KIOKU_HTTP_TRUSTED_PROXIES",
+          "description": "Comma-separated proxy IP addresses trusted to supply forwarded headers"
+        },
+        {
+          "name": "KIOKU_HTTP_MAX_REQUEST_BODY_BYTES",
+          "description": "Maximum MCP HTTP request body size in bytes (default: 1048576)"
+        },
+        {
+          "name": "KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS",
+          "description": "Maximum MCP POST request duration in seconds (default: 300)"
+        },
+        {
+          "name": "KIOKU_ALLOW_INSECURE_HTTP",
+          "description": "Unsafe override permitting a non-loopback HTTP bind without KIOKU_API_KEY (default: false)"
         },
         {
           "name": "KIOKU_GITHUB_TOKEN",

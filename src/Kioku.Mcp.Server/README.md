@@ -9,7 +9,7 @@ write, search, and organize an Obsidian vault. The authoritative inventory with 
 ## Architecture
 
 ```
-MCP Transport (stdio / HTTP-SSE)
+MCP Transport (stdio / Streamable HTTP)
         |
         v
   Program.cs - dual entry point
@@ -66,8 +66,14 @@ not capability groups in this surface. See [`docs/vault-config.md`](../../docs/v
 |---|---|---|---|
 | `KIOKU_VAULT_PATH` | yes | - | Absolute path to the Obsidian vault |
 | `KIOKU_TRANSPORT` | no | `stdio` | `stdio` or `http` |
-| `KIOKU_HTTP_PORT` | no | `5173` | HTTP-SSE port |
-| `KIOKU_API_KEY` | no | - | Bearer token for HTTP auth |
+| `KIOKU_HTTP_HOST` | no | `127.0.0.1` | Streamable HTTP listener |
+| `KIOKU_HTTP_PORT` | no | `5173` | Streamable HTTP port |
+| `KIOKU_API_KEY` | no | - | Bearer token; required for non-loopback HTTP |
+| `KIOKU_HTTP_ALLOWED_ORIGINS` | no | loopback + Obsidian | Exact browser Origin allowlist |
+| `KIOKU_HTTP_TRUSTED_PROXIES` | no | - | Exact proxy IPs trusted for forwarded headers |
+| `KIOKU_HTTP_MAX_REQUEST_BODY_BYTES` | no | `1048576` | Maximum HTTP request body |
+| `KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS` | no | `300` | Timeout for MCP POST calls |
+| `KIOKU_ALLOW_INSECURE_HTTP` | no | `false` | Unsafe non-loopback/no-auth override |
 | `KIOKU_OLLAMA_URL` | no | `http://localhost:11434` | Ollama URL |
 | `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Embedding model |
 | `KIOKU_GEN_MODEL` | no | - (disabled) | Local generation model for the generation group |

@@ -1,16 +1,17 @@
+using System.Security.Cryptography;
+using System.Text;
 using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Middleware;
 
 /// <summary>
-/// ASP.NET Core middleware that validates Bearer token authentication for the HTTP-SSE transport.
-/// When no API key is configured, all requests are allowed — suitable for trusted local networks.
-/// The /health endpoint is always exempt from authentication.
+/// ASP.NET Core middleware that validates Bearer token authentication for Streamable HTTP.
+/// Only the minimal liveness endpoint is exempt when a key is configured.
 /// </summary>
 public sealed class ApiKeyMiddleware(RequestDelegate next, KiokuConfiguration config, ILogger<ApiKeyMiddleware> logger)
 {
-    private const string HealthPath = "/health";
+    internal const string LivenessPath = "/health/live";
 
     /// <summary>
     /// Validates the Authorization header against the configured API key.
@@ -18,20 +19,21 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, KiokuConfiguration co
     public async Task InvokeAsync(HttpContext context)
     {
         // No API key configured: open access (local development only)
-        if (string.IsNullOrEmpty(config.ApiKey))
+        if (!config.HasApiKey)
         {
             await next(context);
             return;
         }
 
-        // /health is always public — used by systemd, nginx, and monitoring tools
-        if (context.Request.Path.StartsWithSegments(HealthPath, StringComparison.OrdinalIgnoreCase))
+        // Liveness is intentionally public and contains no configuration or dependency data.
+        if (context.Request.Path.Value?.Equals(LivenessPath, StringComparison.OrdinalIgnoreCase) == true)
         {
             await next(context);
             return;
         }
 
-        if (!TryExtractBearer(context.Request, out var token) || token != config.ApiKey)
+        if (!TryExtractBearer(context.Request, out var token) ||
+            !FixedTimeTokenEquals(config.ApiKey!, token))
         {
             logger.Warn(
                 "Unauthorized request from {RemoteIp}: missing or invalid Bearer token.",
@@ -45,6 +47,28 @@ public sealed class ApiKeyMiddleware(RequestDelegate next, KiokuConfiguration co
         }
 
         await next(context);
+    }
+
+    internal static bool FixedTimeTokenEquals(string expected, string actual)
+    {
+        var expectedBytes = Encoding.UTF8.GetBytes(expected);
+        var actualBytes = Encoding.UTF8.GetBytes(actual);
+        var expectedHash = SHA256.HashData(expectedBytes);
+        var actualHash = SHA256.HashData(actualBytes);
+
+        try
+        {
+            // Hashing first gives FixedTimeEquals two equal-length inputs even when a caller
+            // supplies a token with a different length from the configured secret.
+            return CryptographicOperations.FixedTimeEquals(expectedHash, actualHash);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(expectedBytes);
+            CryptographicOperations.ZeroMemory(actualBytes);
+            CryptographicOperations.ZeroMemory(expectedHash);
+            CryptographicOperations.ZeroMemory(actualHash);
+        }
     }
 
     private static bool TryExtractBearer(HttpRequest request, out string token)

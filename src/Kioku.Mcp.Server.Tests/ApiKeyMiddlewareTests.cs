@@ -47,10 +47,10 @@ public class ApiKeyMiddlewareTests
     }
 
     [Fact]
-    public async Task HealthPath_IsAlwaysExempt_EvenWithApiKeyConfigured()
+    public async Task LivenessPath_IsAlwaysExempt_EvenWithApiKeyConfigured()
     {
         var (middleware, wasNextCalled) = Create(apiKey: "secret");
-        var context = CreateContext(path: "/health");
+        var context = CreateContext(path: "/health/live");
 
         await middleware.InvokeAsync(context);
 
@@ -58,21 +58,22 @@ public class ApiKeyMiddlewareTests
     }
 
     [Fact]
-    public async Task HealthSubPath_IsExempt_SegmentAware()
+    public async Task ReadinessPath_RequiresApiKey()
     {
         var (middleware, wasNextCalled) = Create(apiKey: "secret");
-        var context = CreateContext(path: "/health/sub");
+        var context = CreateContext(path: "/health/ready");
 
         await middleware.InvokeAsync(context);
 
-        Assert.True(wasNextCalled());
+        Assert.False(wasNextCalled());
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
     }
 
     [Fact]
-    public async Task PathThatMerelyStartsWithHealth_IsNotExempt()
+    public async Task LivenessSubPath_IsNotExempt()
     {
         var (middleware, wasNextCalled) = Create(apiKey: "secret");
-        var context = CreateContext(path: "/healthxyz");
+        var context = CreateContext(path: "/health/live/sub");
 
         await middleware.InvokeAsync(context);
 
@@ -125,6 +126,19 @@ public class ApiKeyMiddlewareTests
 
         Assert.False(wasNextCalled());
         Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("secret", "secret", true)]
+    [InlineData("secret", "wrong", false)]
+    [InlineData("much-longer-secret", "short", false)]
+    [InlineData("Secret", "secret", false)]
+    public void FixedTimeTokenEquals_HashesToEqualLengthBeforeComparison(
+        string expected,
+        string actual,
+        bool result)
+    {
+        Assert.Equal(result, ApiKeyMiddleware.FixedTimeTokenEquals(expected, actual));
     }
 
     [Fact]

@@ -13,9 +13,9 @@ This directory contains Docker configuration for deploying Kioku MCP Server.
    export KIOKU_VAULT_PATH=/path/to/your/obsidian/vault
    ```
 
-2. **Optional: Set API key for HTTP authentication:**
+2. **Set an API key for HTTP authentication:**
    ```bash
-   export KIOKU_API_KEY=your-secure-api-key
+   export KIOKU_API_KEY="$(openssl rand -hex 32)"
    ```
 
 3. **Start the services:**
@@ -29,8 +29,9 @@ This directory contains Docker configuration for deploying Kioku MCP Server.
    ```
 
 5. **Access the server:**
-   - HTTP endpoint: `http://localhost:5173`
-   - Health check: `http://localhost:5173/health`
+   - MCP endpoint: `http://localhost:5173/mcp`
+   - Liveness: `http://localhost:5173/health/live`
+   - Readiness: `http://localhost:5173/health/ready` (requires the bearer token)
 
 ## Configuration
 
@@ -39,9 +40,11 @@ This directory contains Docker configuration for deploying Kioku MCP Server.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `KIOKU_VAULT_PATH` | yes | — | Path to your Obsidian vault on the host |
-| `KIOKU_API_KEY` | no | — | Bearer token for HTTP authentication |
+| `KIOKU_API_KEY` | yes | — | Bearer token required by the non-loopback container listener |
 | `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Ollama embedding model |
+| `KIOKU_HTTP_HOST` | no | `0.0.0.0` | Container listener interface |
 | `KIOKU_HTTP_PORT` | no | `5173` | HTTP server port |
+| `KIOKU_HTTP_ALLOWED_ORIGINS` | no | `http://localhost` | Exact comma-separated browser origins |
 
 ### GPU Support (Optional)
 
@@ -69,7 +72,7 @@ Add to your MCP client config:
 {
   "mcpServers": {
     "kioku": {
-      "type": "sse",
+      "type": "http",
       "url": "http://localhost:5173/mcp",
       "headers": {
         "Authorization": "Bearer your-api-key"
@@ -105,7 +108,7 @@ docker-compose down -v
 │  MCP Client     │
 │  (Claude Code)  │
 └────────┬────────┘
-         │ HTTP-SSE
+         │ Streamable HTTP + bearer token
          │ :5173
 ┌────────▼────────┐
 │ Kioku Server    │
@@ -131,7 +134,8 @@ docker-compose logs kioku-server
 Common issues:
 - Vault path doesn't exist or isn't accessible
 - Port 5173 already in use
-- Ollama not ready yet (wait for health check)
+- Missing `KIOKU_API_KEY` (Compose refuses to start an unauthenticated listener)
+- Ollama not ready yet (wait for its health check)
 
 ### Ollama model not found
 
@@ -144,5 +148,12 @@ docker exec kioku-ollama ollama pull nomic-embed-text
 
 Ensure the server is running and healthy:
 ```bash
-curl http://localhost:5173/health
+curl --fail http://localhost:5173/health/live
+
+curl --fail \
+  -H "Authorization: Bearer $KIOKU_API_KEY" \
+  http://localhost:5173/health/ready
 ```
+
+For internet or LAN exposure, terminate TLS at a trusted reverse proxy or private tunnel. See
+[Streamable HTTP security](deploy/auth-options.md).

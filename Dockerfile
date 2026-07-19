@@ -29,6 +29,7 @@ COPY --from=build /app/publish .
 
 # Set environment variables
 ENV ASPNETCORE_URLS=http://+:5173
+ENV KIOKU_HTTP_HOST=0.0.0.0
 ENV KIOKU_HTTP_PORT=5173
 ENV KIOKU_TRANSPORT=http
 
@@ -37,7 +38,7 @@ EXPOSE 5173
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5173/health || exit 1
+    CMD curl -f http://localhost:5173/health/live || exit 1
 
 # Entry point
 ENTRYPOINT ["dotnet", "Kioku.Mcp.Server.dll"]
