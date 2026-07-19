@@ -153,27 +153,27 @@ async Task<IReadOnlyList<string>> RankAsync(string mode, string query, int k)
             return vault.Search(query, k).Select(res => res.Note.VaultRelativePath).ToList();
 
         case "semantic":
-        {
-            var vector = await embedding.EmbedAsync(query);
-            if (vector is null)
             {
-                return [];
+                var vector = await embedding.EmbedAsync(query);
+                if (vector is null)
+                {
+                    return [];
+                }
+
+                var notesByPath = vault.GetAllNotes().ToDictionary(n => n.FilePath, StringComparer.OrdinalIgnoreCase);
+                return embedding
+                    .SearchByVector(vector, k, string.Empty, notesByPath, options.MinScore)
+                    .Select(res => res.Note.VaultRelativePath)
+                    .ToList();
             }
 
-            var notesByPath = vault.GetAllNotes().ToDictionary(n => n.FilePath, StringComparer.OrdinalIgnoreCase);
-            return embedding
-                .SearchByVector(vector, k, string.Empty, notesByPath, options.MinScore)
-                .Select(res => res.Note.VaultRelativePath)
-                .ToList();
-        }
-
         case "hybrid":
-        {
-            var vector = await embedding.EmbedAsync(query);
-            return hybrid.Search(query, k, queryVector: vector)
-                .Select(res => res.Note.VaultRelativePath)
-                .ToList();
-        }
+            {
+                var vector = await embedding.EmbedAsync(query);
+                return hybrid.Search(query, k, queryVector: vector)
+                    .Select(res => res.Note.VaultRelativePath)
+                    .ToList();
+            }
 
         default:
             throw new ArgumentException($"Unknown mode: {mode}");
