@@ -328,23 +328,35 @@ describe("BridgeServer hardening", () => {
   });
 
   it("times out handlers without exposing their internals", async () => {
-    const never = () => new Promise<BridgeResponse>(() => undefined);
-    const server = serverWith({ handlerMap: handlers({ "get-active-note": never }) });
-    const client = await connect(await start(server));
-    await handshake(client);
-
-    (server as unknown as { stopHeartbeat: () => void }).stopHeartbeat();
     vi.useFakeTimers();
-    const responsePromise = send(client, command("get-active-note", "slow-1"));
-    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
-    const response = await responsePromise;
-    vi.useRealTimers();
+    try {
+      const never = () => new Promise<BridgeResponse>(() => undefined);
+      const server = serverWith({ handlerMap: handlers({ "get-active-note": never }) });
+      const dispatch = (
+        server as unknown as {
+          dispatchWithTimeout: (
+            message: Extract<BridgeMessage, { command: "get-active-note" }>,
+            protocolVersion: number
+          ) => Promise<BridgeResponse>;
+        }
+      ).dispatchWithTimeout.bind(server);
+      const responsePromise = dispatch(
+        {
+          command: "get-active-note",
+          requestId: "slow-1",
+          protocolVersion: PROTOCOL_VERSION,
+        },
+        PROTOCOL_VERSION
+      );
 
-    expect(response.errorCode).toBe("REQUEST_TIMEOUT");
-    expect(response.error).not.toContain("stack");
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      const response = await responsePromise;
 
-    client.close();
-    await server.stop();
+      expect(response.errorCode).toBe("REQUEST_TIMEOUT");
+      expect(response.error).not.toContain("stack");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("terminates stale clients during heartbeat cleanup", async () => {
