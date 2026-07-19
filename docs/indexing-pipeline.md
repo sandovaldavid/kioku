@@ -16,7 +16,7 @@ FileSystemWatcher / reconciliation scan
 | Setting | Default | Valid range | Purpose |
 |---|---:|---:|---|
 | `KIOKU_INDEX_CONCURRENCY` / `Kioku:IndexConcurrency` | `max(1, CPU/2)` | 1–128 | Maximum simultaneous parse/index operations. |
-| `KIOKU_EMBEDDING_CONCURRENCY` / `Kioku:EmbeddingConcurrency` | 2 | 1–128 | Reserved compatibility setting for embedding worker limits; embedding requests remain independently bounded by `EmbeddingService`. |
+| `KIOKU_EMBEDDING_CONCURRENCY` / `Kioku:EmbeddingConcurrency` | 2 | 1–128 | Maximum simultaneous Ollama embedding requests and background backlog workers. |
 
 The queue is intentionally bounded. When it cannot accept another watcher event, Kioku does not silently assume that the index is correct: it requests a full reconciliation.
 
@@ -29,6 +29,7 @@ The queue is intentionally bounded. When it cannot accept another watcher event,
 - Reconciliation removes indexed paths that no longer exist and reindexes every current Markdown file.
 - Readiness reports `rebuilding` while a full scan is active, avoiding a false ready signal while readers may observe incremental replacement.
 - Transient `IOException` and `UnauthorizedAccessException` failures use three bounded retries with cancellation-aware backoff.
+- Embedding backlog enumeration uses `Parallel.ForEachAsync`; it no longer creates one task for every stale note.
 - Shutdown disables the watcher, completes the channel, drains pending work, and only then allows the host lifecycle to persist the embedding cache.
 
 ## Observability
@@ -54,11 +55,13 @@ The `VaultIndexingPipelineTests` suite creates synthetic vaults and verifies:
 - cancellation stops scheduling a 1,000-note cold scan;
 - delete and recreate sequences do not leave stale notes.
 
-Run the suite with:
+`EmbeddingConcurrencyTests` additionally verifies that the background embedding backlog never exceeds the configured Ollama concurrency.
+
+Run the suites with:
 
 ```bash
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
-  --filter FullyQualifiedName~VaultIndexingPipelineTests
+  --filter "FullyQualifiedName~VaultIndexingPipelineTests|FullyQualifiedName~EmbeddingConcurrencyTests"
 ```
 
 For machine-specific throughput and memory evidence, run the suite under the platform profiler (`dotnet-trace`, `dotnet-counters`, Windows Performance Recorder, or `/usr/bin/time -v`) and record:
