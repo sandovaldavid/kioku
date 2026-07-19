@@ -17,6 +17,16 @@ internal static class KiokuTypedResultFilters
         "create_note",
         "edit_note",
         "delete_note",
+        "record_adr",
+        "record_bug",
+        "create_implementation_plan",
+        "save_project_knowledge",
+        "add_backlog_item",
+        "create_regular_note",
+        "create_zettel",
+        "create_literature_note",
+        "create_moc",
+        "create_folder_readme",
     };
 
     private static readonly JsonElement OutputSchema = JsonSerializer.SerializeToElement(new
