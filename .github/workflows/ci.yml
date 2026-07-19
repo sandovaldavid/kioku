@@ -51,7 +51,19 @@ jobs:
         run: dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --output ./artifacts/packages
 
       - name: Format check
-        run: dotnet format Kioku.slnx --verify-no-changes --no-restore --verbosity minimal
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet format Kioku.slnx --verify-no-changes --no-restore --verbosity diagnostic 2>&1 | tee dotnet-format.log
+
+      - name: Upload failed format diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: dotnet-format-diagnostics
+          path: dotnet-format.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Vulnerability check
         run: dotnet list Kioku.slnx package --vulnerable --include-transitive
