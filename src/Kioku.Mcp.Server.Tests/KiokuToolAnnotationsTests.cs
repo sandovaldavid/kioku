@@ -7,7 +7,6 @@ public sealed class KiokuToolAnnotationsTests
 {
     [Theory]
     [InlineData("read_note")]
-    [InlineData("search_notes")]
     [InlineData("get_project_context")]
     [InlineData("get_vault_snapshot")]
     public void Read_tools_are_closed_world_and_non_destructive(string toolName)
@@ -18,6 +17,17 @@ public sealed class KiokuToolAnnotationsTests
         Assert.False(annotations.DestructiveHint);
         Assert.True(annotations.IdempotentHint);
         Assert.False(annotations.OpenWorldHint);
+    }
+
+    [Fact]
+    public void Search_notes_is_read_only_but_dependency_aware()
+    {
+        var annotations = KiokuToolAnnotations.Create("search_notes");
+
+        Assert.True(annotations.ReadOnlyHint);
+        Assert.False(annotations.DestructiveHint);
+        Assert.True(annotations.IdempotentHint);
+        Assert.True(annotations.OpenWorldHint);
     }
 
     [Fact]
