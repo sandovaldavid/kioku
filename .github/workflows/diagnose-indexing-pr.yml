@@ -25,8 +25,14 @@ jobs:
       - name: Restore
         run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
 
+      - name: Build tests once
+        run: >-
+          dotnet build src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+          --configuration Release
+          --no-restore
+          --verbosity minimal
+
       - name: Capture test diagnostics
-        id: tests
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -35,15 +41,16 @@ jobs:
           set +e
           dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
             --configuration Release \
+            --no-build \
             --no-restore \
-            --verbosity normal > test-diagnostics.log 2>&1
+            --verbosity minimal > test-diagnostics.log 2>&1
           status=$?
           if [ "$status" -ne 0 ]; then
             {
-              echo '### Temporary test diagnostics'
+              echo '### Focused temporary test diagnostics'
               echo
               echo '```text'
-              tail -n 160 test-diagnostics.log
+              grep -E -A 14 -B 3 'Failed |Error Message:|Test Run Failed|error CS|\[FAIL\]' test-diagnostics.log | tail -n 180
               echo '```'
             } > test-comment.md
             gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file test-comment.md
@@ -64,10 +71,10 @@ jobs:
           status=$?
           if [ "$status" -ne 0 ]; then
             {
-              echo '### Temporary format diagnostics'
+              echo '### Focused temporary format diagnostics'
               echo
               echo '```text'
-              tail -n 160 format-diagnostics.log
+              grep -E 'error (WHITESPACE|IDE)|\.cs\(' format-diagnostics.log | tail -n 180
               echo '```'
             } > format-comment.md
             gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file format-comment.md
