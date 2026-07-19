@@ -28,6 +28,7 @@ The queue is intentionally bounded. When it cannot accept another watcher event,
 - Watcher overflow or error schedules a reconciliation scan.
 - Reconciliation removes indexed paths that no longer exist and reindexes every current Markdown file.
 - Readiness reports `rebuilding` while a full scan is active, avoiding a false ready signal while readers may observe incremental replacement.
+- A successful recovery scan returns readiness to `ready`; an unrecoverable scan failure reports `failed`.
 - Transient `IOException` and `UnauthorizedAccessException` failures use three bounded retries with cancellation-aware backoff.
 - Embedding backlog enumeration uses `Parallel.ForEachAsync`; it no longer creates one task for every stale note.
 - Shutdown disables the watcher, completes the channel, drains pending work, and only then allows the host lifecycle to persist the embedding cache.
