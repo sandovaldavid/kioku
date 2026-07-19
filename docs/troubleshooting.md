@@ -95,8 +95,13 @@ is missing, empty, or doesn't match — or vice versa.
 # Test server directly
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | kioku
 
-# Test HTTP endpoint
-curl http://localhost:5173/health
+# Test public liveness
+curl --fail http://127.0.0.1:5173/health/live
+
+# Test protected readiness when KIOKU_API_KEY is configured
+curl --fail \
+  -H "Authorization: Bearer $KIOKU_API_KEY" \
+  http://127.0.0.1:5173/health/ready
 
 # Check plugin console
 # Open DevTools in Obsidian (Ctrl+Shift+I) and look for errors

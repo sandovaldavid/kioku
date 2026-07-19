@@ -13,7 +13,7 @@ vault. It pairs with an Obsidian plugin that provides optional UI actions over W
 ```
 [AI agent]
     |
-  stdio or HTTP-SSE
+  stdio or Streamable HTTP
     |
 [Kioku MCP Server] ---- reads/writes ---- [Obsidian Vault]
     |
@@ -28,6 +28,10 @@ vault. It pairs with an Obsidian plugin that provides optional UI actions over W
 |----------|----------|---------|-------------|
 | `KIOKU_VAULT_PATH` | yes | - | Absolute path to the root of the Obsidian vault |
 | `KIOKU_MAX_RESULTS` | no | 20 | Maximum number of search results |
+| `KIOKU_TRANSPORT` | no | `stdio` | `stdio` or Streamable HTTP (`http`) |
+| `KIOKU_HTTP_HOST` | no | `127.0.0.1` | HTTP listener; non-loopback requires an API key |
+| `KIOKU_HTTP_PORT` | no | 5173 | Streamable HTTP port |
+| `KIOKU_API_KEY` | no | - | Bearer token for Streamable HTTP |
 | `KIOKU_OBSIDIAN_PORT` | no | 7765 | WebSocket port of the Obsidian plugin |
 | `KIOKU_OLLAMA_URL` | no | `http://localhost:11434` | Ollama base URL |
 | `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Ollama embedding model name |

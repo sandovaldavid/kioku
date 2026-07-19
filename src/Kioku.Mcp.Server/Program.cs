@@ -1,6 +1,6 @@
 using Kioku.Mcp.Server;
+using Kioku.Mcp.Server.Http;
 using Kioku.Mcp.Server.Logging;
-using Kioku.Mcp.Server.Middleware;
 using Kioku.Mcp.Server.Prompts;
 using Kioku.Mcp.Server.Resources;
 using Kioku.Mcp.Server.Services;
@@ -28,6 +28,16 @@ var useHttp = config.IsHttpTransport || args.Contains("--http");
 
 if (useHttp)
 {
+    try
+    {
+        config.ValidateHttpTransport();
+    }
+    catch (InvalidOperationException ex)
+    {
+        BootstrapLogger.Error($"Streamable HTTP configuration: {ex.Message}");
+        return 1;
+    }
+
     return await RunHttpAsync(config, args);
 }
 
@@ -191,11 +201,12 @@ static void ConfigureSentry(KiokuConfiguration config)
     });
 }
 
-// v2: HTTP-SSE Transport (Streamable HTTP)
+// Streamable HTTP transport
 
 static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
 {
     var webBuilder = WebApplication.CreateBuilder(args);
+    webBuilder.WebHost.UseUrls(config.HttpListenUrl);
 
     if (!string.IsNullOrWhiteSpace(config.SentryDsn))
     {
@@ -213,21 +224,14 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
 
     ConfigureLogging(webBuilder.Logging);
     ConfigureKiokuServices(webBuilder.Services, config);
+    HttpTransportSecurity.ConfigureBuilder(webBuilder, config);
 
     // Build VaultConfigService early so tool groups can be filtered at registration time.
     using var loggerFactory = LoggerFactory.Create(ConfigureLogging);
     var vaultConfig = new VaultConfigService(config, loggerFactory.CreateLogger<VaultConfigService>());
     webBuilder.Services.AddSingleton(vaultConfig);
 
-    // CORS: allow localhost and the Obsidian app origin
-    webBuilder.Services.AddCors(options =>
-        options.AddDefaultPolicy(policy =>
-            policy
-                .WithOrigins("http://localhost", "app://obsidian.md")
-                .AllowAnyHeader()
-                .AllowAnyMethod()));
-
-    // MCP over HTTP-SSE
+    // MCP over Streamable HTTP
     var httpMcpBuilder = webBuilder.Services
         .AddMcpServer()
         .WithHttpTransport();
@@ -237,41 +241,54 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
     var webApp = webBuilder.Build();
 
     var logger = webApp.Services.GetRequiredService<ILogger<Program>>();
-    logger.Info("Kioku MCP Server starting in HTTP-SSE mode...");
+    logger.Info("Kioku MCP Server starting in Streamable HTTP mode...");
     logger.Info("Vault:     {VaultPath}", config.VaultPath);
-    logger.Info("Endpoint:  http://localhost:{HttpPort}/mcp", config.HttpPort);
-    logger.Info("Auth:      {AuthStatus}", string.IsNullOrEmpty(config.ApiKey) ? "disabled (no KIOKU_API_KEY set)" : "Bearer token enabled");
+    logger.Info("Endpoint:  {ListenUrl}/mcp", config.HttpListenUrl);
+    logger.Info("Auth:      {AuthStatus}", config.HasApiKey ? "Bearer token enabled" : "disabled (loopback only)");
+    if (!config.IsLoopbackHttpBinding && !config.HasApiKey)
+    {
+        logger.Warn(
+            "UNSAFE OVERRIDE: unauthenticated Streamable HTTP is listening on non-loopback host {Host}.",
+            config.HttpHost);
+    }
 
     // Middleware pipeline
-    webApp.UseCors();
-    webApp.UseMiddleware<ApiKeyMiddleware>();
+    HttpTransportSecurity.Use(webApp, config);
 
     // Routes
-    webApp.MapGet("/health", () => Results.Ok(new
-    {
-        status = "ok",
-        transport = "http",
-        vault = config.VaultPath,
-        version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown",
-    }));
-
+    HttpTransportSecurity.MapHealthEndpoints(webApp);
     webApp.MapMcp("/mcp");
 
-    // Initialize vault index before accepting connections
+    // Start liveness before initialization; readiness remains 503 until the vault index is usable.
     var vaultIndex = webApp.Services.GetRequiredService<VaultIndexService>();
     var embedding = webApp.Services.GetRequiredService<EmbeddingService>();
     var generation = webApp.Services.GetRequiredService<GenerationService>();
+    var readiness = webApp.Services.GetRequiredService<HttpReadinessState>();
     var lifetime = webApp.Services.GetRequiredService<IHostApplicationLifetime>();
+    await webApp.StartAsync();
     try
     {
-        await vaultIndex.InitializeAsync();
+        await vaultIndex.InitializeAsync(lifetime.ApplicationStopping);
+        readiness.MarkIndexReady();
     }
     catch (DirectoryNotFoundException)
     {
+        readiness.MarkIndexFailed();
+        await webApp.StopAsync();
         return 2;
     }
+    catch
+    {
+        readiness.MarkIndexFailed();
+        await webApp.StopAsync();
+        throw;
+    }
 
-    await generation.InitializeAsync();
+    await generation.InitializeAsync(lifetime.ApplicationStopping);
+    readiness.SetOptionalDependencies(
+        embedding.IsAvailable,
+        !string.IsNullOrWhiteSpace(generation.GenerationModel),
+        generation.IsAvailable);
 
     lifetime.ApplicationStopping.Register(() =>
     {
@@ -280,7 +297,7 @@ static async Task<int> RunHttpAsync(KiokuConfiguration config, string[] args)
         logger.Info("Embedding cache flushed.");
     });
 
-    await webApp.RunAsync($"http://localhost:{config.HttpPort}");
+    await webApp.WaitForShutdownAsync();
     return 0;
 }
 

@@ -20,7 +20,7 @@ Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claud
 - **Assets** — Excalidraw, images, orphaned files
 - **Obsidian bridge** — open notes, run commands, query status (optional)
 - **On-demand startup** — consumes no resources when not in use
-- **Dual transport** — stdio (local) and HTTP-SSE (multiple agents/VM)
+- **Dual transport** — stdio (local) and Streamable HTTP (multiple agents/VM)
 
 ## Architecture
 
@@ -28,7 +28,7 @@ Kioku is an MCP (Model Context Protocol) server that lets AI agents like **Claud
 AI Agent (Claude Code / agy)
     │
     ├── stdio (v1 — local, on-demand)
-    └── HTTP-SSE (v2 — VM, multiple agents)
+    └── Streamable HTTP (v2 — VM, multiple agents)
     │
     ▼
 Kioku.Mcp.Server (C# .NET 10)
@@ -353,8 +353,14 @@ To install the plugin locally in your Obsidian vault:
 |---|---|---|---|
 | `KIOKU_VAULT_PATH` | ✅ | Absolute path to the Obsidian vault | — |
 | `KIOKU_TRANSPORT` | ❌ | MCP transport: `stdio` or `http` | `stdio` |
-| `KIOKU_HTTP_PORT` | ❌ | HTTP-SSE transport port | `5173` |
-| `KIOKU_API_KEY` | ❌ | Bearer token to authenticate the HTTP transport | — |
+| `KIOKU_HTTP_HOST` | ❌ | Streamable HTTP listener; non-loopback requires authentication | `127.0.0.1` |
+| `KIOKU_HTTP_PORT` | ❌ | Streamable HTTP transport port | `5173` |
+| `KIOKU_API_KEY` | ❌ | Bearer token; required for a non-loopback HTTP listener | — |
+| `KIOKU_HTTP_ALLOWED_ORIGINS` | ❌ | Exact comma-separated browser Origin allowlist | loopback + Obsidian |
+| `KIOKU_HTTP_TRUSTED_PROXIES` | ❌ | Exact comma-separated proxy IPs trusted for forwarded headers | — |
+| `KIOKU_HTTP_MAX_REQUEST_BODY_BYTES` | ❌ | Maximum HTTP request body | `1048576` |
+| `KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS` | ❌ | Timeout for MCP POST calls | `300` |
+| `KIOKU_ALLOW_INSECURE_HTTP` | ❌ | Explicit unsafe non-loopback/no-auth override | `false` |
 | `KIOKU_OLLAMA_URL` | ❌ | Base URL of the local Ollama client | `http://localhost:11434` |
 | `KIOKU_EMBEDDING_MODEL` | ❌ | Ollama model used for embeddings | `nomic-embed-text` |
 | `KIOKU_GEN_MODEL` | ❌ | Ollama model for local generation (`summarize_note`, `generate_flashcards`) | — (disabled) |
@@ -363,6 +369,10 @@ To install the plugin locally in your Obsidian vault:
 | `KIOKU_BRIDGE_TOKEN` | ❌ | Shared token for the WebSocket bridge; must match the plugin's "Auth token" setting | — |
 | `KIOKU_ENABLE_METRICS` | ❌ | In-memory tool usage counters (opt-in) | `false` |
 | `KIOKU_SENTRY_DSN` | ❌ | Sentry DSN for crash reporting (opt-in) | — |
+
+Streamable HTTP binds to loopback by default, validates `Origin`, and separates public liveness
+from protected readiness. See [Streamable HTTP security](docs/deploy/auth-options.md) before
+exposing Kioku through a reverse proxy, VM, LAN, or container.
 
 ## Available MCP Tools
 
@@ -428,7 +438,7 @@ Besides the 49 tools, Kioku exposes prompts and resources. The full inventory li
 
 ## Project Status
 
-- **v1/v2**: ✅ Complete — stdio and HTTP-SSE transports, Ollama embeddings, and Bearer Token auth
+- **v1/v2**: ✅ Complete — stdio and Streamable HTTP transports, Ollama embeddings, and Bearer Token auth
 - **PR2 tool surface**: ✅ Complete — 49 tools across 16 classes with capability gating
 
 For migration from the previous tool surface, see [`docs/migration-v3.md`](docs/migration-v3.md).
