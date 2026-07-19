@@ -72,6 +72,11 @@ public sealed class GraphAnalysisTools(
                         $"Semantic link suggestions require Ollama running at {config.OllamaUrl} with embeddings available.");
                 }
 
+                if (!await embedding.WaitForInitialBacklogAsync(TimeSpan.FromSeconds(30)))
+                {
+                    return "[loading] Semantic embeddings are still being prepared. Try again shortly.";
+                }
+
                 var suggestions = SuggestLinksForNote(found, max_suggestions, min_similarity);
                 return !apply
                     ? FormatSuggestions(suggestions, $"'{DisplayNote(found)}'")
@@ -81,6 +86,11 @@ public sealed class GraphAnalysisTools(
             if (!embedding.IsAvailable)
             {
                 return FormatStructuralFallback();
+            }
+
+            if (!await embedding.WaitForInitialBacklogAsync(TimeSpan.FromSeconds(30)))
+            {
+                return "[loading] Semantic embeddings are still being prepared. Try again shortly.";
             }
 
             var vaultSuggestions = SuggestLinksForVault(max_suggestions, min_similarity);

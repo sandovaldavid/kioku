@@ -31,6 +31,7 @@ public sealed class EmbeddingService : IDisposable
     private readonly SemaphoreSlim _embedSemaphore;
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private readonly Stopwatch _sessionStopwatch = new();
+    private Task _initialBacklogTask = Task.CompletedTask;
     private int _pendingFlushes;
     private int _backlogCount;
     private int _embeddedThisSession;
@@ -67,6 +68,25 @@ public sealed class EmbeddingService : IDisposable
     public int EmbeddedThisSession => Volatile.Read(ref _embeddedThisSession);
 
     public int MaximumConcurrency => _embeddingConcurrency;
+
+    public bool IsInitialBacklogComplete =>
+        Volatile.Read(ref _initialBacklogTask).IsCompleted;
+
+    public async Task<bool> WaitForInitialBacklogAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await Volatile.Read(ref _initialBacklogTask)
+                .WaitAsync(timeout, cancellationToken);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+    }
 
     public double EmbeddingRatePerMinute
     {
@@ -147,7 +167,9 @@ public sealed class EmbeddingService : IDisposable
                 "Queuing {Count} new/changed notes for background embedding (up to {Parallelism} concurrent)...",
                 stale.Count,
                 _embeddingConcurrency);
-            _ = ProcessBacklogAsync(stale, cancellationToken);
+            Volatile.Write(
+                ref _initialBacklogTask,
+                ProcessBacklogAsync(stale, cancellationToken));
         }
     }
 

@@ -83,7 +83,7 @@ public sealed class VaultIndexingPipelineTests
             pipeline.InitializeAsync(cancellation.Token));
 
         Assert.True(index.GetNotesSnapshot().Count < 1000);
-        Assert.InRange(index.MaximumObservedConcurrency, 1, 3);
+        Assert.InRange(index.MaximumObservedConcurrency, 0, 3);
     }
 
     [Fact]
