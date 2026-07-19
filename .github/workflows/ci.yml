@@ -142,19 +142,45 @@ jobs:
         run: pnpm audit --audit-level=high
 
       - name: Type-check
-        run: pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json 2>&1 | tee plugin-typecheck.log
 
       - name: Lint
-        run: pnpm --filter obsidian-kioku-mcp run lint
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run lint 2>&1 | tee plugin-lint.log
 
       - name: Format check
-        run: pnpm --filter obsidian-kioku-mcp run format:check
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run format:check 2>&1 | tee plugin-format.log
 
       - name: Test
-        run: pnpm --filter obsidian-kioku-mcp run test
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run test 2>&1 | tee plugin-test.log
 
       - name: Build
-        run: pnpm --filter obsidian-kioku-mcp run build
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter obsidian-kioku-mcp run build 2>&1 | tee plugin-build.log
+
+      - name: Upload plugin diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: plugin-diagnostics
+          path: |
+            plugin-*.log
+            src/obsidian-kioku-mcp/coverage/**
+          if-no-files-found: warn
+          retention-days: 7
 
   validate-integrations:
     name: validate-integrations (ubuntu-latest)

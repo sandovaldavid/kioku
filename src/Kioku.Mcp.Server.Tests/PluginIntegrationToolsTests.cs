@@ -94,7 +94,7 @@ public sealed class PluginIntegrationToolsTests : IClassFixture<VaultFixture>
             success = true,
             data = (object?)null,
             error = (string?)null,
-            protocolVersion = 2
+            protocolVersion = 3
         });
         await server.SendAsync(socket, response);
         return request.Clone();
