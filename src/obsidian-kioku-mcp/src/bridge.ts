@@ -282,10 +282,7 @@ export class BridgeServer {
       return;
     }
 
-    const authorization = authorizeCommand(
-      message as Extract<BridgeMessage, { command: RuntimeCommand }>,
-      this.settings
-    );
+    const authorization = authorizeCommand(message, this.settings);
     if (!authorization.allowed) {
       this.sendResponse(
         ws,
@@ -425,9 +422,7 @@ export class BridgeServer {
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      const handlerPromise = Promise.resolve(
-        handler(message.payload as Record<string, unknown> | undefined, message.requestId)
-      );
+      const handlerPromise = Promise.resolve(handler(message.payload, message.requestId));
       const timeoutPromise = new Promise<BridgeResponse>((resolve) => {
         timeout = setTimeout(
           () =>
