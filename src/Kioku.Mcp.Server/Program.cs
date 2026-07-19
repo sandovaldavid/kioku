@@ -80,6 +80,7 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultConfigService va
     builder
         .WithTools<NoteQueryTools>()
         .WithTools<NoteCommandTools>()
+        .WithTools<FocusedCreationTools>()
         .WithTools<UtilityTools>();
 
     if (vaultConfig.IsGroupEnabled("tasks"))

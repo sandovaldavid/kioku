@@ -24,7 +24,7 @@ internal static class KiokuToolAnnotations
     {
         "delete_note", "edit_note", "move_note", "update_frontmatter", "manage_trash",
         "tidy_attachments", "manage_css_snippets", "lint", "edit_in_obsidian",
-        "trigger_obsidian_command", "suggest_links",
+        "trigger_obsidian_command", "suggest_links", "create_moc", "create_folder_readme",
     };
 
     private static readonly HashSet<string> IdempotentTools = new(StringComparer.Ordinal)
@@ -33,7 +33,7 @@ internal static class KiokuToolAnnotations
         "get_project_context", "list_projects", "get_concept_map", "get_vault_snapshot",
         "get_obsidian_state", "get_installed_plugins", "query_dataview", "summarize_note",
         "setup_agent_workflow", "update_frontmatter", "open_note_in_obsidian",
-        "get_metrics", "health_check",
+        "get_metrics", "health_check", "create_moc", "create_folder_readme",
     };
 
     private static readonly HashSet<string> OpenWorldTools = new(StringComparer.Ordinal)
@@ -42,7 +42,7 @@ internal static class KiokuToolAnnotations
         "find_similar_notes", "search_notes", "summarize_note", "generate_flashcards",
         "get_obsidian_state", "open_note_in_obsidian", "edit_in_obsidian",
         "trigger_obsidian_command", "get_installed_plugins", "query_dataview",
-        "apply_template", "lint", "import_bibtex",
+        "apply_template", "lint", "import_bibtex", "create_zettel",
     };
 
     internal static IMcpServerBuilder WithKiokuToolAnnotations(this IMcpServerBuilder builder) =>
