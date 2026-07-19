@@ -147,6 +147,9 @@ jobs:
           set -o pipefail
           pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json 2>&1 | tee plugin-typecheck.log
 
+      - name: Compatibility API audit
+        run: pnpm --filter obsidian-kioku-mcp run check:compatibility
+
       - name: Lint
         shell: bash
         run: |
@@ -170,6 +173,9 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter obsidian-kioku-mcp run build 2>&1 | tee plugin-build.log
+
+      - name: Validate release assets
+        run: pnpm --filter obsidian-kioku-mcp run validate:release
 
       - name: Upload plugin diagnostics
         if: failure()
