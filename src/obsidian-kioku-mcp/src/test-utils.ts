@@ -1,4 +1,4 @@
-import { MarkdownView } from "./__mocks__/obsidian";
+import { FileSystemAdapter, MarkdownView } from "./__mocks__/obsidian";
 import type {
   App,
   Editor,
@@ -39,7 +39,7 @@ export function createMockApp(options: MockAppOptions = {}): App {
   const commands = options.commands ?? new Map();
 
   const vault: Vault = {
-    adapter: { basePath: options.vaultPath ?? "/tmp/test-vault" },
+    adapter: new FileSystemAdapter(options.vaultPath ?? "/tmp/test-vault"),
     getFileByPath(path: string): TFile | null {
       return fileMap.get(path) ?? null;
     },
@@ -99,8 +99,8 @@ export function createMockApp(options: MockAppOptions = {}): App {
     },
   };
 
-  // Attach internal API surface used by asKiokuApp.
-  (app as unknown as Record<string, unknown>).version = "1.8.0";
+  // Attach the guarded internal surface exercised by obsidian-compat.ts.
+  (app as unknown as Record<string, unknown>).version = "1.13.1";
   (app as unknown as Record<string, unknown>).commands = {
     executeCommandById(commandId: string): boolean {
       return (commands.get(commandId) as boolean | undefined) ?? false;

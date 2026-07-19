@@ -6,10 +6,7 @@ export default tseslint.config(
   js.configs.recommended,
   {
     files: ["src/**/*.ts"],
-    extends: [
-      ...tseslint.configs.recommended,
-      ...tseslint.configs.recommendedTypeChecked,
-    ],
+    extends: [...tseslint.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       globals: {
         ...globals.node,

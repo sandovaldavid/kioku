@@ -1,107 +1,84 @@
 # Kioku MCP Plugin
 
-Connects your Obsidian vault to the [Kioku MCP Server](https://github.com/sandovaldavid/kioku), enabling AI agents like Claude Code and Antigravity CLI to search, read, and modify your notes via the Model Context Protocol.
-
-## What is Kioku?
-
-Kioku (記憶, "memory" in Japanese) is a local-first MCP server that gives AI agents direct access to your Obsidian vault. This plugin is the bridge between Obsidian and the server, providing:
-
-- **Real-time note opening** — agents can open notes in Obsidian
-- **UI commands** — trigger Obsidian commands from agents
-- **Selection access** — agents can read your current selection
-- **Plugin integration** — access Dataview, Templater, and Linter from agents
+Kioku MCP Plugin is the desktop-only Obsidian bridge for the Kioku MCP server. It lets Claude Code, Codex, OpenCode, Antigravity, and other compatible MCP clients coordinate with the open Obsidian application while the server remains responsible for vault indexing and filesystem access.
 
 ## Requirements
 
-1. **Kioku MCP Server** — install from [GitHub releases](https://github.com/sandovaldavid/kioku/releases) or via:
-   ```bash
-   # Docker
-   docker-compose up -d
-   
-   # dotnet tool
-   dotnet tool install -g kioku-mcp-server
-   
-   # Or download binary from releases
-   ```
+- Obsidian 1.13.0 or newer on desktop.
+- Kioku MCP Server configured with the same vault and bridge settings.
+- A shared bridge token is strongly recommended.
 
-2. **Configure the server** with your vault path:
-   ```bash
-   export KIOKU_VAULT_PATH=/path/to/your/vault
-   kioku
-   ```
+## Installation
 
-3. **Configure your MCP client** (Claude Code, etc.):
-   ```json
-   {
-     "mcpServers": {
-       "kioku": {
-         "type": "stdio",
-         "command": "kioku"
-       }
-     }
-   }
-   ```
+Until the plugin has its independent repository and Community listing, install the `main.js`, `manifest.json`, and `styles.css` release assets in `<vault>/.obsidian/plugins/kioku-mcp/`, then enable **Kioku MCP** in Obsidian.
 
-## Features
+Configure the server with matching values:
 
-This plugin provides a WebSocket bridge that allows the Kioku server to:
-
-- **Open notes** in Obsidian when agents edit them
-- **Execute commands** like toggling reading mode, folding headings
-- **Access current selection** for context-aware operations
-- **Integrate with plugins** like Dataview, Templater, and Linter
-- **Show notifications** when agents interact with your vault
+```bash
+export KIOKU_VAULT_PATH=/path/to/vault
+export KIOKU_OBSIDIAN_PORT=7765
+export KIOKU_BRIDGE_TOKEN=<same token configured in Obsidian>
+```
 
 ## Settings
 
-- **Bridge Port** (default: 7765) — port for WebSocket connections
-- **Show Notifications** — display notices when agents open notes
+- **Bridge status** shows running/stopped state, loopback address, authentication state, connected clients, protocol range, and plugin version.
+- **Bridge port** defaults to `7765`; a valid change restarts the bridge automatically.
+- **Auth token** is the shared handshake secret. Generate or replace it in settings and update `KIOKU_BRIDGE_TOKEN` on the server. Token changes restart the bridge automatically.
+- **Show notifications** controls bridge and security notices.
+- **Show status bar** displays bridge state and client count; clicking it restarts the bridge.
+- **Allow editor mutations** permits cursor, selection, note creation, and snippet reload commands.
+- **Allow third-party integrations** permits guarded Dataview, Templater, and per-file Linter operations.
+- **Allow vault-wide operations** permits explicitly supported whole-vault operations and requires third-party integrations.
+- **Allow unsafe custom commands** permits only the additional command IDs explicitly listed by the user.
 
-## Privacy & Security
+Configuration changes that affect the listener, authentication, or command policy are persisted and applied through a serialized bridge restart.
 
-- **Local-only** — the plugin only listens on `127.0.0.1` (localhost)
-- **No telemetry** — no data is sent to external services
-- **No cloud dependency** — works completely offline (except for Ollama if using semantic search)
-- **Your data stays yours** — the server reads/writes directly to your vault files
+## Lifecycle and compatibility
+
+`onload()` only loads settings and registers UI/commands. The WebSocket listener starts after `workspace.onLayoutReady()` and logs measured deferred startup time. Production builds are minified, omit source maps, and must remain below the reviewed 512 KiB bundle budget.
+
+Undocumented Obsidian command and plugin registries are isolated in `src/obsidian-compat.ts` with capability detection and graceful fallback. Vault path access uses the public `FileSystemAdapter` type and an `instanceof` guard. The bridge protocol currently supports version 3.
+
+## Security limitations
+
+- The bridge binds only to `127.0.0.1`; it is not a remote-access service.
+- Without an auth token, any local process can attempt a handshake.
+- Third-party and vault-wide operations are disabled by default.
+- Custom command execution is allowlisted; arbitrary discovery is not exposed.
+- The plugin has no telemetry and does not send note contents to a cloud service.
 
 ## Troubleshooting
 
-### Bridge won't start
+### Bridge does not start
 
-Check if port 7765 is already in use:
+Confirm the configured port is free and inspect the Obsidian developer console. The settings page reports stopped state and provides a **Start** action.
+
+### Server cannot connect
+
+Confirm Obsidian is open, the plugin is enabled, port and token match the server, and the server supports bridge protocol version 3.
+
+### Configuration changed but behavior is stale
+
+Listener and permission changes restart automatically. Use **Restart bridge** from the command palette or click the status bar item to force a refresh.
+
+### Third-party command is unavailable
+
+Enable the relevant plugin, enable **Allow third-party integrations**, and confirm the installed plugin version still exposes the integration capability. Kioku returns a dependency-unavailable response instead of assuming internal APIs exist.
+
+## Development
+
 ```bash
-lsof -i :7765
+pnpm install --frozen-lockfile
+pnpm --filter obsidian-kioku-mcp run check:compatibility
+pnpm --filter obsidian-kioku-mcp run test
+pnpm --filter obsidian-kioku-mcp run build
+pnpm --filter obsidian-kioku-mcp run validate:release
 ```
 
-Change the port in plugin settings if needed.
+For manual testing, create a disposable vault, copy/link this plugin directory to `.obsidian/plugins/kioku-mcp`, run `pnpm --filter obsidian-kioku-mcp run dev`, enable the plugin, and use Obsidian's startup stopwatch plus developer console to record load behavior.
 
-### Agent can't open notes
-
-Ensure:
-1. Obsidian is open
-2. The plugin is enabled
-3. The server is running
-4. The port matches in both plugin settings and server config
-
-### Semantic search not working
-
-Semantic search requires Ollama running locally:
-```bash
-ollama pull nomic-embed-text
-```
-
-The server will gracefully degrade to keyword search if Ollama is unavailable.
-
-## Documentation
-
-- [Full documentation](https://github.com/sandovaldavid/kioku/tree/main/docs)
-- [Docker deployment guide](https://github.com/sandovaldavid/kioku/blob/main/docs/docker.md)
-- [Architecture overview](https://github.com/sandovaldavid/kioku#architecture)
-
-## Support
-
-- **GitHub Issues** — report bugs and request features
-- **GitHub Sponsors** — support development: https://github.com/sponsors/sandovaldavid
+See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

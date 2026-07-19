@@ -8,6 +8,14 @@ export class Notice {
   }
 }
 
+export class FileSystemAdapter {
+  constructor(private readonly basePath: string) {}
+
+  getBasePath(): string {
+    return this.basePath;
+  }
+}
+
 export class TFile {
   path: string;
   basename: string;
@@ -52,7 +60,7 @@ export interface Editor {
 }
 
 export interface Vault {
-  adapter: { basePath?: string };
+  adapter: FileSystemAdapter | Record<string, never>;
   getFileByPath(path: string): TFile | null;
   getName(): string;
   create(path: string, content: string): Promise<TFile>;

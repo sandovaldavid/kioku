@@ -22,4 +22,6 @@ try {
 versions[targetVersion] = manifest.minAppVersion;
 writeFileSync(versionsPath, JSON.stringify(versions, null, 2) + "\n");
 
-console.log(`Version bumped to ${targetVersion}`);
+console.log(
+  `Version bumped to ${targetVersion}; minimum Obsidian version ${manifest.minAppVersion}.`
+);
