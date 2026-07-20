@@ -42,10 +42,17 @@ internal static class Program
     {
         var command = options.Command;
         IList<string> arguments = options.CommandArguments;
+        var environment = CreateServerEnvironment(options, "stdio");
         if (OperatingSystem.IsWindows() && Path.IsPathFullyQualified(command))
         {
-            command = "cmd.exe";
-            arguments = ["/c", options.Command.Replace('/', '\\'), .. options.CommandArguments];
+            var normalizedCommand = command.Replace('/', '\\');
+            var toolDirectory = Path.GetDirectoryName(normalizedCommand)
+                ?? throw new InvalidOperationException($"Unable to resolve the tool directory for '{command}'.");
+            var currentPath = Environment.GetEnvironmentVariable("PATH");
+            environment["PATH"] = string.IsNullOrWhiteSpace(currentPath)
+                ? toolDirectory
+                : $"{toolDirectory}{Path.PathSeparator}{currentPath}";
+            command = Path.GetFileNameWithoutExtension(normalizedCommand);
         }
 
         var transport = new StdioClientTransport(new StdioClientTransportOptions
@@ -54,7 +61,7 @@ internal static class Program
             Command = command,
             Arguments = arguments,
             InheritEnvironmentVariables = false,
-            EnvironmentVariables = CreateServerEnvironment(options, "stdio"),
+            EnvironmentVariables = environment,
         });
         await VerifyProtocolAsync(transport, options.VaultPath, cancellationToken);
     }
