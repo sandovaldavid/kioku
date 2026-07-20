@@ -24,7 +24,8 @@ SDK:
 
 1. Pack `kioku-mcp-server` into an isolated local NuGet feed, install it into a clean tool path,
    launch the installed `kioku` command over stdio, complete initialization and `tools/list`, then
-   create, read, and delete a note.
+   create, read, and delete a note. Kioku itself is resolved from the local feed while its
+   transitive dependencies are resolved through an explicit NuGet.org package-source mapping.
 2. Resolve the runner's native RID, publish a self-contained single-file server, launch it with
    authenticated Streamable HTTP, wait for readiness, and repeat the same MCP read/write flow.
 
@@ -49,7 +50,9 @@ gate still blocks protected branches.
 
 - `dotnet list package --vulnerable --include-transitive` blocks known .NET vulnerabilities.
 - `pnpm audit --audit-level=high` blocks high-severity plugin dependency findings.
-- Dependency Review rejects new high-severity dependency regressions in pull requests.
+- Dependency Review rejects new high-severity dependency regressions on release PRs targeting the
+  default `main` branch. Feature PRs targeting `develop` remain blocked by the .NET and pnpm
+  vulnerability audits because GitHub's dependency-review API is default-branch oriented.
 - CodeQL analyzes C# and JavaScript/TypeScript on pushes, pull requests, and a weekly schedule.
 - CI uploads complete .NET and pnpm package inventories for 30 days. These inventories are the
   current reproducible dependency evidence; a signed SPDX or CycloneDX SBOM can replace them when
