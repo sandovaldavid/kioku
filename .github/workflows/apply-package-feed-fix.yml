@@ -2,16 +2,15 @@ name: apply-package-feed-fix
 
 # Temporary branch-only workflow; removed after the patch commit is pushed.
 on:
-  pull_request:
-    branches: [develop]
-    types: [synchronize]
+  push:
+    branches: [agent/ci-release-quality-gates]
 
 permissions:
   contents: write
 
 jobs:
   fix:
-    if: github.head_ref == 'agent/ci-release-quality-gates' && github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
