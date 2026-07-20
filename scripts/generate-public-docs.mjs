@@ -196,26 +196,29 @@ function renderCommands(defaultContract, completeContract, metadata) {
     "",
     "## Tools",
     "",
-    "`*` marks a required field. Types and annotations come directly from MCP discovery.",
+    "`*` marks required fields. Schemas and behavioral annotations come directly from MCP discovery.",
     "",
-    "| Tool | Profile | Input schema | Output schema | Annotations | Description |",
-    "|---|---|---|---|---|---|",
+    "| Tool | Profile | Input schema | Output schema | Behavioral annotations |",
+    "|---|---|---|---|---|",
   ];
   for (const tool of tools) {
-    const annotations = Object.entries(tool.annotations ?? {})
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => `${key}=${value}`)
-      .join("; ") || "—";
-    lines.push(`| \`${escapeCell(tool.name)}\` | ${defaultNames.has(tool.name) ? "default" : "optional"} | ${escapeCell(schemaSummary(tool.inputSchema))} | ${escapeCell(schemaSummary(tool.outputSchema))} | ${escapeCell(annotations)} | ${escapeCell(tool.description ?? "")} |`);
+    const annotations = tool.annotations ?? {};
+    const behavior = [
+      `readOnly=${annotations.readOnlyHint ?? false}`,
+      `destructive=${annotations.destructiveHint ?? false}`,
+      `idempotent=${annotations.idempotentHint ?? false}`,
+      `openWorld=${annotations.openWorldHint ?? false}`,
+    ].join("; ");
+    lines.push(`| \`${escapeCell(tool.name)}\` | ${defaultNames.has(tool.name) ? "default" : "optional"} | ${escapeCell(schemaSummary(tool.inputSchema))} | ${escapeCell(schemaSummary(tool.outputSchema))} | ${behavior} |`);
   }
-  lines.push("", "## Prompts", "", "| Prompt | Arguments | Description |", "|---|---|---|");
+  lines.push("", "## Prompts", "", "| Prompt | Arguments |", "|---|---|");
   for (const prompt of prompts) {
     const promptArgs = (prompt.arguments ?? []).map((argument) => `${argument.name}${argument.required ? "*" : ""}`).join("; ") || "—";
-    lines.push(`| \`${escapeCell(prompt.name)}\` | ${escapeCell(promptArgs)} | ${escapeCell(prompt.description ?? "")} |`);
+    lines.push(`| \`${escapeCell(prompt.name)}\` | ${escapeCell(promptArgs)} |`);
   }
-  lines.push("", "## Resources", "", "| URI | Kind | Description |", "|---|---|---|");
-  for (const resource of resources) lines.push(`| \`${escapeCell(resource.uri)}\` | direct | ${escapeCell(resource.description ?? resource.name ?? "Resource")} |`);
-  for (const template of templates) lines.push(`| \`${escapeCell(template.uriTemplate)}\` | template | ${escapeCell(template.description ?? template.name ?? "Resource template")} |`);
+  lines.push("", "## Resources", "", "| URI | Kind |", "|---|---|");
+  for (const resource of resources) lines.push(`| \`${escapeCell(resource.uri)}\` | direct |`);
+  for (const template of templates) lines.push(`| \`${escapeCell(template.uriTemplate)}\` | template |`);
   return `${lines.join("\n").trim()}\n`;
 }
 
