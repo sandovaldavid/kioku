@@ -392,7 +392,7 @@ internal static class Program
             }
 
             return new SmokeOptions(
-                transport,
+                transport!,
                 command,
                 commandArguments.ToArray(),
                 Path.GetFullPath(vaultPath),
