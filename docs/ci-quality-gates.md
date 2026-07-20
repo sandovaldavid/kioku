@@ -53,7 +53,9 @@ gate still blocks protected branches.
 - Dependency Review rejects new high-severity dependency regressions on release PRs targeting the
   default `main` branch. Feature PRs targeting `develop` remain blocked by the .NET and pnpm
   vulnerability audits because GitHub's dependency-review API is default-branch oriented.
-- CodeQL analyzes C# and JavaScript/TypeScript on pushes, pull requests, and a weekly schedule.
+- JavaScript and TypeScript are analyzed by CodeQL on pushes, pull requests, and a weekly schedule.
+- C# is analyzed through the repository-wide Roslyn and .NET analyzer baseline with code style and
+  warnings-as-errors enforced in a dedicated blocking security job.
 - CI uploads complete .NET and pnpm package inventories for 30 days. These inventories are the
   current reproducible dependency evidence; a signed SPDX or CycloneDX SBOM can replace them when
   release signing and provenance are introduced.
