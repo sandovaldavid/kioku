@@ -39,9 +39,8 @@ public sealed class VaultIndexingPipelineTests
         await pipeline.StartAsync(CancellationToken.None);
         var callsAfterColdStart = index.GetReindexCalls(notePath);
 
-        for (var edit = 0; edit < 100; edit++)
+        for (var change = 0; change < 100; change++)
         {
-            await File.WriteAllTextAsync(notePath, $"edit {edit}");
             pipeline.EnqueueChangeForTest(notePath);
         }
 
