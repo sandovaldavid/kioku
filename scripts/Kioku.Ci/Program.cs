@@ -18,7 +18,6 @@ internal static class Program
         {
             var options = SmokeOptions.Parse(args);
             Directory.CreateDirectory(options.VaultPath);
-
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
             if (options.Transport.Equals("stdio", StringComparison.OrdinalIgnoreCase))
             {
@@ -41,15 +40,22 @@ internal static class Program
 
     private static async Task RunStdioAsync(SmokeOptions options, CancellationToken cancellationToken)
     {
+        var command = options.Command;
+        IList<string> arguments = options.CommandArguments;
+        if (OperatingSystem.IsWindows() && Path.IsPathFullyQualified(command))
+        {
+            command = "cmd.exe";
+            arguments = ["/c", options.Command.Replace('/', '\\'), .. options.CommandArguments];
+        }
+
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
             Name = "Kioku CI stdio",
-            Command = options.Command,
-            Arguments = options.CommandArguments,
+            Command = command,
+            Arguments = arguments,
             InheritEnvironmentVariables = false,
             EnvironmentVariables = CreateServerEnvironment(options, "stdio"),
         });
-
         await VerifyProtocolAsync(transport, options.VaultPath, cancellationToken);
     }
 
@@ -64,11 +70,9 @@ internal static class Program
         var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
         Exception? failure = null;
-
         try
         {
             await WaitForReadinessAsync(process, options, cancellationToken);
-
             var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (!string.IsNullOrWhiteSpace(options.ApiKey))
             {
@@ -82,7 +86,6 @@ internal static class Program
                 TransportMode = HttpTransportMode.StreamableHttp,
                 AdditionalHeaders = headers,
             });
-
             await VerifyProtocolAsync(transport, options.VaultPath, cancellationToken);
         }
         catch (Exception ex)
@@ -105,15 +108,9 @@ internal static class Program
         }
     }
 
-    private static async Task VerifyProtocolAsync(
-        IClientTransport transport,
-        string vaultPath,
-        CancellationToken cancellationToken)
+    private static async Task VerifyProtocolAsync(IClientTransport transport, string vaultPath, CancellationToken cancellationToken)
     {
-        await using var client = await McpClient.CreateAsync(
-            transport,
-            cancellationToken: cancellationToken);
-
+        await using var client = await McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
         await client.PingAsync(cancellationToken: cancellationToken);
         var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
         var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
@@ -123,7 +120,6 @@ internal static class Program
 
         var noteName = $"ci-smoke-{Guid.NewGuid():N}";
         var expectedPath = Path.Combine(vaultPath, $"{noteName}.md");
-
         var createResult = await client.CallToolAsync(
             "create_note",
             new Dictionary<string, object?>
@@ -134,14 +130,12 @@ internal static class Program
             },
             cancellationToken: cancellationToken);
         EnsureSuccess("create_note", createResult);
-
         if (!File.Exists(expectedPath))
         {
             throw new InvalidOperationException($"create_note did not persist '{expectedPath}'.");
         }
 
         await WaitForReadContentAsync(client, noteName, cancellationToken);
-
         var deleteResult = await client.CallToolAsync(
             "delete_note",
             new Dictionary<string, object?>
@@ -154,14 +148,10 @@ internal static class Program
         EnsureSuccess("delete_note", deleteResult);
     }
 
-    private static async Task WaitForReadContentAsync(
-        McpClient client,
-        string noteName,
-        CancellationToken cancellationToken)
+    private static async Task WaitForReadContentAsync(McpClient client, string noteName, CancellationToken cancellationToken)
     {
         var deadline = DateTimeOffset.UtcNow.Add(IndexPropagationTimeout);
         string lastResponse = "<empty>";
-
         while (DateTimeOffset.UtcNow < deadline)
         {
             var readResult = await client.CallToolAsync(
@@ -173,7 +163,6 @@ internal static class Program
                 },
                 cancellationToken: cancellationToken);
             EnsureSuccess("read_note", readResult);
-
             lastResponse = ExtractResultText(readResult);
             if (lastResponse.Contains(SmokeMarker, StringComparison.Ordinal))
             {
@@ -194,7 +183,6 @@ internal static class Program
             .Select(block => block.Text)
             .Where(text => !string.IsNullOrWhiteSpace(text))
             .ToList();
-
         if (result.StructuredContent is { } structuredContent)
         {
             parts.Add(structuredContent.GetRawText());
@@ -213,7 +201,6 @@ internal static class Program
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-
         foreach (var argument in options.CommandArguments)
         {
             startInfo.ArgumentList.Add(argument);
@@ -232,9 +219,7 @@ internal static class Program
             ?? throw new InvalidOperationException($"Unable to start '{options.Command}'.");
     }
 
-    private static Dictionary<string, string?> CreateServerEnvironment(
-        SmokeOptions options,
-        string transport)
+    private static Dictionary<string, string?> CreateServerEnvironment(SmokeOptions options, string transport)
     {
         var environment = StdioClientTransportOptions.GetDefaultEnvironmentVariables();
         environment["KIOKU_VAULT_PATH"] = options.VaultPath;
@@ -242,7 +227,6 @@ internal static class Program
         environment["KIOKU_OLLAMA_URL"] = "http://127.0.0.1:9";
         environment["KIOKU_INDEX_CONCURRENCY"] = "2";
         environment["KIOKU_EMBEDDING_CONCURRENCY"] = "1";
-
         CopyCurrentEnvironment(environment, "DOTNET_ROOT");
         CopyCurrentEnvironment(environment, "DOTNET_ROOT_X64");
         CopyCurrentEnvironment(environment, "NUGET_PACKAGES");
@@ -273,22 +257,17 @@ internal static class Program
         }
     }
 
-    private static async Task WaitForReadinessAsync(
-        Process process,
-        SmokeOptions options,
-        CancellationToken cancellationToken)
+    private static async Task WaitForReadinessAsync(Process process, SmokeOptions options, CancellationToken cancellationToken)
     {
         var endpoint = options.Endpoint
             ?? throw new InvalidOperationException("HTTP endpoint is required.");
         var readinessUri = new Uri(endpoint, "/health/ready");
-
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
         while (!cancellationToken.IsCancellationRequested)
         {
             if (process.HasExited)
             {
-                throw new InvalidOperationException(
-                    $"HTTP server exited before readiness with code {process.ExitCode}.");
+                throw new InvalidOperationException($"HTTP server exited before readiness with code {process.ExitCode}.");
             }
 
             try
@@ -342,8 +321,7 @@ internal static class Program
     {
         if (result.IsError is true)
         {
-            throw new InvalidOperationException(
-                $"{tool} returned an MCP tool error: {ExtractResultText(result)}");
+            throw new InvalidOperationException($"{tool} returned an MCP tool error: {ExtractResultText(result)}");
         }
     }
 
@@ -365,7 +343,6 @@ internal static class Program
             string? apiKey = null;
             var timeoutSeconds = 60;
             var commandArguments = new List<string>();
-
             for (var index = 0; index < args.Length; index++)
             {
                 var argument = args[index];
@@ -390,9 +367,7 @@ internal static class Program
                         apiKey = RequireValue(args, ref index, argument);
                         break;
                     case "--timeout-seconds":
-                        timeoutSeconds = int.Parse(
-                            RequireValue(args, ref index, argument),
-                            CultureInfo.InvariantCulture);
+                        timeoutSeconds = int.Parse(RequireValue(args, ref index, argument), CultureInfo.InvariantCulture);
                         break;
                     default:
                         throw new ArgumentException($"Unknown argument '{argument}'.");
@@ -422,10 +397,7 @@ internal static class Program
 
             if (timeoutSeconds is < 5 or > 600)
             {
-                throw new ArgumentOutOfRangeException(
-                    nameof(args),
-                    timeoutSeconds,
-                    "Timeout must be between 5 and 600 seconds.");
+                throw new ArgumentOutOfRangeException(nameof(args), timeoutSeconds, "Timeout must be between 5 and 600 seconds.");
             }
 
             return new SmokeOptions(
