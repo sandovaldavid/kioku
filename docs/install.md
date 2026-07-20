@@ -4,141 +4,48 @@ title: Installation Guide
 sidebar: true
 ---
 
-## Quick Start
+# Installation
 
-### 1. Install the Server
+## Requirements
 
-Choose your preferred method:
+- An Obsidian vault.
+- .NET 10 only when building from source; the published global tool and self-contained binaries include what they need.
+- Ollama only for semantic retrieval or local generation.
+- The Obsidian plugin only for UI and supported-plugin bridge operations.
 
-#### Docker (Recommended)
+## Install the .NET tool
+
 ```bash
-# Clone the repository
-git clone https://github.com/sandovaldavid/kioku.git
-cd kioku
-
-# Set your vault path
-export KIOKU_VAULT_PATH=/path/to/your/vault
-
-# Start with Docker Compose
-docker-compose up -d
-
-# Pull embedding model (first time only)
-docker exec kioku-ollama ollama pull nomic-embed-text
-```
-
-#### .NET Tool
-Requires the [ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (not just the base .NET Runtime) — the server targets `Microsoft.NET.Sdk.Web` to support the Streamable HTTP transport.
-```bash
-# Install globally
-dotnet tool install -g kioku-mcp-server
-
-# Set vault path
-export KIOKU_VAULT_PATH=/path/to/your/vault
-
-# Run
+dotnet tool install --global kioku-mcp-server
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
 kioku
 ```
 
-#### One-line Installer (Linux/macOS)
-```bash
-curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/install.sh | bash
-```
-Set `INSTALL_DIR` to customize the destination:
-```bash
-curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/install.sh | INSTALL_DIR=/usr/local/bin bash
-```
-
-#### Homebrew (coming soon)
-```bash
-brew tap sandovaldavid/kioku
-brew install kioku-mcp-server
-```
-
-#### WinGet (coming soon)
-```powershell
-winget install sandovaldavid.kioku
-```
-
-#### Binary Release
-Download from [GitHub Releases](https://github.com/sandovaldavid/kioku/releases):
+Update later with:
 
 ```bash
-# Linux
-wget https://github.com/sandovaldavid/kioku/releases/latest/download/kioku-server-linux-x64
-chmod +x kioku-server-linux-x64
-export KIOKU_VAULT_PATH=/path/to/your/vault
-./kioku-server-linux-x64
-
-# macOS (Intel)
-wget https://github.com/sandovaldavid/kioku/releases/latest/download/kioku-server-osx-x64
-chmod +x kioku-server-osx-x64
-export KIOKU_VAULT_PATH=/path/to/your/vault
-./kioku-server-osx-x64
-
-# macOS (Apple Silicon)
-wget https://github.com/sandovaldavid/kioku/releases/latest/download/kioku-server-osx-arm64
-chmod +x kioku-server-osx-arm64
-export KIOKU_VAULT_PATH=/path/to/your/vault
-./kioku-server-osx-arm64
-
-# Windows
-# Download kioku-server-win-x64.exe from releases
-set KIOKU_VAULT_PATH=C:\path\to\your\vault
-kioku-server-win-x64.exe
+dotnet tool update --global kioku-mcp-server
 ```
 
-### 2. Register with an AI Coding CLI
+## Register an MCP client
 
-Once the server is installed and `kioku` is on your `PATH`, register it with your AI coding CLI
-in one command:
+The repository installer supports Codex, OpenCode, and Antigravity:
 
 ```bash
-# Claude Code — installs a plugin bundling the server + the kioku-vault skill
-claude plugin marketplace add sandovaldavid/kioku && claude plugin install kioku@kioku
-
-# Codex CLI
-./scripts/add-to-client.sh codex --vault /path/to/your/vault
-
-# OpenCode
-./scripts/add-to-client.sh opencode --vault /path/to/your/vault
-
-# Antigravity CLI/IDE
-./scripts/add-to-client.sh antigravity --vault /path/to/your/vault
+./scripts/add-to-client.sh codex --vault /absolute/path/to/your/vault
+./scripts/add-to-client.sh opencode --vault /absolute/path/to/your/vault
+./scripts/add-to-client.sh antigravity --vault /absolute/path/to/your/vault
 ```
 
-`scripts/add-to-client.sh` checks for the `kioku` binary and offers to install it if it's
-missing, so you can also run it as step 1 instead of the methods above. See
-[`../integrations/README.md`](../integrations/README.md) for what each installer sets up, and
-`./scripts/add-to-client.sh --help` for all flags. For any other MCP client, or if you'd rather
-edit the config by hand, see "Configure Your MCP Client" below.
+Claude Code can install the bundled server configuration and skill:
 
-### 3. Install the Plugin
-
-#### Via BRAT (Beta)
-1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin in Obsidian
-2. Open BRAT settings → Beta Plugin List
-3. Add: `sandovaldavid/kioku`
-4. Enable "Kioku MCP" in Community Plugins
-
-#### From Source
 ```bash
-cd src/obsidian-kioku-mcp
-pnpm install
-pnpm run build
-
-# Copy to your vault's plugins folder
-cp -r . /path/to/vault/.obsidian/plugins/kioku-mcp
+claude plugin marketplace add sandovaldavid/kioku
+claude plugin install kioku@kioku
 ```
 
-### 4. Configure Your MCP Client (Manual)
+A minimal manual stdio configuration is:
 
-If you already ran `scripts/add-to-client.sh` (step 2) for Claude Code, Codex, OpenCode, or
-Antigravity, you can skip this step. It's here as a fallback and for other clients (Cursor, VS
-Code, Zed, JetBrains, Claude Desktop, ...).
-
-Add to your MCP client configuration:
-
-#### Claude Code / Cursor
 ```json
 {
   "mcpServers": {
@@ -146,152 +53,83 @@ Add to your MCP client configuration:
       "type": "stdio",
       "command": "kioku",
       "env": {
-        "KIOKU_VAULT_PATH": "/path/to/your/vault"
+        "KIOKU_VAULT_PATH": "/absolute/path/to/your/vault"
       }
     }
   }
 }
 ```
 
-#### Streamable HTTP Transport (Remote)
-```json
-{
-  "mcpServers": {
-    "kioku": {
-      "type": "http",
-      "url": "http://localhost:5173/mcp",
-      "headers": {
-        "Authorization": "Bearer your-api-key"
-      }
-    }
-  }
-}
+Use your client’s equivalent MCP configuration location. Keep the vault path absolute.
+
+## Streamable HTTP
+
+Start a long-running loopback server:
+
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+export KIOKU_TRANSPORT=http
+export KIOKU_API_KEY="$(openssl rand -hex 32)"
+kioku
 ```
+
+Endpoint: `http://127.0.0.1:5173/mcp`
+
+A client must send:
+
+```text
+Authorization: Bearer <KIOKU_API_KEY>
+```
+
+Read [Streamable HTTP security](deploy/auth-options.md) before changing the bind host or placing Kioku behind a proxy.
+
+## Build from source
+
+```bash
+git clone https://github.com/sandovaldavid/kioku.git
+cd kioku
+dotnet restore Kioku.slnx
+dotnet build Kioku.slnx --configuration Release --no-restore
+KIOKU_VAULT_PATH=/absolute/path/to/vault dotnet run --project src/Kioku.Mcp.Server
+```
+
+Publish a native single-file binary by selecting a supported RID:
+
+```bash
+dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+  --configuration Release \
+  --runtime linux-x64 \
+  --self-contained \
+  --output artifacts/kioku
+```
+
+Representative RIDs include `linux-x64`, `linux-arm64`, `win-x64`, `win-arm64`, `osx-x64`, and `osx-arm64`.
+
+## Optional Obsidian plugin
+
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm --filter obsidian-kioku-mcp run build
+```
+
+Copy `main.js`, `manifest.json`, and `styles.css` from `src/obsidian-kioku-mcp/` into:
+
+```text
+<vault>/.obsidian/plugins/kioku-mcp/
+```
+
+Enable **Kioku MCP** under Obsidian → Settings → Community plugins. Configure the plugin auth token and `KIOKU_BRIDGE_TOKEN` with the same secret.
 
 ## Configuration
 
-### Environment Variables
+The complete, generated list of environment variables and canonical configuration paths is in the [server configuration reference](configuration-reference.md). Vault-level behavior is documented in [vault configuration](vault-config.md).
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `KIOKU_VAULT_PATH` | Yes | — | Absolute path to your Obsidian vault |
-| `KIOKU_TRANSPORT` | No | stdio | MCP transport: `stdio` or `http` |
-| `KIOKU_HTTP_HOST` | No | 127.0.0.1 | Streamable HTTP listener; non-loopback requires authentication |
-| `KIOKU_HTTP_PORT` | No | 5173 | HTTP server port |
-| `KIOKU_API_KEY` | No | — | Bearer token; required for a non-loopback HTTP listener |
-| `KIOKU_HTTP_ALLOWED_ORIGINS` | No | loopback + Obsidian | Exact comma-separated browser Origin allowlist |
-| `KIOKU_HTTP_TRUSTED_PROXIES` | No | — | Exact comma-separated proxy IPs trusted for forwarded headers |
-| `KIOKU_HTTP_MAX_REQUEST_BODY_BYTES` | No | 1048576 | Maximum HTTP request body |
-| `KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS` | No | 300 | Timeout for MCP POST calls |
-| `KIOKU_ALLOW_INSECURE_HTTP` | No | false | Explicit unsafe non-loopback/no-auth override |
-| `KIOKU_OLLAMA_URL` | No | http://localhost:11434 | Ollama server URL |
-| `KIOKU_EMBEDDING_MODEL` | No | nomic-embed-text | Embedding model name |
-| `KIOKU_GEN_MODEL` | No | — (disabled) | Ollama model for local generation (`summarize_note`, `generate_flashcards`), e.g. `llama3.2` |
-| `KIOKU_MAX_RESULTS` | No | 20 | Maximum number of search results |
-| `KIOKU_OBSIDIAN_PORT` | No | 7765 | WebSocket bridge port |
-| `KIOKU_BRIDGE_TOKEN` | No | — | Shared secret for the WebSocket bridge. Must match the plugin's "Auth token" setting |
-| `KIOKU_ENABLE_METRICS` | No | false | Opt-in anonymous tool-call counters |
-| `KIOKU_SENTRY_DSN` | No | — | Opt-in Sentry crash reporting DSN |
+## Verify an installation
 
-### Vault Configuration
+After starting the server, use an MCP client to run `tools/list`, then call `get_server_status`. For HTTP deployments:
 
-Create `.kioku/config.yml` in your vault for advanced settings:
-
-```yaml
-# Where structured notes, sessions, and templates are created
-folders:
-  inbox: "Inbox"
-  zettel: "Zettelkasten"
-  literature: "Literature"
-
-# Frontmatter domain assigned by folder (longest prefix wins)
-domains:
-  "Projects": "work/projects"
-  "Research": "academic/research"
-
-# Frontmatter defaults per note type
-defaults:
-  zettel:
-    type: concept
-    status: active
-
-# Folders excluded from the index (dot-folders are always excluded)
-exclude:
-  - "Archive"
-
-# Enable/disable optional tool groups
-capabilities:
-  disabled: [research, generation, css, assets, bridge, plugin]
-```
-
-See the [Vault Configuration Guide](vault-config.md) for the full schema, and
-[`vault-config.example.yml`](vault-config.example.yml) for a complete annotated example.
-
-The current surface has 49 tools across 16 classes. The six groups above are disabled by
-default; `git`, `restore`, and `zettelkasten` are removed groups. Use native Git commands for
-repository history and recovery, `manage_trash` for Kioku soft-delete recovery, and
-`create_note` with a structured `kind` for zettel, literature, MOC, or folder-readme notes.
-
-## Verification
-
-### Check Server Status
 ```bash
-# stdio transport
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | kioku
-
-# Streamable HTTP transport
-curl --fail http://127.0.0.1:5173/health/live
-
-curl --fail \
-  -H "Authorization: Bearer $KIOKU_API_KEY" \
-  http://127.0.0.1:5173/health/ready
+curl http://127.0.0.1:5173/health/live
+curl -H "Authorization: Bearer $KIOKU_API_KEY" http://127.0.0.1:5173/health/ready
 ```
-
-See [Streamable HTTP security](deploy/auth-options.md) before configuring a remote listener or
-reverse proxy.
-
-### Check Plugin Connection
-1. Open Obsidian
-2. Open Developer Console (Ctrl+Shift+I)
-3. Look for: `[Kioku] Bridge listening on 127.0.0.1:7765`
-
-### Test Semantic Search
-```bash
-# Ensure Ollama is running
-ollama list
-
-# Pull model if needed
-ollama pull nomic-embed-text
-```
-
-## Zotero / BibTeX
-
-Kioku can import a BibTeX library as literature notes (`import_bibtex`) and reconstruct a
-`.bib` file from them later (`export_citations` with `format='bibtex'`), both in `ResearchTools`
-(group `research`, disabled by default).
-There's no live network integration with Zotero yet — the recommended flow is via
-**Better BibTeX**, which keeps a `.bib` file on disk in sync with your Zotero library:
-
-1. Install the [Better BibTeX](https://retorque.re/zotero-better-bibtex/) Zotero plugin.
-2. In Zotero, right-click a collection → **Export Collection…** → format
-   **Better BibLaTeX** (or **Better BibTeX**) → check **Keep updated** so Zotero
-   auto-rewrites the `.bib` file whenever the collection changes.
-3. Save the export somewhere your agent can read (inside the vault, or any local path), then
-   ask your agent to run `import_bibtex` on it — e.g. "import my Zotero library from
-   `~/Zotero/my-library.bib`".
-4. Whenever Zotero re-exports the file, re-run `import_bibtex` with the same source: entries
-   are deduplicated by `citekey`, so already-imported notes are left untouched. Pass
-   `update_existing=true` if you want Zotero-side metadata edits to also refresh the note's
-   frontmatter (the note body — your summary, key ideas, quotes — is never overwritten).
-5. Use `dry_run=true` first if you want to preview what would be created/updated before
-   writing anything.
-
-A future integration with Zotero's local HTTP API (`localhost:23119`) is possible but adds
-network coupling that the file-based Better BibTeX flow avoids — it isn't planned unless
-this file-based flow proves insufficient.
-
-## Next Steps
-
-- Check the [Architecture Diagram]({{ site.baseurl }}/) on the homepage to understand how Kioku works
-- Explore [Available Tools](commands-reference.md) to see what you can do
-- Check [Troubleshooting](troubleshooting.md) if you encounter issues
