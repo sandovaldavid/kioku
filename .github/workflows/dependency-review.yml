@@ -1,8 +1,11 @@
 name: dependency-review
 
+# GitHub's dependency-review API compares revisions on the default branch. Kioku feature
+# work targets develop, so dependency review is enforced on the release PR into main;
+# develop PRs remain blocked by dotnet vulnerability scanning and pnpm audit in ci.yml.
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main]
 
 permissions:
   contents: read
