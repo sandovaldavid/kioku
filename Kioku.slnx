@@ -2,6 +2,7 @@
   <Folder Name="/scripts/">
     <Project Path="scripts/GenerateCommandsRef/GenerateCommandsRef.csproj" />
     <Project Path="scripts/Kioku.Benchmarks/Kioku.Benchmarks.csproj" />
+    <Project Path="scripts/Kioku.Ci/Kioku.Ci.csproj" />
     <Project Path="scripts/Kioku.Eval/Kioku.Eval.csproj" />
   </Folder>
   <Folder Name="/src/">
