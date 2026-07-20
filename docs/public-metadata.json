@@ -1,0 +1,58 @@
+{
+  "$schema": "./public-metadata.schema.json",
+  "schemaVersion": 1,
+  "server": {
+    "manifestName": "io.github.sandovaldavid/kioku",
+    "packageId": "kioku-mcp-server",
+    "description": "Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read, write, and organize notes through the Model Context Protocol.",
+    "repository": "https://github.com/sandovaldavid/kioku"
+  },
+  "transports": [
+    {
+      "configurationValue": "stdio",
+      "publicName": "stdio",
+      "description": "Local process transport used by desktop and CLI MCP clients."
+    },
+    {
+      "configurationValue": "http",
+      "publicName": "Streamable HTTP",
+      "description": "HTTP transport for long-running or shared deployments; loopback is the secure default."
+    }
+  ],
+  "capabilities": {
+    "enabledByDefault": ["tasks", "organization", "sessions", "workflows", "graph", "engineering"],
+    "disabledByDefault": ["research", "generation", "css", "assets", "bridge", "plugin"]
+  },
+  "environmentVariables": [
+    {"name":"KIOKU_VAULT_PATH","configurationPath":"Kioku:VaultPath","required":true,"sensitive":false,"default":null,"category":"Core","description":"Absolute path to the Obsidian vault root."},
+    {"name":"KIOKU_MAX_RESULTS","configurationPath":"Kioku:MaxSearchResults","required":false,"sensitive":false,"default":"20","category":"Core","description":"Maximum number of search results returned by query tools."},
+    {"name":"KIOKU_TRANSPORT","configurationPath":"Kioku:Transport","required":false,"sensitive":false,"default":"stdio","category":"Transport","description":"MCP transport value: stdio or http. The http value selects Streamable HTTP."},
+    {"name":"KIOKU_HTTP_HOST","configurationPath":"Kioku:HttpHost","required":false,"sensitive":false,"default":"127.0.0.1","category":"Transport","description":"Host or interface used by the Streamable HTTP listener."},
+    {"name":"KIOKU_HTTP_PORT","configurationPath":"Kioku:HttpPort","required":false,"sensitive":false,"default":"5173","category":"Transport","description":"Port used by the Streamable HTTP listener."},
+    {"name":"KIOKU_API_KEY","configurationPath":"Kioku:ApiKey","required":false,"sensitive":true,"default":null,"category":"Transport security","description":"Bearer token for Streamable HTTP; required for non-loopback bindings unless the unsafe override is explicitly enabled."},
+    {"name":"KIOKU_HTTP_ALLOWED_ORIGINS","configurationPath":"Kioku:HttpAllowedOrigins","required":false,"sensitive":false,"default":"http://localhost, http://127.0.0.1, http://[::1], app://obsidian.md","category":"Transport security","description":"Comma-separated exact browser origins accepted by Streamable HTTP."},
+    {"name":"KIOKU_HTTP_TRUSTED_PROXIES","configurationPath":"Kioku:HttpTrustedProxies","required":false,"sensitive":false,"default":null,"category":"Transport security","description":"Comma-separated proxy IP addresses trusted to supply forwarded headers."},
+    {"name":"KIOKU_ALLOW_INSECURE_HTTP","configurationPath":"Kioku:AllowInsecureHttp","required":false,"sensitive":false,"default":"false","category":"Transport security","description":"Unsafe override that permits a non-loopback Streamable HTTP listener without an API key."},
+    {"name":"KIOKU_HTTP_MAX_REQUEST_BODY_BYTES","configurationPath":"Kioku:HttpMaxRequestBodyBytes","required":false,"sensitive":false,"default":"1048576","category":"Transport security","description":"Maximum accepted MCP HTTP request body size in bytes."},
+    {"name":"KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS","configurationPath":"Kioku:HttpRequestTimeoutSeconds","required":false,"sensitive":false,"default":"300","category":"Transport security","description":"Maximum execution time for an MCP POST request in seconds."},
+    {"name":"KIOKU_OBSIDIAN_PORT","configurationPath":"Kioku:ObsidianBridgePort","required":false,"sensitive":false,"default":"7765","category":"Obsidian bridge","description":"WebSocket port exposed by the optional Obsidian plugin bridge."},
+    {"name":"KIOKU_BRIDGE_TOKEN","configurationPath":"Kioku:BridgeToken","required":false,"sensitive":true,"default":null,"category":"Obsidian bridge","description":"Shared secret for the Obsidian bridge WebSocket; it must match the plugin setting."},
+    {"name":"KIOKU_OLLAMA_URL","configurationPath":"Kioku:OllamaUrl","required":false,"sensitive":false,"default":"http://localhost:11434","category":"Local AI","description":"Base URL of the Ollama service used for embeddings and optional generation."},
+    {"name":"KIOKU_EMBEDDING_MODEL","configurationPath":"Kioku:EmbeddingModel","required":false,"sensitive":false,"default":"nomic-embed-text","category":"Local AI","description":"Ollama embedding model."},
+    {"name":"KIOKU_GEN_MODEL","configurationPath":"Kioku:GenerationModel","required":false,"sensitive":false,"default":null,"category":"Local AI","description":"Ollama model for optional local generation tools; unset disables generation."},
+    {"name":"KIOKU_INDEX_CONCURRENCY","configurationPath":"Kioku:IndexConcurrency","required":false,"sensitive":false,"default":"max(1, CPU count / 2)","category":"Performance","description":"Maximum concurrent vault indexing operations."},
+    {"name":"KIOKU_EMBEDDING_CONCURRENCY","configurationPath":"Kioku:EmbeddingConcurrency","required":false,"sensitive":false,"default":"2","category":"Performance","description":"Maximum concurrent embedding requests."},
+    {"name":"KIOKU_ALLOW_EXTERNAL_READS","configurationPath":"Kioku:AllowExternalReads","required":false,"sensitive":false,"default":"false","category":"Filesystem security","description":"Allows read-only imports outside the vault only from explicitly configured roots."},
+    {"name":"KIOKU_EXTERNAL_READ_ROOTS","configurationPath":"Kioku:ExternalReadRoots","required":false,"sensitive":false,"default":null,"category":"Filesystem security","description":"Platform-path-separator-delimited roots allowed for external read-only imports."},
+    {"name":"KIOKU_ALLOW_PERMANENT_DELETE","configurationPath":"Kioku:AllowPermanentDelete","required":false,"sensitive":false,"default":"false","category":"Filesystem security","description":"Enables irreversible deletion; soft delete remains available when false."},
+    {"name":"KIOKU_GITHUB_TOKEN","configurationPath":"Kioku:GitHubToken","required":false,"sensitive":true,"default":null,"category":"Integrations","description":"GitHub token used by the share_as_gist tool."},
+    {"name":"KIOKU_ENABLE_METRICS","configurationPath":"Kioku:EnableMetrics","required":false,"sensitive":false,"default":"false","category":"Observability","description":"Enables in-memory tool-call counters; note contents are never recorded."},
+    {"name":"KIOKU_SENTRY_DSN","configurationPath":"Kioku:SentryDsn","required":false,"sensitive":true,"default":null,"category":"Observability","description":"Opt-in Sentry DSN for crash reporting."}
+  ],
+  "versioning": {
+    "rootWorkspace": "The private root package.json is an unversioned workspace coordinator and is not a release artifact.",
+    "server": "The NuGet PackageVersion is authoritative for the server and must match both version fields in the MCP server manifest.",
+    "plugin": "The plugin package.json and manifest.json versions must match; versions.json must contain the current plugin version. Plugin SemVer is independent from server SemVer.",
+    "bridge": "Server and plugin compatibility is negotiated through the bridge protocol and capabilities, not by requiring identical product versions."
+  }
+}
