@@ -4,17 +4,17 @@
 
 ## Test plan
 
-<!-- How did you verify this works? Be specific: commands run, manual testing steps, etc. -->
+<!-- List the exact local commands and manual checks used. -->
 
-- [ ] `dotnet build src/Kioku.Mcp.Server/` succeeds (if server changed)
-- [ ] `dotnet test src/Kioku.Mcp.Server.Tests/` passes (if server changed)
-- [ ] `dotnet format src/Kioku.Mcp.Server/ --verify-no-changes` is clean (if server changed)
-- [ ] `pnpm lint:plugin` / `pnpm build:plugin` pass (if plugin changed)
-- [ ] `docs/commands-reference.md` regenerated via `scripts/GenerateCommandsRef` (if a tool was added/renamed/changed)
-- [ ] Manually tested against a real vault (for UI/behavior changes that automated tests can't cover)
+- [ ] .NET restore/build/tests pass when server code changed
+- [ ] `dotnet format` whitespace and style checks pass when C# changed
+- [ ] Plugin lint, format check, tests, and build pass when TypeScript changed
+- [ ] `node scripts/generate-public-docs.mjs --check` passes when MCP, configuration, manifest, or version metadata changed
+- [ ] Manually tested against a disposable or real vault when behavior requires it
 
 ## Checklist
 
-- [ ] Commit messages follow `type(scope): description` (scope is one of `server`, `plugin`, `docs`, `ci`, `config`, `deps`, `release`)
-- [ ] Targets `develop`, not `main`
-- [ ] Updated relevant docs (README, `docs/install.md`, `docs/vault-config.md`) if env vars or capability groups changed
+- [ ] Commits follow `type(scope): description`
+- [ ] PR targets `develop`
+- [ ] Public metadata was updated instead of duplicating inventories in READMEs
+- [ ] The PR body links its issue with `Closes #<issue>` when appropriate
