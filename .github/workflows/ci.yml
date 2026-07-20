@@ -71,9 +71,27 @@ jobs:
       - name: Vulnerability check
         run: dotnet list Kioku.slnx package --vulnerable --include-transitive
 
+      - name: Generate .NET package inventory
+        shell: bash
+        run: |
+          mkdir -p artifacts/inventory
+          dotnet list Kioku.slnx package --include-transitive --format json > artifacts/inventory/dotnet-packages.json
+
+      - name: Upload package inventory
+        uses: actions/upload-artifact@v6
+        with:
+          name: dotnet-package-inventory
+          path: artifacts/inventory/dotnet-packages.json
+          if-no-files-found: error
+          retention-days: 30
+
   test-server:
-    name: test-server (ubuntu-latest)
-    runs-on: ubuntu-latest
+    name: test-server (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v7
@@ -87,30 +105,58 @@ jobs:
         run: dotnet restore Kioku.slnx
 
       - name: Test with coverage
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           set -o pipefail
-          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore --verbosity minimal --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --results-directory ./coverage 2>&1 | tee dotnet-test.log
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity minimal \
+            --collect:"XPlat Code Coverage" \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./test-results \
+            2>&1 | tee dotnet-test.log
+
+      - name: Test natively
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity minimal \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./test-results \
+            2>&1 | tee dotnet-test.log
+
+      - name: Enforce server coverage baseline
+        if: runner.os == 'Linux'
+        run: python3 scripts/verify-coverage.py --pattern "test-results/**/coverage.cobertura.xml" --minimum 40
 
       - name: Upload failed test diagnostics
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: server-test-results-Linux
+          name: server-test-results-${{ runner.os }}
           path: |
             dotnet-test.log
-            coverage/**/*.trx
-            coverage/**/coverage.cobertura.xml
-          if-no-files-found: error
+            test-results/**/*.trx
+            test-results/**/coverage.cobertura.xml
+          if-no-files-found: warn
           retention-days: 7
 
+      # Local coverage is the protected-branch gate. Codecov remains informational so
+      # pull requests from forks are not blocked by unavailable repository secrets.
       - name: Upload coverage to Codecov
-        if: success()
+        if: runner.os == 'Linux' && success()
         uses: codecov/codecov-action@v7
         with:
-          files: ./coverage/**/coverage.cobertura.xml
+          files: ./test-results/**/coverage.cobertura.xml
           flags: server
           fail_ci_if_error: false
+          verbose: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
@@ -155,6 +201,133 @@ jobs:
             filesystem-test.log
             filesystem-results/**/*.trx
           if-no-files-found: error
+          retention-days: 7
+
+  package-smoke:
+    name: package-smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
+
+      - name: Build MCP smoke client
+        run: dotnet build scripts/Kioku.Ci/Kioku.Ci.csproj --configuration Release --no-restore
+
+      - name: Pack local .NET tool
+        run: dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --output ./artifacts/packages
+
+      - name: Install tool from isolated local feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOL_DIR="$RUNNER_TEMP/kioku-tool"
+          mkdir -p "$TOOL_DIR"
+          cat > "$RUNNER_TEMP/kioku-smoke-nuget.config" <<EOF
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="$GITHUB_WORKSPACE/artifacts/packages" />
+            </packageSources>
+          </configuration>
+          EOF
+          dotnet tool install \
+            --tool-path "$TOOL_DIR" \
+            --configfile "$RUNNER_TEMP/kioku-smoke-nuget.config" \
+            kioku-mcp-server
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "KIOKU_TOOL=$TOOL_DIR/kioku.exe" >> "$GITHUB_ENV"
+          else
+            echo "KIOKU_TOOL=$TOOL_DIR/kioku" >> "$GITHUB_ENV"
+          fi
+
+      - name: Smoke installed tool over stdio
+        shell: bash
+        run: |
+          set -euo pipefail
+          VAULT="$RUNNER_TEMP/kioku-tool-vault"
+          mkdir -p "$VAULT"
+          printf '# Seed\n\nPackage smoke fixture.\n' > "$VAULT/seed.md"
+          dotnet run \
+            --project scripts/Kioku.Ci/Kioku.Ci.csproj \
+            --configuration Release \
+            --no-build \
+            -- \
+            --transport stdio \
+            --command "$KIOKU_TOOL" \
+            --vault "$VAULT" \
+            --timeout-seconds 90
+
+      - name: Resolve native runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS/$RUNNER_ARCH" in
+            Linux/X64) RID=linux-x64 ;;
+            Linux/ARM64) RID=linux-arm64 ;;
+            Windows/X64) RID=win-x64 ;;
+            Windows/ARM64) RID=win-arm64 ;;
+            macOS/X64) RID=osx-x64 ;;
+            macOS/ARM64) RID=osx-arm64 ;;
+            *) echo "Unsupported native runner: $RUNNER_OS/$RUNNER_ARCH" >&2; exit 1 ;;
+          esac
+          echo "NATIVE_RID=$RID" >> "$GITHUB_ENV"
+
+      - name: Publish native single-file server
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-restore \
+            --runtime "$NATIVE_RID" \
+            --output "$RUNNER_TEMP/kioku-publish"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "KIOKU_NATIVE=$RUNNER_TEMP/kioku-publish/Kioku.Mcp.Server.exe" >> "$GITHUB_ENV"
+          else
+            chmod +x "$RUNNER_TEMP/kioku-publish/Kioku.Mcp.Server"
+            echo "KIOKU_NATIVE=$RUNNER_TEMP/kioku-publish/Kioku.Mcp.Server" >> "$GITHUB_ENV"
+          fi
+
+      - name: Smoke native binary over Streamable HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          VAULT="$RUNNER_TEMP/kioku-http-vault"
+          mkdir -p "$VAULT"
+          printf '# Seed\n\nHTTP smoke fixture.\n' > "$VAULT/seed.md"
+          dotnet run \
+            --project scripts/Kioku.Ci/Kioku.Ci.csproj \
+            --configuration Release \
+            --no-build \
+            -- \
+            --transport http \
+            --command "$KIOKU_NATIVE" \
+            --vault "$VAULT" \
+            --endpoint "http://127.0.0.1:5273/mcp" \
+            --api-key "kioku-ci-smoke-token" \
+            --timeout-seconds 120
+
+      - name: Upload package smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: package-smoke-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            artifacts/packages/*.nupkg
+            ${{ runner.temp }}/kioku-publish/**
+          if-no-files-found: warn
           retention-days: 7
 
   build-plugin:
@@ -218,6 +391,18 @@ jobs:
 
       - name: Validate release assets
         run: pnpm --filter obsidian-kioku-mcp run validate:release
+
+      - name: Generate plugin package inventory
+        shell: bash
+        run: pnpm list --recursive --depth Infinity --json > plugin-packages.json
+
+      - name: Upload plugin package inventory
+        uses: actions/upload-artifact@v6
+        with:
+          name: plugin-package-inventory
+          path: plugin-packages.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload plugin diagnostics
         if: failure()
