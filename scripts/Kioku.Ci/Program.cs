@@ -78,7 +78,6 @@ internal static class Program
                 Endpoint = options.Endpoint,
                 TransportMode = HttpTransportMode.StreamableHttp,
                 AdditionalHeaders = headers,
-                EnableStandaloneGetStream = false,
             });
 
             await VerifyProtocolAsync(transport, options.VaultPath, cancellationToken);
@@ -382,14 +381,14 @@ internal static class Program
                 throw new ArgumentException("--vault is required.");
             }
 
-            if (transport.Equals("http", StringComparison.OrdinalIgnoreCase) && endpoint is null)
+            if (string.Equals(transport, "http", StringComparison.OrdinalIgnoreCase) && endpoint is null)
             {
                 throw new ArgumentException("--endpoint is required for HTTP.");
             }
 
             if (timeoutSeconds is < 5 or > 600)
             {
-                throw new ArgumentOutOfRangeException(nameof(timeoutSeconds));
+                throw new ArgumentOutOfRangeException(nameof(args), timeoutSeconds, "Timeout must be between 5 and 600 seconds.");
             }
 
             return new SmokeOptions(
