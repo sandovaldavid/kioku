@@ -146,10 +146,11 @@ public sealed class EmbeddingService : IDisposable
             loaded.Clear();
         }
 
-        foreach (var (key, value) in loaded)
+        foreach (var (_, value) in loaded)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _store[key] = value;
+            var relativePath = NormalizeVaultRelativePath(value.VaultRelativePath);
+            _store[relativePath] = value with { VaultRelativePath = relativePath };
         }
 
         logger.Info("Loaded {Count} cached embeddings from disk.", _store.Count);
@@ -157,8 +158,11 @@ public sealed class EmbeddingService : IDisposable
 
         var stale = existingNotes
             .Where(note =>
-                !_store.TryGetValue(note.VaultRelativePath, out var entry) ||
-                entry.Hash != note.ContentHash)
+            {
+                var relativePath = NormalizeVaultRelativePath(note.VaultRelativePath);
+                return !_store.TryGetValue(relativePath, out var entry) ||
+                    entry.Hash != note.ContentHash;
+            })
             .ToList();
 
         if (stale.Count > 0)
@@ -182,7 +186,8 @@ public sealed class EmbeddingService : IDisposable
             return;
         }
 
-        if (_store.TryGetValue(note.VaultRelativePath, out var existing) &&
+        var relativePath = NormalizeVaultRelativePath(note.VaultRelativePath);
+        if (_store.TryGetValue(relativePath, out var existing) &&
             existing.Hash == note.ContentHash)
         {
             return;
@@ -220,8 +225,10 @@ public sealed class EmbeddingService : IDisposable
             return;
         }
 
-        var relative = Path.GetRelativePath(config.VaultPath, filePath);
-        _store.TryRemove(relative, out _);
+        var relativePath = NormalizeVaultRelativePath(
+            Path.GetRelativePath(config.VaultPath, filePath));
+        _store.TryRemove(relativePath, out _);
+        _failedPaths.TryRemove(relativePath, out _);
     }
 
     /// <summary>
@@ -234,11 +241,18 @@ public sealed class EmbeddingService : IDisposable
             return;
         }
 
-        var oldRelative = Path.GetRelativePath(config.VaultPath, oldFilePath);
-        var newRelative = Path.GetRelativePath(config.VaultPath, newFilePath);
-        if (_store.TryRemove(oldRelative, out var entry))
+        var oldRelativePath = NormalizeVaultRelativePath(
+            Path.GetRelativePath(config.VaultPath, oldFilePath));
+        var newRelativePath = NormalizeVaultRelativePath(
+            Path.GetRelativePath(config.VaultPath, newFilePath));
+        if (_store.TryRemove(oldRelativePath, out var entry))
         {
-            _store[newRelative] = entry with { VaultRelativePath = newRelative };
+            _store[newRelativePath] = entry with { VaultRelativePath = newRelativePath };
+        }
+
+        if (_failedPaths.TryRemove(oldRelativePath, out var failure))
+        {
+            _failedPaths[newRelativePath] = failure;
         }
     }
 
@@ -249,14 +263,15 @@ public sealed class EmbeddingService : IDisposable
         IReadOnlyDictionary<string, Note> notesByPath,
         float minScore = 0f)
     {
+        var normalizedExcludePath = NormalizeVaultRelativePath(excludeVaultRelativePath);
         return _store.Values
             .Where(entry =>
                 !entry.VaultRelativePath.Equals(
-                    excludeVaultRelativePath,
+                    normalizedExcludePath,
                     StringComparison.OrdinalIgnoreCase))
             .Select(entry =>
             {
-                var absolutePath = Path.Combine(config.VaultPath, entry.VaultRelativePath);
+                var absolutePath = ResolveVaultAbsolutePath(entry.VaultRelativePath);
                 if (!notesByPath.TryGetValue(absolutePath, out var note))
                 {
                     return null;
@@ -272,9 +287,19 @@ public sealed class EmbeddingService : IDisposable
     }
 
     public float[]? GetVector(string vaultRelativePath) =>
-        _store.TryGetValue(vaultRelativePath, out var entry)
+        _store.TryGetValue(NormalizeVaultRelativePath(vaultRelativePath), out var entry)
             ? entry.Chunks[0].Vector
             : null;
+
+    private string ResolveVaultAbsolutePath(string vaultRelativePath)
+    {
+        var nativeRelativePath = NormalizeVaultRelativePath(vaultRelativePath)
+            .Replace('/', Path.DirectorySeparatorChar);
+        return Path.GetFullPath(Path.Combine(config.VaultPath, nativeRelativePath));
+    }
+
+    private static string NormalizeVaultRelativePath(string path) =>
+        path.Replace('\\', '/').Trim().TrimStart('/');
 
     public Task<float[]?> EmbedQueryAsync(
         string query,
@@ -412,17 +437,18 @@ public sealed class EmbeddingService : IDisposable
             }
         }
 
+        var relativePath = NormalizeVaultRelativePath(note.VaultRelativePath);
         if (chunks.Count > 0)
         {
-            _store[note.VaultRelativePath] = new EmbeddingEntry(
-                note.VaultRelativePath,
+            _store[relativePath] = new EmbeddingEntry(
+                relativePath,
                 note.ContentHash,
                 chunks);
-            _failedPaths.TryRemove(note.VaultRelativePath, out _);
+            _failedPaths.TryRemove(relativePath, out _);
         }
         else
         {
-            _failedPaths[note.VaultRelativePath] = 0;
+            _failedPaths[relativePath] = 0;
         }
     }
 
