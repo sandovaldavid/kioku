@@ -1,5 +1,6 @@
 name: apply-package-feed-fix
 
+# Temporary branch-only workflow; removed after the patch commit is pushed.
 on:
   pull_request:
     branches: [develop]
