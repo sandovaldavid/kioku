@@ -1,6 +1,5 @@
 {
   "name": "kioku",
-  "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "description": "Kioku — MCP Server for Obsidian + Obsidian plugin",
@@ -14,7 +13,9 @@
     "lint:plugin:fix": "pnpm --filter obsidian-kioku-mcp run lint:fix",
     "format:plugin": "pnpm --filter obsidian-kioku-mcp run format",
     "build:plugin": "pnpm --filter obsidian-kioku-mcp run build",
-    "build:server": "dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj"
+    "build:server": "dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj",
+    "docs:generate": "node scripts/generate-public-docs.mjs --write",
+    "docs:check": "node scripts/generate-public-docs.mjs --check"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
