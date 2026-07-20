@@ -1,4 +1,4 @@
-name: codeql
+name: security-analysis
 
 on:
   push:
@@ -18,33 +18,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  analyze:
-    name: codeql (${{ matrix.language }})
+  csharp-analyzers:
+    name: csharp analyzers
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [csharp, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v7
 
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
+
+      - name: Run blocking Roslyn and .NET analyzers
+        run: >-
+          dotnet build Kioku.slnx
+          --configuration Release
+          --no-restore
+          -p:RunAnalyzersDuringBuild=true
+          -p:EnforceCodeStyleInBuild=true
+          -p:TreatWarningsAsErrors=true
+
+  codeql-javascript:
+    name: codeql (javascript-typescript)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: ${{ matrix.language }}
-
-      - name: Setup .NET 10
-        if: matrix.language == 'csharp'
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.x"
-
-      - name: Autobuild C#
-        if: matrix.language == 'csharp'
-        uses: github/codeql-action/autobuild@v4
+          languages: javascript-typescript
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:${{ matrix.language }}"
+          category: /language:javascript-typescript
