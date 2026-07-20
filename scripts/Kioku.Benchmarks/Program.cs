@@ -3,9 +3,15 @@ using BenchmarkDotNet.Running;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 
-BenchmarkSwitcher.FromAssembly(typeof(BenchmarkProgram).Assembly).Run(args);
+namespace Kioku.Benchmarks;
 
-file static class BenchmarkProgram { }
+public static class Program
+{
+    public static void Main(string[] args)
+    {
+        BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+    }
+}
 
 [MemoryDiagnoser]
 public class EmbeddingBenchmarks

@@ -277,7 +277,7 @@ public sealed class AssetTools(
     {
         var relativePath = Path.GetRelativePath(vaultRoot, path);
         return relativePath != "." && relativePath.Split(Path.DirectorySeparatorChar)
-            .Any(segment => segment.StartsWith(".", StringComparison.Ordinal));
+            .Any(segment => segment.StartsWith('.'));
     }
 
     private static bool IsPathWithin(string directory, string candidate)

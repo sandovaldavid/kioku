@@ -23,20 +23,53 @@ jobs:
         with:
           dotnet-version: "10.x"
 
-      - name: Restore
-        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
 
-      - name: Build
+      - name: Build solution
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet build Kioku.slnx --configuration Release --no-restore 2>&1 | tee dotnet-build.log
+
+      - name: Upload failed build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: dotnet-build-diagnostics
+          path: dotnet-build.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Build server (linux-x64)
         run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --runtime linux-x64
 
-      - name: Build (osx-arm64 cross-check)
+      - name: Build server (osx-arm64 cross-check)
         run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --runtime osx-arm64
 
+      - name: Pack .NET tool
+        run: dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --output ./artifacts/packages
+
       - name: Format check
-        run: dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --verify-no-changes --verbosity minimal
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore --verbosity diagnostic
+            dotnet format Kioku.slnx style --verify-no-changes --no-restore --verbosity diagnostic
+          } 2>&1 | tee dotnet-format.log
+
+      - name: Upload failed format diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: dotnet-format-diagnostics
+          path: dotnet-format.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Vulnerability check
-        run: dotnet list src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj package --vulnerable
+        run: dotnet list Kioku.slnx package --vulnerable --include-transitive
 
   test-server:
     name: test-server (ubuntu-latest)
@@ -50,11 +83,14 @@ jobs:
         with:
           dotnet-version: "10.x"
 
-      - name: Restore
-        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
 
       - name: Test with coverage
-        run: dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore --verbosity minimal --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --results-directory ./coverage
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore --verbosity minimal --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx" --results-directory ./coverage 2>&1 | tee dotnet-test.log
 
       - name: Upload failed test diagnostics
         if: failure()
@@ -62,9 +98,10 @@ jobs:
         with:
           name: server-test-results-Linux
           path: |
+            dotnet-test.log
             coverage/**/*.trx
             coverage/**/coverage.cobertura.xml
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
 
       - name: Upload coverage to Codecov
@@ -97,22 +134,27 @@ jobs:
         run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
 
       - name: Test filesystem security contracts
-        run: >-
-          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
-          --configuration Release
-          --no-restore
-          --verbosity minimal
-          --logger "trx;LogFileName=filesystem-results.trx"
-          --results-directory ./filesystem-results
-          --filter "FullyQualifiedName~VaultPathPolicyTests|FullyQualifiedName~VaultIndexSandboxTests|FullyQualifiedName~SecureResearchToolsTests|FullyQualifiedName~PermanentDeletePolicyTests|FullyQualifiedName~NoteHelpersTests"
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity minimal \
+            --logger "trx;LogFileName=filesystem-results.trx" \
+            --results-directory ./filesystem-results \
+            --filter "FullyQualifiedName~VaultPathPolicyTests|FullyQualifiedName~VaultIndexSandboxTests|FullyQualifiedName~SecureResearchToolsTests|FullyQualifiedName~PermanentDeletePolicyTests|FullyQualifiedName~NoteHelpersTests" \
+            2>&1 | tee filesystem-test.log
 
       - name: Upload failed filesystem diagnostics
         if: failure()
         uses: actions/upload-artifact@v6
         with:
           name: filesystem-test-results-${{ runner.os }}
-          path: filesystem-results/**/*.trx
-          if-no-files-found: warn
+          path: |
+            filesystem-test.log
+            filesystem-results/**/*.trx
+          if-no-files-found: error
           retention-days: 7
 
   build-plugin:

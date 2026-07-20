@@ -17,9 +17,10 @@ server (`src/Kioku.Mcp.Server/`) and a TypeScript Obsidian plugin
 See [docs/install.md](docs/install.md) for full setup instructions. In short:
 
 ```bash
-# Server (requires .NET 10 SDK)
-dotnet build src/Kioku.Mcp.Server/
-dotnet test src/Kioku.Mcp.Server.Tests/
+# .NET projects (requires .NET 10 SDK)
+dotnet restore Kioku.slnx
+dotnet build Kioku.slnx --configuration Release --no-restore
+dotnet test Kioku.slnx --configuration Release --no-build
 
 # Plugin (requires Node.js 24+ and pnpm 11+)
 pnpm install
@@ -85,7 +86,11 @@ docs(docs): add WebSocket protocol reference
 
 ## Code style
 
-- **C#**: format with `dotnet format src/Kioku.Mcp.Server/` before committing. No
+- **C#**: run `dotnet format Kioku.slnx whitespace` and
+  `dotnet format Kioku.slnx style` before committing. Repository-wide nullable,
+  deterministic build, code-style, analyzer, and warnings-as-errors settings live in
+  `Directory.Build.props`; package versions live in `Directory.Packages.props`. Analyzer
+  enforcement happens during `dotnet build`, independently from the formatting checks. No
   separator comments (`// ── Name ──`) — use plain `// Name`. Inject `ILogger<T>` and use
   the `.Info()/.Warn()/.Error()/.Debug()` extensions from `Kioku.Mcp.Server.Logging`.
 - **TypeScript**: format with `pnpm format:plugin`, lint with `pnpm lint:plugin`. Use
@@ -99,7 +104,7 @@ If your change adds, renames, or changes the signature of a tool, regenerate the
 reference before opening the PR:
 
 ```bash
-dotnet build src/Kioku.Mcp.Server/
+dotnet build Kioku.slnx --configuration Release
 dotnet run --project scripts/GenerateCommandsRef
 ```
 
@@ -109,7 +114,7 @@ variables or capability groups, also update the root `README.md`,
 
 ## Tests
 
-- Server: `dotnet test src/Kioku.Mcp.Server.Tests/` — please add tests for new tools and
+- Server: `dotnet test Kioku.slnx --configuration Release` — please add tests for new tools and
   bug fixes. Tools that write/move files should use a fresh temporary vault per test
   (`IAsyncLifetime`), not the shared `VaultFixture`.
 - Plugin: covered by Vitest (`pnpm --filter obsidian-kioku-mcp test`, if configured for
@@ -117,8 +122,16 @@ variables or capability groups, also update the root `README.md`,
 
 ## Submitting a pull request
 
-1. Make sure `dotnet build`, `dotnet test`, and `dotnet format --verify-no-changes` are
-   all green for anything touching the server (equivalent `pnpm` commands for the plugin).
+1. For .NET changes, run the repository verification commands below (equivalent `pnpm`
+   commands apply to plugin changes):
+
+   ```bash
+   dotnet restore Kioku.slnx
+   dotnet build Kioku.slnx -c Release --no-restore
+   dotnet test Kioku.slnx -c Release --no-build
+   dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
+   dotnet format Kioku.slnx style --verify-no-changes --no-restore
+   ```
 2. Push your branch and open a PR against `develop` with a clear summary of what changed
    and why, plus how you tested it.
 3. Keep PRs focused — one logical change per PR is easier to review than a bundle of
