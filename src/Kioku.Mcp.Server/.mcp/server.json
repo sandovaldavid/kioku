@@ -13,30 +13,102 @@
       },
       "packageArguments": [],
       "environmentVariables": [
-        {"name":"KIOKU_VAULT_PATH","description":"Absolute path to the Obsidian vault root."},
-        {"name":"KIOKU_MAX_RESULTS","description":"Maximum number of search results returned by query tools."},
-        {"name":"KIOKU_TRANSPORT","description":"MCP transport value: stdio or http. The http value selects Streamable HTTP."},
-        {"name":"KIOKU_HTTP_HOST","description":"Host or interface used by the Streamable HTTP listener."},
-        {"name":"KIOKU_HTTP_PORT","description":"Port used by the Streamable HTTP listener."},
-        {"name":"KIOKU_API_KEY","description":"Bearer token for Streamable HTTP; required for non-loopback bindings unless the unsafe override is explicitly enabled."},
-        {"name":"KIOKU_HTTP_ALLOWED_ORIGINS","description":"Comma-separated exact browser origins accepted by Streamable HTTP."},
-        {"name":"KIOKU_HTTP_TRUSTED_PROXIES","description":"Comma-separated proxy IP addresses trusted to supply forwarded headers."},
-        {"name":"KIOKU_ALLOW_INSECURE_HTTP","description":"Unsafe override that permits a non-loopback Streamable HTTP listener without an API key."},
-        {"name":"KIOKU_HTTP_MAX_REQUEST_BODY_BYTES","description":"Maximum accepted MCP HTTP request body size in bytes."},
-        {"name":"KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS","description":"Maximum execution time for an MCP POST request in seconds."},
-        {"name":"KIOKU_OBSIDIAN_PORT","description":"WebSocket port exposed by the optional Obsidian plugin bridge."},
-        {"name":"KIOKU_BRIDGE_TOKEN","description":"Shared secret for the Obsidian bridge WebSocket; it must match the plugin setting."},
-        {"name":"KIOKU_OLLAMA_URL","description":"Base URL of the Ollama service used for embeddings and optional generation."},
-        {"name":"KIOKU_EMBEDDING_MODEL","description":"Ollama embedding model."},
-        {"name":"KIOKU_GEN_MODEL","description":"Ollama model for optional local generation tools; unset disables generation."},
-        {"name":"KIOKU_INDEX_CONCURRENCY","description":"Maximum concurrent vault indexing operations."},
-        {"name":"KIOKU_EMBEDDING_CONCURRENCY","description":"Maximum concurrent embedding requests."},
-        {"name":"KIOKU_ALLOW_EXTERNAL_READS","description":"Allows read-only imports outside the vault only from explicitly configured roots."},
-        {"name":"KIOKU_EXTERNAL_READ_ROOTS","description":"Platform-path-separator-delimited roots allowed for external read-only imports."},
-        {"name":"KIOKU_ALLOW_PERMANENT_DELETE","description":"Enables irreversible deletion; soft delete remains available when false."},
-        {"name":"KIOKU_GITHUB_TOKEN","description":"GitHub token used by the share_as_gist tool."},
-        {"name":"KIOKU_ENABLE_METRICS","description":"Enables in-memory tool-call counters; note contents are never recorded."},
-        {"name":"KIOKU_SENTRY_DSN","description":"Opt-in Sentry DSN for crash reporting."}
+        {
+          "name": "KIOKU_VAULT_PATH",
+          "description": "Absolute path to the Obsidian vault root."
+        },
+        {
+          "name": "KIOKU_MAX_RESULTS",
+          "description": "Maximum number of search results returned by query tools."
+        },
+        {
+          "name": "KIOKU_TRANSPORT",
+          "description": "MCP transport value: stdio or http. The http value selects Streamable HTTP."
+        },
+        {
+          "name": "KIOKU_HTTP_HOST",
+          "description": "Host or interface used by the Streamable HTTP listener."
+        },
+        {
+          "name": "KIOKU_HTTP_PORT",
+          "description": "Port used by the Streamable HTTP listener."
+        },
+        {
+          "name": "KIOKU_API_KEY",
+          "description": "Bearer token for Streamable HTTP; required for non-loopback bindings unless the unsafe override is explicitly enabled."
+        },
+        {
+          "name": "KIOKU_HTTP_ALLOWED_ORIGINS",
+          "description": "Comma-separated exact browser origins accepted by Streamable HTTP."
+        },
+        {
+          "name": "KIOKU_HTTP_TRUSTED_PROXIES",
+          "description": "Comma-separated proxy IP addresses trusted to supply forwarded headers."
+        },
+        {
+          "name": "KIOKU_ALLOW_INSECURE_HTTP",
+          "description": "Unsafe override that permits a non-loopback Streamable HTTP listener without an API key."
+        },
+        {
+          "name": "KIOKU_HTTP_MAX_REQUEST_BODY_BYTES",
+          "description": "Maximum accepted MCP HTTP request body size in bytes."
+        },
+        {
+          "name": "KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS",
+          "description": "Maximum execution time for an MCP POST request in seconds."
+        },
+        {
+          "name": "KIOKU_OBSIDIAN_PORT",
+          "description": "WebSocket port exposed by the optional Obsidian plugin bridge."
+        },
+        {
+          "name": "KIOKU_BRIDGE_TOKEN",
+          "description": "Shared secret for the Obsidian bridge WebSocket; it must match the plugin setting."
+        },
+        {
+          "name": "KIOKU_OLLAMA_URL",
+          "description": "Base URL of the Ollama service used for embeddings and optional generation."
+        },
+        {
+          "name": "KIOKU_EMBEDDING_MODEL",
+          "description": "Ollama embedding model."
+        },
+        {
+          "name": "KIOKU_GEN_MODEL",
+          "description": "Ollama model for optional local generation tools; unset disables generation."
+        },
+        {
+          "name": "KIOKU_INDEX_CONCURRENCY",
+          "description": "Maximum concurrent vault indexing operations."
+        },
+        {
+          "name": "KIOKU_EMBEDDING_CONCURRENCY",
+          "description": "Maximum concurrent embedding requests."
+        },
+        {
+          "name": "KIOKU_ALLOW_EXTERNAL_READS",
+          "description": "Allows read-only imports outside the vault only from explicitly configured roots."
+        },
+        {
+          "name": "KIOKU_EXTERNAL_READ_ROOTS",
+          "description": "Platform-path-separator-delimited roots allowed for external read-only imports."
+        },
+        {
+          "name": "KIOKU_ALLOW_PERMANENT_DELETE",
+          "description": "Enables irreversible deletion; soft delete remains available when false."
+        },
+        {
+          "name": "KIOKU_GITHUB_TOKEN",
+          "description": "GitHub token used by the share_as_gist tool."
+        },
+        {
+          "name": "KIOKU_ENABLE_METRICS",
+          "description": "Enables in-memory tool-call counters; note contents are never recorded."
+        },
+        {
+          "name": "KIOKU_SENTRY_DSN",
+          "description": "Opt-in Sentry DSN for crash reporting."
+        }
       ]
     }
   ],
