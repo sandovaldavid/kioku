@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.Http.Headers;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -8,6 +9,8 @@ namespace Kioku.Ci;
 internal static class Program
 {
     private const string SmokeMarker = "Kioku MCP end-to-end smoke marker";
+    private static readonly TimeSpan IndexPropagationTimeout = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(250);
 
     public static async Task<int> Main(string[] args)
     {
@@ -137,23 +140,7 @@ internal static class Program
             throw new InvalidOperationException($"create_note did not persist '{expectedPath}'.");
         }
 
-        var readResult = await client.CallToolAsync(
-            "read_note",
-            new Dictionary<string, object?>
-            {
-                ["note"] = noteName,
-                ["format"] = "text",
-            },
-            cancellationToken: cancellationToken);
-        EnsureSuccess("read_note", readResult);
-
-        var text = string.Join(
-            Environment.NewLine,
-            readResult.Content.OfType<TextContentBlock>().Select(block => block.Text));
-        if (!text.Contains(SmokeMarker, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("read_note did not return the content created by create_note.");
-        }
+        await WaitForReadContentAsync(client, noteName, cancellationToken);
 
         var deleteResult = await client.CallToolAsync(
             "delete_note",
@@ -165,6 +152,55 @@ internal static class Program
             },
             cancellationToken: cancellationToken);
         EnsureSuccess("delete_note", deleteResult);
+    }
+
+    private static async Task WaitForReadContentAsync(
+        McpClient client,
+        string noteName,
+        CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(IndexPropagationTimeout);
+        string lastResponse = "<empty>";
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            var readResult = await client.CallToolAsync(
+                "read_note",
+                new Dictionary<string, object?>
+                {
+                    ["note"] = noteName,
+                    ["format"] = "text",
+                },
+                cancellationToken: cancellationToken);
+            EnsureSuccess("read_note", readResult);
+
+            lastResponse = ExtractResultText(readResult);
+            if (lastResponse.Contains(SmokeMarker, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            await Task.Delay(RetryDelay, cancellationToken);
+        }
+
+        throw new InvalidOperationException(
+            $"read_note did not return the created content after index reconciliation. Last response: {lastResponse}");
+    }
+
+    private static string ExtractResultText(CallToolResult result)
+    {
+        var parts = result.Content
+            .OfType<TextContentBlock>()
+            .Select(block => block.Text)
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .ToList();
+
+        if (result.StructuredContent is { } structuredContent)
+        {
+            parts.Add(structuredContent.GetRawText());
+        }
+
+        return string.Join(Environment.NewLine, parts);
     }
 
     private static Process StartHttpServer(SmokeOptions options)
@@ -220,7 +256,7 @@ internal static class Program
             var endpoint = options.Endpoint
                 ?? throw new InvalidOperationException("HTTP endpoint is required.");
             environment["KIOKU_HTTP_HOST"] = endpoint.Host;
-            environment["KIOKU_HTTP_PORT"] = endpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            environment["KIOKU_HTTP_PORT"] = endpoint.Port.ToString(CultureInfo.InvariantCulture);
             environment["KIOKU_HTTP_ALLOWED_ORIGINS"] = "http://localhost";
             environment["KIOKU_API_KEY"] = options.ApiKey;
         }
@@ -278,7 +314,7 @@ internal static class Program
                 // Retry an individual readiness timeout until the overall smoke timeout expires.
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+            await Task.Delay(RetryDelay, cancellationToken);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -306,10 +342,8 @@ internal static class Program
     {
         if (result.IsError is true)
         {
-            var message = string.Join(
-                Environment.NewLine,
-                result.Content.OfType<TextContentBlock>().Select(block => block.Text));
-            throw new InvalidOperationException($"{tool} returned an MCP tool error: {message}");
+            throw new InvalidOperationException(
+                $"{tool} returned an MCP tool error: {ExtractResultText(result)}");
         }
     }
 
@@ -358,7 +392,7 @@ internal static class Program
                     case "--timeout-seconds":
                         timeoutSeconds = int.Parse(
                             RequireValue(args, ref index, argument),
-                            System.Globalization.CultureInfo.InvariantCulture);
+                            CultureInfo.InvariantCulture);
                         break;
                     default:
                         throw new ArgumentException($"Unknown argument '{argument}'.");
@@ -388,7 +422,10 @@ internal static class Program
 
             if (timeoutSeconds is < 5 or > 600)
             {
-                throw new ArgumentOutOfRangeException(nameof(args), timeoutSeconds, "Timeout must be between 5 and 600 seconds.");
+                throw new ArgumentOutOfRangeException(
+                    nameof(args),
+                    timeoutSeconds,
+                    "Timeout must be between 5 and 600 seconds.");
             }
 
             return new SmokeOptions(
