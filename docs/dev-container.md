@@ -24,7 +24,9 @@ Starship is pinned by Docker build argument and installed from the matching upst
 3. Open the repository in VS Code.
 4. Run **Dev Containers: Reopen in Container**.
 
-The first creation configures the shell, restores `Kioku.slnx`, and installs plugin dependencies with `pnpm install --frozen-lockfile`. Rebuild the container after changing the Dockerfile, Features, or any other file under `.devcontainer/`.
+Before the container is created, `initializeCommand` runs `.devcontainer/scripts/initialize-host.sh` on the host. It normalizes directory traversal, file readability, and executable permissions for lifecycle scripts before the repository is exposed through the bind mount. This is required on hardened Linux hosts and rootless container runtimes where permission changes from inside the container can be rejected.
+
+The first creation then configures the shell, restores `Kioku.slnx`, and installs plugin dependencies with `pnpm install --frozen-lockfile`. Rebuild the container after changing the Dockerfile, Features, or any other file under `.devcontainer/`.
 
 ## Personalized shell
 
@@ -57,10 +59,17 @@ The project intentionally does not copy workstation-only aliases, VPN commands, 
 
 ## Lifecycle
 
-- `postCreateCommand` configures the shell and installs repository dependencies.
+- `initializeCommand` runs on the host and normalizes `.devcontainer` permissions before the bind mount is used.
+- `postCreateCommand` runs inside the container, configures the shell, and installs repository dependencies.
 - `postStartCommand` validates UID/GID ownership, repairs non-writable generated paths, and refreshes the shell link.
-- Both scripts are idempotent and terminate after completing their work.
+- All scripts are idempotent and terminate after completing their work.
 - The Dev Container uses `init: true` so orphaned child processes are reaped correctly.
+
+The host-side initialization can also be executed manually:
+
+```bash
+bash .devcontainer/scripts/initialize-host.sh
+```
 
 ## Git and SSH credentials
 
@@ -103,7 +112,7 @@ Run a clean Dev Container build and all repository quality gates from the host:
 bash .devcontainer/scripts/validate-devcontainer.sh
 ```
 
-The validation script requires the Dev Container CLI and uses the committed Feature lockfile in frozen mode.
+The validation script first executes the host permission initializer, then requires the Dev Container CLI and uses the committed Feature lockfile in frozen mode.
 
 ## Optional local services
 
@@ -127,6 +136,14 @@ echo "$SSH_AUTH_SOCK"
 ssh-add -l
 git remote -v
 ```
+
+If a lifecycle script reports `Permission denied`, close the failed container and run this command from the host repository root:
+
+```bash
+bash .devcontainer/scripts/initialize-host.sh
+```
+
+Then use **Dev Containers: Rebuild Container Without Cache**. Do not try to repair the bind-mounted repository using `sudo chmod` from inside the container; hardened or rootless Linux runtimes can reject those changes because the host owns the mount.
 
 If the prompt does not render icons, verify the host terminal font. If Zsh or Starship settings changed, run `bash .devcontainer/scripts/configure-shell.sh`, open a new terminal, or rebuild the Dev Container.
 
