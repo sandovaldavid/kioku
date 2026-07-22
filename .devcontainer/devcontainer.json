@@ -1,5 +1,5 @@
 {
-  "name": "Kioku · .NET 10 + Obsidian Plugin",
+  "name": "Kioku",
   "build": {
     "dockerfile": "Dockerfile",
     "args": {
