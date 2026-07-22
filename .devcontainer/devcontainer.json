@@ -1,0 +1,91 @@
+{
+  "name": "Kioku",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "DOTNET_VARIANT": "2-10.0-noble",
+      "STARSHIP_VERSION": "1.26.0"
+    }
+  },
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "securityOpt": ["label=disable"],
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2.5.9": {
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "upgradePackages": false,
+      "username": "vscode"
+    },
+    "ghcr.io/devcontainers/features/node:2.1.0": {
+      "version": "24",
+      "pnpmVersion": "11.9.0",
+      "nodeGypDependencies": true,
+      "installYarnUsingApt": false
+    },
+    "ghcr.io/devcontainers/features/github-cli:1.1.0": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "EditorConfig.EditorConfig",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml",
+        "timonwong.shellcheck"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "files.eol": "\n",
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.fontFamily": "'CaskaydiaCove Nerd Font', 'Cascadia Code', monospace",
+        "terminal.integrated.shellIntegration.enabled": true,
+        "eslint.workingDirectories": [
+          {
+            "mode": "auto"
+          }
+        ],
+        "[csharp]": {
+          "editor.defaultFormatter": "ms-dotnettools.csharp"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[toml]": {
+          "editor.defaultFormatter": "tamasfe.even-better-toml"
+        }
+      }
+    }
+  },
+  "containerEnv": {
+    "DEVCONTAINER": "true",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_NOLOGO": "1",
+    "NUGET_XMLDOC_MODE": "skip"
+  },
+  "remoteEnv": {
+    "KIOKU_WORKSPACE": "${containerWorkspaceFolder}",
+    "STARSHIP_CONFIG": "${containerWorkspaceFolder}/.devcontainer/shell/starship.toml"
+  },
+  "init": true,
+  "forwardPorts": [5173],
+  "portsAttributes": {
+    "5173": {
+      "label": "Kioku Streamable HTTP",
+      "onAutoForward": "notify"
+    }
+  },
+  "initializeCommand": "bash .devcontainer/scripts/initialize-host.sh",
+  "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+  "postStartCommand": "bash .devcontainer/scripts/post-start.sh",
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "16gb"
+  },
+  "shutdownAction": "stopContainer"
+}
