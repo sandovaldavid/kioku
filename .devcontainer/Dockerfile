@@ -36,14 +36,18 @@ RUN set -eux; \
         *) echo "Unsupported architecture for Starship: ${architecture}" >&2; exit 1 ;; \
     esac; \
     archive="starship-${starship_target}.tar.gz"; \
+    checksum_file="${archive}.sha256"; \
     release_url="https://github.com/starship/starship/releases/download/v${STARSHIP_VERSION}"; \
     cd /tmp; \
     curl -fsSLO "${release_url}/${archive}"; \
-    curl -fsSLO "${release_url}/${archive}.sha256"; \
-    sha256sum -c "${archive}.sha256"; \
+    curl -fsSLO "${release_url}/${checksum_file}"; \
+    expected_checksum="$(tr -d '[:space:]' < "${checksum_file}")"; \
+    printf '%s' "${expected_checksum}" | grep -Eq '^[0-9a-fA-F]{64}$' \
+        || { echo "Invalid Starship checksum format in ${checksum_file}." >&2; exit 1; }; \
+    printf '%s  %s\n' "${expected_checksum}" "${archive}" | sha256sum -c -; \
     tar -xzf "${archive}"; \
     install -m 0755 starship /usr/local/bin/starship; \
-    rm -f starship "${archive}" "${archive}.sha256"
+    rm -f starship "${archive}" "${checksum_file}"
 
 USER vscode
 
