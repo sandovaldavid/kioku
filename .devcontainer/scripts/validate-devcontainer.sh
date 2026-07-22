@@ -5,6 +5,9 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
+echo "[info] Normalizing host-side Dev Container permissions..."
+bash .devcontainer/scripts/initialize-host.sh
+
 if ! command -v devcontainer >/dev/null 2>&1; then
   echo "[error] The Dev Container CLI is required." >&2
   echo "Install it from VS Code or with: npm install -g @devcontainers/cli" >&2
@@ -48,7 +51,11 @@ devcontainer exec --workspace-folder . bash -lc '
 
   node scripts/lib/validate-skill-frontmatter.mjs
   ./scripts/sync-skill.sh --check
-  shellcheck scripts/add-to-client.sh scripts/sync-skill.sh scripts/install.sh scripts/sync-develop-to-main.sh
+  shellcheck .devcontainer/scripts/*.sh \
+    scripts/add-to-client.sh \
+    scripts/sync-skill.sh \
+    scripts/install.sh \
+    scripts/sync-develop-to-main.sh
 '
 
 echo "[ok] Dev Container and repository validation completed successfully."
