@@ -78,7 +78,7 @@
       "onAutoForward": "notify"
     }
   },
-  "onCreateCommand": "sudo chmod -R a+rX .devcontainer && sudo find .devcontainer/scripts -type f -name '*.sh' -exec chmod 0755 {} +",
+  "initializeCommand": "bash .devcontainer/scripts/initialize-host.sh",
   "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
   "postStartCommand": "bash .devcontainer/scripts/post-start.sh",
   "hostRequirements": {
