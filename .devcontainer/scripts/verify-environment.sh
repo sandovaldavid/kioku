@@ -6,6 +6,14 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 export KIOKU_WORKSPACE="${KIOKU_WORKSPACE:-$repo_root}"
 export STARSHIP_CONFIG="${STARSHIP_CONFIG:-$repo_root/.devcontainer/shell/starship.toml}"
 
+for script_path in "$repo_root"/.devcontainer/scripts/*.sh; do
+  if [[ ! -r "$script_path" ]] || [[ ! -x "$script_path" ]]; then
+    echo "[error] Dev Container script is not readable and executable: $script_path" >&2
+    echo "Rebuild the container so onCreateCommand can normalize script permissions." >&2
+    exit 1
+  fi
+done
+
 required_commands=(
   bat
   dotnet
@@ -73,6 +81,7 @@ printf '[ok] dotnet=%s node=%s pnpm=%s starship=%s\n' \
 printf '[ok] git=%s gh=%s\n' \
   "$(git --version | awk '{print $3}')" \
   "$(gh --version | head -n 1 | awk '{print $3}')"
+printf '[ok] devcontainer scripts are readable and executable.\n'
 
 if ! git config --global --get user.name >/dev/null 2>&1 || \
    ! git config --global --get user.email >/dev/null 2>&1; then
