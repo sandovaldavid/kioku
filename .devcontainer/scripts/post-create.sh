@@ -18,7 +18,7 @@ echo "[info] Restoring .NET dependencies..."
 dotnet restore Kioku.slnx
 
 echo "[info] Installing plugin dependencies from pnpm-lock.yaml..."
-pnpm install --frozen-lockfile
+CI=true pnpm install --frozen-lockfile
 
 echo "[ok] Kioku development environment is ready."
 echo "[info] Open a new terminal to load the project prompt and Kioku command shortcuts."

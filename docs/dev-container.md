@@ -26,7 +26,9 @@ Starship is pinned by Docker build argument and installed from the matching upst
 
 Before the container is created, `initializeCommand` runs `.devcontainer/scripts/initialize-host.sh` on the host. It normalizes directory traversal, file readability, and executable permissions for lifecycle scripts before the repository is exposed through the bind mount. This is required on hardened Linux hosts and rootless container runtimes where permission changes from inside the container can be rejected.
 
-The first creation then configures the shell, restores `Kioku.slnx`, and installs plugin dependencies with `pnpm install --frozen-lockfile`. Rebuild the container after changing the Dockerfile, Features, or any other file under `.devcontainer/`.
+On Linux hosts with SELinux enforcing, the configuration disables SELinux label confinement for this development container so the automatic workspace bind mount remains readable. This setting applies only to the Dev Container. It does not change the remote user, run the container as `root`, or affect the production image and Compose services.
+
+The first creation then configures the shell, restores `Kioku.slnx`, and installs plugin dependencies with `CI=true pnpm install --frozen-lockfile`. The non-interactive setting lets lifecycle commands recreate stale `node_modules` directories safely. Rebuild the container after changing the Dockerfile, Features, or any other file under `.devcontainer/`.
 
 ## Personalized shell
 
@@ -45,15 +47,15 @@ For the intended icon rendering, install **CaskaydiaCove Nerd Font** on the host
 
 Project shortcuts:
 
-| Command | Action |
-| --- | --- |
-| `croot` | Change to the Kioku repository root. |
-| `krestore` | Restore the .NET solution. |
-| `kbuild` | Build the solution in Release mode. |
-| `ktest` | Run the solution tests in Release mode. |
-| `kformat` | Apply the repository's .NET whitespace and style formatters. |
-| `kplugin` | Lint, test, and build the Obsidian plugin. |
-| `kverify` | Verify the Dev Container user, shell, prompt, credentials, and toolchain. |
+| Command    | Action                                                                    |
+| ---------- | ------------------------------------------------------------------------- |
+| `croot`    | Change to the Kioku repository root.                                      |
+| `krestore` | Restore the .NET solution.                                                |
+| `kbuild`   | Build the solution in Release mode.                                       |
+| `ktest`    | Run the solution tests in Release mode.                                   |
+| `kformat`  | Apply the repository's .NET whitespace and style formatters.              |
+| `kplugin`  | Lint, test, and build the Obsidian plugin.                                |
+| `kverify`  | Verify the Dev Container user, shell, prompt, credentials, and toolchain. |
 
 The project intentionally does not copy workstation-only aliases, VPN commands, Bitwarden socket paths, AI CLI installers, or personal Git identity from the dotfiles repository.
 
@@ -144,6 +146,8 @@ bash .devcontainer/scripts/initialize-host.sh
 ```
 
 Then use **Dev Containers: Rebuild Container Without Cache**. Do not try to repair the bind-mounted repository using `sudo chmod` from inside the container; hardened or rootless Linux runtimes can reject those changes because the host owns the mount.
+
+If VS Code Server reports `EACCES` while scanning `/workspaces/kioku` on a Linux host, check the host SELinux mode with `getenforce` and inspect recent AVC denials with `ausearch -m avc -ts recent`. The Dev Container uses `securityOpt: ["label=disable"]` for this host integration issue. Do not replace it with `remoteUser: "root"` or `privileged: true`: those settings do not address the SELinux label mismatch and reduce the container's security and ownership guarantees.
 
 If the prompt does not render icons, verify the host terminal font. If Zsh or Starship settings changed, run `bash .devcontainer/scripts/configure-shell.sh`, open a new terminal, or rebuild the Dev Container.
 
