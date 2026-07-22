@@ -4,207 +4,67 @@ title: Vault Configuration Guide
 sidebar: true
 ---
 
-Kioku reads an optional configuration file at `{KIOKU_VAULT_PATH}/.kioku/config.yml`.
-Every section is optional. If the file or a section is missing, Kioku uses the defaults below.
-Keys use `snake_case`.
+# Vault configuration
 
-A complete annotated example is [`vault-config.example.yml`](vault-config.example.yml).
+Kioku reads optional vault behavior from `{KIOKU_VAULT_PATH}/.kioku/config.yml`. Every section is optional and keys use `snake_case`. Process settings such as transport, security, concurrency, and integrations are documented in the generated [server configuration reference](configuration-reference.md).
 
-## `vault` - Identity
+A complete annotated example is available in [`vault-config.example.yml`](vault-config.example.yml).
 
-```yaml
-vault:
-  name: "My Vault"
-```
+## Folder roles and defaults
 
-Informational only; shown in logs and status output.
+The `vault` section provides an informational name. The `folders` section assigns vault-relative locations for inbox, zettel, daily, literature, sessions, templates, assets, projects, and knowledge. `domains` and `defaults` define metadata applied by structured note creation; explicit tool arguments always win.
 
-## `folders` - Creation locations
+## Exclusions, tags, and templates
 
-Folder roles are vault-relative paths. Structured `create_note` kinds, sessions, engineering
-workspaces, and templates use these defaults when the caller does not pass a folder.
+- `exclude` removes folders from indexing and embeddings. Dot-folders are always excluded.
+- `auto_tags.inherit` applies tags from the longest matching folder prefix.
+- `auto_tags.exclude_from_tags` prevents selected frontmatter fields from becoming tags.
+- `template_folders` maps destination folders to vault-relative Markdown templates.
 
-```yaml
-folders:
-  inbox: "Inbox"
-  zettel: "Zettelkasten"
-  daily: "Daily"
-  literature: "Literature"
-  sessions: "Sessions"
-  templates: "System/Templates"
-  assets: "System/Attachments"
-  projects: "Projects"
-  knowledge: "Knowledge"
-```
+## Frontmatter and generated indexes
 
-The `zettel` folder role remains a location convention. `zettelkasten` is not a capability group;
-use `create_note` with `kind: zettel`, `literature`, `moc`, or `folder-readme` for structured notes.
+`frontmatter.maintain_updated` defaults to `false`. When enabled, Kioku maintains `updated` or `modified` timestamps while preserving custom typed frontmatter.
 
-## `domains` and `defaults`
+`generated_indexes.refresh` accepts `manual` or `on_mutation`. Managed MOCs and folder readmes preserve user text outside their generated section. `rebuild_index` refreshes the in-memory search index only; it does not rewrite Markdown indexes.
 
-`domains` assigns a `domain:` property by folder. Exact folders win over the longest matching
-prefix, which wins over `defaults.{type}.domain`.
+## Engineering workspaces
 
-```yaml
-domains:
-  "Projects": "work/projects"
-  "Research": "academic/research"
+`engineering.subfolders` customizes the project directories used for decisions, bugs, plans, knowledge, sessions, daily notes, tickets, and backlog items. Project identifiers may contain `/`; use the full identifier returned by `list_projects`.
 
-defaults:
-  note:
-    type: capture
-    status: inbox
-  zettel:
-    type: concept
-    status: active
-  literature:
-    type: source
-    status: draft
-    tags: [source]
-```
+## Capability profiles
 
-Each default accepts `type`, `status`, `domain`, and `tags`. Explicit values passed to
-`create_note` win.
+Core tools are always registered. Optional groups enabled by default are:
 
-## `exclude` and `auto_tags`
-
-Dot-folders such as `.obsidian`, `.trash`, and `.kioku` are always excluded. Add folders to keep
-them out of search, indexing, and embeddings:
-
-```yaml
-exclude:
-  - "Archive"
-
-auto_tags:
-  inherit:
-    "Research": [research]
-    "Research/Papers": [research, paper]
-  exclude_from_tags: [domain, type, status]
-```
-
-Tags from the longest matching folder prefix are inherited. `exclude_from_tags` prevents
-frontmatter fields from becoming tags.
-
-## `template_folders`
-
-Maps a destination folder to a vault-relative Markdown template. The file is read on each
-creation. This applies to structured `create_note` kinds and can supplement Templater folder
-templates.
-
-```yaml
-template_folders:
-  "Journal/Daily": "Templates/Daily Note.md"
-  "Areas/Work/Meetings": "Templates/Meeting.md"
-```
-
-For an explicitly selected template, use `create_note` with `template`, or use the plugin-only
-`apply_template` tool when Templater evaluation is required.
-
-## `frontmatter` - Mutation timestamps
-
-Kioku preserves existing frontmatter by default and does not add or change `updated` fields. To
-make Kioku maintain a timestamp on notes it writes, opt in at the vault level:
-
-```yaml
-frontmatter:
-  maintain_updated: true
-```
-
-When enabled, Kioku updates an existing `updated:` or `modified:` field, adds `updated:` when
-frontmatter exists without either field, and creates minimal frontmatter for notes that had none.
-The default is `false` for compatibility with vaults where Obsidian Linter owns timestamps.
-
-## `generated_indexes` - MOC and folder-note refresh
-
-MOCs and folder-readmes created by Kioku are snapshots. They include provenance and managed-section
-markers so the server can refresh them safely. Refresh is manual by default:
-
-```yaml
-generated_indexes:
-  refresh: manual       # default; regenerate explicitly with create_note
-  # refresh: on_mutation
-```
-
-With `on_mutation`, Kioku refreshes only generated indexes created with managed markers after note
-creation, edits, moves, restores, or deletes. Legacy indexes without markers are not overwritten.
-Text outside the managed section is preserved. `rebuild_index` only rebuilds the search index; it
-does not regenerate Markdown indexes.
-
-## `engineering` - Project workspaces
-
-The `engineering` capability provides `create_project_doc`, `get_project_context`, `list_projects`,
-and `setup_agent_workflow`. It stores ADRs, bugs, plans, knowledge, sessions, daily notes, tickets,
-and backlog ideas under `folders.projects/{project}`:
-
-```
-Projects/{project}/
-  {project}.md
-  decisions/
-  bugs/
-  plans/
-  knowledge/
-  sessions/
-  daily/
-  tickets/
-  backlog/
-```
-
-Project identifiers may contain `/` for grouped projects, such as `Atena/api.core`. Use the full
-identifier returned by `list_projects`. The standard subfolder names are configurable:
-
-```yaml
-engineering:
-  subfolders:
-    decisions: "decisions"
-    bugs: "bugs"
-    plans: "plans"
-    knowledge: "knowledge"
-    sessions: "sessions"
-    daily: "daily"
-    tickets: "tickets"
-    backlog: "backlog"
-```
-
-`setup_agent_workflow` copies the embedded engineering templates to
-`{folders.templates}/kioku/`. `manage_templates` with `scope: engineering` can list, read, or
-replace those overrides.
-
-## `capabilities` - Tool groups
-
-The server exposes 49 tools across 16 classes. Core query, command, and utility tools are always
-registered. With no `capabilities` section, these groups are disabled by default:
-
-```yaml
-research, generation, css, assets, bridge, plugin
-```
-
-The other optional groups are enabled by default:
-
-```yaml
+```text
 tasks, organization, sessions, workflows, graph, engineering
 ```
 
-Git, restore, and zettelkasten are removed groups and are not valid capability names. Use native
-Git for repository history and recovery, `manage_trash` for Kioku soft-delete listing/restoration,
-and `create_note` for structured note conventions.
+Optional groups disabled by default are:
 
-```yaml
-# Disable additional groups. "*" disables every optional group.
-capabilities:
-  disabled: [research, generation, css, assets, bridge, plugin]
-
-# Or use allowlist mode. Only listed optional groups are registered.
-# capabilities:
-#   require_explicit: true
-#   enabled: [tasks, organization, engineering]
+```text
+research, generation, css, assets, bridge, plugin
 ```
 
-An explicit `disabled` list is applied before `require_explicit`. Changes require a server restart
-because tool groups are registered at startup.
+Use either a denylist:
 
-## Related docs
+```yaml
+capabilities:
+  disabled: [research, generation, css, assets, bridge, plugin]
+```
 
-- [Installation Guide](install.md)
-- [Commands Reference](commands-reference.md) - every implemented tool with parameters
-- [Migration Guide](migration-v3.md) - old names and their replacements
-- [Troubleshooting](troubleshooting.md)
+or explicit allowlist mode:
+
+```yaml
+capabilities:
+  require_explicit: true
+  enabled: [tasks, organization, engineering]
+```
+
+Changes require a server restart. The generated [MCP contract reference](commands-reference.md) records exact profile counts and schemas from live protocol discovery.
+
+## Related documentation
+
+- [MCP contract reference](commands-reference.md)
+- [Server configuration reference](configuration-reference.md)
+- [Installation guide](install.md)
+- [Migration guide](migration-v3.md)
