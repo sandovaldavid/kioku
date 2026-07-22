@@ -9,7 +9,7 @@ export STARSHIP_CONFIG="${STARSHIP_CONFIG:-$repo_root/.devcontainer/shell/starsh
 for script_path in "$repo_root"/.devcontainer/scripts/*.sh; do
   if [[ ! -r "$script_path" ]] || [[ ! -x "$script_path" ]]; then
     echo "[error] Dev Container script is not readable and executable: $script_path" >&2
-    echo "Rebuild the container so onCreateCommand can normalize script permissions." >&2
+    echo "Reopen or rebuild the Dev Container so initializeCommand can normalize host-side permissions." >&2
     exit 1
   fi
 done
