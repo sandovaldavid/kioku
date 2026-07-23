@@ -10,33 +10,11 @@ namespace Kioku.Mcp.Server.Tools;
 [McpServerToolType]
 public sealed class SessionContextTools
 {
-    private readonly WorkSessionService _sessions;
+    private readonly IWorkSessionService _sessions;
 
-    public SessionContextTools(
-        VaultIndexService vault,
-        KiokuConfiguration config,
-        VaultConfigService vaultConfig,
-        ProjectWorkspaceService workspace,
-        ObsidianBridgeService bridge)
-        : this(vault, config, vaultConfig, workspace, bridge, TimeProvider.System)
+    public SessionContextTools(IWorkSessionService sessions)
     {
-    }
-
-    internal SessionContextTools(
-        VaultIndexService vault,
-        KiokuConfiguration config,
-        VaultConfigService vaultConfig,
-        ProjectWorkspaceService workspace,
-        ObsidianBridgeService bridge,
-        TimeProvider timeProvider)
-    {
-        _sessions = new WorkSessionService(
-            vault,
-            config,
-            vaultConfig,
-            workspace,
-            bridge,
-            timeProvider);
+        _sessions = sessions;
     }
 
     [McpServerTool, Description(
