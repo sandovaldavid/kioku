@@ -27,7 +27,8 @@ public sealed class WorkSessionArchitectureTests
         services.AddKiokuRuntime(configuration);
 
         var descriptor = Assert.Single(
-            services.Where(service => service.ServiceType == typeof(IWorkSessionService)));
+            services,
+            service => service.ServiceType == typeof(IWorkSessionService));
 
         Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
         Assert.Equal(typeof(WorkSessionService), descriptor.ImplementationType);
