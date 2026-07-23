@@ -99,6 +99,7 @@ internal sealed class KiokuRuntime(
         await embedding.InitializeAsync(indexing.GetNotesSnapshot(), cancellationToken);
         indexingMetrics.EmbeddingInitializationCompleted(
             timeProvider.GetElapsedTime(embeddingStartedAt));
+
         await generation.InitializeAsync(cancellationToken);
 
         return new KiokuRuntimeStatus(
