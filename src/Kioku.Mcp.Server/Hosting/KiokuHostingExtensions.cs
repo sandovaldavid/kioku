@@ -34,6 +34,7 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<MetricsService>();
         services.AddSingleton<ProjectWorkspaceService>();
         services.AddSingleton<VaultConfigService>();
+        services.AddSingleton<IWorkSessionService, WorkSessionService>();
         services.AddTransient<ZettelkastenTools>();
 
         services.AddSingleton<IKiokuRuntime, KiokuRuntime>();
@@ -98,7 +99,6 @@ internal sealed class KiokuRuntime(
         await embedding.InitializeAsync(indexing.GetNotesSnapshot(), cancellationToken);
         indexingMetrics.EmbeddingInitializationCompleted(
             timeProvider.GetElapsedTime(embeddingStartedAt));
-
         await generation.InitializeAsync(cancellationToken);
 
         return new KiokuRuntimeStatus(
