@@ -23,6 +23,35 @@ public sealed class WorkSessionConcurrencyTests : IAsyncLifetime
     public Task DisposeAsync() => _fixture.DisposeAsync();
 
     [Fact]
+    public async Task ApplicationService_StartAndEnd_DoNotRequireMcpHost()
+    {
+        var service = CreateService();
+        var started = await service.StartAsync(
+            sessionName: "",
+            sessionsFolder: "",
+            goal: "Validate the application boundary.",
+            project: "demo",
+            agent: "codex",
+            sessionId: "",
+            parentSessionId: "",
+            mcpClientName: null);
+        var sessionId = GetSessionId(started);
+
+        _time.Advance(TimeSpan.FromMinutes(10));
+        var ended = await service.EndAsync(
+            sessionNote: "",
+            summary: "Application service completed without an MCP host.",
+            project: "demo",
+            sessionId: sessionId,
+            agent: "codex",
+            mcpClientName: null);
+
+        Assert.StartsWith("[ok]", ended);
+        Assert.Contains("\"duration_seconds\":600", ended);
+        Assert.Equal("done", FindById(sessionId).Metadata.Status);
+    }
+
+    [Fact]
     public async Task ParallelStarts_ThreeAgents_GetDistinctIdsAndFiles()
     {
         var tools = CreateTools();
@@ -178,7 +207,9 @@ public sealed class WorkSessionConcurrencyTests : IAsyncLifetime
         Assert.Equal(parentId, child.Metadata.ExtraFields["parent_session_id"]);
     }
 
-    private SessionContextTools CreateTools()
+    private SessionContextTools CreateTools() => new(CreateService());
+
+    private WorkSessionService CreateService()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
         var vaultConfig = new VaultConfigService(
@@ -188,7 +219,7 @@ public sealed class WorkSessionConcurrencyTests : IAsyncLifetime
             NullLogger<ObsidianBridgeService>.Instance,
             config);
         var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge);
-        return new SessionContextTools(
+        return new WorkSessionService(
             _fixture.Index,
             config,
             vaultConfig,
