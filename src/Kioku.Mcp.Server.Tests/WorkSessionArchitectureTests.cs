@@ -23,7 +23,7 @@ public sealed class WorkSessionArchitectureTests
     public void Runtime_RegistersApplicationPortToConcreteService()
     {
         var services = new ServiceCollection();
-        using var configuration = new ConfigurationBuilder().Build();
+        var configuration = new ConfigurationBuilder().Build();
         services.AddKiokuRuntime(configuration);
 
         var descriptor = Assert.Single(
