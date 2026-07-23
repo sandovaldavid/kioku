@@ -8,7 +8,7 @@ namespace Kioku.Mcp.Server.Tools;
 /// MCP adapter for durable, concurrency-safe work sessions and vault context awareness.
 /// </summary>
 [McpServerToolType]
-public sealed class SessionContextTools
+public sealed partial class SessionContextTools
 {
     private readonly IWorkSessionService _sessions;
 
