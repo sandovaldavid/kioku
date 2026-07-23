@@ -10,7 +10,8 @@ public interface IWorkSessionService
         string inboxFolder,
         int maxPerSection,
         string recentFolder,
-        int recentLimit);
+        int recentLimit,
+        CancellationToken cancellationToken = default);
 
     Task<string> StartAsync(
         string sessionName,
@@ -20,7 +21,8 @@ public interface IWorkSessionService
         string agent,
         string sessionId,
         string parentSessionId,
-        string? mcpClientName);
+        string? mcpClientName,
+        CancellationToken cancellationToken = default);
 
     Task<string> EndAsync(
         string sessionNote,
@@ -28,12 +30,14 @@ public interface IWorkSessionService
         string project,
         string sessionId,
         string agent,
-        string? mcpClientName);
+        string? mcpClientName,
+        CancellationToken cancellationToken = default);
 
     Task<string> ListAsync(
         string sessionsFolder,
         string project,
-        bool includeActivity);
+        bool includeActivity,
+        CancellationToken cancellationToken = default);
 }
 
 internal sealed partial class WorkSessionService : IWorkSessionService
