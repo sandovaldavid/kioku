@@ -31,7 +31,7 @@ Dependencies point inward from protocol adapters toward application contracts. W
 
 ## Session vertical slice
 
-The session adapter depends only on `IWorkSessionService`. It no longer creates `WorkSessionService` or receives vault, configuration, bridge, workspace, or clock infrastructure dependencies directly.
+The production session adapter exposes one public constructor and depends only on `IWorkSessionService`. It no longer constructs `WorkSessionService` or receives vault, configuration, bridge, workspace, or clock infrastructure dependencies through its production activation path.
 
 ```mermaid
 flowchart LR
@@ -46,18 +46,20 @@ flowchart LR
 
 `IWorkSessionService` and `WorkSessionService` are registered as a singleton mapping in `AddKiokuRuntime`. Session workflow tests can instantiate and execute the application service without starting an MCP host.
 
+Existing integration fixtures still use internal compatibility constructors isolated in `SessionContextTools.Compatibility.cs`. They are not used by MCP activation and should be removed when those fixtures are migrated to shared service builders in the next architecture slice.
+
 Architecture tests enforce that:
 
-- `SessionContextTools` exposes one constructor whose only dependency is `IWorkSessionService`;
+- `SessionContextTools` exposes one public constructor whose only dependency is `IWorkSessionService`;
 - the host maps `IWorkSessionService` to `WorkSessionService` as a singleton;
-- the adapter does not construct the workflow service or reference session infrastructure dependencies.
+- the production adapter source does not construct the workflow service or reference session infrastructure dependencies.
 
 ## Incremental migration plan
 
 Issue #250 is intentionally delivered in vertical slices:
 
 1. **Session application boundary** — adapter delegation, DI ownership, architecture guard tests.
-2. **Session infrastructure ports** — move direct filesystem operations behind a vault/session repository abstraction and propagate cancellation to I/O.
+2. **Session infrastructure ports** — move direct filesystem operations behind a vault/session repository abstraction, migrate the remaining compatibility fixtures, and propagate cancellation to I/O.
 3. **Project-document workflows** — extract engineering orchestration from MCP adapters.
 4. **Note queries and presenters** — separate query use cases from protocol and textual presentation.
 5. **Project boundaries** — introduce separate application/infrastructure projects only when the extracted contracts are stable enough to justify the additional assemblies.
