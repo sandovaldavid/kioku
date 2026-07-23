@@ -23,7 +23,8 @@ public sealed class WorkSessionArchitectureTests
     public void Runtime_RegistersApplicationPortToConcreteService()
     {
         var services = new ServiceCollection();
-        services.AddKiokuRuntime(new ConfigurationBuilder().Build());
+        using var configuration = new ConfigurationBuilder().Build();
+        services.AddKiokuRuntime(configuration);
 
         var descriptor = Assert.Single(
             services.Where(service => service.ServiceType == typeof(IWorkSessionService)));
@@ -37,12 +38,12 @@ public sealed class WorkSessionArchitectureTests
     {
         var source = ReadRepositoryFile("src/Kioku.Mcp.Server/Tools/SessionContextTools.cs");
 
-        Assert.DoesNotContain("new WorkSessionService", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("VaultIndexService", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("KiokuConfiguration", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("VaultConfigService", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("ProjectWorkspaceService", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("ObsidianBridgeService", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new WorkSessionService", source);
+        Assert.DoesNotContain("VaultIndexService", source);
+        Assert.DoesNotContain("KiokuConfiguration", source);
+        Assert.DoesNotContain("VaultConfigService", source);
+        Assert.DoesNotContain("ProjectWorkspaceService", source);
+        Assert.DoesNotContain("ObsidianBridgeService", source);
     }
 
     private static string ReadRepositoryFile(string relativePath)
