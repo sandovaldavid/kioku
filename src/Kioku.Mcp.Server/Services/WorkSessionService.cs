@@ -19,6 +19,7 @@ internal sealed partial class WorkSessionService
     private readonly VaultConfigService _vaultConfig;
     private readonly ProjectWorkspaceService _workspace;
     private readonly ObsidianBridgeService _bridge;
+    private readonly IWorkSessionFileSystem _fileSystem;
     private readonly TimeProvider _timeProvider;
 
     public WorkSessionService(
@@ -27,6 +28,7 @@ internal sealed partial class WorkSessionService
         VaultConfigService vaultConfig,
         ProjectWorkspaceService workspace,
         ObsidianBridgeService bridge,
+        IWorkSessionFileSystem fileSystem,
         TimeProvider timeProvider)
     {
         _vault = vault;
@@ -34,6 +36,7 @@ internal sealed partial class WorkSessionService
         _vaultConfig = vaultConfig;
         _workspace = workspace;
         _bridge = bridge;
+        _fileSystem = fileSystem;
         _timeProvider = timeProvider;
     }
 
@@ -41,8 +44,10 @@ internal sealed partial class WorkSessionService
         string inboxFolder,
         int maxPerSection,
         string recentFolder,
-        int recentLimit)
+        int recentLimit,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         inboxFolder = string.IsNullOrWhiteSpace(inboxFolder)
             ? _vaultConfig.GetFolder("inbox") ?? "Inbox"
             : inboxFolder;
@@ -64,6 +69,7 @@ internal sealed partial class WorkSessionService
         {
             foreach (var note in inbox)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 sb.AppendLine($"- [[{note.Name}]] _(modified {FormatAge(note.LastModified, now)} ago)_");
             }
         }
@@ -82,6 +88,7 @@ internal sealed partial class WorkSessionService
         {
             foreach (var note in drafts)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var tags = note.Metadata.Tags.Count == 0
                     ? string.Empty
                     : $" [{string.Join(", ", note.Metadata.Tags.Take(2).Select(tag => "#" + tag))}]";
@@ -100,6 +107,7 @@ internal sealed partial class WorkSessionService
         sb.AppendLine($"## Recently Modified{scope} ({recent.Count} note(s))");
         foreach (var note in recent)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             sb.AppendLine($"- [[{note.Name}]] _(modified {FormatAge(note.LastModified, now)} ago)_");
         }
 
@@ -114,6 +122,7 @@ internal sealed partial class WorkSessionService
         {
             foreach (var session in active)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var project = string.IsNullOrWhiteSpace(session.Project) ? "global" : session.Project;
                 var id = session.SessionId ?? "(legacy session without id)";
                 sb.AppendLine(
@@ -133,11 +142,13 @@ internal sealed partial class WorkSessionService
         string agent,
         string sessionId,
         string parentSessionId,
-        string? mcpClientName)
+        string? mcpClientName,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!string.IsNullOrWhiteSpace(sessionId))
         {
-            return await ResumeAsync(sessionId.Trim(), project);
+            return await ResumeAsync(sessionId.Trim(), project, cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(project) &&
@@ -158,7 +169,7 @@ internal sealed partial class WorkSessionService
 
         if (!string.IsNullOrWhiteSpace(project))
         {
-            await _workspace.EnsureProjectScaffoldAsync(project);
+            await _workspace.EnsureProjectScaffoldAsync(project).WaitAsync(cancellationToken);
             targetFolder = _workspace.GetSubfolder(project, "sessions");
             relativeFolder = _workspace.ToVaultRelative(targetFolder);
             projectLink = $"[[{ProjectWorkspaceService.ProjectLeafName(project)}]]";
@@ -171,7 +182,6 @@ internal sealed partial class WorkSessionService
             targetFolder = NoteHelpers.EnsureInsideVault(
                 _config.VaultPath,
                 Path.Combine(_config.VaultPath, relativeFolder));
-            Directory.CreateDirectory(targetFolder);
         }
 
         var title = string.IsNullOrWhiteSpace(sessionName)
@@ -216,20 +226,29 @@ internal sealed partial class WorkSessionService
             updated: _vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(now.UtcDateTime) : null);
 
         var body = !string.IsNullOrWhiteSpace(project)
-            ? await BuildProjectBodyAsync(title, goal, project, projectLink!, agentName, now)
-            : await BuildGlobalBodyAsync(title, goal, relativeFolder, now);
-        var filePath = await WriteNewSessionFileAsync(
+            ? await BuildProjectBodyAsync(
+                title,
+                goal,
+                project,
+                projectLink!,
+                agentName,
+                now,
+                cancellationToken)
+            : await BuildGlobalBodyAsync(title, goal, relativeFolder, now, cancellationToken);
+        var filePath = await _fileSystem.WriteNewSessionFileAsync(
             targetFolder,
             preferredName,
             fallbackName,
-            frontmatter + "\n" + body);
-        await _vault.SynchronizeFileReindexAsync(filePath);
+            frontmatter + "\n" + body,
+            cancellationToken);
+        await _vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
 
         var relativePath = Path.GetRelativePath(_config.VaultPath, filePath).Replace('\\', '/');
-        var evaluation = await _bridge.EvaluateTemplaterInPlaceAsync(body, relativePath);
+        var evaluation = await _bridge.EvaluateTemplaterInPlaceAsync(body, relativePath)
+            .WaitAsync(cancellationToken);
         if (evaluation.Applied)
         {
-            await _vault.SynchronizeFileReindexAsync(filePath);
+            await _vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
         }
 
         return FormatSuccess(
@@ -249,8 +268,10 @@ internal sealed partial class WorkSessionService
         string project,
         string sessionId,
         string agent,
-        string? mcpClientName)
+        string? mcpClientName,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var resolution = ResolveSession(
             sessionId,
             sessionNote,
@@ -258,15 +279,17 @@ internal sealed partial class WorkSessionService
             agent,
             NormalizeClientName(mcpClientName));
         return resolution.Error is null
-            ? await CloseAsync(resolution.Session!, summary)
+            ? await CloseAsync(resolution.Session!, summary, cancellationToken)
             : resolution.Error;
     }
 
     public Task<string> ListAsync(
         string sessionsFolder,
         string project,
-        bool includeActivity)
+        bool includeActivity,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!string.IsNullOrWhiteSpace(project))
         {
             if (ProjectWorkspaceService.ValidateProjectName(project) is { } error)
@@ -299,6 +322,7 @@ internal sealed partial class WorkSessionService
         var sb = new StringBuilder($"[ok] {sessions.Count} work session(s) in '{targetFolder}':\n\n");
         foreach (var session in sessions)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var id = session.SessionId ?? "(legacy)";
             var projectLabel = string.IsNullOrWhiteSpace(session.Project) ? "global" : session.Project;
             var end = session.EndedAt ??
@@ -321,7 +345,10 @@ internal sealed partial class WorkSessionService
         return Task.FromResult(sb.ToString());
     }
 
-    private async Task<string> ResumeAsync(string sessionId, string project)
+    private async Task<string> ResumeAsync(
+        string sessionId,
+        string project,
+        CancellationToken cancellationToken)
     {
         var matches = FindSessionsById(sessionId);
         if (matches.Count == 0)
@@ -347,11 +374,11 @@ internal sealed partial class WorkSessionService
         }
 
         var gate = GetLock(session);
-        await gate.WaitAsync();
+        await gate.WaitAsync(cancellationToken);
         try
         {
             var document = FrontmatterDocument.Parse(
-                await File.ReadAllTextAsync(session.Note.FilePath, Encoding.UTF8));
+                await _fileSystem.ReadAllTextAsync(session.Note.FilePath, cancellationToken));
             var status = document.ToFrontmatter().Status ?? "unknown";
             if (!status.Equals("active", StringComparison.OrdinalIgnoreCase))
             {
@@ -370,8 +397,11 @@ internal sealed partial class WorkSessionService
                 document.SetDate("updated", DateOnly.FromDateTime(now.UtcDateTime), "modified");
             }
 
-            await AtomicWriteAsync(session.Note.FilePath, document.Serialize());
-            await _vault.SynchronizeFileReindexAsync(session.Note.FilePath);
+            await _fileSystem.WriteAtomicallyAsync(
+                session.Note.FilePath,
+                document.Serialize(),
+                cancellationToken);
+            await _vault.SynchronizeFileReindexAsync(session.Note.FilePath).WaitAsync(cancellationToken);
             return FormatSuccess(
                 "resumed",
                 sessionId,
@@ -471,14 +501,17 @@ internal sealed partial class WorkSessionService
         };
     }
 
-    private async Task<string> CloseAsync(SessionDescriptor selected, string summary)
+    private async Task<string> CloseAsync(
+        SessionDescriptor selected,
+        string summary,
+        CancellationToken cancellationToken)
     {
         var gate = GetLock(selected);
-        await gate.WaitAsync();
+        await gate.WaitAsync(cancellationToken);
         try
         {
             var document = FrontmatterDocument.Parse(
-                await File.ReadAllTextAsync(selected.Note.FilePath, Encoding.UTF8));
+                await _fileSystem.ReadAllTextAsync(selected.Note.FilePath, cancellationToken));
             var metadata = document.ToFrontmatter();
             var status = metadata.Status ?? "unknown";
             var sessionId = GetString(metadata.ExtraFields, "session_id") ?? selected.SessionId;
@@ -518,8 +551,11 @@ internal sealed partial class WorkSessionService
                 document.SetDate("updated", DateOnly.FromDateTime(now.UtcDateTime), "modified");
             }
 
-            await AtomicWriteAsync(selected.Note.FilePath, document.Serialize());
-            await _vault.SynchronizeFileReindexAsync(selected.Note.FilePath);
+            await _fileSystem.WriteAtomicallyAsync(
+                selected.Note.FilePath,
+                document.Serialize(),
+                cancellationToken);
+            await _vault.SynchronizeFileReindexAsync(selected.Note.FilePath).WaitAsync(cancellationToken);
             var payload = JsonSerializer.Serialize(new
             {
                 action = "closed",
@@ -544,9 +580,10 @@ internal sealed partial class WorkSessionService
         string project,
         string projectLink,
         string agent,
-        DateTimeOffset now) =>
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
         NoteHelpers.ExpandTemplateVariables(
-            await _workspace.ResolveTemplateAsync("session"),
+            await _workspace.ResolveTemplateAsync("session").WaitAsync(cancellationToken),
             new Dictionary<string, string>
             {
                 ["goal"] = string.IsNullOrWhiteSpace(goal) ? "_(not specified)_" : goal,
@@ -564,7 +601,8 @@ internal sealed partial class WorkSessionService
         string title,
         string goal,
         string folder,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         var variables = new Dictionary<string, string>
         {
@@ -573,7 +611,11 @@ internal sealed partial class WorkSessionService
             ["time"] = now.ToString("HH:mm", CultureInfo.InvariantCulture),
             ["started_at"] = FormatUtc(now),
         };
-        return await TryRenderFolderTemplateAsync(folder, variables, title)
+        return await TryRenderFolderTemplateAsync(
+            folder,
+            variables,
+            title,
+            cancellationToken)
             ?? BuildDefaultBody(title, goal, now);
     }
 
