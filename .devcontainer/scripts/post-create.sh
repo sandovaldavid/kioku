@@ -10,6 +10,7 @@ export STARSHIP_CONFIG="${STARSHIP_CONFIG:-$repo_root/.devcontainer/shell/starsh
 
 echo "[info] Configuring the Kioku Zsh and Starship experience..."
 bash .devcontainer/scripts/configure-shell.sh
+bash .devcontainer/scripts/configure-git-ssh-signing.sh
 
 echo "[info] Verifying the Kioku development toolchain..."
 bash .devcontainer/scripts/verify-environment.sh
