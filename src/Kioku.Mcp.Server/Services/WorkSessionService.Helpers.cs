@@ -54,9 +54,11 @@ internal sealed partial class WorkSessionService
     private async Task<string?> TryRenderFolderTemplateAsync(
         string targetFolder,
         IReadOnlyDictionary<string, string> variables,
-        string title)
+        string title,
+        CancellationToken cancellationToken)
     {
-        var templatePath = await _vaultConfig.ResolveFolderTemplateAsync(targetFolder);
+        var templatePath = await _vaultConfig.ResolveFolderTemplateAsync(targetFolder)
+            .WaitAsync(cancellationToken);
         if (templatePath is null)
         {
             return null;
@@ -65,17 +67,14 @@ internal sealed partial class WorkSessionService
         var fullPath = NoteHelpers.EnsureInsideVault(
             _config.VaultPath,
             Path.Combine(_config.VaultPath, templatePath));
-        if (!File.Exists(fullPath))
-        {
-            return null;
-        }
-
-        var raw = await File.ReadAllTextAsync(fullPath, Encoding.UTF8);
-        return NoteHelpers.ExpandTemplateVariables(
-            raw,
-            variables,
-            title,
-            _timeProvider.GetUtcNow());
+        var raw = await _fileSystem.ReadIfExistsAsync(fullPath, cancellationToken);
+        return raw is null
+            ? null
+            : NoteHelpers.ExpandTemplateVariables(
+                raw,
+                variables,
+                title,
+                _timeProvider.GetUtcNow());
     }
 
     private string? FindSessionsFolder()
@@ -89,60 +88,8 @@ internal sealed partial class WorkSessionService
 
         return candidates
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault(folder => Directory.Exists(Path.Combine(_config.VaultPath, folder)));
-    }
-
-    private static async Task<string> WriteNewSessionFileAsync(
-        string directory,
-        string preferredName,
-        string fallbackName,
-        string content)
-    {
-        Directory.CreateDirectory(directory);
-        foreach (var name in new[] { preferredName, fallbackName })
-        {
-            var path = Path.Combine(directory, name);
-            try
-            {
-                await using var stream = new FileStream(
-                    path,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.Read,
-                    4096,
-                    useAsync: true);
-                await using var writer = new StreamWriter(stream, NoteHelpers.Utf8NoBom);
-                await writer.WriteAsync(content);
-                return path;
-            }
-            catch (IOException) when (File.Exists(path))
-            {
-                // A concurrent start claimed this filename; retry with the UUID-derived fallback.
-            }
-        }
-
-        throw new IOException("Could not allocate a unique work-session filename.");
-    }
-
-    private static async Task AtomicWriteAsync(string filePath, string content)
-    {
-        var directory = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(directory);
-        var temporary = Path.Combine(
-            directory,
-            $".{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.tmp");
-        try
-        {
-            await File.WriteAllTextAsync(temporary, content, NoteHelpers.Utf8NoBom);
-            File.Move(temporary, filePath, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporary))
-            {
-                File.Delete(temporary);
-            }
-        }
+            .FirstOrDefault(folder => _fileSystem.DirectoryExists(
+                Path.Combine(_config.VaultPath, folder)));
     }
 
     private static string BuildDefaultBody(
