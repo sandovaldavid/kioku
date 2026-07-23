@@ -6,17 +6,36 @@ if [[ -z "${KIOKU_WORKSPACE:-}" ]]; then
 fi
 
 export STARSHIP_CONFIG="${STARSHIP_CONFIG:-${KIOKU_WORKSPACE}/.devcontainer/shell/starship.toml}"
+export PATH="$HOME/.local/bin:$PATH"
+
+HISTFILE="${ZSH_HISTORY_FILE:-$HOME/.zsh_history}"
+HISTSIZE=50000
+SAVEHIST=50000
 
 setopt auto_cd
-setopt hist_ignore_all_dups
+setopt append_history
 setopt share_history
+setopt extended_history
+setopt hist_ignore_dups
+setopt hist_ignore_all_dups
+setopt hist_find_no_dups
+setopt hist_save_no_dups
+setopt hist_reduce_blanks
+setopt hist_verify
+setopt hist_ignore_space
 
 if command -v eza >/dev/null 2>&1; then
   alias ls='eza --icons=auto --group-directories-first'
-  alias ll='eza --icons=auto --group-directories-first --long --git --time-style=long-iso'
-  alias la='eza --icons=auto --group-directories-first --all'
-  alias tree='eza --icons=auto --tree'
-  alias tree-d='eza --icons=auto --tree --only-dirs'
+  alias l='eza --icons=auto --group-directories-first'
+  alias la='eza -a --icons=auto --group-directories-first'
+  alias ll='eza -la --icons=auto --git --group-directories-first --time-style=long-iso'
+  alias tree='eza --tree --icons=auto --group-directories-first'
+  alias tree2='eza --tree --level=2 --icons=auto --group-directories-first'
+  alias tree3='eza --tree --level=3 --icons=auto --group-directories-first'
+  alias tree-d='eza --tree --only-dirs --icons=auto --group-directories-first'
+  alias lsd='eza --only-dirs --icons=auto --group-directories-first'
+  alias lsf='eza --only-files --icons=auto --group-directories-first'
+  alias ls-native='command ls --color=auto'
 fi
 
 if command -v bat >/dev/null 2>&1; then
