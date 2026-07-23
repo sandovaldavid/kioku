@@ -1,5 +1,5 @@
 {
-  "name": "Kioku",
+  "name": "kioku",
   "build": {
     "dockerfile": "Dockerfile",
     "args": {
@@ -7,14 +7,21 @@
       "STARSHIP_VERSION": "1.26.0"
     }
   },
+  "runArgs": [
+    "--security-opt",
+    "label=disable"
+  ],
+  "mounts": [
+    "source=devcontainer-${localWorkspaceFolderBasename}-zsh-history,target=/commandhistory,type=volume"
+  ],
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
-  "securityOpt": ["label=disable"],
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2.5.9": {
       "installZsh": true,
       "configureZshAsDefaultShell": true,
-      "installOhMyZsh": true,
+      "installOhMyZsh": false,
+      "installOhMyZshConfig": false,
       "upgradePackages": false,
       "username": "vscode"
     },
@@ -44,6 +51,7 @@
         "terminal.integrated.defaultProfile.linux": "zsh",
         "terminal.integrated.fontFamily": "'CaskaydiaCove Nerd Font', 'Cascadia Code', monospace",
         "terminal.integrated.shellIntegration.enabled": true,
+        "remote.restoreForwardedPorts": true,
         "eslint.workingDirectories": [
           {
             "mode": "auto"
@@ -63,20 +71,28 @@
   },
   "containerEnv": {
     "DEVCONTAINER": "true",
+    "ZSH_HISTORY_FILE": "/commandhistory/.zsh_history",
     "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
     "DOTNET_NOLOGO": "1",
-    "NUGET_XMLDOC_MODE": "skip"
+    "NUGET_XMLDOC_MODE": "skip",
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    "COREPACK_DEFAULT_TO_LATEST": "0",
+    "KIOKU_HTTP_PORT": "5173"
   },
   "remoteEnv": {
     "KIOKU_WORKSPACE": "${containerWorkspaceFolder}",
     "STARSHIP_CONFIG": "${containerWorkspaceFolder}/.devcontainer/shell/starship.toml"
   },
   "init": true,
-  "forwardPorts": [5173],
+  "forwardPorts": [
+    5173
+  ],
   "portsAttributes": {
     "5173": {
       "label": "Kioku Streamable HTTP",
-      "onAutoForward": "notify"
+      "protocol": "http",
+      "onAutoForward": "notify",
+      "requireLocalPort": true
     }
   },
   "initializeCommand": "bash .devcontainer/scripts/initialize-host.sh",

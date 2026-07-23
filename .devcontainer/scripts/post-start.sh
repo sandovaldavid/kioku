@@ -33,6 +33,7 @@ if [[ ! -w "$repo_root" ]]; then
 fi
 
 bash .devcontainer/scripts/configure-shell.sh >/dev/null
+bash .devcontainer/scripts/configure-git-ssh-signing.sh
 
 generated_paths=(
   artifacts
