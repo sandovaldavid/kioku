@@ -47,22 +47,37 @@ internal sealed class WorkSessionFileSystem : IWorkSessionFileSystem
         {
             cancellationToken.ThrowIfCancellationRequested();
             var path = Path.Combine(directory, name);
+            FileStream stream;
             try
             {
-                await using var stream = new FileStream(
+                stream = new FileStream(
                     path,
                     FileMode.CreateNew,
                     FileAccess.Write,
                     FileShare.Read,
                     4096,
                     FileOptions.Asynchronous);
-                await using var writer = new StreamWriter(stream, NoteHelpers.Utf8NoBom);
-                await writer.WriteAsync(content.AsMemory(), cancellationToken);
-                return path;
             }
             catch (IOException) when (File.Exists(path))
             {
                 // A concurrent start claimed this filename; retry with the UUID-derived fallback.
+                continue;
+            }
+
+            try
+            {
+                await using (stream)
+                await using (var writer = new StreamWriter(stream, NoteHelpers.Utf8NoBom))
+                {
+                    await writer.WriteAsync(content.AsMemory(), cancellationToken);
+                }
+
+                return path;
+            }
+            catch
+            {
+                TryDelete(path);
+                throw;
             }
         }
 
@@ -91,10 +106,23 @@ internal sealed class WorkSessionFileSystem : IWorkSessionFileSystem
         }
         finally
         {
-            if (File.Exists(temporary))
-            {
-                File.Delete(temporary);
-            }
+            TryDelete(temporary);
+        }
+    }
+
+    private static void TryDelete(string filePath)
+    {
+        try
+        {
+            File.Delete(filePath);
+        }
+        catch (IOException)
+        {
+            // Preserve the original write/cancellation failure.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Preserve the original write/cancellation failure.
         }
     }
 }
