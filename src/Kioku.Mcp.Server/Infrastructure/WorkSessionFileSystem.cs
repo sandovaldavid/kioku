@@ -42,6 +42,7 @@ internal sealed class WorkSessionFileSystem : IWorkSessionFileSystem
         string content,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(directory);
         foreach (var name in new[] { preferredName, fallbackName })
         {
@@ -67,8 +68,8 @@ internal sealed class WorkSessionFileSystem : IWorkSessionFileSystem
             try
             {
                 await using (stream)
-                await using (var writer = new StreamWriter(stream, NoteHelpers.Utf8NoBom))
                 {
+                    await using var writer = new StreamWriter(stream, NoteHelpers.Utf8NoBom);
                     await writer.WriteAsync(content.AsMemory(), cancellationToken);
                 }
 
@@ -89,6 +90,7 @@ internal sealed class WorkSessionFileSystem : IWorkSessionFileSystem
         string content,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var directory = Path.GetDirectoryName(filePath)!;
         Directory.CreateDirectory(directory);
         var temporary = Path.Combine(
