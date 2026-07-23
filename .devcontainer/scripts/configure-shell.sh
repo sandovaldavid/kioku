@@ -4,9 +4,23 @@ set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 zshrc="${HOME}/.zshrc"
+history_file="${ZSH_HISTORY_FILE:-$HOME/.zsh_history}"
+history_dir="$(dirname "$history_file")"
 start_marker="# >>> kioku-devcontainer-shell >>>"
 end_marker="# <<< kioku-devcontainer-shell <<<"
 
+if [[ ! -d "$history_dir" ]] || [[ ! -w "$history_dir" ]]; then
+  if command -v sudo >/dev/null 2>&1; then
+    sudo mkdir -p "$history_dir"
+    sudo chown "$(id -u):$(id -g)" "$history_dir"
+    sudo chmod 0700 "$history_dir"
+  else
+    mkdir -p "$history_dir"
+  fi
+fi
+
+touch "$history_file"
+chmod 0600 "$history_file"
 touch "$zshrc"
 
 if ! grep -qF "$start_marker" "$zshrc"; then
