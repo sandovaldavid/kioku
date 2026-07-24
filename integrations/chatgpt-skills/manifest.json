@@ -1,0 +1,53 @@
+{
+  "suite": "kioku-chatgpt-skills",
+  "version": "1.0.0",
+  "vault_repository": "sandovaldavid/Cortex-L7",
+  "skills": [
+    {
+      "name": "kioku-chat-orchestrator",
+      "depends_on": [
+        "kioku-project-context",
+        "kioku-memory-publisher",
+        "kioku-session-handoff"
+      ]
+    },
+    {
+      "name": "kioku-project-context",
+      "depends_on": []
+    },
+    {
+      "name": "kioku-memory-publisher",
+      "depends_on": []
+    },
+    {
+      "name": "kioku-session-handoff",
+      "depends_on": [
+        "kioku-memory-publisher"
+      ]
+    },
+    {
+      "name": "github-issue-resolution",
+      "depends_on": []
+    },
+    {
+      "name": "github-documentation-maintenance",
+      "depends_on": [
+        "github-repo-docs-to-vault"
+      ]
+    },
+    {
+      "name": "github-pull-request-review",
+      "depends_on": []
+    },
+    {
+      "name": "github-issue-status-sync",
+      "depends_on": []
+    },
+    {
+      "name": "github-repo-docs-to-vault",
+      "depends_on": [
+        "kioku-memory-publisher"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "prompt": "Resuelve la issue #51 de resume y actualiza Cortex-L7.",
+      "should_activate": [
+        "kioku-chat-orchestrator",
+        "kioku-project-context",
+        "github-issue-resolution",
+        "kioku-memory-publisher",
+        "kioku-session-handoff"
+      ]
+    },
+    {
+      "prompt": "Audita AGENTS.md, README y docs de yukidoke-api.",
+      "should_activate": [
+        "kioku-chat-orchestrator",
+        "github-documentation-maintenance"
+      ]
+    },
+    {
+      "prompt": "Revisa la PR #284 de kioku y dime si está lista.",
+      "should_activate": [
+        "kioku-chat-orchestrator",
+        "github-pull-request-review"
+      ]
+    },
+    {
+      "prompt": "Revisa las issues abiertas y cierra las ya implementadas.",
+      "should_activate": [
+        "kioku-chat-orchestrator",
+        "github-issue-status-sync"
+      ]
+    },
+    {
+      "prompt": "Decide qué documentación de este repo debe ir a mi vault.",
+      "should_activate": [
+        "kioku-chat-orchestrator",
+        "github-repo-docs-to-vault"
+      ]
+    },
+    {
+      "prompt": "¿Qué significa MCP?",
+      "should_not_activate": [
+        "kioku-chat-orchestrator",
+        "kioku-memory-publisher"
+      ]
+    },
+    {
+      "prompt": "Corrige la gramática de este párrafo.",
+      "should_not_activate": [
+        "github-documentation-maintenance",
+        "github-repo-docs-to-vault"
+      ]
+    }
+  ]
+}

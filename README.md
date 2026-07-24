@@ -49,6 +49,10 @@ claude plugin install kioku@kioku
 
 See the [installation guide](docs/install.md) for manual client configuration, source builds, Docker, and the optional Obsidian plugin.
 
+### ChatGPT workflow skills
+
+ChatGPT cannot access a local Obsidian filesystem through this MCP server in every chat surface. The repository therefore includes a portable [ChatGPT Agent Skills suite](integrations/chatgpt-skills/README.md) that reproduces the project-context, GitHub workflow, memory-publication, and session-handoff lifecycle by proposing vault updates through GitHub pull requests.
+
 ## Architecture
 
 ```text
