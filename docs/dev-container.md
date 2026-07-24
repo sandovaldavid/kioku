@@ -2,7 +2,7 @@
 
 Kioku provides a reproducible VS Code Dev Container for the .NET 10 MCP server and the Node.js 24 Obsidian plugin. The container is a development environment only; it is not the production or release image.
 
-The configuration adapts the reusable profiles from `sandovaldavid/dotfiles` to Kioku. It uses the same managed shell lifecycle, pinned terminal tools, persistent history, non-root ownership checks, and SSH-signing integration while retaining Kioku's hybrid toolchain, prompt, shortcuts, extensions, and HTTP port.
+The configuration adapts the reusable profiles from `sandovaldavid/dotfiles` to Kioku. It uses the same managed shell lifecycle, pinned terminal tools, persistent history, non-root ownership checks, SSH-signing integration, and canonical Starship prompt while retaining Kioku's hybrid toolchain, shortcuts, extensions, and HTTP port.
 
 ## Included toolchain
 
@@ -76,16 +76,16 @@ The profile includes:
 - syntax highlighting and additional completions;
 - substring history search with the arrow keys and `Ctrl-P`/`Ctrl-N`;
 - eza aliases from the shared dotfiles contract;
-- a Kioku-specific Starship prompt.
+- the canonical Dev Container Starship prompt from `sandovaldavid/dotfiles`.
 
-The prompt shows:
+`.devcontainer/config/starship.toml` is synchronized byte-for-byte with the dotfiles template. It deliberately does not define a custom top-level `format`, palette, or Kioku-specific module, so Starship retains its standard module ordering. The resulting prompt follows this shape:
 
-- the Kioku identity (`記憶 Kioku`);
-- the current directory and Git branch;
-- detailed Git worktree state;
-- active .NET and Node.js versions;
-- command duration and exit status;
-- container and SSH context when applicable.
+```text
+kioku on  <branch> is 󰏗 <package-version> via  <dotnet-version> via  <node-version>
+  [Docker] ❯
+```
+
+Modules appear only when Starship detects the corresponding project files or runtime. For example, the package, .NET, Node.js, or Python sections may be omitted when they do not apply.
 
 For the intended icon rendering, install **CaskaydiaCove Nerd Font** on the host. VS Code falls back to Cascadia Code or the system monospace font when it is unavailable.
 
