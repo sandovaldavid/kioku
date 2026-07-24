@@ -3,8 +3,7 @@
   "build": {
     "dockerfile": "Dockerfile",
     "args": {
-      "DOTNET_VARIANT": "2-10.0-noble",
-      "STARSHIP_VERSION": "1.26.0"
+      "DOTNET_VARIANT": "10.0-noble"
     }
   },
   "runArgs": [
@@ -80,8 +79,7 @@
     "KIOKU_HTTP_PORT": "5173"
   },
   "remoteEnv": {
-    "KIOKU_WORKSPACE": "${containerWorkspaceFolder}",
-    "STARSHIP_CONFIG": "${containerWorkspaceFolder}/.devcontainer/shell/starship.toml"
+    "KIOKU_WORKSPACE": "${containerWorkspaceFolder}"
   },
   "init": true,
   "forwardPorts": [
