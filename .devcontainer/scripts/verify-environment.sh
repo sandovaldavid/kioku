@@ -103,7 +103,8 @@ if ! grep -Fxq "$canonical_starship_marker" "$canonical_starship_source"; then
   exit 1
 fi
 
-if grep -Eq '^(format|right_format|palette)[[:space:]]*=' "$canonical_starship_source"; then
+if sed '/^\[/,$d' "$canonical_starship_source" \
+  | grep -Eq '^(format|right_format|palette)[[:space:]]*='; then
   echo "[error] The canonical Dev Container prompt must not define a custom top-level format, right_format, or palette." >&2
   exit 1
 fi
