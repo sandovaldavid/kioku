@@ -1,38 +1,36 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 if [[ "${DEVCONTAINER:-}" != "true" ]]; then
   exit 0
 fi
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$repo_root"
+REPOSITORY_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPOSITORY_ROOT"
 
-export KIOKU_WORKSPACE="${KIOKU_WORKSPACE:-$repo_root}"
-export STARSHIP_CONFIG="${STARSHIP_CONFIG:-$repo_root/.devcontainer/shell/starship.toml}"
+export KIOKU_WORKSPACE="${KIOKU_WORKSPACE:-$REPOSITORY_ROOT}"
 
 owner_uid="$(id -u)"
 owner_gid="$(id -g)"
-workspace_uid="$(stat -c '%u' "$repo_root")"
-workspace_gid="$(stat -c '%g' "$repo_root")"
+workspace_uid="$(stat -c '%u' "$REPOSITORY_ROOT")"
+workspace_gid="$(stat -c '%g' "$REPOSITORY_ROOT")"
 
-if [[ "$workspace_uid" != "$owner_uid" ]]; then
-  cat >&2 <<EOF
+if [[ "$workspace_uid" != "$owner_uid" || "$workspace_gid" != "$owner_gid" ]]; then
+  cat >&2 <<EOF_MISMATCH
 [error] Dev Container identity mismatch.
 - container UID:GID: ${owner_uid}:${owner_gid}
 - workspace UID:GID: ${workspace_uid}:${workspace_gid}
 Rebuild the container without cache so updateRemoteUserUID can synchronize ownership.
-EOF
+EOF_MISMATCH
   exit 1
 fi
 
-if [[ ! -w "$repo_root" ]]; then
-  echo "[error] Repository root is not writable by $(id -un): $repo_root" >&2
+if [[ ! -w "$REPOSITORY_ROOT" ]]; then
+  echo "[error] Repository root is not writable by $(id -un): $REPOSITORY_ROOT" >&2
   exit 1
 fi
 
-bash .devcontainer/scripts/configure-shell.sh >/dev/null
+# The forwarded agent may become available after the first container creation.
 bash .devcontainer/scripts/configure-git-ssh-signing.sh
 
 generated_paths=(

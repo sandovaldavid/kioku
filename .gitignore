@@ -38,3 +38,5 @@ BenchmarkDotNet.Artifacts/
 Thumbs.db
 
 /graphify-out
+
+.pnpm-store/
