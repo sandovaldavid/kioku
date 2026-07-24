@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires authenticated GitHub write access to both the source repository and sandovaldavid/Cortex-L7.
 metadata:
   author: sandovaldavid
-  version: "1.0.0"
+  version: "1.1.0"
   suite: kioku-chatgpt-skills
 ---
 
@@ -26,33 +26,33 @@ For every documentation file or coherent section, assign one action:
 
 ## Procedure
 
-1. Audit all Markdown, ADR, roadmap, notes, architecture, planning, and status files plus relevant issues/PRs.
+1. Audit Markdown, ADR, roadmap, note, architecture, planning, and status files plus relevant issues and PRs.
 2. Inspect code/configuration to distinguish current behavior from historical or proposed behavior.
-3. Build a migration matrix with source path, classification, destination note type/path, source replacement, and rationale.
-4. Prepare Cortex-L7 notes first:
-   - decisions → ADR notes;
-   - bug lessons → bug notes;
-   - accepted plans → plan notes;
-   - cross-repo/private knowledge → knowledge notes;
-   - status/handoffs → session or daily notes.
-5. Preserve source attribution and relevant issue/PR links, but do not copy secrets or raw conversations.
-6. Open the vault PR.
-7. Prepare the source-repository PR:
+3. Resolve the concrete Cortex-L7 project from its MOC and `.kioku/config.yml`; do not derive `owner/repository` paths.
+4. Build a migration matrix with source path, classification, destination project/type/path, source replacement, and rationale.
+5. Prepare Cortex-L7 notes first:
+   - decisions → `decisions/ADR-NNNN-*`, `type: decision`;
+   - bug lessons → `bugs/BUG-YYYY-MM-DD-*`;
+   - accepted plans → `plans/PLAN-YYYY-MM-DD-*`;
+   - cross-repository/private knowledge → `knowledge/`;
+   - status/handoffs → project `sessions/` or `daily/`.
+6. Never file engineering content at a parent `type: guide` group root. Choose one concrete child project and link affected siblings in the body.
+7. Preserve source attribution in note-body references without inventing a new vault-wide frontmatter schema.
+8. Open the vault PR, excluding `.kioku/embeddings.bin`, `.obsidian/`, attachments, and unrelated sync noise.
+9. Prepare the source-repository PR:
    - retain current operational facts;
    - replace moved rationale with a concise current-state statement;
-   - add a stable reference when appropriate;
+   - add a stable neutral reference when appropriate;
    - update indexes and links;
-   - do not expose private vault details in a public repository.
-8. State merge order:
-   - vault PR first when the source PR removes unique content;
-   - either order only when the source PR is additive and loses nothing.
-9. Validate links, formatting, and completeness.
-10. Do not mark migration complete until both PRs are reviewable and unique information is preserved.
+   - do not expose private vault structure in a public repository.
+10. Merge vault first when the source PR removes unique content. Either order is acceptable only when the source PR is additive and loses nothing.
+11. Validate links, formatting, classification completeness, and preservation of unique information.
+12. Do not mark migration complete until both PRs are reviewable.
 
 ## Public repository privacy
 
-When the source repository is public and Cortex-L7 is private, do not add a direct private URL that reveals unwanted vault structure. Use a neutral note such as “Decision rationale is maintained in the private project knowledge base” unless the user explicitly wants a link.
+When the source repository is public and Cortex-L7 is private, use wording such as “Decision rationale is maintained in the private project knowledge base” unless the user explicitly approves a private link.
 
 ## Output
 
-Return the migration matrix, vault PR, source PR, merge order, validation evidence, unresolved ownership decisions, and risks.
+Return resolved project identifier, migration matrix, vault PR, source PR, merge order, validation evidence, unresolved ownership decisions, and risks.

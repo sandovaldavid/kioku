@@ -1,7 +1,15 @@
 {
   "suite": "kioku-chatgpt-skills",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "vault_repository": "sandovaldavid/Cortex-L7",
+  "observed_vault_profile": {
+    "reviewed_on": "2026-07-24",
+    "projects_root": "20-execution",
+    "knowledge_root": "30-brain",
+    "global_sessions_root": "sessions",
+    "templates_root": "99-system/templates",
+    "project_resolution": "discover-semantic-identifier-from-moc"
+  },
   "skills": [
     {
       "name": "kioku-chat-orchestrator",

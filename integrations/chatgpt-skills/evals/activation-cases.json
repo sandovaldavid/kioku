@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "prompt": "Resuelve la issue #51 de resume y actualiza Cortex-L7.",
@@ -37,6 +37,30 @@
       "should_activate": [
         "kioku-chat-orchestrator",
         "github-repo-docs-to-vault"
+      ]
+    },
+    {
+      "prompt": "Continúa yukidoke-api desde la última sesión de Kioku.",
+      "expected_project_identifier": "yukidoke/yukidoke-api",
+      "should_activate": [
+        "kioku-chat-orchestrator",
+        "kioku-project-context"
+      ]
+    },
+    {
+      "prompt": "Registra una decisión que afecta yukidoke-api y yukidoke-web.",
+      "expected_behavior": "Choose one concrete child project and link the sibling; never write under the yukidoke type: guide root.",
+      "should_activate": [
+        "kioku-chat-orchestrator",
+        "kioku-memory-publisher"
+      ]
+    },
+    {
+      "prompt": "Cierra la sesión actual de ChatGPT en Cortex-L7.",
+      "expected_behavior": "Create YYYY-MM-DD-HHmm-chatgpt.md with status done only when validation and required work are complete.",
+      "should_activate": [
+        "kioku-session-handoff",
+        "kioku-memory-publisher"
       ]
     },
     {

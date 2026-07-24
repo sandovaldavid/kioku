@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires authenticated GitHub write access to sandovaldavid/Cortex-L7.
 metadata:
   author: sandovaldavid
-  version: "1.0.0"
+  version: "1.1.0"
   suite: kioku-chatgpt-skills
 ---
 
@@ -15,7 +15,7 @@ A handoff is operational memory, not a narrative transcript.
 
 ## Required content
 
-Capture only verified facts:
+Capture verified facts only:
 
 - session goal;
 - source repository and branch;
@@ -31,40 +31,50 @@ Capture only verified facts:
 
 ## Procedure
 
-1. Load the most recent session note for the same project and objective.
-2. Update it when continuing the same active thread; otherwise create a new dated session note.
-3. Use `sessions/YYYY-MM-DD-<topic>.md`.
-4. Set status:
-   - `active` when work is continuing now;
+1. Resolve the concrete Kioku project; never file a project handoff in a parent `type: guide` group.
+2. Load the latest session note for the same project and objective.
+3. Continue an active note only when it is clearly the same thread; otherwise create a new note.
+4. Store project work in `<project>/sessions/`. Use the configured global `sessions` folder only when no project exists.
+5. Name a new ChatGPT session `sessions/YYYY-MM-DD-HHmm-chatgpt.md` using the user's local time when known.
+6. Use status:
+   - `active` while work is continuing;
    - `blocked` when an external dependency prevents progress;
    - `waiting` when awaiting logs, review, merge, approval, or access;
-   - `completed` only when all required work and available validation are complete.
-5. Link relevant ADR, bug, plan, issue, and PR notes.
-6. Publish through `kioku-memory-publisher` and a vault PR.
+   - `done` only when all required work and available validation are complete.
+7. Use `agent: chatgpt`, `type: session`, tags `session` and `work-log`, CSS class `kioku-session`, canonical `project`, `project_link`, inherited `domain`, and the session date.
+8. Link relevant ADR, bug, plan, issue, PR, and knowledge notes.
+9. Publish through `kioku-memory-publisher` on a vault branch and PR.
 
 ## Template
 
 ```markdown
 ---
+tags:
+  - session
+  - work-log
+cssclasses:
+  - kioku-session
 type: session
 status: waiting
-project: owner/repository
-source_repo: owner/repository
-source_ref: branch-name
-source_issue: 123
-source_pr: 456
+domain: tech
 date: YYYY-MM-DD
-updated: YYYY-MM-DD
-tags: [kioku, engineering, session]
+project: group/project
+project_link: "[[project-leaf]]"
+agent: chatgpt
 ---
 
-# Session: concise objective
+# Work Session — YYYY-MM-DD HH:mm (chatgpt)
 
-## Goal
+> [!info] Session
+> Project: [[project-leaf]] · Started: YYYY-MM-DD HH:mm · Agent: chatgpt
 
-## Completed
+**Goal:** concise objective
 
-## Current state
+## Summary
+
+## Log
+
+## Modified during this session
 
 ## Validation evidence
 
@@ -78,9 +88,15 @@ tags: [kioku, engineering, session]
 
 ## Resume from
 
-- Branch:
+- Source branch:
 - First command or inspection:
 - Expected evidence:
+
+---
+
+## Session ended — HH:mm local
+
+**Outcome:** verified status and remaining work.
 ```
 
-Never mark a session `completed` because a workflow was skipped or unavailable.
+Never use `completed` when the vault convention is `done`, and never mark a session `done` because a workflow was skipped or unavailable.
