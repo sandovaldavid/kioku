@@ -1,86 +1,11 @@
-"$schema" = "https://starship.rs/config-schema.json"
+# Synced from configs/shells/starship/starship.toml for portable Dev Container templates.
+"$schema" = 'https://starship.rs/config-schema.json'
 
-add_newline = true
 command_timeout = 2000
-palette = "kioku"
-
-format = """
-[╭─](bold blue)$os$username$hostname$container${custom.kioku}$directory$git_branch$git_state$git_status$fill$dotnet$nodejs$cmd_duration
-[╰─](bold blue)$character"""
-
-right_format = "$status$jobs"
-
-[palettes.kioku]
-blue = "#7aa2f7"
-cyan = "#7dcfff"
-foreground = "#c0caf5"
-green = "#9ece6a"
-muted = "#565f89"
-orange = "#ff9e64"
-purple = "#bb9af7"
-red = "#f7768e"
-yellow = "#e0af68"
-
-[os]
-disabled = false
-format = "[$symbol]($style)"
-style = "bold blue"
-
-[os.symbols]
-Linux = " "
-Ubuntu = " "
-
-[username]
-show_always = false
-format = "[$user]($style)"
-style_user = "bold cyan"
-
-[hostname]
-ssh_only = true
-format = "[@$hostname]($style) "
-style = "bold cyan"
-ssh_symbol = " "
-
-[container]
-format = "[$symbol$name]($style) "
-style = "bold cyan"
-symbol = " "
-
-[custom.kioku]
-command = "printf '記憶 Kioku'"
-when = """root="$(git rev-parse --show-toplevel 2>/dev/null)" && test -f "$root/Kioku.slnx" """
-shell = ["bash", "--noprofile", "--norc"]
-format = "[$output]($style) "
-style = "bold purple"
-
-[directory]
-format = "[$path]($style)[$read_only]($read_only_style) "
-home_symbol = "~"
-read_only = " 󰌾"
-read_only_style = "bold red"
-style = "bold blue"
-truncate_to_repo = true
-truncation_length = 4
-truncation_symbol = "…/"
-
-[directory.substitutions]
-".devcontainer" = " devcontainer"
-"docs" = "󰈙 docs"
-"scripts" = "󰆍 scripts"
-"src" = "󰅩 src"
-
-[git_branch]
-format = "[$symbol$branch(:$remote_branch)]($style) "
-style = "bold purple"
-symbol = " "
-
-[git_state]
-format = "[$state( $progress_current/$progress_total)]($style) "
-style = "bold yellow"
 
 [git_status]
-format = "[$all_status$ahead_behind]($style)"
-style = "bold foreground"
+format = '[$all_status$ahead_behind]($style)'
+
 conflicted = "[ ${count}](red) "
 ahead = "[ ${count}](blue) "
 behind = "[ ${count}](blue) "
@@ -92,40 +17,313 @@ staged = "[ ${count}](green) "
 renamed = "[ ${count}](blue) "
 deleted = "[ ${count}](red) "
 
-[fill]
-symbol = " "
+[aws]
+symbol = " "
+
+[azure]
+symbol = " "
+
+[battery]
+full_symbol = "󰁹 "
+charging_symbol = "󰂄 "
+discharging_symbol = "󰂃 "
+unknown_symbol = "󰂑 "
+empty_symbol = "󰂎 "
+
+[buf]
+symbol = " "
+
+[bun]
+symbol = " "
+
+[c]
+symbol = " "
+
+[cpp]
+symbol = " "
+
+[cmake]
+symbol = " "
+
+[cobol]
+symbol = " "
+
+[conda]
+symbol = " "
+
+[container]
+symbol = " "
+
+[crystal]
+symbol = " "
+
+[dart]
+symbol = " "
+
+[deno]
+symbol = " "
+
+[direnv]
+symbol = " "
+
+[directory]
+read_only = "󰌾 "
+
+[docker_context]
+symbol = " "
 
 [dotnet]
-format = "via [$symbol($version )]($style)"
-heuristic = true
-style = "bold purple"
 symbol = " "
+heuristic = true
+
+[elixir]
+symbol = " "
+
+[elm]
+symbol = " "
+
+[erlang]
+symbol = " "
+
+[fennel]
+symbol = " "
+
+[fortran]
+symbol = " "
+
+[fossil_branch]
+symbol = " "
+
+[gcloud]
+format = "on [󱇶]( $style) "
+style = "bold blue"
+disabled = false
+
+[gleam]
+symbol = " "
+
+[git_branch]
+symbol = " "
+
+[git_commit]
+tag_symbol = ' '
+
+[golang]
+symbol = " "
+
+[gradle]
+symbol = " "
+
+[guix_shell]
+symbol = " "
+
+[haskell]
+symbol = " "
+
+[haxe]
+symbol = " "
+
+[helm]
+symbol = " "
+
+[hg_branch]
+symbol = " "
+
+[hostname]
+ssh_symbol = " "
+
+[java]
+symbol = " "
+
+[julia]
+symbol = " "
+
+[kotlin]
+symbol = " "
+
+[kubernetes]
+symbol = "󱃾 "
+
+[lua]
+symbol = " "
+
+[maven]
+symbol = " "
+style = "bold bright-cyan"
+
+[memory_usage]
+symbol = "󰍛 "
+
+[meson]
+symbol = "󰔷 "
+
+[mojo]
+symbol = "󰈸 "
+
+[nats]
+symbol = " "
+
+[netns]
+symbol = "󰛳 "
+
+[nim]
+symbol = " "
+
+[nix_shell]
+symbol = " "
 
 [nodejs]
-format = "via [$symbol($version )]($style)"
-style = "bold green"
 symbol = " "
 
-[cmd_duration]
-format = "took [$duration]($style) "
-min_time = 1000
-show_milliseconds = false
-style = "bold yellow"
+[ocaml]
+symbol = " "
+
+[odin]
+symbol = "󰟢 "
+
+[opa]
+symbol = " "
+
+[openstack]
+symbol = " "
+
+[os.symbols]
+AIX = " "
+AlmaLinux = " "
+Alpaquita = " "
+Alpine = " "
+ALTLinux = " "
+Amazon = " "
+Android = " "
+AOSC = " "
+Arch = " "
+Artix = " "
+Bluefin = " "
+CachyOS = " "
+CentOS = " "
+Debian = " "
+DragonFly = " "
+Elementary = " "
+Emscripten = " "
+EndeavourOS = " "
+Fedora = " "
+FreeBSD = " "
+Garuda = " "
+Gentoo = " "
+HardenedBSD = "󰞌 "
+Illumos = " "
+InstantOS = " "
+Ios = "󰀷 "
+Kali = " "
+Linux = " "
+Mabox = " "
+Macos = " "
+Manjaro = " "
+Mariner = " "
+MidnightBSD = " "
+Mint = " "
+NetBSD = " "
+NixOS = " "
+Nobara = " "
+OpenBSD = " "
+OpenCloudOS = " "
+openEuler = " "
+openSUSE = " "
+OracleLinux = "󰺡 "
+PikaOS = " "
+Pop = " "
+Raspbian = " "
+Redhat = "󱄛 "
+RedHatEnterprise = "󱄛 "
+Redox = "󰀘 "
+RockyLinux = " "
+Solus = " "
+SUSE = " "
+Ubuntu = " "
+Ultramarine = " "
+Unknown = " "
+Uos = " "
+Void = " "
+Windows = "󰍲 "
+Zorin = " "
+
+[package]
+symbol = "󰏗 "
+
+[perl]
+symbol = " "
+
+[php]
+symbol = " "
+
+[pijul_channel]
+symbol = " "
+
+[pixi]
+symbol = "󰏗 "
+
+[pulumi]
+symbol = " "
+
+[purescript]
+symbol = " "
+
+[python]
+symbol = " "
+
+[raku]
+symbol = "󱖊 "
+
+[red]
+symbol = "󱍼 "
+
+[rlang]
+symbol = "󰟔 "
+
+[ruby]
+symbol = " "
+
+[rust]
+symbol = "󱘗 "
+
+[scala]
+symbol = " "
+
+[shlvl]
+symbol = "󰹍 "
+
+[singularity]
+symbol = " "
+
+[solidity]
+symbol = " "
+
+[spack]
+symbol = " "
 
 [status]
-disabled = false
-format = "[$symbol$status]($style) "
-map_symbol = true
-pipestatus = true
-style = "bold red"
 symbol = " "
 
-[jobs]
-format = "[$symbol$number]($style) "
-style = "bold cyan"
-symbol = "󰜎 "
+[sudo]
+symbol = " "
 
-[character]
-success_symbol = "[❯](bold green)"
-error_symbol = "[❯](bold red)"
-vimcmd_symbol = "[❮](bold blue)"
+[swift]
+symbol = " "
+
+[terraform]
+symbol = " "
+
+[vlang]
+symbol = " "
+
+[typst]
+symbol = " "
+
+[vagrant]
+symbol = " "
+
+[xmake]
+symbol = " "
+
+[zig]
+symbol = " "
