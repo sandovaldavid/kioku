@@ -244,8 +244,10 @@ internal sealed partial class WorkSessionService
         await _vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
 
         var relativePath = Path.GetRelativePath(_config.VaultPath, filePath).Replace('\\', '/');
-        var evaluation = await _bridge.EvaluateTemplaterInPlaceAsync(body, relativePath)
-            .WaitAsync(cancellationToken);
+        var evaluation = await _bridge.EvaluateTemplaterInPlaceAsync(
+            body,
+            relativePath,
+            cancellationToken);
         if (evaluation.Applied)
         {
             await _vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
