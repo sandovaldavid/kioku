@@ -2,20 +2,46 @@
 
 Kioku provides a reproducible VS Code Dev Container for the .NET 10 MCP server and the Node.js 24 Obsidian plugin. The container is a development environment only; it is not the production or release image.
 
-The configuration adapts the maintainer's reusable dotfiles template to Kioku. It preserves the personalized Zsh and Starship developer experience while keeping the repository self-contained and removing host-specific settings that do not belong in a shared project.
+The configuration adapts the reusable profiles from `sandovaldavid/dotfiles` to Kioku. It uses the same managed shell lifecycle, pinned terminal tools, persistent history, non-root ownership checks, and SSH-signing integration while retaining Kioku's hybrid toolchain, prompt, shortcuts, extensions, and HTTP port.
 
 ## Included toolchain
 
 - Official Microsoft .NET 10 Dev Container image based on Ubuntu 24.04 (`noble`).
 - Non-root `vscode` user with host UID/GID synchronization on Linux.
 - Node.js 24 and pnpm 11.9.0 through the official Node Dev Container Feature.
-- GitHub CLI, Git, SSH client, GPG client, Python 3, `jq`, and `shellcheck`.
-- Zsh with Oh My Zsh, autosuggestions, syntax highlighting, and a Kioku-specific Starship prompt.
-- Terminal utilities from the dotfiles workflow: `bat`, `eza`, `fd`, `fzf`, and `ripgrep`.
+- GitHub CLI, Git, SSH and GPG clients, Python 3, `jq`, and `shellcheck`.
+- Zsh without Oh My Zsh, using checksum-verified pinned plugins from the dotfiles template.
+- Starship 1.26.0 and eza 0.23.5 installed by the shared shell configurator.
+- Terminal utilities used by Kioku: `bat`, `fd`, `fzf`, and `ripgrep`.
 - VS Code extensions for C#, TypeScript, ESLint, Prettier, EditorConfig, TOML, YAML, and ShellCheck.
 - Port forwarding for the optional Streamable HTTP transport on port `5173`.
 
-Starship is pinned by Docker build argument and installed from the matching upstream release archive after checksum verification. Feature versions and integrity hashes are committed in `.devcontainer/devcontainer-lock.json`. Do not edit that lockfile manually. Use `devcontainer outdated` and `devcontainer upgrade` when intentionally updating Features.
+Dev Container Feature versions and integrity hashes are committed in `.devcontainer/devcontainer-lock.json`. Do not edit that lockfile manually. Use `devcontainer outdated` and `devcontainer upgrade` when intentionally updating Features.
+
+## Template structure
+
+The project follows the current dotfiles template layout:
+
+```text
+.devcontainer/
+├── Dockerfile
+├── devcontainer.json
+├── devcontainer-lock.json
+├── config/
+│   ├── shell.bash
+│   ├── shell.zsh
+│   └── starship.toml
+└── scripts/
+    ├── configure-git-ssh-signing.sh
+    ├── configure-shell.sh
+    ├── initialize-host.sh
+    ├── post-create.sh
+    ├── post-start.sh
+    ├── validate-devcontainer.sh
+    └── verify-environment.sh
+```
+
+The Dockerfile contains image-level operating-system dependencies. The Node Feature owns Node.js and pnpm. `postCreateCommand` installs the managed shell components and restores project dependencies. Project-specific commands remain in the repository-owned shell profiles under `.devcontainer/config/`.
 
 ## Open the repository
 
@@ -26,44 +52,62 @@ Starship is pinned by Docker build argument and installed from the matching upst
 
 Before the container is created, `initializeCommand` runs `.devcontainer/scripts/initialize-host.sh` on the host. It normalizes directory traversal, file readability, and executable permissions for lifecycle scripts before the repository is exposed through the bind mount. This is required on hardened Linux hosts and rootless container runtimes where permission changes from inside the container can be rejected.
 
-On Linux hosts with SELinux enforcing, the configuration disables SELinux label confinement for this development container so the automatic workspace bind mount remains readable. This setting applies only to the Dev Container. It does not change the remote user, run the container as `root`, or affect the production image and Compose services.
+On Linux hosts with SELinux enforcing, the configuration disables SELinux label confinement for this trusted development container so the automatic workspace bind mount remains readable. This does not run the container as `root`, enable privileged mode, or affect production images.
 
-The first creation then configures the shell, restores `Kioku.slnx`, and installs plugin dependencies with `CI=true pnpm install --frozen-lockfile`. The non-interactive setting lets lifecycle commands recreate stale `node_modules` directories safely. Rebuild the container after changing the Dockerfile, Features, or any other file under `.devcontainer/`.
+The first creation then:
+
+1. installs Starship 1.26.0 and eza 0.23.5;
+2. installs the pinned Zsh plugins with SHA-256 verification;
+3. installs managed Bash and Zsh blocks under the user's home directory;
+4. verifies the complete Kioku toolchain;
+5. runs `CI=true pnpm install --frozen-lockfile`;
+6. restores `Kioku.slnx`.
+
+Rebuild the container after changing the Dockerfile, Features, or shell installer. Rerun `bash .devcontainer/scripts/configure-shell.sh` after changing only files under `.devcontainer/config/`.
 
 ## Personalized shell
 
-VS Code opens Zsh by default. The prompt configuration lives in `.devcontainer/shell/starship.toml`, and the project shell behavior lives in `.devcontainer/shell/init.zsh`.
+VS Code opens Zsh by default. Repository source files live in `.devcontainer/config/`; `configure-shell.sh` copies them to the user's home configuration and maintains replaceable blocks in `.zshrc` and `.bashrc`.
+
+The profile includes:
+
+- project-scoped persistent command history at `/commandhistory/.zsh_history`;
+- autosuggestions from history;
+- syntax highlighting and additional completions;
+- substring history search with the arrow keys and `Ctrl-P`/`Ctrl-N`;
+- eza aliases from the shared dotfiles contract;
+- a Kioku-specific Starship prompt.
 
 The prompt shows:
 
 - the Kioku identity (`記憶 Kioku`);
 - the current directory and Git branch;
-- detailed Git worktree state using the same Nerd Font symbols as the dotfiles configuration;
+- detailed Git worktree state;
 - active .NET and Node.js versions;
 - command duration and exit status;
 - container and SSH context when applicable.
 
 For the intended icon rendering, install **CaskaydiaCove Nerd Font** on the host. VS Code falls back to Cascadia Code or the system monospace font when it is unavailable.
 
-Project shortcuts:
+Project shortcuts are available in managed Zsh and Bash sessions:
 
-| Command    | Action                                                                    |
-| ---------- | ------------------------------------------------------------------------- |
-| `croot`    | Change to the Kioku repository root.                                      |
-| `krestore` | Restore the .NET solution.                                                |
-| `kbuild`   | Build the solution in Release mode.                                       |
-| `ktest`    | Run the solution tests in Release mode.                                   |
-| `kformat`  | Apply the repository's .NET whitespace and style formatters.              |
-| `kplugin`  | Lint, test, and build the Obsidian plugin.                                |
-| `kverify`  | Verify the Dev Container user, shell, prompt, credentials, and toolchain. |
+| Command | Action |
+| --- | --- |
+| `croot` | Change to the Kioku repository root. |
+| `krestore` | Restore the .NET solution. |
+| `kbuild` | Build the solution in Release mode. |
+| `ktest` | Run the solution tests in Release mode. |
+| `kformat` | Apply the repository's .NET whitespace and style formatters. |
+| `kplugin` | Lint, test, and build the Obsidian plugin. |
+| `kverify` | Verify the Dev Container user, shell, credentials, and toolchain. |
 
-The project intentionally does not copy workstation-only aliases, VPN commands, Bitwarden socket paths, AI CLI installers, or personal Git identity from the dotfiles repository.
+The project intentionally omits workstation-only VPN helpers, Bitwarden-specific socket paths, AI CLI installers, and personal or corporate Git identities from the reusable dotfiles repository.
 
 ## Lifecycle
 
 - `initializeCommand` runs on the host and normalizes `.devcontainer` permissions before the bind mount is used.
-- `postCreateCommand` runs inside the container, configures the shell, and installs repository dependencies.
-- `postStartCommand` validates UID/GID ownership, repairs non-writable generated paths, and refreshes the shell link.
+- `postCreateCommand` installs the managed shell profile and restores repository dependencies.
+- `postStartCommand` validates UID/GID ownership, repairs non-writable generated paths, and refreshes Git SSH-signing integration.
 - All scripts are idempotent and terminate after completing their work.
 - The Dev Container uses `init: true` so orphaned child processes are reaped correctly.
 
@@ -92,7 +136,7 @@ ssh-add ~/.ssh/id_ed25519
 ssh-add -l
 ```
 
-The VS Code Dev Containers extension reuses the host Git configuration and forwards the SSH agent. The container deliberately does not mount `~/.ssh`, force a Bitwarden-specific socket, or embed credentials.
+The VS Code Dev Containers extension reuses the host Git configuration and forwards the SSH agent. The container deliberately does not mount `~/.ssh`, force a machine-specific socket, or embed credentials.
 
 ## Validate the environment
 
@@ -133,6 +177,7 @@ echo "$HOME"
 echo "$SHELL"
 echo "$STARSHIP_CONFIG"
 starship --version
+eza --version
 git config --global --show-origin --list
 echo "$SSH_AUTH_SOCK"
 ssh-add -l
@@ -147,8 +192,8 @@ bash .devcontainer/scripts/initialize-host.sh
 
 Then use **Dev Containers: Rebuild Container Without Cache**. Do not try to repair the bind-mounted repository using `sudo chmod` from inside the container; hardened or rootless Linux runtimes can reject those changes because the host owns the mount.
 
-If VS Code Server reports `EACCES` while scanning `/workspaces/kioku` on a Linux host, check the host SELinux mode with `getenforce` and inspect recent AVC denials with `ausearch -m avc -ts recent`. The Dev Container uses `securityOpt: ["label=disable"]` for this host integration issue. Do not replace it with `remoteUser: "root"` or `privileged: true`: those settings do not address the SELinux label mismatch and reduce the container's security and ownership guarantees.
+If VS Code Server reports `EACCES` while scanning `/workspaces/kioku` on a Linux host, check the host SELinux mode with `getenforce` and inspect recent AVC denials with `ausearch -m avc -ts recent`. The Dev Container uses `--security-opt label=disable` for this host integration issue. Do not replace it with `remoteUser: "root"` or `privileged: true`: those settings do not address the SELinux label mismatch and reduce the container's security and ownership guarantees.
 
-If the prompt does not render icons, verify the host terminal font. If Zsh or Starship settings changed, run `bash .devcontainer/scripts/configure-shell.sh`, open a new terminal, or rebuild the Dev Container.
+If the prompt does not render icons, verify the host terminal font. If shell files changed, rerun `bash .devcontainer/scripts/configure-shell.sh` and open a new terminal.
 
 If Git identity is missing, confirm it exists on the same host environment from which VS Code was launched. If SSH identities are missing, start the host agent and reopen the container. Opening the image manually with `docker run`, `docker compose up`, or `docker exec` does not reproduce every integration provided by **Reopen in Container**.
