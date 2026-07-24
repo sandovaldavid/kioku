@@ -45,7 +45,7 @@ dotnet_version="$(dotnet --version)"
 node_version="$(node --version | sed 's/^v//')"
 pnpm_version="$(pnpm --version)"
 starship_version="$(starship --version | head -n 1 | awk '{print $2}')"
-eza_version="$(eza --version | head -n 1 | awk '{print $2}')"
+eza_version="$(eza --version | awk '/^v?[0-9]+\./ { print $1; exit }')"
 login_shell="$(getent passwd "$(id -un)" | cut -d: -f7)"
 
 if [[ "$dotnet_version" != 10.* ]]; then
@@ -69,7 +69,7 @@ if [[ "$starship_version" != "1.26.0" ]]; then
 fi
 
 if [[ "$eza_version" != "v0.23.5" && "$eza_version" != "0.23.5" ]]; then
-  echo "[error] Expected eza 0.23.5, found $eza_version." >&2
+  echo "[error] Expected eza 0.23.5, found ${eza_version:-unknown}." >&2
   exit 1
 fi
 
