@@ -95,7 +95,35 @@ for required_file in "${required_shell_files[@]}"; do
   fi
 done
 
+canonical_starship_source="$REPOSITORY_ROOT/.devcontainer/config/starship.toml"
+canonical_starship_marker="# Synced from configs/shells/starship/starship.toml for portable Dev Container templates."
+
+if ! grep -Fxq "$canonical_starship_marker" "$canonical_starship_source"; then
+  echo "[error] Kioku is not using the canonical dotfiles Dev Container Starship configuration." >&2
+  exit 1
+fi
+
+if grep -Eq '^(format|right_format|palette)[[:space:]]*=' "$canonical_starship_source"; then
+  echo "[error] The canonical Dev Container prompt must not define a custom top-level format, right_format, or palette." >&2
+  exit 1
+fi
+
+if ! cmp -s "$canonical_starship_source" "$HOME/.config/starship.toml"; then
+  echo "[error] The installed Starship configuration differs from the repository source." >&2
+  exit 1
+fi
+
 starship print-config >/dev/null
+
+if ! zsh -ic 'alias ls >/dev/null 2>&1'; then
+  echo "[error] The managed eza aliases were not loaded in Zsh." >&2
+  exit 1
+fi
+
+if ! zsh -ic 'zle -l | grep -Fxq history-substring-search-up'; then
+  echo "[error] The history-substring-search Zsh widget was not loaded." >&2
+  exit 1
+fi
 
 printf '[ok] user=%s shell=%s home=%s\n' "$(id -un)" "$login_shell" "$HOME"
 printf '[ok] dotnet=%s node=%s pnpm=%s starship=%s eza=%s\n' \
@@ -103,7 +131,7 @@ printf '[ok] dotnet=%s node=%s pnpm=%s starship=%s eza=%s\n' \
 printf '[ok] git=%s gh=%s\n' \
   "$(git --version | awk '{print $3}')" \
   "$(gh --version | head -n 1 | awk '{print $3}')"
-printf '[ok] Dev Container scripts and managed shell components are available.\n'
+printf '[ok] Canonical Starship prompt, Zsh widgets, scripts, and managed shell components are available.\n'
 
 if ! git config --global --get user.name >/dev/null 2>&1 || \
    ! git config --global --get user.email >/dev/null 2>&1; then
