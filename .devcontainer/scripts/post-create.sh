@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$repo_root"
+REPOSITORY_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPOSITORY_ROOT"
 
-export KIOKU_WORKSPACE="${KIOKU_WORKSPACE:-$repo_root}"
-export STARSHIP_CONFIG="${STARSHIP_CONFIG:-$repo_root/.devcontainer/shell/starship.toml}"
+export KIOKU_WORKSPACE="${KIOKU_WORKSPACE:-$REPOSITORY_ROOT}"
 
-echo "[info] Configuring the Kioku Zsh and Starship experience..."
+printf '[info] Configuring the shared Dev Container shell profile...\n'
 bash .devcontainer/scripts/configure-shell.sh
 bash .devcontainer/scripts/configure-git-ssh-signing.sh
 
-echo "[info] Verifying the Kioku development toolchain..."
+printf '[info] Verifying the Kioku development toolchain...\n'
 bash .devcontainer/scripts/verify-environment.sh
 
-echo "[info] Restoring .NET dependencies..."
-dotnet restore Kioku.slnx
-
-echo "[info] Installing plugin dependencies from pnpm-lock.yaml..."
+printf '[info] Installing plugin dependencies from pnpm-lock.yaml...\n'
 CI=true pnpm install --frozen-lockfile
 
-echo "[ok] Kioku development environment is ready."
-echo "[info] Open a new terminal to load the project prompt and Kioku command shortcuts."
+printf '[info] Restoring .NET dependencies...\n'
+dotnet restore Kioku.slnx
+
+printf '\n[ok] Kioku development environment is ready.\n'
+printf '[info] Open a new terminal to load the managed shell profile and Kioku shortcuts.\n'
