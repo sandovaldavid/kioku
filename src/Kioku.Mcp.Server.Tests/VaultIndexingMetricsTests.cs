@@ -6,7 +6,7 @@ namespace Kioku.Mcp.Server.Tests;
 public sealed class VaultIndexingMetricsTests
 {
     [Fact]
-    public void QueueDepth_BalancesWhenConsumerReportsBeforeProducer()
+    public void QueueDepthBalancesWhenConsumerReportsBeforeProducer()
     {
         var metrics = new VaultIndexingMetrics();
 
@@ -19,7 +19,7 @@ public sealed class VaultIndexingMetricsTests
     }
 
     [Fact]
-    public void QueueDepth_ReportsOutstandingAcceptedChanges()
+    public void QueueDepthReportsOutstandingAcceptedChanges()
     {
         var metrics = new VaultIndexingMetrics();
 
