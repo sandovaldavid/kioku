@@ -1,10 +1,11 @@
+using System.Reflection;
 using Kioku.Mcp.Server.Hosting;
 using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
-using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using McpSessionContextTools = Kioku.Mcp.Server.Tools.SessionContextTools;
 
 namespace Kioku.Mcp.Server.Tests;
 
@@ -13,9 +14,12 @@ public sealed class WorkSessionArchitectureTests
     [Fact]
     public void SessionAdapter_DependsOnlyOnApplicationPort()
     {
-        var constructor = Assert.Single(typeof(SessionContextTools).GetConstructors());
+        var constructors = typeof(McpSessionContextTools).GetConstructors(
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var constructor = Assert.Single(constructors);
         var parameter = Assert.Single(constructor.GetParameters());
 
+        Assert.True(constructor.IsPublic);
         Assert.Equal(typeof(IWorkSessionService), parameter.ParameterType);
         Assert.True(typeof(IWorkSessionService).IsAssignableFrom(typeof(WorkSessionService)));
     }
@@ -78,7 +82,7 @@ public sealed class WorkSessionArchitectureTests
 
         foreach (var methodName in methodNames)
         {
-            var method = typeof(SessionContextTools).GetMethod(methodName);
+            var method = typeof(McpSessionContextTools).GetMethod(methodName);
             Assert.NotNull(method);
             var parameters = method.GetParameters();
             var cancellation = Assert.Single(
