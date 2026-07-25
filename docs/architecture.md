@@ -33,7 +33,7 @@ Dependencies point inward from protocol adapters toward application contracts. W
 
 ## Session vertical slice
 
-The production session adapter exposes one public constructor and depends only on `IWorkSessionService`. It no longer constructs `WorkSessionService` or receives vault, configuration, bridge, workspace, clock, or filesystem infrastructure dependencies through its production activation path.
+The production session adapter exposes exactly one constructor and depends only on `IWorkSessionService`. It no longer constructs `WorkSessionService` or receives vault, configuration, bridge, workspace, clock, or filesystem infrastructure dependencies through any activation path.
 
 ```mermaid
 flowchart LR
@@ -55,11 +55,11 @@ The MCP SDK injects a `CancellationToken` into each session tool call. The adapt
 
 `WorkSessionService` and its helper partial contain no direct `File.*` or `Directory.*` calls. Those operations are implemented by `WorkSessionFileSystem`, which preserves the existing collision-safe create-new behavior and temporary-file atomic replacement.
 
-Existing integration fixtures still use internal compatibility constructors isolated in `SessionContextTools.Compatibility.cs`. They are not used by MCP activation. Migrating those fixtures to a shared service builder and deleting the shim remains a small follow-up before the session slice is considered completely clean.
+Session integration tests now compose `WorkSessionService` through the test-only `WorkSessionTestHarness` and execute `IWorkSessionService` directly. MCP adapter shape and metadata remain covered by dedicated architecture and contract tests. The former `SessionContextTools.Compatibility.cs` production shim has been removed.
 
 Architecture tests enforce that:
 
-- `SessionContextTools` exposes one public constructor whose only dependency is `IWorkSessionService`;
+- `SessionContextTools` has exactly one instance constructor, it is public, and its only dependency is `IWorkSessionService`;
 - every public session tool receives an injected `CancellationToken` as its final runtime parameter;
 - the host maps `IWorkSessionService` to `WorkSessionService` and `IWorkSessionFileSystem` to `WorkSessionFileSystem` as singletons;
 - the production adapter does not construct or reference session infrastructure;
@@ -70,8 +70,8 @@ Architecture tests enforce that:
 Issue #250 is intentionally delivered in vertical slices:
 
 1. **Session application boundary** — adapter delegation, DI ownership, architecture guard tests. Completed by #283.
-2. **Session infrastructure ports** — move direct session filesystem operations behind `IWorkSessionFileSystem` and propagate cancellation to those I/O boundaries. Implemented by the current follow-up; compatibility-fixture migration remains.
-3. **Session fixture cleanup** — replace internal compatibility constructors with shared service builders and delete the shim.
+2. **Session infrastructure ports** — move direct session filesystem operations behind `IWorkSessionFileSystem` and propagate cancellation to those I/O boundaries. Completed by #284.
+3. **Session fixture cleanup** — replace internal compatibility constructors with a test-only application-service harness and delete the production shim. Completed by this follow-up.
 4. **Project-document workflows** — extract engineering orchestration from MCP adapters.
 5. **Note queries and presenters** — separate query use cases from protocol and textual presentation.
 6. **Project boundaries** — introduce separate application/infrastructure projects only when the extracted contracts are stable enough to justify the additional assemblies.
