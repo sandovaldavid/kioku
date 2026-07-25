@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-export KIOKU_WORKSPACE="${KIOKU_WORKSPACE:-$repo_root}"
-export STARSHIP_CONFIG="${STARSHIP_CONFIG:-$repo_root/.devcontainer/shell/starship.toml}"
+REPOSITORY_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+export KIOKU_WORKSPACE="${KIOKU_WORKSPACE:-$REPOSITORY_ROOT}"
+export STARSHIP_CONFIG="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
 
-for script_path in "$repo_root"/.devcontainer/scripts/*.sh; do
+for script_path in "$REPOSITORY_ROOT"/.devcontainer/scripts/*.sh; do
   if [[ ! -r "$script_path" ]] || [[ ! -x "$script_path" ]]; then
     echo "[error] Dev Container script is not readable and executable: $script_path" >&2
     echo "Reopen or rebuild the Dev Container so initializeCommand can normalize host-side permissions." >&2
@@ -46,6 +45,7 @@ dotnet_version="$(dotnet --version)"
 node_version="$(node --version | sed 's/^v//')"
 pnpm_version="$(pnpm --version)"
 starship_version="$(starship --version | head -n 1 | awk '{print $2}')"
+eza_version="$(eza --version | awk '/^v?[0-9]+\./ { print $1; exit }')"
 login_shell="$(getent passwd "$(id -un)" | cut -d: -f7)"
 
 if [[ "$dotnet_version" != 10.* ]]; then
@@ -53,13 +53,23 @@ if [[ "$dotnet_version" != 10.* ]]; then
   exit 1
 fi
 
-if (( ${node_version%%.*} < 24 )); then
-  echo "[error] Expected Node.js 24 or newer, found $node_version." >&2
+if [[ "${node_version%%.*}" != "24" ]]; then
+  echo "[error] Expected Node.js 24, found $node_version." >&2
   exit 1
 fi
 
-if (( ${pnpm_version%%.*} < 11 )); then
-  echo "[error] Expected pnpm 11 or newer, found $pnpm_version." >&2
+if [[ "$pnpm_version" != "11.9.0" ]]; then
+  echo "[error] Expected pnpm 11.9.0, found $pnpm_version." >&2
+  exit 1
+fi
+
+if [[ "$starship_version" != "1.26.0" ]]; then
+  echo "[error] Expected Starship 1.26.0, found $starship_version." >&2
+  exit 1
+fi
+
+if [[ "$eza_version" != "v0.23.5" && "$eza_version" != "0.23.5" ]]; then
+  echo "[error] Expected eza 0.23.5, found ${eza_version:-unknown}." >&2
   exit 1
 fi
 
@@ -68,20 +78,61 @@ if [[ "$login_shell" != */zsh ]]; then
   exit 1
 fi
 
-if [[ -z "${STARSHIP_CONFIG:-}" ]] || [[ ! -f "$STARSHIP_CONFIG" ]]; then
-  echo "[error] STARSHIP_CONFIG does not point to the Kioku prompt configuration." >&2
+required_shell_files=(
+  "$HOME/.config/devcontainer/shell.bash"
+  "$HOME/.config/devcontainer/shell.zsh"
+  "$HOME/.config/starship.toml"
+  "$HOME/.local/share/zsh/plugins/zsh-autosuggestions-0.7.1/zsh-autosuggestions.zsh"
+  "$HOME/.local/share/zsh/plugins/zsh-completions-0.36.0/zsh-completions.plugin.zsh"
+  "$HOME/.local/share/zsh/plugins/zsh-history-substring-search-1.1.0/zsh-history-substring-search.zsh"
+  "$HOME/.local/share/zsh/plugins/zsh-syntax-highlighting-0.8.0/zsh-syntax-highlighting.zsh"
+)
+
+for required_file in "${required_shell_files[@]}"; do
+  if [[ ! -f "$required_file" ]]; then
+    echo "[error] Managed shell component is unavailable: $required_file" >&2
+    exit 1
+  fi
+done
+
+canonical_starship_source="$REPOSITORY_ROOT/.devcontainer/config/starship.toml"
+canonical_starship_marker="# Synced from configs/shells/starship/starship.toml for portable Dev Container templates."
+
+if ! grep -Fxq "$canonical_starship_marker" "$canonical_starship_source"; then
+  echo "[error] Kioku is not using the canonical dotfiles Dev Container Starship configuration." >&2
+  exit 1
+fi
+
+if sed '/^\[/,$d' "$canonical_starship_source" \
+  | grep -Eq '^(format|right_format|palette)[[:space:]]*='; then
+  echo "[error] The canonical Dev Container prompt must not define a custom top-level format, right_format, or palette." >&2
+  exit 1
+fi
+
+if ! cmp -s "$canonical_starship_source" "$HOME/.config/starship.toml"; then
+  echo "[error] The installed Starship configuration differs from the repository source." >&2
   exit 1
 fi
 
 starship print-config >/dev/null
 
+if ! zsh -ic 'alias ls >/dev/null 2>&1'; then
+  echo "[error] The managed eza aliases were not loaded in Zsh." >&2
+  exit 1
+fi
+
+if ! zsh -ic 'zle -l | grep -Fxq history-substring-search-up'; then
+  echo "[error] The history-substring-search Zsh widget was not loaded." >&2
+  exit 1
+fi
+
 printf '[ok] user=%s shell=%s home=%s\n' "$(id -un)" "$login_shell" "$HOME"
-printf '[ok] dotnet=%s node=%s pnpm=%s starship=%s\n' \
-  "$dotnet_version" "$node_version" "$pnpm_version" "$starship_version"
+printf '[ok] dotnet=%s node=%s pnpm=%s starship=%s eza=%s\n' \
+  "$dotnet_version" "$node_version" "$pnpm_version" "$starship_version" "$eza_version"
 printf '[ok] git=%s gh=%s\n' \
   "$(git --version | awk '{print $3}')" \
   "$(gh --version | head -n 1 | awk '{print $3}')"
-printf '[ok] devcontainer scripts are readable and executable.\n'
+printf '[ok] Canonical Starship prompt, Zsh widgets, scripts, and managed shell components are available.\n'
 
 if ! git config --global --get user.name >/dev/null 2>&1 || \
    ! git config --global --get user.email >/dev/null 2>&1; then
