@@ -1,4 +1,5 @@
 using Kioku.Mcp.Server.Hosting;
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Configuration;
@@ -20,18 +21,23 @@ public sealed class WorkSessionArchitectureTests
     }
 
     [Fact]
-    public void Runtime_RegistersApplicationPortToConcreteService()
+    public void Runtime_RegistersSessionApplicationAndInfrastructurePorts()
     {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder().Build();
         services.AddKiokuRuntime(configuration);
 
-        var descriptor = Assert.Single(
+        var application = Assert.Single(
             services,
             service => service.ServiceType == typeof(IWorkSessionService));
+        var fileSystem = Assert.Single(
+            services,
+            service => service.ServiceType == typeof(IWorkSessionFileSystem));
 
-        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
-        Assert.Equal(typeof(WorkSessionService), descriptor.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, application.Lifetime);
+        Assert.Equal(typeof(WorkSessionService), application.ImplementationType);
+        Assert.Equal(ServiceLifetime.Singleton, fileSystem.Lifetime);
+        Assert.Equal(typeof(WorkSessionFileSystem), fileSystem.ImplementationType);
     }
 
     [Fact]
@@ -45,6 +51,41 @@ public sealed class WorkSessionArchitectureTests
         Assert.DoesNotContain("VaultConfigService", source);
         Assert.DoesNotContain("ProjectWorkspaceService", source);
         Assert.DoesNotContain("ObsidianBridgeService", source);
+        Assert.DoesNotContain("WorkSessionFileSystem", source);
+    }
+
+    [Fact]
+    public void SessionWorkflow_DoesNotCallSystemIoDirectly()
+    {
+        var source = string.Concat(
+            ReadRepositoryFile("src/Kioku.Mcp.Server/Services/WorkSessionService.cs"),
+            ReadRepositoryFile("src/Kioku.Mcp.Server/Services/WorkSessionService.Helpers.cs"));
+
+        Assert.DoesNotContain("File.", source);
+        Assert.DoesNotContain("Directory.", source);
+    }
+
+    [Fact]
+    public void SessionTools_AcceptInjectedCancellationToken()
+    {
+        var methodNames = new[]
+        {
+            "get_work_context",
+            "start_work_session",
+            "end_work_session",
+            "list_work_sessions",
+        };
+
+        foreach (var methodName in methodNames)
+        {
+            var method = typeof(SessionContextTools).GetMethod(methodName);
+            Assert.NotNull(method);
+            var parameters = method.GetParameters();
+            var cancellation = Assert.Single(
+                parameters,
+                parameter => parameter.ParameterType == typeof(CancellationToken));
+            Assert.Same(parameters[^1], cancellation);
+        }
     }
 
     private static string ReadRepositoryFile(string relativePath)

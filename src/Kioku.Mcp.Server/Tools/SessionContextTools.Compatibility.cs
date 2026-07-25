@@ -1,3 +1,4 @@
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
 
 namespace Kioku.Mcp.Server.Tools;
@@ -34,6 +35,7 @@ public sealed partial class SessionContextTools
             vaultConfig,
             workspace,
             bridge,
+            new WorkSessionFileSystem(),
             timeProvider))
     {
     }

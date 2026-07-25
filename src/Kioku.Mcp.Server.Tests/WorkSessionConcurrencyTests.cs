@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -49,6 +50,22 @@ public sealed class WorkSessionConcurrencyTests : IAsyncLifetime
         Assert.StartsWith("[ok]", ended);
         Assert.Contains("\"duration_seconds\":600", ended);
         Assert.Equal("done", FindById(sessionId).Metadata.Status);
+    }
+
+    [Fact]
+    public async Task CancelledToolCall_DoesNotCreateSessionFile()
+    {
+        var tools = CreateTools();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            tools.start_work_session(
+                project: "demo",
+                agent: "codex",
+                cancellationToken: cancellation.Token));
+
+        Assert.False(Directory.Exists(GetWorkspace().GetSubfolder("demo", "sessions")));
     }
 
     [Fact]
@@ -225,6 +242,7 @@ public sealed class WorkSessionConcurrencyTests : IAsyncLifetime
             vaultConfig,
             workspace,
             bridge,
+            new WorkSessionFileSystem(),
             _time);
     }
 
@@ -258,14 +276,5 @@ public sealed class WorkSessionConcurrencyTests : IAsyncLifetime
             .Last(line => line.StartsWith('{'));
         using var document = JsonDocument.Parse(json);
         return document.RootElement.GetProperty("session_id").GetString()!;
-    }
-
-    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
-    {
-        private DateTimeOffset _utcNow = utcNow;
-
-        public override DateTimeOffset GetUtcNow() => _utcNow;
-
-        public void Advance(TimeSpan duration) => _utcNow += duration;
     }
 }

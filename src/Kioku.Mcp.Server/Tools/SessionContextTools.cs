@@ -24,8 +24,14 @@ public sealed partial class SessionContextTools
         [Description("Folder treated as the inbox. Empty uses folders.inbox, then 'Inbox'.")] string inbox_folder = "",
         [Description("Maximum notes shown per section unless recent_limit is set.")] int max_per_section = 5,
         [Description("Optional vault-relative scope for recently modified notes.")] string recent_folder = "",
-        [Description("Maximum recently modified notes. Zero uses max_per_section.")] int recent_limit = 0) =>
-        _sessions.GetWorkContextAsync(inbox_folder, max_per_section, recent_folder, recent_limit);
+        [Description("Maximum recently modified notes. Zero uses max_per_section.")] int recent_limit = 0,
+        CancellationToken cancellationToken = default) =>
+        _sessions.GetWorkContextAsync(
+            inbox_folder,
+            max_per_section,
+            recent_folder,
+            recent_limit,
+            cancellationToken);
 
     [McpServerTool, Description(
         "Starts a durable work session or resumes an active session by session_id. New sessions " +
@@ -39,7 +45,8 @@ public sealed partial class SessionContextTools
         [Description("Agent name. Empty auto-detects it from the MCP client.")] string agent = "",
         [Description("Existing durable session identifier to resume.")] string session_id = "",
         [Description("Optional parent session identifier for handoff chains.")] string parent_session_id = "",
-        McpServer? server = null) =>
+        McpServer? server = null,
+        CancellationToken cancellationToken = default) =>
         _sessions.StartAsync(
             session_name,
             sessions_folder,
@@ -48,7 +55,8 @@ public sealed partial class SessionContextTools
             agent,
             session_id,
             parent_session_id,
-            server?.ClientInfo?.Name);
+            server?.ClientInfo?.Name,
+            cancellationToken);
 
     [McpServerTool, Description(
         "Closes an active work session. session_id is the primary selector. A note/path remains " +
@@ -60,14 +68,16 @@ public sealed partial class SessionContextTools
         [Description("Optional project scope for implicit resolution.")] string project = "",
         [Description("Durable session identifier; takes precedence over session_note.")] string session_id = "",
         [Description("Agent identity used when MCP client metadata is unavailable.")] string agent = "",
-        McpServer? server = null) =>
+        McpServer? server = null,
+        CancellationToken cancellationToken = default) =>
         _sessions.EndAsync(
             session_note,
             summary,
             project,
             session_id,
             agent,
-            server?.ClientInfo?.Name);
+            server?.ClientInfo?.Name,
+            cancellationToken);
 
     [McpServerTool, Description(
         "Lists work sessions with durable IDs, agent/client identity, project, persisted UTC " +
@@ -75,8 +85,9 @@ public sealed partial class SessionContextTools
     public Task<string> list_work_sessions(
         [Description("Folder containing global sessions. Empty auto-detects it.")] string sessions_folder = "",
         [Description("Project whose sessions should be listed.")] string project = "",
-        [Description("Include notes modified during each session.")] bool include_activity = false) =>
-        _sessions.ListAsync(sessions_folder, project, include_activity);
+        [Description("Include notes modified during each session.")] bool include_activity = false,
+        CancellationToken cancellationToken = default) =>
+        _sessions.ListAsync(sessions_folder, project, include_activity, cancellationToken);
 
     internal static string NormalizeAgentName(string? raw) =>
         WorkSessionService.NormalizeAgentName(raw);
