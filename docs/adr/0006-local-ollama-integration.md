@@ -13,8 +13,9 @@ where that text is sent is a design decision, not an implementation detail.
 
 ## Decision
 
-Kioku calls a local Ollama instance for both jobs. `EmbeddingService` posts note text (extracted
-by `MarkdownTextExtractor`, one request per heading-aware chunk) to
+Kioku calls a local Ollama instance for both jobs. `EmbeddingService` posts note text (split into
+heading-aware chunks by `NoteChunker`, built on top of `MarkdownTextExtractor`, one request per
+chunk) to
 `POST {KIOKU_OLLAMA_URL}/api/embeddings`, defaulting to `http://localhost:11434` (loopback), so
 under default configuration no note text leaves the machine. This runs during vault indexing and
 for `search_notes` in `semantic`/`hybrid` mode. `GenerationService` posts truncated

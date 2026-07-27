@@ -18,9 +18,10 @@ more than one client against the same vault.
 
 Kioku supports both transports behind one switch, `KIOKU_TRANSPORT` (default `stdio`, or `http`
 for Streamable HTTP). stdio needs no network configuration: the client spawns the process and
-talks over stdin/stdout. Streamable HTTP (`src/Kioku.Mcp.Server/Http/`) binds to `127.0.0.1` by
-default and layers `OriginValidationMiddleware`, CORS, `ApiKeyMiddleware` (bearer token, fixed-time
-comparison), and `McpRequestLimitsMiddleware`. `KiokuConfiguration.ValidateHttpTransport()`
+talks over stdin/stdout. Streamable HTTP (composed in `src/Kioku.Mcp.Server/Http/HttpTransportSecurity.cs`)
+binds to `127.0.0.1` by default and layers `OriginValidationMiddleware`, CORS, `ApiKeyMiddleware`
+(bearer token, fixed-time comparison), and `McpRequestLimitsMiddleware` — all defined under
+`src/Kioku.Mcp.Server/Middleware/`. `KiokuConfiguration.ValidateHttpTransport()`
 refuses to start a non-loopback, unauthenticated listener unless an operator explicitly sets
 `KIOKU_ALLOW_INSECURE_HTTP=true`, which also logs a prominent startup warning.
 
