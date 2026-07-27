@@ -9,7 +9,7 @@ Current server package version: **2.3.0**. The NuGet PackageVersion is authorita
 
 ## Obsidian plugin
 
-The plugin package.json and manifest.json versions must match; versions.json must contain the current plugin version. Plugin SemVer is independent from server SemVer.
+The Obsidian plugin lives in its own repository (sandovaldavid/kioku-obsidian) with its own release pipeline and SemVer, fully independent from server SemVer. This repository no longer tracks plugin version files.
 
 ## Root workspace
 

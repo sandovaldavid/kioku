@@ -46,15 +46,6 @@ kformat() {
   )
 }
 
-kplugin() {
-  (
-    cd "$KIOKU_WORKSPACE" \
-      && pnpm --filter obsidian-kioku-mcp run lint \
-      && pnpm --filter obsidian-kioku-mcp run test \
-      && pnpm --filter obsidian-kioku-mcp run build
-  )
-}
-
 kverify() {
   (cd "$KIOKU_WORKSPACE" && bash .devcontainer/scripts/verify-environment.sh)
 }

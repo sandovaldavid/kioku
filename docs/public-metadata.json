@@ -52,7 +52,7 @@
   "versioning": {
     "rootWorkspace": "The private root package.json is an unversioned workspace coordinator and is not a release artifact.",
     "server": "The NuGet PackageVersion is authoritative for the server and must match both version fields in the MCP server manifest.",
-    "plugin": "The plugin package.json and manifest.json versions must match; versions.json must contain the current plugin version. Plugin SemVer is independent from server SemVer.",
+    "plugin": "The Obsidian plugin lives in its own repository (sandovaldavid/kioku-obsidian) with its own release pipeline and SemVer, fully independent from server SemVer. This repository no longer tracks plugin version files.",
     "bridge": "Server and plugin compatibility is negotiated through the bridge protocol and capabilities, not by requiring identical product versions."
   }
 }

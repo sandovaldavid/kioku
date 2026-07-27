@@ -12,16 +12,6 @@
           "xpath": "//PackageVersion"
         },
         {
-          "type": "json",
-          "path": "src/obsidian-kioku-mcp/manifest.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "json",
-          "path": "src/obsidian-kioku-mcp/package.json",
-          "jsonpath": "$.version"
-        },
-        {
           "type": "generic",
           "path": "README.md"
         },

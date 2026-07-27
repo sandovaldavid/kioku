@@ -1,6 +1,6 @@
 # Contributing to Kioku
 
-Kioku is a .NET 10 MCP server and TypeScript Obsidian plugin. Changes branch from `origin/develop`, pull requests target `develop`, and release promotion to `main` follows the repository release workflow.
+Kioku is a .NET 10 MCP server. Changes branch from `origin/develop`, pull requests target `develop`, and release promotion to `main` follows the repository release workflow. The companion Obsidian plugin lives in its own repository, [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian), with its own contribution workflow.
 
 ## Development setup
 
@@ -10,10 +10,6 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
 corepack enable
 pnpm install --frozen-lockfile
-pnpm --filter obsidian-kioku-mcp run build
-pnpm --filter obsidian-kioku-mcp run lint
-pnpm --filter obsidian-kioku-mcp run format:check
-pnpm --filter obsidian-kioku-mcp run test
 ```
 
 See [docs/install.md](docs/install.md) for complete setup and deployment instructions.
@@ -35,7 +31,6 @@ Allowed scopes are `server`, `plugin`, `docs`, `ci`, `config`, `deps`, and `rele
 ## Code style
 
 - C#: nullable analysis, analyzers, deterministic build, and warnings-as-errors are configured repository-wide. Run both `dotnet format` checks before submitting.
-- TypeScript: run Prettier, ESLint, Vitest, and the production build.
 - Use structured logging instead of `Console` in production code.
 - Do not add decorative separator comments or emojis to logs and protocol messages.
 
@@ -66,10 +61,6 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
-pnpm --filter obsidian-kioku-mcp run lint
-pnpm --filter obsidian-kioku-mcp run format:check
-pnpm --filter obsidian-kioku-mcp run test
-pnpm --filter obsidian-kioku-mcp run build
 node scripts/generate-public-docs.mjs --check
 ```
 

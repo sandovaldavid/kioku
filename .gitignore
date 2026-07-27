@@ -10,13 +10,9 @@ publish/
 .idea/
 *.user
 
-# Node.js (plugin Obsidian)
+# Node.js (root tooling: commitlint, husky)
 node_modules/
 dist/
-
-# Build del plugin
-main.js
-*.js.map
 
 # Kioku runtime
 kioku.db

@@ -15,8 +15,6 @@ VERSION_FILES=(
     "CHANGELOG.md"
     "src/Kioku.Mcp.Server/README.md"
     "src/Kioku.Mcp.Server/.mcp/server.json"
-    "src/obsidian-kioku-mcp/manifest.json"
-    "src/obsidian-kioku-mcp/package.json"
     ".release-please-manifest.json"
 )
 

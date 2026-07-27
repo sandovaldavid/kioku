@@ -36,8 +36,6 @@ bash .devcontainer/scripts/configure-git-ssh-signing.sh
 generated_paths=(
   artifacts
   test-results
-  src/obsidian-kioku-mcp/coverage
-  src/obsidian-kioku-mcp/node_modules
 )
 
 for path in "${generated_paths[@]}"; do
