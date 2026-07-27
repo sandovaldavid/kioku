@@ -1,291 +1,164 @@
----
-layout: default
-title: Troubleshooting Guide
-sidebar: true
----
+# Troubleshooting
 
-## Common Issues
+Use this guide against the same branch and runtime you are executing. The generated [MCP contract reference](commands-reference.md) and [configuration reference](configuration-reference.md) are authoritative when examples disagree with a client UI.
 
-### Server Won't Start
+## Server does not start
 
-#### Error: "KIOKU_VAULT_PATH environment variable is not configured"
+1. Confirm `KIOKU_VAULT_PATH` is set to an existing, accessible directory.
+2. Confirm the client launches the expected `kioku` executable or the expected source build.
+3. Check stderr or the MCP client's server logs. Under `stdio`, stdout is reserved for protocol traffic.
+4. When running from source, use the .NET SDK selected by `global.json`.
 
-**Cause:** The vault path environment variable is not set.
+Source diagnostics:
 
-**Solution:**
 ```bash
-export KIOKU_VAULT_PATH=/path/to/your/vault
-# Or set it permanently in your shell profile (~/.bashrc, ~/.zshrc, etc.)
+dotnet --version
+dotnet restore Kioku.slnx
+dotnet build Kioku.slnx --configuration Release --no-restore
 ```
 
-#### Error: "Vault path does not exist"
+Node.js and pnpm are required for repository documentation tooling, not for running the installed .NET tool.
 
-**Cause:** The specified vault path doesn't exist or is not accessible.
+## MCP client cannot connect over stdio
 
-**Solution:**
+- Use an absolute vault path.
+- Verify the client configuration passes `KIOKU_VAULT_PATH`.
+- Verify the command is available in the environment the client actually launches.
+- Restart the MCP client after changing its configuration.
+- Inspect client logs for process-launch, permission, or JSON-RPC initialization errors.
+
+The Obsidian plugin is **not required** for stdio or Streamable HTTP. It is required only for tools in the optional `bridge` and `plugin` capability groups.
+
+After connection, call `get_server_status` through the MCP client to inspect vault, index, Ollama, bridge, and capability state.
+
+## Streamable HTTP does not start
+
+For loopback development:
+
 ```bash
-# Verify the path exists
-ls -la /path/to/your/vault
-
-# Check permissions
-chmod 755 /path/to/your/vault
+export KIOKU_TRANSPORT=http
+export KIOKU_HTTP_HOST=127.0.0.1
+export KIOKU_HTTP_PORT=5173
+kioku
 ```
 
-### Plugin Issues
+Check liveness:
 
-#### Bridge Not Starting
-
-**Symptoms:** No bridge listening message in console, plugin shows as enabled but not working.
-
-**Possible Causes:**
-1. Port 7765 already in use
-2. Plugin not properly installed
-3. Obsidian needs restart
-
-**Solutions:**
 ```bash
-# Check if port is in use
-lsof -i :7765
-
-# Kill the process
-kill -9 <PID>
-
-# Or change the port in plugin settings
+curl -f http://127.0.0.1:5173/health/live
 ```
 
-#### "Could not start the bridge" Notice
+A non-loopback host requires `KIOKU_API_KEY` unless `KIOKU_ALLOW_INSECURE_HTTP=true` is deliberately set. The unsafe override is not recommended.
 
-**Cause:** Port conflict or permission issue.
+Common failures:
 
-**Solution:**
-1. Open plugin settings
-2. Change bridge port to a different value (e.g., 7766)
-3. Restart Obsidian
-4. Update your MCP client config to use the new port
+- invalid host or port;
+- missing API key for a non-loopback bind;
+- disallowed browser `Origin`;
+- a reverse proxy not listed in `KIOKU_HTTP_TRUSTED_PROXIES`;
+- request bodies or execution exceeding configured limits.
 
-#### Bridge tools return "[error] [UNAUTHORIZED] ..."
+See [deploy/auth-options.md](deploy/auth-options.md).
 
-**Cause:** The plugin's "Auth token" setting is configured but the server's `KIOKU_BRIDGE_TOKEN`
-is missing, empty, or doesn't match — or vice versa.
+## HTTP client receives 401, 403, 413, or a timeout
 
-**Solution:**
-1. Open the Kioku plugin settings in Obsidian and copy the "Auth token" value (or click
-   "Generate" if none is set and you want to enable auth).
-2. Set `KIOKU_BRIDGE_TOKEN` in the server's environment to the exact same value.
-3. Restart both the bridge (plugin command "Restart Kioku MCP Bridge") and the MCP server.
-4. To disable auth again, clear the "Auth token" field in the plugin and unset
-   `KIOKU_BRIDGE_TOKEN` on the server — an empty token on either side falls back to the
-   pre-auth, unauthenticated behavior.
+- **401** — send the configured bearer token.
+- **403** — verify the exact `Origin` value is in `KIOKU_HTTP_ALLOWED_ORIGINS`.
+- **413** — the request exceeds `KIOKU_HTTP_MAX_REQUEST_BODY_BYTES`.
+- **Timeout** — the MCP POST exceeded `KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS`.
 
-### Connection Issues
+`/health/live` is public and minimal. `/health/ready` follows the protected deployment configuration.
 
-#### MCP Client Can't Connect
+## Index is loading or appears stale
 
-**Symptoms:** "Connection refused" or timeout errors.
+Call `get_server_status` first. During startup, tools can report that the index is still loading.
 
-**Checklist:**
-1. ✅ Server is running
-2. ✅ Vault path is correct
-3. ✅ Port matches between server and client config
-4. ✅ No firewall blocking the connection
-5. ✅ Plugin is enabled in Obsidian
+Use the MCP `rebuild_index` tool when a full rebuild is required. Do not delete `.kioku/embeddings.bin` unless you intentionally want embeddings regenerated.
 
-**Debug Steps:**
+If external tools modify many files at once, wait for the file watcher and indexing queue to settle, then inspect status again.
+
+See [indexing-pipeline.md](indexing-pipeline.md).
+
+## Semantic or hybrid search is unavailable
+
+Keyword search does not require Ollama. Semantic retrieval requires:
+
 ```bash
-# Test server directly
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | kioku
-
-# Test public liveness
-curl --fail http://127.0.0.1:5173/health/live
-
-# Test protected readiness when KIOKU_API_KEY is configured
-curl --fail \
-  -H "Authorization: Bearer $KIOKU_API_KEY" \
-  http://127.0.0.1:5173/health/ready
-
-# Check plugin console
-# Open DevTools in Obsidian (Ctrl+Shift+I) and look for errors
-```
-
-### Semantic Search Issues
-
-#### "Ollama not reachable" Warning
-
-**Cause:** Ollama service is not running or not accessible.
-
-**Solution:**
-```bash
-# Start Ollama
 ollama serve
-
-# Verify it's running
-curl http://localhost:11434/api/tags
-
-# Pull embedding model
 ollama pull nomic-embed-text
 ```
 
-#### Semantic Search Returns No Results
+Verify that `KIOKU_OLLAMA_URL` and `KIOKU_EMBEDDING_MODEL` match the running service. A remote `KIOKU_OLLAMA_URL` can send note content off the local machine; review the [threat and privacy model](threat-and-privacy-model.md).
 
-**Possible Causes:**
-1. Embedding model not pulled
-2. Vault not indexed yet
-3. Index corrupted
+## Generation tools are unavailable
 
-**Solutions:**
-```bash
-# Ensure model is available
-ollama list | grep nomic-embed-text
+Generation tools are optional and disabled unless both conditions are met:
 
-# Force re-index
-# Restart the server or call rebuild_index tool
+1. the `generation` capability group is enabled for the vault;
+2. `KIOKU_GEN_MODEL` names an available Ollama model.
 
-# Check logs for errors
-# Look for "Embedding index ready" message
-```
+Restart Kioku after changing capability configuration.
 
-### Performance Issues
+## Obsidian bridge tools are unavailable
 
-#### Slow Startup
+The bridge is optional and maintained in [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian).
 
-**Cause:** Large vault with many files to index, or a large embedding backlog (first run,
-or after a cache invalidation from an embedding model change).
+Verify:
 
-Keyword indexing itself is fast and never blocked by embeddings — the server reports
-`Status: [ok] Ready` and answers `search_notes`/`list_notes`/etc. as soon as the vault's
-file index is built. Semantic search (`search_notes(mode='semantic')`) is what's degraded while a
-re-embedding backlog is being processed: it silently returns fewer or no semantic results
-until the backlog clears (keyword-only tools are unaffected).
+- the plugin is installed and enabled in Obsidian;
+- the `bridge` or `plugin` capability group is enabled as required;
+- `KIOKU_OBSIDIAN_PORT` matches the plugin port;
+- `KIOKU_BRIDGE_TOKEN` matches the plugin token;
+- server and plugin support the negotiated bridge protocol.
 
-Re-embedding runs in the background with limited concurrency (2 requests to Ollama at a
-time, to avoid saturating a CPU-only machine) and never blocks the server from starting or
-serving keyword search. A note whose content hasn't changed since the last run is never
-re-embedded — only new or edited notes enter the backlog.
+Use `get_server_status` and `get_obsidian_state` through the MCP client. See [versioning.md](versioning.md) for compatibility semantics.
 
-**Check progress** with `get_server_status`:
-```
-Embedding backlog: 42
-Embedded this session: 158
-Embedding rate: 24.3 notes/min
-Estimated remaining: 1.7m
-```
+## Docker Compose fails
 
-**Solutions:**
-1. Exclude large folders in `.kioku/config.yml`:
-   ```yaml
-   exclude:
-     - .obsidian
-     - .trash
-     - Attachments
-   ```
-2. Let the backlog drain in the background (subsequent starts are faster since unchanged
-   notes are skipped — see `get_server_status`)
-3. Consider splitting into multiple vaults
-
-#### High Memory Usage
-
-**Cause:** Large vault with many embeddings.
-
-**Solutions:**
-1. Reduce `KIOKU_MAX_RESULTS` (default: 20)
-2. Exclude unnecessary folders
-3. Restart server periodically to clear cache
-
-### File Operation Errors
-
-#### "Path escapes the vault" Error
-
-**Cause:** Attempting to access files outside the vault (security feature).
-
-**Solution:**
-- This is intentional security protection
-- Ensure all file paths are within the vault
-- Don't use absolute paths or `../` in tool calls
-
-#### "Note not found" Error
-
-**Possible Causes:**
-1. Note doesn't exist
-2. Note path is incorrect
-3. Index is outdated
-
-**Solutions:**
-```bash
-# Verify note exists
-ls /path/to/vault/note.md
-
-# Rebuild index
-# Call rebuild_index tool or restart server
-
-# Use exact path or note name
-# Try: "Projects/My Note" instead of just "My Note"
-```
-
-## Docker-Specific Issues
-
-### Container Won't Start
+Validate the root Compose file:
 
 ```bash
-# Check logs
-docker logs kioku-server
-
-# Common issues:
-# 1. Vault path not mounted correctly
-# 2. Port already in use
-# 3. Ollama not ready
+docker compose config
 ```
 
-### Ollama Connection Failed
+The supplied stack requires `KIOKU_API_KEY`:
 
 ```bash
-# Ensure Ollama container is running
-docker ps | grep ollama
-
-# Check network connectivity
-docker exec kioku-server curl http://ollama:11434/api/tags
-
-# Restart Ollama container
-docker restart kioku-ollama
+export KIOKU_API_KEY="$(openssl rand -hex 32)"
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+docker compose up --build
 ```
 
-## Getting Help
+Check service logs and health:
 
-### Logs
-
-**Server logs:**
 ```bash
-# stdio transport - check your MCP client logs
-# HTTP transport
-docker logs kioku-server
-# Or check systemd journal if running as service
-journalctl -u kioku-server
+docker compose ps
+docker compose logs kioku-server
+curl -f http://127.0.0.1:5173/health/live
 ```
 
-**Plugin logs:**
-- Open Obsidian Developer Console (Ctrl+Shift+I)
-- Filter by "[Kioku]"
+See [docker.md](docker.md).
 
-### Diagnostic Information
+## Generated documentation is out of sync
 
-Collect this information when reporting issues:
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+dotnet build Kioku.slnx --configuration Release --no-restore
+node scripts/generate-public-docs.mjs --write
+node scripts/generate-public-docs.mjs --check
+```
 
-1. **Server version:** `kioku --version` or check release tag
-2. **Plugin version:** Check in Obsidian Community Plugins settings
-3. **OS:** `uname -a` or Windows version
-4. **Node.js version:** `node --version` (if building from source)
-5. **.NET version:** `dotnet --version`
-6. **Ollama version:** `ollama --version`
-7. **Error messages:** Full error text from logs
-8. **Configuration:** Environment variables (redact sensitive values)
+Do not hand-edit generated contract files.
 
-### Report Issues
-
-- **GitHub Issues:** https://github.com/sandovaldavid/kioku/issues
-- **Security Issues:** See [SECURITY.md](../SECURITY.md)
+## Before reporting a bug
 
 Include:
-- Steps to reproduce
-- Expected behavior
-- Actual behavior
-- Logs and diagnostic info
-- Your configuration (redact secrets)
+
+- operating system and architecture;
+- target branch, tag, or package version;
+- transport (`stdio` or Streamable HTTP);
+- exact command or MCP tool call;
+- relevant stderr/client logs with secrets and private paths removed;
+- whether Ollama or the optional Obsidian plugin was involved;
+- the smallest reproducible vault fixture that does not expose private notes.

@@ -1,141 +1,168 @@
-# Kioku - Agent Reference
+# Kioku agent operating manual
 
-## What is Kioku
+This file defines how coding agents must work in `sandovaldavid/kioku`. It is an operational guide for the current `develop` branch, not a roadmap or historical report.
 
-Kioku is an MCP (Model Context Protocol) server that gives AI agents direct access to an Obsidian
-vault. It pairs with an Obsidian plugin that provides optional UI actions over WebSocket. The
-plugin lives in its own repository, [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian),
-and is versioned and released independently of the server.
+## Repository scope
 
-- **Server** (C# .NET 10): reads and writes `.md` files and exposes 49 MCP tools across 16 classes
-- **Plugin** (TypeScript 6, separate repository): WebSocket server running inside Obsidian
+Kioku is a .NET 10 Model Context Protocol server that reads and writes an Obsidian vault. The server supports local `stdio` and authenticated Streamable HTTP transports. The optional Obsidian bridge plugin is maintained and released independently in [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian).
 
-## Architecture
+This repository owns:
 
-```
-[AI agent]
-    |
-  stdio or Streamable HTTP
-    |
-[Kioku MCP Server] ---- reads/writes ---- [Obsidian Vault]
-    |
- WebSocket :7765 (optional)
-    |
-[Obsidian Plugin]
-```
+- the MCP server, contracts, prompts, resources, and integrations;
+- vault indexing, retrieval, filesystem policy, work sessions, and engineering workflows;
+- server packaging, Docker deployment, CI, releases, benchmarks, and public documentation.
 
-## Environment variables
+This repository does not own the Obsidian plugin source or its release workflow.
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `KIOKU_VAULT_PATH` | yes | - | Absolute path to the root of the Obsidian vault |
-| `KIOKU_MAX_RESULTS` | no | 20 | Maximum number of search results |
-| `KIOKU_TRANSPORT` | no | `stdio` | `stdio` or Streamable HTTP (`http`) |
-| `KIOKU_HTTP_HOST` | no | `127.0.0.1` | HTTP listener; non-loopback requires an API key |
-| `KIOKU_HTTP_PORT` | no | 5173 | Streamable HTTP port |
-| `KIOKU_API_KEY` | no | - | Bearer token for Streamable HTTP |
-| `KIOKU_OBSIDIAN_PORT` | no | 7765 | WebSocket port of the Obsidian plugin |
-| `KIOKU_OLLAMA_URL` | no | `http://localhost:11434` | Ollama base URL |
-| `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Ollama embedding model name |
-| `KIOKU_GEN_MODEL` | no | - (disabled) | Ollama model for the generation group |
+## Source-of-truth order
 
-## MCP Tools
+When statements disagree, use this precedence:
 
-The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative and
-contains every parameter. The implemented classes are:
+1. current code and configuration on the target branch;
+2. executable tests and generated public contracts;
+3. maintained operational documentation;
+4. merged pull requests and closed issues as historical evidence only;
+5. open issues, proposals, plans, and comments as non-implemented intent.
 
-| Class | Group | Tools |
-|------|-------|-------|
-| `NoteQueryTools` | core | `find_similar_notes`, `get_links`, `list_notes`, `read_note`, `search_notes` |
-| `NoteCommandTools` | core | `create_note`, `delete_note`, `edit_note`, `manage_trash`, `move_note`, `update_frontmatter` |
-| `UtilityTools` | core | `get_server_status`, `rebuild_index` |
-| `TaskManagementTools` | tasks | `list_tasks`, `set_task_state` |
-| `VaultOrganizationTools` | organization | `audit_vault`, `find_duplicate_notes`, `manage_tags`, `process_inbox`, `suggest_folder`, `suggest_tags` |
-| `SessionContextTools` | sessions | `end_work_session`, `get_work_context`, `list_work_sessions`, `start_work_session` |
-| `WorkflowTools` | workflows | `manage_templates` |
-| `KnowledgeGraphTools` | graph | `get_concept_map`, `get_vault_snapshot` |
-| `GraphAnalysisTools` | graph | `suggest_links` |
-| `ResearchTools` | research | `audit_citations`, `export_citations`, `import_bibtex` |
-| `ObsidianBridgeTools` | bridge | `edit_in_obsidian`, `get_obsidian_state`, `open_note_in_obsidian`, `trigger_obsidian_command` |
-| `PluginIntegrationTools` | plugin | `apply_template`, `get_installed_plugins`, `lint`, `query_dataview` |
-| `AssetTools` | assets | `find_orphan_assets`, `tidy_attachments` |
-| `GenerationTools` | generation | `generate_flashcards`, `summarize_note` |
-| `CssThemingTools` | css | `manage_css_snippets` |
-| `EngineeringWorkflowTools` | engineering | `create_project_doc`, `get_project_context`, `list_projects`, `setup_agent_workflow` |
+Never describe an issue, roadmap item, proposed architecture, benchmark expectation, or PR body as implemented unless the target branch contains the corresponding code or generated contract.
 
-The core groups are always registered. With no vault configuration, `research`, `generation`,
-`css`, `assets`, `bridge`, and `plugin` are disabled. `git`, `restore`, and `zettelkasten` are
-removed groups, not valid current capability groups. See [`docs/vault-config.md`](docs/vault-config.md).
+## Current verified snapshot
 
-## Common workflows
+- Target framework: `net10.0`, configured in `Directory.Build.props`.
+- Solution: `Kioku.slnx`.
+- Server package version on `develop`: `2.3.0`; the branch can contain unreleased changes.
+- Default MCP profile: 43 tools.
+- All-capabilities profile: 59 tools.
+- Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, and `plugin`.
+- The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative for tool names, schemas, annotations, prompts, resources, and profile counts.
+- The generated [`docs/configuration-reference.md`](docs/configuration-reference.md) is authoritative for public process configuration.
+- Markdown files in the vault are the durable source of truth. Runtime indexes and the embeddings cache are derived data; there are no database migrations to maintain.
 
-- **Search**: use `search_notes` with `mode='keyword'`, `'semantic'`, or `'hybrid'`; use hybrid by default.
-- **Read metadata**: use `read_note` with `metadata_only=true`.
-- **Links**: use `get_links` with `direction='in'`, `'out'`, or `'both'`.
-- **Edits**: use `edit_note` with `mode='replace'`, `'append'`, or `'prepend'`.
-- **Tasks**: use `list_tasks`, then `set_task_state` with the returned line number.
-- **Structured notes**: use `create_note` with `kind='zettel'`, `'literature'`, `'moc'`, or `'folder-readme'`.
-- **Bulk organization**: preview `process_inbox`, `manage_tags`, or `suggest_links` before applying.
-- **Recovery**: use `manage_trash` for Kioku soft-deleted notes. Use native Git for repository history and bulk recovery.
+Do not copy the complete tool or environment-variable inventory into this file.
 
-## Tool response format
+## Branch and pull-request workflow
 
-All tools return plain text strings. Status prefixes:
+- Start ordinary work from `origin/develop`.
+- Target ordinary pull requests to `develop`.
+- `main` is the release branch; promotion follows the repository release workflow.
+- Keep one focused concern per pull request.
+- Link an issue only when the pull request fully resolves it.
+- Do not claim hosted branch rules, secrets, environments, or external publishing configuration are active unless they were directly verified.
 
-| Prefix | Meaning |
-|--------|---------|
-| `[ok]` | Operation succeeded |
-| `[error]` | Operation failed |
-| `[loading]` | Index not ready yet - retry |
-| `[info]` | Informational, no action needed |
-| `[online]` | Server health check response |
+## Repository map
 
-## Adding a new MCP tool
-
-1. Add a method to the appropriate `Tools/` class (or create a new `sealed class`)
-2. Annotate it with `[McpServerTool]` and `[Description("...")]`
-3. Register the class in `Program.cs` with `.WithTools<YourNewTools>()`, including capability gating when appropriate
-4. Return strings using the prefixes above; do not use emojis
-5. Regenerate `docs/commands-reference.md`; never edit that generated file manually
-
-## Logging
-
-**C# server:**
-```csharp
-using Kioku.Mcp.Server.Logging;
-
-_logger.Info("Starting: {Path}", vaultPath);
-_logger.Warn("Could not connect: {Message}", ex.Message);
-_logger.Error(ex, "Unexpected failure");
-_logger.Debug("Re-indexed: {File}", fileName);
-```
-
-C# logs go to **stderr** only; stdout is reserved for the MCP protocol.
-
-## File structure
-
-```
+```text
 /
-  README.md
-  AGENTS.md
-  CLAUDE.md
-  docs/commands-reference.md     Generated MCP inventory
-  src/Kioku.Mcp.Server/          C# MCP server
-    Program.cs                   Entry point and DI setup
-    Services/                    Index, embeddings, bridge, config, workflows
-    Tools/                       MCP tool classes
+├── AGENTS.md
+├── README.md
+├── CONTRIBUTING.md
+├── Kioku.slnx
+├── Directory.Build.props
+├── Directory.Packages.props
+├── Dockerfile
+├── docker-compose.yml
+├── docs/
+│   ├── README.md
+│   ├── commands-reference.md        generated
+│   ├── configuration-reference.md   generated
+│   ├── versioning.md                generated
+│   └── deploy/
+├── scripts/
+│   ├── Kioku.Ci/
+│   ├── Kioku.Eval/
+│   ├── Kioku.Benchmarks/
+│   ├── Kioku.HandoffDemo/
+│   └── generate-public-docs.mjs
+└── src/
+    ├── Kioku.Mcp.Server/
+    └── Kioku.Mcp.Server.Tests/
 ```
 
-## Semantic search (Ollama)
+## Documentation boundary and status labels
 
-`search_notes` with `mode='semantic'` uses `EmbeddingService` with `nomic-embed-text` (768-dim
-vectors). Pull the model once with `ollama pull nomic-embed-text`. If Ollama is unavailable,
-keyword and hybrid search remain usable; semantic mode reports an informational result.
+The repository keeps current, public, operational truth. Historical reasoning, rejected alternatives, completed plans, cross-repository strategy, and session handoffs belong in Cortex-L7.
 
-Embeddings are cached at `{vault}/.kioku/embeddings.bin` and updated as notes change.
+Use these labels during an audit:
 
-## Development workflow
+- **Implemented** — present in the target branch and supported by code, configuration, tests, or generated contracts.
+- **In progress** — active work exists but is not complete on the target branch.
+- **Planned** — accepted future work with no complete implementation.
+- **Blocked** — planned or active work cannot proceed because a named dependency is unresolved.
+- **Deprecated** — still present for compatibility but not recommended for new use.
+- **Historical** — useful point-in-time context that is not an active contract.
+- **Discarded** — intentionally rejected, superseded, or closed without implementation.
+- **Unconfirmed** — cannot be proven from accessible source, tests, or repository settings.
+
+Rules:
+
+- Keep only current operational statements in `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, and active `docs/`.
+- Move historical plans, proposals, alternatives, and completed audit snapshots to Cortex-L7.
+- Mark compatibility surfaces explicitly as **Deprecated**.
+- Do not include private vault paths, credentials, personal strategy, or session notes in this public repository.
+
+## Generated contracts
+
+Do not hand-edit:
+
+- `docs/commands-reference.md`
+- `docs/configuration-reference.md`
+- `docs/versioning.md`
+- `src/Kioku.Mcp.Server/.mcp/server.json`
+
+Change `docs/public-metadata.json`, runtime metadata, or the MCP surface first, then regenerate:
 
 ```bash
-dotnet build src/Kioku.Mcp.Server/
+dotnet build Kioku.slnx --configuration Release --no-restore
+node scripts/generate-public-docs.mjs --write
+node scripts/generate-public-docs.mjs --check
 ```
+
+## Implementation rules
+
+- Keep MCP adapters thin. Put workflow behavior behind application services and external effects behind infrastructure services or ports.
+- Preserve the vault filesystem boundary. External reads and permanent deletion require explicit configuration.
+- Preserve unknown YAML frontmatter fields during mutations.
+- Use focused creation tools in prompts and integrations. `create_note` and `create_project_doc` remain **Deprecated** compatibility wrappers during the documented compatibility window.
+- Keep optional higher-risk capabilities gated.
+- Use structured logging. MCP `stdio` reserves stdout for protocol traffic; diagnostics belong on stderr.
+- Do not add a cloud fallback for embeddings or generation without an explicit security and privacy review.
+- Changes to bridge fixtures or compatibility policy must be coordinated with `sandovaldavid/kioku-obsidian`.
+
+## Validation
+
+Run the complete relevant local gate before opening a pull request:
+
+```bash
+dotnet restore Kioku.slnx
+dotnet build Kioku.slnx --configuration Release --no-restore
+dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
+dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
+dotnet format Kioku.slnx style --verify-no-changes --no-restore
+corepack enable
+pnpm install --frozen-lockfile
+pnpm docs:check
+```
+
+Change-specific checks:
+
+```bash
+# Dev Container changes
+bash .devcontainer/scripts/validate-devcontainer.sh
+
+# Compose changes
+docker compose config
+```
+
+Record exact commands and results in the pull request. A skipped, disabled, or unavailable workflow is not a passing result.
+
+## Documentation entry points
+
+- [Documentation index](docs/README.md)
+- [Installation](docs/install.md)
+- [Architecture](docs/architecture.md)
+- [MCP contracts](docs/commands-reference.md)
+- [Configuration](docs/configuration-reference.md)
+- [Vault configuration](docs/vault-config.md)
+- [Security and privacy](docs/threat-and-privacy-model.md)
+- [CI quality gates](docs/ci-quality-gates.md)
+- [Troubleshooting](docs/troubleshooting.md)

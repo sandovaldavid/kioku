@@ -62,11 +62,11 @@ The `Kioku` configuration section is canonical. `KIOKU_*` environment variables 
 | `KIOKU_EXTERNAL_READ_ROOTS` | `Kioku:ExternalReadRoots` | no | no | — | Platform-path-separator-delimited roots allowed for external read-only imports. |
 | `KIOKU_ALLOW_PERMANENT_DELETE` | `Kioku:AllowPermanentDelete` | no | no | `false` | Enables irreversible deletion; soft delete remains available when false. |
 
-## Integrations
+## Deprecated compatibility
 
 | Environment variable | Configuration path | Required | Sensitive | Default | Description |
 |---|---|---:|---:|---|---|
-| `KIOKU_GITHUB_TOKEN` | `Kioku:GitHubToken` | no | yes | — | GitHub token used by the share_as_gist tool. |
+| `KIOKU_GITHUB_TOKEN` | `Kioku:GitHubToken` | no | yes | — | Deprecated compatibility setting retained in configuration binding; no registered current tool consumes it. |
 
 ## Observability
 
