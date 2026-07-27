@@ -27,7 +27,7 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
     private NoteQueryTools CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        return new NoteQueryTools(_fixture.Index, config, null!, null!);
+        return new NoteQueryTools(new NoteQueryService(_fixture.Index, config, null!, null!));
     }
 
     private NoteQueryTools CreateToolsWithSearchServices()
@@ -39,7 +39,7 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
             new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
                 Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)))));
         var hybrid = new HybridSearchService(_fixture.Index, embedding);
-        return new NoteQueryTools(_fixture.Index, config, embedding, hybrid);
+        return new NoteQueryTools(new NoteQueryService(_fixture.Index, config, embedding, hybrid));
     }
 
     private static string ModifiedStamp(Kioku.Mcp.Server.Domain.Note note) =>
@@ -261,7 +261,7 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
         var index = new VaultIndexService(
             NullLogger<VaultIndexService>.Instance,
             new KiokuConfiguration { VaultPath = _fixture.VaultPath });
-        var tools = new NoteQueryTools(index, new KiokuConfiguration { VaultPath = _fixture.VaultPath }, null!, null!);
+        var tools = new NoteQueryTools(new NoteQueryService(index, new KiokuConfiguration { VaultPath = _fixture.VaultPath }, null!, null!));
 
         var result = tools.list_notes();
 
@@ -274,7 +274,7 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
         var index = new VaultIndexService(
             NullLogger<VaultIndexService>.Instance,
             new KiokuConfiguration { VaultPath = _fixture.VaultPath });
-        var tools = new NoteQueryTools(index, new KiokuConfiguration { VaultPath = _fixture.VaultPath }, null!, null!);
+        var tools = new NoteQueryTools(new NoteQueryService(index, new KiokuConfiguration { VaultPath = _fixture.VaultPath }, null!, null!));
 
         var result = tools.list_notes(format: "json");
 
@@ -353,7 +353,7 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
             new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
                 Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)))));
         var hybrid = new HybridSearchService(index, embedding);
-        var tools = new NoteQueryTools(index, new KiokuConfiguration { VaultPath = _fixture.VaultPath }, embedding, hybrid);
+        var tools = new NoteQueryTools(new NoteQueryService(index, new KiokuConfiguration { VaultPath = _fixture.VaultPath }, embedding, hybrid));
 
         var result = await tools.search_notes("anything");
 
@@ -563,7 +563,7 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
         var index = new VaultIndexService(
             NullLogger<VaultIndexService>.Instance,
             new KiokuConfiguration { VaultPath = _fixture.VaultPath });
-        var tools = new NoteQueryTools(index, new KiokuConfiguration { VaultPath = _fixture.VaultPath }, null!, null!);
+        var tools = new NoteQueryTools(new NoteQueryService(index, new KiokuConfiguration { VaultPath = _fixture.VaultPath }, null!, null!));
 
         var result = tools.get_links("Note One");
 
@@ -603,11 +603,11 @@ public sealed class NoteQuerySemanticPresentationSnapshotTests : IClassFixture<E
     }
 
     private NoteQueryTools CreateTools() =>
-        new(
+        new(new NoteQueryService(
             _fixture.Vault,
             new KiokuConfiguration { VaultPath = _fixture.VaultPath },
             _fixture.Embedding,
-            _fixture.Hybrid);
+            _fixture.Hybrid));
 
     [Fact]
     public async Task search_notes_semantic_text_reports_semantic_label_and_similarity()
