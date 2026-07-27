@@ -39,6 +39,7 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<IWorkSessionService, WorkSessionService>();
         services.AddProjectDocumentInfrastructure();
         services.AddSingleton<IProjectDocumentService, ProjectDocumentService>();
+        services.AddSingleton<INoteQueryService, NoteQueryService>();
         services.AddTransient<ZettelkastenTools>();
 
         services.AddSingleton<IKiokuRuntime, KiokuRuntime>();

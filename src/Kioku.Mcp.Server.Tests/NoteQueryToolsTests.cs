@@ -20,11 +20,7 @@ public class NoteQueryToolsTests : IClassFixture<VaultFixture>
     private NoteQueryTools CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        return new NoteQueryTools(
-            _fixture.Index,
-            config,
-            null!,
-            null!);
+        return new NoteQueryTools(new NoteQueryService(_fixture.Index, config, null!, null!));
     }
 
     private NoteQueryTools CreateToolsWithSearchServices()
@@ -36,7 +32,7 @@ public class NoteQueryToolsTests : IClassFixture<VaultFixture>
             new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
                 Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)))));
         var hybrid = new HybridSearchService(_fixture.Index, embedding);
-        return new NoteQueryTools(_fixture.Index, config, embedding, hybrid);
+        return new NoteQueryTools(new NoteQueryService(_fixture.Index, config, embedding, hybrid));
     }
 
     [Fact]
