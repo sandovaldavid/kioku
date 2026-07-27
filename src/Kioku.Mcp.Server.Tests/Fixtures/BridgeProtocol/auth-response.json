@@ -1,0 +1,12 @@
+{
+  "description": "Successful handshake response: the plugin echoes the negotiated version and the capabilities it actually grants (a subset of what was requested).",
+  "message": {
+    "requestId": "auth-1",
+    "success": true,
+    "data": {
+      "negotiatedProtocolVersion": 3,
+      "capabilities": ["read", "ui-navigation", "vault-wide"]
+    },
+    "protocolVersion": 3
+  }
+}

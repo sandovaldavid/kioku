@@ -1,0 +1,9 @@
+{
+  "description": "A successful response to a runtime command.",
+  "message": {
+    "requestId": "req-1",
+    "success": true,
+    "data": { "opened": true },
+    "protocolVersion": 3
+  }
+}

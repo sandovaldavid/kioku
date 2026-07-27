@@ -1,0 +1,9 @@
+{
+  "description": "An application-level failure response to a runtime command (not a protocol/auth failure).",
+  "message": {
+    "requestId": "req-1",
+    "success": false,
+    "error": "File not found: Notes/Example.md",
+    "protocolVersion": 3
+  }
+}
