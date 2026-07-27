@@ -2,15 +2,19 @@
 
 > **Kioku** (記憶) means “memory” in Japanese.
 >
-> Server release: **2.3.0** · [Documentation](https://sandovaldavid.github.io/kioku/) · [Releases](https://github.com/sandovaldavid/kioku/releases)
+> Latest tagged server release: **2.3.0** · [Documentation](https://sandovaldavid.github.io/kioku/) · [Releases](https://github.com/sandovaldavid/kioku/releases)
 
 Kioku is a local-first Model Context Protocol server that lets Claude Code, Codex, OpenCode, and other MCP clients continue work across fresh sessions by reading and updating structured knowledge in an Obsidian vault.
 
 It combines typed MCP contracts, a strict vault filesystem boundary, concurrent work-session ownership, full-text and semantic retrieval, and an optional Obsidian bridge. The server supports local `stdio` and authenticated **Streamable HTTP** deployments.
 
+The `develop` branch can contain verified but unreleased changes beyond the latest tag. Use generated contracts from the branch you are running.
+
 ## The handoff, proven
 
-Kioku's core claim is that one agent's work survives its process exiting, and a second, unrelated agent can pick it up cold. That is not a hypothetical: [`scripts/Kioku.HandoffDemo`](scripts/Kioku.HandoffDemo) drives the real MCP stdio protocol to run it end to end. Agent 1 opens a work session, records a plan, an ADR, and a bug, then closes the session — its subprocess exits and its MCP connection stops existing. Agent 2, a separate `McpClient` connection in its own subprocess with its own client identity, then calls `get_project_context`, retrieves everything Agent 1 wrote, and continues the project without ever touching Agent 1's session. A third, independent connection verifies both sessions afterward. See [`docs/multi-agent-handoff-demo.md`](docs/multi-agent-handoff-demo.md) for the full transcript of a real run, including captured PIDs and exit codes. The same server registers cleanly with Claude Code, Codex, and OpenCode via `./scripts/add-to-client.sh` in one command.
+Kioku's core claim is that one agent's work survives its process exiting, and a second, unrelated agent can pick it up cold. [`scripts/Kioku.HandoffDemo`](scripts/Kioku.HandoffDemo) drives the real MCP stdio protocol end to end. Agent 1 opens a work session, records a plan, an ADR, and a bug, then closes the session. Agent 2 starts in another process and connection, calls `get_project_context`, retrieves the persisted work, and continues without accessing Agent 1's session. A third connection verifies both sessions afterward.
+
+See [`docs/multi-agent-handoff-demo.md`](docs/multi-agent-handoff-demo.md) for the reproducible procedure and captured transcript.
 
 ## Why Kioku
 
@@ -18,8 +22,14 @@ Kioku's core claim is that one agent's work survives its process exiting, and a 
 - **Obsidian-native storage** — Markdown and YAML frontmatter remain readable and editable without Kioku.
 - **Safe vault access** — writes stay inside the configured vault; external reads and permanent deletion require explicit opt-in.
 - **Stable MCP contracts** — tool schemas, annotations, prompts, and resources are mechanically documented from live discovery.
-- **Local AI support** — optional Ollama embeddings and generation keep note content on your machine.
+- **Local AI support** — optional Ollama embeddings and generation keep note content on your machine under the default configuration.
 - **Optional UI bridge** — the [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian) can open notes, run approved commands, and integrate supported plugins.
+
+## Repository scope
+
+This repository is the source of truth for the .NET MCP server, its integrations, packaging, deployment, tests, and public operational documentation. The Obsidian plugin is maintained and released separately in [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian).
+
+Open issues, historical plans, and pull-request descriptions are not implementation evidence. Current behavior is defined by the target branch's code, tests, and generated contracts.
 
 ## Quick start
 
@@ -71,17 +81,19 @@ Kioku.Mcp.Server (.NET 10)
 Obsidian vault + optional Obsidian plugin (sandovaldavid/kioku-obsidian)
 ```
 
-## Public contracts
+See the [current architecture](docs/architecture.md) for operational component boundaries.
 
-The detailed surface is generated rather than copied into multiple READMEs:
+## Public contracts and guides
+
+Start with the [documentation index](docs/README.md). The main maintained references are:
 
 - [MCP contract reference](docs/commands-reference.md) — live `tools/list`, schemas, annotations, prompts, resources, and profile counts.
 - [Server configuration reference](docs/configuration-reference.md) — every public `KIOKU_*` variable and canonical `Kioku:*` path.
 - [Vault configuration](docs/vault-config.md) — folders, defaults, exclusions, capabilities, frontmatter, and generated indexes.
+- [Focused-tool migration](docs/focused-tool-migration.md) — current replacements for deprecated generic creation wrappers.
 - [Versioning policy](docs/versioning.md) — server, plugin, workspace, and bridge compatibility semantics.
-- [Architecture decision records](docs/adr/README.md) — why storage, indexing, search, transports, capabilities, and Ollama are built the way they are.
-- [Performance benchmarks](docs/benchmarks.md) — cold-start, indexing, search latency, and retrieval quality, with environment and dataset caveats stated up front.
-- [Threat and privacy model](docs/threat-and-privacy-model.md) — implemented mitigations vs. future work, and exactly when data can leave the machine.
+- [Performance benchmarks](docs/benchmarks.md) — cold-start, indexing, search latency, and retrieval quality with environment and dataset caveats.
+- [Threat and privacy model](docs/threat-and-privacy-model.md) — implemented mitigations, known gaps, and external data flows.
 
 Regenerate and verify public metadata with:
 
@@ -111,7 +123,7 @@ dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 corepack enable
 pnpm install --frozen-lockfile
-node scripts/generate-public-docs.mjs --check
+pnpm docs:check
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) for repository conventions.
