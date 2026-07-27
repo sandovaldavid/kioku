@@ -13,15 +13,14 @@ public sealed class FocusedCreationTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
-    ProjectWorkspaceService workspace,
     ObsidianBridgeService bridge,
     EmbeddingService embedding,
     HybridSearchService hybrid,
     MetricsService metrics,
-    VaultPathPolicy pathPolicy)
+    VaultPathPolicy pathPolicy,
+    IProjectDocumentService documents)
 {
-    private readonly EngineeringWorkflowTools _engineering =
-        new(vault, config, vaultConfig, workspace, bridge);
+    private readonly EngineeringWorkflowTools _engineering = new(documents);
 
     private readonly NoteCommandTools _notes =
         new(
