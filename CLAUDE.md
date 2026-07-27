@@ -1,7 +1,8 @@
 # Kioku
 
-Monorepo: MCP server (C# .NET 10) + Obsidian plugin (TypeScript 6).
-The server exposes vault tools via stdio MCP; the plugin bridges via WebSocket on port 7765.
+MCP server (C# .NET 10) exposing vault tools via stdio/HTTP MCP. The companion Obsidian plugin,
+which bridges via WebSocket on port 7765, lives in its own repository:
+[`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian).
 
 ## Structure
 
@@ -12,9 +13,6 @@ src/Kioku.Mcp.Server/       C# MCP server (stdio transport)
                               ObsidianBridgeService, FrontmatterParser, MarkdownTextExtractor
   Domain/                   Note, NoteMetadata, SearchResult
   Logging/                  KiokuLogger (ILogger<T> extension methods)
-src/obsidian-kioku-mcp/     TypeScript Obsidian plugin (WebSocket server)
-  src/main.ts               Plugin entry point (KiokuPlugin class)
-  src/logger.ts             Logger class — use log.info/warn/error/debug
 integrations/               Client-specific packaging (Claude Code plugin, Antigravity plugin)
 scripts/add-to-client.sh    One-command MCP registration for Claude Code/Codex/OpenCode/Antigravity
 ```
@@ -25,10 +23,6 @@ scripts/add-to-client.sh    One-command MCP registration for Claude Code/Codex/O
 |------|---------|
 | Build server | `dotnet build src/Kioku.Mcp.Server/` |
 | Format C# | `dotnet format src/Kioku.Mcp.Server/` |
-| Build plugin | `pnpm build:plugin` |
-| Lint plugin | `pnpm lint:plugin` |
-| Format plugin | `pnpm format:plugin` |
-| Type-check plugin | `pnpm --filter obsidian-kioku-mcp exec tsc --noEmit` |
 
 ## Commit conventions
 
@@ -46,7 +40,6 @@ docs(docs): add WebSocket protocol reference
 
 - No separator comments (`// ── Name ──────────`). Use plain `// Name` instead.
 - No emojis in strings. Use `[error]`, `[ok]`, `[loading]`, `[info]`, `[online]` prefixes.
-- TypeScript logging: `import { log } from "./logger"` → `log.info/warn/error/debug`
 - C# logging: inject `ILogger<T>` and use `.Info()/.Warn()/.Error()/.Debug()` from `Kioku.Mcp.Server.Logging`
 
 ## Branch workflow

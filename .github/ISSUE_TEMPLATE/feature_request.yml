@@ -13,7 +13,7 @@ body:
       label: Component
       options:
         - MCP server (new tool / capability)
-        - Obsidian plugin
+        - Obsidian plugin (now in sandovaldavid/kioku-obsidian — file plugin-specific requests there)
         - Both / bridge between them
         - Documentation
         - Not sure

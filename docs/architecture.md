@@ -17,6 +17,10 @@ flowchart LR
     Infra --> Ollama[Ollama]
 ```
 
+`Bridge` is the WebSocket protocol consumed by the Obsidian plugin, which is versioned and
+released independently in [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian)
+rather than living in this repository.
+
 Dependencies point inward from protocol adapters toward application contracts. Workflow services must not require an MCP server instance or call host filesystem APIs directly. Infrastructure details remain behind ports owned and registered by the host container.
 
 This direction is enforced by architecture tests inside the single `Kioku.Mcp.Server` project rather than by separate `Kioku.Application`/`Kioku.Infrastructure` assemblies — see the "Project boundaries" entry in the migration plan below for why.

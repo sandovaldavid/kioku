@@ -15,7 +15,7 @@ It combines typed MCP contracts, a strict vault filesystem boundary, concurrent 
 - **Safe vault access** — writes stay inside the configured vault; external reads and permanent deletion require explicit opt-in.
 - **Stable MCP contracts** — tool schemas, annotations, prompts, and resources are mechanically documented from live discovery.
 - **Local AI support** — optional Ollama embeddings and generation keep note content on your machine.
-- **Optional UI bridge** — the Obsidian plugin can open notes, run approved commands, and integrate supported plugins.
+- **Optional UI bridge** — the [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian) can open notes, run approved commands, and integrate supported plugins.
 
 ## Quick start
 
@@ -47,7 +47,7 @@ claude plugin marketplace add sandovaldavid/kioku
 claude plugin install kioku@kioku
 ```
 
-See the [installation guide](docs/install.md) for manual client configuration, source builds, Docker, and the optional Obsidian plugin.
+See the [installation guide](docs/install.md) for manual client configuration, source builds, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
 
 ## Architecture
 
@@ -64,7 +64,7 @@ Kioku.Mcp.Server (.NET 10)
   └─ optional authenticated WebSocket bridge
           │
           ▼
-Obsidian vault + optional Obsidian plugin
+Obsidian vault + optional Obsidian plugin (sandovaldavid/kioku-obsidian)
 ```
 
 ## Public contracts
@@ -104,9 +104,6 @@ dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 corepack enable
 pnpm install --frozen-lockfile
-pnpm --filter obsidian-kioku-mcp run lint
-pnpm --filter obsidian-kioku-mcp run format:check
-pnpm --filter obsidian-kioku-mcp run test
 node scripts/generate-public-docs.mjs --check
 ```
 

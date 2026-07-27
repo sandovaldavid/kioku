@@ -301,12 +301,6 @@ async function validateRepositoryMetadata(metadata) {
   const rootPackage = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
   if (rootPackage.private !== true) fail("Root package.json must remain private.");
   if (Object.hasOwn(rootPackage, "version")) fail("Private root package.json must not declare a product version.");
-
-  const pluginPackage = JSON.parse(await readFile(path.join(root, "src", "obsidian-kioku-mcp", "package.json"), "utf8"));
-  const pluginManifest = JSON.parse(await readFile(path.join(root, "src", "obsidian-kioku-mcp", "manifest.json"), "utf8"));
-  const pluginVersions = JSON.parse(await readFile(path.join(root, "src", "obsidian-kioku-mcp", "versions.json"), "utf8"));
-  if (pluginPackage.version !== pluginManifest.version) fail("Plugin package.json and manifest.json versions differ.");
-  if (!Object.hasOwn(pluginVersions, pluginPackage.version)) fail(`versions.json does not contain plugin version ${pluginPackage.version}.`);
 }
 
 async function validateTerminology() {

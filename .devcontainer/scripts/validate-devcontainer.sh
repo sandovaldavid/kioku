@@ -41,13 +41,6 @@ devcontainer exec --workspace-folder . bash -lc '
 
   pnpm install --frozen-lockfile
   pnpm audit --audit-level=high
-  pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json
-  pnpm --filter obsidian-kioku-mcp run check:compatibility
-  pnpm --filter obsidian-kioku-mcp run lint
-  pnpm --filter obsidian-kioku-mcp run format:check
-  pnpm --filter obsidian-kioku-mcp run test
-  pnpm --filter obsidian-kioku-mcp run build
-  pnpm --filter obsidian-kioku-mcp run validate:release
 
   node scripts/lib/validate-skill-frontmatter.mjs
   ./scripts/sync-skill.sh --check

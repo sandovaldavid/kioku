@@ -49,16 +49,17 @@ gate still blocks protected branches.
 ## Security and dependency evidence
 
 - `dotnet list package --vulnerable --include-transitive` blocks known .NET vulnerabilities.
-- `pnpm audit --audit-level=high` blocks high-severity plugin dependency findings.
 - Dependency Review rejects new high-severity dependency regressions on release PRs targeting the
-  default `main` branch. Feature PRs targeting `develop` remain blocked by the .NET and pnpm
-  vulnerability audits because GitHub's dependency-review API is default-branch oriented.
-- JavaScript and TypeScript are analyzed by CodeQL on pushes, pull requests, and a weekly schedule.
+  default `main` branch. Feature PRs targeting `develop` remain blocked by the .NET
+  vulnerability audit because GitHub's dependency-review API is default-branch oriented.
+- JavaScript and TypeScript repository tooling (`scripts/`, `.devcontainer/`) is analyzed by
+  CodeQL on pushes, pull requests, and a weekly schedule. The Obsidian plugin has its own CodeQL
+  and dependency-audit coverage in its own repository.
 - C# is analyzed through the repository-wide Roslyn and .NET analyzer baseline with code style and
   warnings-as-errors enforced in a dedicated blocking security job.
-- CI uploads complete .NET and pnpm package inventories for 30 days. These inventories are the
-  current reproducible dependency evidence; a signed SPDX or CycloneDX SBOM can replace them when
-  release signing and provenance are introduced.
+- CI uploads complete .NET package inventories for 30 days. These inventories are the current
+  reproducible dependency evidence; a signed SPDX or CycloneDX SBOM can replace them when release
+  signing and provenance are introduced.
 
 ## Local verification
 
@@ -71,8 +72,6 @@ dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configura
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 pnpm install --frozen-lockfile
-pnpm --filter obsidian-kioku-mcp run lint
-pnpm --filter obsidian-kioku-mcp run test
 ```
 
 The installed-tool and native-binary smoke tests are defined in `.github/workflows/ci.yml` because

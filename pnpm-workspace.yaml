@@ -1,5 +1,0 @@
-packages:
-  - "src/obsidian-kioku-mcp"
-
-allowBuilds:
-  esbuild: true

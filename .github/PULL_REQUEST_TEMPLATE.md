@@ -8,7 +8,6 @@
 
 - [ ] .NET restore/build/tests pass when server code changed
 - [ ] `dotnet format` whitespace and style checks pass when C# changed
-- [ ] Plugin lint, format check, tests, and build pass when TypeScript changed
 - [ ] `node scripts/generate-public-docs.mjs --check` passes when MCP, configuration, manifest, or version metadata changed
 - [ ] Manually tested against a disposable or real vault when behavior requires it
 

@@ -11,7 +11,7 @@ sidebar: true
 - An Obsidian vault.
 - .NET 10 only when building from source; the published global tool and self-contained binaries include what they need.
 - Ollama only for semantic retrieval or local generation.
-- The Obsidian plugin only for UI and supported-plugin bridge operations.
+- The [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian) only for UI and supported-plugin bridge operations.
 
 ## Install the .NET tool
 
@@ -107,13 +107,9 @@ Representative RIDs include `linux-x64`, `linux-arm64`, `win-x64`, `win-arm64`, 
 
 ## Optional Obsidian plugin
 
-```bash
-corepack enable
-pnpm install --frozen-lockfile
-pnpm --filter obsidian-kioku-mcp run build
-```
+The Obsidian plugin lives in its own repository: [sandovaldavid/kioku-obsidian](https://github.com/sandovaldavid/kioku-obsidian). It is versioned and released independently of the server.
 
-Copy `main.js`, `manifest.json`, and `styles.css` from `src/obsidian-kioku-mcp/` into:
+Install it with [BRAT](https://github.com/TfTHacker/obsidian42-brat) by adding `sandovaldavid/kioku-obsidian` as a beta plugin, or download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/sandovaldavid/kioku-obsidian/releases/latest) into:
 
 ```text
 <vault>/.obsidian/plugins/kioku-mcp/

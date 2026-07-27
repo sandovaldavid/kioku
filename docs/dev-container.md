@@ -1,6 +1,6 @@
 # Dev Container development environment
 
-Kioku provides a reproducible VS Code Dev Container for the .NET 10 MCP server and the Node.js 24 Obsidian plugin. The container is a development environment only; it is not the production or release image.
+Kioku provides a reproducible VS Code Dev Container for the .NET 10 MCP server. Node.js 24 and pnpm are also provisioned for the repository's root-level tooling (commitlint, husky, and the docs-generation script). The container is a development environment only; it is not the production or release image.
 
 The configuration adapts the reusable profiles from `sandovaldavid/dotfiles` to Kioku. It uses the same managed shell lifecycle, pinned terminal tools, persistent history, non-root ownership checks, SSH-signing integration, and canonical Starship prompt while retaining Kioku's hybrid toolchain, shortcuts, extensions, and HTTP port.
 
@@ -98,7 +98,6 @@ Project shortcuts are available in managed Zsh and Bash sessions:
 | `kbuild` | Build the solution in Release mode. |
 | `ktest` | Run the solution tests in Release mode. |
 | `kformat` | Apply the repository's .NET whitespace and style formatters. |
-| `kplugin` | Lint, test, and build the Obsidian plugin. |
 | `kverify` | Verify the Dev Container user, shell, credentials, and toolchain. |
 
 The project intentionally omits workstation-only VPN helpers, Bitwarden-specific socket paths, AI CLI installers, and personal or corporate Git identities from the reusable dotfiles repository.

@@ -15,7 +15,7 @@ body:
       description: Which part of Kioku is affected?
       options:
         - MCP server (C#)
-        - Obsidian plugin (TypeScript)
+        - Obsidian plugin (now in sandovaldavid/kioku-obsidian — file plugin-specific issues there)
         - Both / bridge between them
         - Documentation
         - Not sure

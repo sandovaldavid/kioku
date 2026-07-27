@@ -3,10 +3,12 @@
 ## What is Kioku
 
 Kioku is an MCP (Model Context Protocol) server that gives AI agents direct access to an Obsidian
-vault. It pairs with an Obsidian plugin that provides optional UI actions over WebSocket.
+vault. It pairs with an Obsidian plugin that provides optional UI actions over WebSocket. The
+plugin lives in its own repository, [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian),
+and is versioned and released independently of the server.
 
 - **Server** (C# .NET 10): reads and writes `.md` files and exposes 49 MCP tools across 16 classes
-- **Plugin** (TypeScript 6): WebSocket server running inside Obsidian
+- **Plugin** (TypeScript 6, separate repository): WebSocket server running inside Obsidian
 
 ## Architecture
 
@@ -98,15 +100,6 @@ All tools return plain text strings. Status prefixes:
 
 ## Logging
 
-**TypeScript plugin:**
-```typescript
-import { log } from "./logger";
-log.info("message");
-log.warn("message");
-log.error("message");
-log.debug("message");
-```
-
 **C# server:**
 ```csharp
 using Kioku.Mcp.Server.Logging;
@@ -131,8 +124,6 @@ C# logs go to **stderr** only; stdout is reserved for the MCP protocol.
     Program.cs                   Entry point and DI setup
     Services/                    Index, embeddings, bridge, config, workflows
     Tools/                       MCP tool classes
-  src/obsidian-kioku-mcp/        Obsidian plugin
-    src/main.ts                  Plugin entry point
 ```
 
 ## Semantic search (Ollama)
@@ -147,6 +138,4 @@ Embeddings are cached at `{vault}/.kioku/embeddings.bin` and updated as notes ch
 
 ```bash
 dotnet build src/Kioku.Mcp.Server/
-pnpm --filter obsidian-kioku-mcp exec tsc --noEmit
-pnpm lint:plugin
 ```

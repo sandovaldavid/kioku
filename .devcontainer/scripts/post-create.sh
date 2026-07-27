@@ -13,7 +13,7 @@ bash .devcontainer/scripts/configure-git-ssh-signing.sh
 printf '[info] Verifying the Kioku development toolchain...\n'
 bash .devcontainer/scripts/verify-environment.sh
 
-printf '[info] Installing plugin dependencies from pnpm-lock.yaml...\n'
+printf '[info] Installing root tooling dependencies from pnpm-lock.yaml...\n'
 CI=true pnpm install --frozen-lockfile
 
 printf '[info] Restoring .NET dependencies...\n'
