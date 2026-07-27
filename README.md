@@ -8,6 +8,10 @@ Kioku is a local-first Model Context Protocol server that lets Claude Code, Code
 
 It combines typed MCP contracts, a strict vault filesystem boundary, concurrent work-session ownership, full-text and semantic retrieval, and an optional Obsidian bridge. The server supports local `stdio` and authenticated **Streamable HTTP** deployments.
 
+## The handoff, proven
+
+Kioku's core claim is that one agent's work survives its process exiting, and a second, unrelated agent can pick it up cold. That is not a hypothetical: [`scripts/Kioku.HandoffDemo`](scripts/Kioku.HandoffDemo) drives the real MCP stdio protocol to run it end to end. Agent 1 opens a work session, records a plan, an ADR, and a bug, then closes the session — its subprocess exits and its MCP connection stops existing. Agent 2, a separate `McpClient` connection in its own subprocess with its own client identity, then calls `get_project_context`, retrieves everything Agent 1 wrote, and continues the project without ever touching Agent 1's session. A third, independent connection verifies both sessions afterward. See [`docs/multi-agent-handoff-demo.md`](docs/multi-agent-handoff-demo.md) for the full transcript of a real run, including captured PIDs and exit codes. The same session model works from Claude Code, Codex, and OpenCode — `./scripts/add-to-client.sh` registers Kioku with any of them in one command.
+
 ## Why Kioku
 
 - **Deterministic handoff** — agents can record project context, decisions, plans, bugs, daily notes, and session handoffs.
@@ -76,6 +80,8 @@ The detailed surface is generated rather than copied into multiple READMEs:
 - [Vault configuration](docs/vault-config.md) — folders, defaults, exclusions, capabilities, frontmatter, and generated indexes.
 - [Versioning policy](docs/versioning.md) — server, plugin, workspace, and bridge compatibility semantics.
 - [Architecture decision records](docs/adr/README.md) — why storage, indexing, search, transports, capabilities, and Ollama are built the way they are.
+- [Performance benchmarks](docs/benchmarks.md) — cold-start, indexing, search latency, and retrieval quality, with environment and dataset caveats stated up front.
+- [Threat and privacy model](docs/threat-and-privacy-model.md) — implemented mitigations vs. future work, and exactly when data can leave the machine.
 
 Regenerate and verify public metadata with:
 
