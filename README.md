@@ -75,6 +75,7 @@ The detailed surface is generated rather than copied into multiple READMEs:
 - [Server configuration reference](docs/configuration-reference.md) — every public `KIOKU_*` variable and canonical `Kioku:*` path.
 - [Vault configuration](docs/vault-config.md) — folders, defaults, exclusions, capabilities, frontmatter, and generated indexes.
 - [Versioning policy](docs/versioning.md) — server, plugin, workspace, and bridge compatibility semantics.
+- [Architecture decision records](docs/adr/README.md) — why storage, indexing, search, transports, capabilities, and Ollama are built the way they are.
 
 Regenerate and verify public metadata with:
 
