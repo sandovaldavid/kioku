@@ -2,6 +2,11 @@
 
 Kioku separates MCP tool adapters from application and infrastructure workflow logic, delivered incrementally by vertical slice (issue #250). The goal is to keep the public MCP surface stable while moving workflow orchestration behind application contracts and keeping transport concerns in the MCP adapter layer.
 
+This document describes the current internal structure. For why the major system-level choices
+(Markdown storage, in-memory indexing, hybrid search, transports, capability gating, local
+Ollama) were made and what alternatives were rejected, see the
+[architecture decision records](adr/README.md).
+
 ## Dependency direction
 
 ```mermaid
