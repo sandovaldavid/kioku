@@ -1,159 +1,101 @@
----
-layout: default
-title: Docker Deployment
-sidebar: true
----
+# Docker deployment
 
-This directory contains Docker configuration for deploying Kioku MCP Server.
+The repository provides a root [`Dockerfile`](../Dockerfile) for the .NET server and a root [`docker-compose.yml`](../docker-compose.yml) that runs:
 
-## Quick Start
+- `kioku-server` on port `5173`;
+- `ollama` on port `11434`;
+- an `ollama-data` volume;
+- a bind mount from `KIOKU_VAULT_PATH` to `/vault`.
 
-1. **Set your vault path:**
-   ```bash
-   export KIOKU_VAULT_PATH=/path/to/your/obsidian/vault
-   ```
+The Compose stack selects Streamable HTTP and requires `KIOKU_API_KEY`.
 
-2. **Set an API key for HTTP authentication:**
-   ```bash
-   export KIOKU_API_KEY="$(openssl rand -hex 32)"
-   ```
+## Validate configuration
 
-3. **Start the services:**
-   ```bash
-   docker-compose up -d
-   ```
+```bash
+docker compose config
+```
 
-4. **Pull the embedding model (first time only):**
-   ```bash
-   docker exec kioku-ollama ollama pull nomic-embed-text
-   ```
+Set an absolute vault path and an API key before starting:
 
-5. **Access the server:**
-   - MCP endpoint: `http://localhost:5173/mcp`
-   - Liveness: `http://localhost:5173/health/live`
-   - Readiness: `http://localhost:5173/health/ready` (requires the bearer token)
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+export KIOKU_API_KEY="$(openssl rand -hex 32)"
+docker compose up --build
+```
 
-## Configuration
+The server is then reachable at:
 
-### Environment Variables
+```text
+http://127.0.0.1:5173/mcp
+```
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `KIOKU_VAULT_PATH` | yes | — | Path to your Obsidian vault on the host |
-| `KIOKU_API_KEY` | yes | — | Bearer token required by the non-loopback container listener |
-| `KIOKU_EMBEDDING_MODEL` | no | `nomic-embed-text` | Ollama embedding model |
-| `KIOKU_HTTP_HOST` | no | `0.0.0.0` | Container listener interface |
-| `KIOKU_HTTP_PORT` | no | `5173` | HTTP server port |
-| `KIOKU_HTTP_ALLOWED_ORIGINS` | no | `http://localhost` | Exact comma-separated browser origins |
+Liveness is public and minimal:
 
-### GPU Support (Optional)
+```bash
+curl -f http://127.0.0.1:5173/health/live
+```
 
-To enable GPU acceleration for Ollama, uncomment the GPU section in `docker-compose.yml`:
+Protected MCP and readiness requests must use the configured bearer token.
+
+## Common operations
+
+```bash
+docker compose ps
+docker compose logs -f kioku-server
+docker compose logs -f ollama
+docker compose down
+```
+
+Rebuild after server or image changes:
+
+```bash
+docker compose build --no-cache kioku-server
+docker compose up
+```
+
+## Vault mount
+
+The default Compose expression is:
 
 ```yaml
-deploy:
-  resources:
-    reservations:
-      devices:
-        - driver: nvidia
-          count: 1
-          capabilities: [gpu]
+${KIOKU_VAULT_PATH:-./vault}:/vault
 ```
 
-Requires NVIDIA Container Toolkit.
+Use an absolute host path for predictable behavior and verify that Docker can read and write it. Kioku's internal vault sandbox still applies inside `/vault`.
 
-## Usage
+## Ollama
 
-### MCP Client Configuration
+The supplied Compose file points Kioku to `http://ollama:11434` and currently references `ollama/ollama:latest`. For reproducible deployments, override or pin that image to a version or digest accepted by the operator.
 
-Add to your MCP client config:
-
-```json
-{
-  "mcpServers": {
-    "kioku": {
-      "type": "http",
-      "url": "http://localhost:5173/mcp",
-      "headers": {
-        "Authorization": "Bearer your-api-key"
-      }
-    }
-  }
-}
-```
-
-### Commands
+Pull the configured embedding model inside the running service:
 
 ```bash
-# Start services
-docker-compose up -d
-
-# Stop services
-docker-compose down
-
-# View logs
-docker-compose logs -f kioku-server
-
-# Rebuild after code changes
-docker-compose build --no-cache
-
-# Remove all data (including Ollama models)
-docker-compose down -v
+docker compose exec ollama ollama pull "${KIOKU_EMBEDDING_MODEL:-nomic-embed-text}"
 ```
 
-## Architecture
+Keyword search remains available when Ollama is unavailable. Semantic search, embedding generation, and optional generation depend on Ollama.
 
-```
-┌─────────────────┐
-│  MCP Client     │
-│  (Claude Code)  │
-└────────┬────────┘
-         │ Streamable HTTP + bearer token
-         │ :5173
-┌────────▼────────┐
-│ Kioku Server    │
-│ (ASP.NET Core)  │
-└────────┬────────┘
-         │ HTTP
-         │ :11434
-┌────────▼────────┐
-│ Ollama          │
-│ (Embeddings)    │
-└─────────────────┘
-```
+## Security
 
-## Troubleshooting
+- Do not expose port `5173` publicly without reviewing [deploy/auth-options.md](deploy/auth-options.md).
+- Keep `KIOKU_API_KEY` outside committed files.
+- Restrict the vault mount to the intended directory.
+- Do not enable permanent deletion or external reads without an operational requirement.
+- Review `KIOKU_HTTP_ALLOWED_ORIGINS` when browser clients are involved.
+- The Compose file publishes the Ollama port to the host; remove or restrict that mapping when it is not needed.
 
-### Server won't start
+## Build only the server image
 
-Check logs:
 ```bash
-docker-compose logs kioku-server
+docker build -t kioku-server .
+docker run --rm \
+  -p 5173:5173 \
+  -e KIOKU_VAULT_PATH=/vault \
+  -e KIOKU_TRANSPORT=http \
+  -e KIOKU_HTTP_HOST=0.0.0.0 \
+  -e KIOKU_API_KEY="$KIOKU_API_KEY" \
+  -v "$KIOKU_VAULT_PATH:/vault" \
+  kioku-server
 ```
 
-Common issues:
-- Vault path doesn't exist or isn't accessible
-- Port 5173 already in use
-- Missing `KIOKU_API_KEY` (Compose refuses to start an unauthenticated listener)
-- Ollama not ready yet (wait for its health check)
-
-### Ollama model not found
-
-Pull the model:
-```bash
-docker exec kioku-ollama ollama pull nomic-embed-text
-```
-
-### Can't connect from host
-
-Ensure the server is running and healthy:
-```bash
-curl --fail http://localhost:5173/health/live
-
-curl --fail \
-  -H "Authorization: Bearer $KIOKU_API_KEY" \
-  http://localhost:5173/health/ready
-```
-
-For internet or LAN exposure, terminate TLS at a trusted reverse proxy or private tunnel. See
-[Streamable HTTP security](deploy/auth-options.md).
+The Dockerfile health check calls `/health/live`. For deployment diagnostics, see [troubleshooting.md](troubleshooting.md).
