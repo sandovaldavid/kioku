@@ -61,7 +61,7 @@ machine only through the specific, named paths below — never implicitly.
 | Streamable HTTP request/response bodies (tool calls, note content) | Whatever host `KIOKU_HTTP_HOST` binds to | `127.0.0.1` (loopback) | An operator binds `KIOKU_HTTP_HOST` to a non-loopback address, which requires `KIOKU_API_KEY` or `KIOKU_ALLOW_INSECURE_HTTP=true`. |
 
 `KIOKU_OLLAMA_URL` has no allowlist or loopback restriction analogous to
-`KIOKU_HTTP_ALLOWED_ORIGINS` — see [Future work](#future-work--known-gaps).
+`KIOKU_HTTP_ALLOWED_ORIGINS` — see "Future work / known gaps" under Ollama, below.
 
 ### Ollama
 
