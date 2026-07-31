@@ -384,6 +384,9 @@ public sealed class CoordinationEvent
     [JsonPropertyName("session_id")]
     public string? SessionId { get; init; }
 
+    [JsonPropertyName("parent_session_id")]
+    public string? ParentSessionId { get; init; }
+
     [JsonPropertyName("claim_id")]
     public string? ClaimId { get; init; }
 

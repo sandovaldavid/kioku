@@ -15,6 +15,9 @@ status: active
 started_at: "2026-07-18T20:00:00.0000000Z"
 ended_at: "2026-07-18T21:30:00.0000000Z"
 parent_session_id: 019b...
+run_id: run-01
+work_item_id: work-01
+attempt_id: attempt-01
 ```
 
 `session_id` is a UUIDv7 and is the primary identity. Filenames and modification timestamps are presentation and filesystem details; callers must not use them as session identity or start time.
@@ -91,6 +94,45 @@ start_work_session(
 ```
 
 `parent_session_id` records provenance but does not automatically close the parent session.
+
+## Coordination compatibility
+
+Work sessions remain compatibility-only unless a caller explicitly supplies a coordination
+context. The coordination capability is disabled by default, and legacy starts, resumes, and
+closes do not create work items or add coordination fields.
+
+When the capability is enabled, create a new linked session by supplying `run_id` and
+`work_item_id`. Kioku generates `attempt_id` when it is empty:
+
+```text
+start_work_session(
+  project: "demo",
+  agent: "codex",
+  run_id: "run-01",
+  work_item_id: "work-01",
+  attempt_id: "attempt-01"
+)
+```
+
+The server creates an idempotent pending work item, then adds the three identifiers as additive
+frontmatter fields. Referencing a session or supplying an agent label never grants ownership of
+the work item or its note resources. Acquire a coordination claim before protected work begins.
+
+To link an existing legacy session, resume it with the same coordination arguments and an
+`expected_revision` or `expected_hash` from the immediately preceding read. The link operation
+requires content compare-and-swap but does not require a claim because it creates a new pending
+work item. After the link exists, both resume and close require the current content precondition,
+`claim_id`, and `fence_generation`.
+
+Coordination linking preserves unknown frontmatter fields and manual Markdown content. A failed
+link leaves the session usable and reports a warning or stable error; there is no eager migration
+of historical session notes. `COORDINATION_DISABLED`, `COORDINATION_UNAVAILABLE`,
+`COORDINATED_SESSION_REQUIRES_PRECONDITIONS`, and `COORDINATION_LINK_MISMATCH` identify common
+compatibility failures.
+
+`list_work_sessions` and `get_work_context` show persisted coordination identifiers when a
+session is linked. Ending a session does not automatically complete, fail, or cancel its work
+item; the coordination state machine remains an explicit control plane.
 
 ## Concurrency behavior
 

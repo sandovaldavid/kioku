@@ -60,6 +60,8 @@ public sealed class CoordinationCreateWorkItemRequest
 
     public string? SessionId { get; init; }
 
+    public string? ParentSessionId { get; init; }
+
     public string? Agent { get; init; }
 
     public string? ClientName { get; init; }

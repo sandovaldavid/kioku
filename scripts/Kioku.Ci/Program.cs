@@ -122,9 +122,44 @@ internal static class Program
         await client.PingAsync(cancellationToken: cancellationToken);
         var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
         var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
+        RequireTool(toolNames, "list_work_sessions");
+        EnsureToolAbsent(toolNames, "create_coordination_work_item");
         RequireTool(toolNames, "create_note");
         RequireTool(toolNames, "read_note");
         RequireTool(toolNames, "delete_note");
+
+        var sessionsResult = await client.CallToolAsync(
+            "list_work_sessions",
+            new Dictionary<string, object?>
+            {
+                ["sessions_folder"] = "Sessions",
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("list_work_sessions", sessionsResult);
+        var sessionsText = ExtractResultText(sessionsResult);
+        if (!sessionsText.Contains("Legacy Session", StringComparison.Ordinal) ||
+            !sessionsText.Contains("019c0000-0000-7000-8000-000000000001", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "list_work_sessions did not return the checked-in pre-profile session fixture.");
+        }
+
+        var legacyReadResult = await client.CallToolAsync(
+            "read_note",
+            new Dictionary<string, object?>
+            {
+                ["note"] = "Sessions/Legacy Session",
+                ["format"] = "text",
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("read_note legacy fixture", legacyReadResult);
+        EnsureStructuredEnvelope("read_note legacy fixture", legacyReadResult);
+        if (!ExtractResultText(legacyReadResult).Contains(
+                "The legacy session must remain readable after the server starts.",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("read_note did not return the pre-profile session content.");
+        }
 
         var noteName = $"ci-smoke-{Guid.NewGuid():N}";
         var expectedPath = Path.Combine(vaultPath, $"{noteName}.md");
@@ -319,11 +354,19 @@ internal static class Program
         await process.WaitForExitAsync();
     }
 
-    private static void RequireTool(IReadOnlySet<string> tools, string name)
+    private static void RequireTool(HashSet<string> tools, string name)
     {
         if (!tools.Contains(name))
         {
             throw new InvalidOperationException($"tools/list did not include '{name}'.");
+        }
+    }
+
+    private static void EnsureToolAbsent(HashSet<string> tools, string name)
+    {
+        if (tools.Contains(name))
+        {
+            throw new InvalidOperationException($"tools/list unexpectedly included gated tool '{name}'.");
         }
     }
 

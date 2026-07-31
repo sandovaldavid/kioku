@@ -45,6 +45,7 @@ public class VaultConfigServiceTests : IDisposable
         Assert.True(service.IsGroupEnabled("engineering"));
         Assert.False(service.IsGroupEnabled("css"));
         Assert.False(service.IsGroupEnabled("research"));
+        Assert.False(service.IsGroupEnabled("coordination"));
         Assert.False(service.IsGroupEnabled("git"));
         Assert.False(service.IsGroupEnabled("restore"));
         Assert.False(service.IsGroupEnabled("zettelkasten"));

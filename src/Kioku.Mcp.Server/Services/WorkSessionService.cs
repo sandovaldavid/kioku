@@ -22,6 +22,7 @@ internal sealed partial class WorkSessionService
     private readonly IWorkSessionFileSystem _fileSystem;
     private readonly TimeProvider _timeProvider;
     private readonly IVaultMutationService? _mutations;
+    private readonly ICoordinationService? _coordination;
 
     public WorkSessionService(
         VaultIndexService vault,
@@ -31,7 +32,8 @@ internal sealed partial class WorkSessionService
         ObsidianBridgeService bridge,
         IWorkSessionFileSystem fileSystem,
         TimeProvider timeProvider,
-        IVaultMutationService? mutations = null)
+        IVaultMutationService? mutations = null,
+        ICoordinationService? coordination = null)
     {
         _vault = vault;
         _config = config;
@@ -41,6 +43,7 @@ internal sealed partial class WorkSessionService
         _fileSystem = fileSystem;
         _timeProvider = timeProvider;
         _mutations = mutations;
+        _coordination = coordination;
     }
 
     public Task<string> GetWorkContextAsync(
@@ -128,9 +131,12 @@ internal sealed partial class WorkSessionService
                 cancellationToken.ThrowIfCancellationRequested();
                 var project = string.IsNullOrWhiteSpace(session.Project) ? "global" : session.Project;
                 var id = session.SessionId ?? "(legacy session without id)";
+                var coordination = session.Coordination is null
+                    ? string.Empty
+                    : $" · coordination `{session.Coordination.RunId}/{session.Coordination.WorkItemId}`";
                 sb.AppendLine(
                     $"- [[{session.Note.Name}]] — `{id}` · {session.Agent ?? "unknown agent"} · " +
-                    $"{project} _(started {FormatAge(session.StartedAt, now)} ago)_");
+                    $"{project}{coordination} _(started {FormatAge(session.StartedAt, now)} ago)_");
             }
         }
 
@@ -146,13 +152,25 @@ internal sealed partial class WorkSessionService
         string sessionId,
         string parentSessionId,
         string? mcpClientName,
+        WorkSessionCoordinationRequest? coordination = null,
         VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var requestedCoordination = NormalizeCoordinationRequest(coordination);
+        if (requestedCoordination.Error is not null)
+        {
+            return requestedCoordination.Error;
+        }
+
         if (!string.IsNullOrWhiteSpace(sessionId))
         {
-            return await ResumeAsync(sessionId.Trim(), project, preconditions, cancellationToken);
+            return await ResumeAsync(
+                sessionId.Trim(),
+                project,
+                preconditions,
+                requestedCoordination.Link,
+                cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(project) &&
@@ -257,6 +275,28 @@ internal sealed partial class WorkSessionService
             await _vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
         }
 
+        var coordinationResult = await TryCreateCoordinationLinkAsync(
+            requestedCoordination.Link,
+            id,
+            parentSessionId,
+            relativePath,
+            project,
+            agentName,
+            clientName,
+            cancellationToken);
+        if (coordinationResult.Link is not null)
+        {
+            var linkWarning = await PersistCoordinationLinkAsync(
+                filePath,
+                coordinationResult.Link,
+                cancellationToken);
+            coordinationResult = coordinationResult with
+            {
+                Warning = CombineWarnings(coordinationResult.Warning, linkWarning),
+                Link = linkWarning is null ? coordinationResult.Link : null,
+            };
+        }
+
         return FormatSuccess(
             "started",
             id,
@@ -265,7 +305,8 @@ internal sealed partial class WorkSessionService
             agentName,
             clientName,
             now,
-            evaluation.Warning);
+            CombineWarnings(evaluation.Warning, coordinationResult.Warning),
+            coordinationResult.Link);
     }
 
     public async Task<string> EndAsync(
@@ -340,6 +381,13 @@ internal sealed partial class WorkSessionService
                 $"- {session.Note.Name} — id: `{id}` — status: {session.Status} — " +
                 $"agent: {session.Agent ?? "unknown"} — project: {projectLabel} — " +
                 $"started: {FormatUtc(session.StartedAt)} — duration: {FormatDuration(end - session.StartedAt)}");
+            if (session.Coordination is not null)
+            {
+                sb.AppendLine(
+                    $"  Coordination: run `{session.Coordination.RunId}`, " +
+                    $"work item `{session.Coordination.WorkItemId}`, " +
+                    $"attempt `{session.Coordination.AttemptId}`.");
+            }
             if (includeActivity)
             {
                 var activityEnd = session.Status.Equals("active", StringComparison.OrdinalIgnoreCase)
@@ -356,6 +404,7 @@ internal sealed partial class WorkSessionService
         string sessionId,
         string project,
         VaultMutationPreconditions? preconditions,
+        WorkSessionCoordinationLink? requestedLink,
         CancellationToken cancellationToken)
     {
         var matches = FindSessionsById(sessionId);
@@ -387,13 +436,40 @@ internal sealed partial class WorkSessionService
         {
             var document = FrontmatterDocument.Parse(
                 await _fileSystem.ReadAllTextAsync(session.Note.FilePath, cancellationToken));
-            var status = document.ToFrontmatter().Status ?? "unknown";
+            var metadata = document.ToFrontmatter();
+            var status = metadata.Status ?? "unknown";
             if (!status.Equals("active", StringComparison.OrdinalIgnoreCase))
             {
                 return FormatError(
                     "SESSION_NOT_ACTIVE",
                     $"Session '{sessionId}' cannot be resumed because its status is '{status}'.",
                     new { session_id = sessionId, status });
+            }
+
+            var persistedLink = ReadCoordinationLink(metadata.ExtraFields);
+            if (HasCoordinationMetadata(metadata.ExtraFields) && persistedLink is null)
+            {
+                return FormatError(
+                    "COORDINATION_LINK_INVALID",
+                    "The session contains partial coordination metadata and cannot be resumed safely.",
+                    new { session_id = sessionId });
+            }
+
+            var linkError = ValidateRequestedCoordinationLink(persistedLink, requestedLink);
+            if (linkError is not null)
+            {
+                return linkError;
+            }
+
+            var currentLink = persistedLink ?? requestedLink;
+            var preconditionError = ValidateCoordinationLinkPreconditions(
+                session,
+                preconditions,
+                persistedLink,
+                requestedLink);
+            if (preconditionError is not null)
+            {
+                return preconditionError;
             }
 
             var now = _timeProvider.GetUtcNow();
@@ -411,6 +487,33 @@ internal sealed partial class WorkSessionService
                 preconditions,
                 cancellationToken);
             await _vault.SynchronizeFileReindexAsync(session.Note.FilePath).WaitAsync(cancellationToken);
+
+            var coordinationResult = new CoordinationLinkResult(currentLink, null);
+            if (persistedLink is null && requestedLink is not null)
+            {
+                coordinationResult = await TryCreateCoordinationLinkAsync(
+                    requestedLink,
+                    sessionId,
+                    GetString(metadata.ExtraFields, "parent_session_id") ?? session.ParentSessionId ?? string.Empty,
+                    session.Note.VaultRelativePath,
+                    session.Project ?? project,
+                    session.Agent ?? "unknown",
+                    session.ClientName ?? "unknown",
+                    cancellationToken);
+                if (coordinationResult.Link is not null)
+                {
+                    var linkWarning = await PersistCoordinationLinkAsync(
+                        session.Note.FilePath,
+                        coordinationResult.Link,
+                        cancellationToken);
+                    coordinationResult = coordinationResult with
+                    {
+                        Warning = CombineWarnings(coordinationResult.Warning, linkWarning),
+                        Link = linkWarning is null ? coordinationResult.Link : null,
+                    };
+                }
+            }
+
             return FormatSuccess(
                 "resumed",
                 sessionId,
@@ -419,7 +522,8 @@ internal sealed partial class WorkSessionService
                 session.Agent ?? "unknown",
                 session.ClientName ?? "unknown",
                 session.StartedAt,
-                null);
+                coordinationResult.Warning,
+                coordinationResult.Link);
         }
         finally
         {
@@ -533,6 +637,32 @@ internal sealed partial class WorkSessionService
                     new { session_id = sessionId, path = selected.Note.VaultRelativePath, status });
             }
 
+            var persistedLink = ReadCoordinationLink(metadata.ExtraFields);
+            if (HasCoordinationMetadata(metadata.ExtraFields) && persistedLink is null)
+            {
+                return FormatError(
+                    "COORDINATION_LINK_INVALID",
+                    "The session contains partial coordination metadata and cannot be closed safely.",
+                    new { session_id = sessionId });
+            }
+
+            if (selected.Coordination is not null && persistedLink is null)
+            {
+                return FormatError(
+                    "COORDINATION_LINK_MISMATCH",
+                    "The session's coordination metadata changed since it was selected; re-read the session and retry.",
+                    new { session_id = sessionId });
+            }
+
+            var preconditionError = ValidateCoordinatedPreconditions(
+                selected,
+                preconditions,
+                persistedLink);
+            if (preconditionError is not null)
+            {
+                return preconditionError;
+            }
+
             var startedAt = ParseUtc(GetString(metadata.ExtraFields, "started_at")) ?? selected.StartedAt;
             var now = _timeProvider.GetUtcNow();
             if (now < startedAt)
@@ -576,6 +706,7 @@ internal sealed partial class WorkSessionService
                 ended_at = FormatUtc(now),
                 duration_seconds = (long)(now - startedAt).TotalSeconds,
                 notes_touched = modified.Count,
+                coordination = ToCoordinationPayload(persistedLink),
             });
             return $"[ok] Session closed: {selected.Note.VaultRelativePath}\n{payload}";
         }
