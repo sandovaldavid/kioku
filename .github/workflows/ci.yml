@@ -269,6 +269,8 @@ jobs:
           VAULT="$RUNNER_TEMP/kioku-tool-vault"
           mkdir -p "$VAULT"
           printf '# Seed\n\nPackage smoke fixture.\n' > "$VAULT/seed.md"
+          mkdir -p "$VAULT/.kioku"
+          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n' > "$VAULT/.kioku/config.yml"
           mkdir -p "$VAULT/Sessions"
           cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
           dotnet run \
@@ -279,6 +281,7 @@ jobs:
             --transport stdio \
             --command "$KIOKU_TOOL" \
             --vault "$VAULT" \
+            --coordination \
             --timeout-seconds 90 \
             2>&1 | tee stdio-smoke.log
 
@@ -320,6 +323,8 @@ jobs:
           VAULT="$RUNNER_TEMP/kioku-http-vault"
           mkdir -p "$VAULT"
           printf '# Seed\n\nHTTP smoke fixture.\n' > "$VAULT/seed.md"
+          mkdir -p "$VAULT/.kioku"
+          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n' > "$VAULT/.kioku/config.yml"
           mkdir -p "$VAULT/Sessions"
           cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
           dotnet run \
@@ -332,6 +337,7 @@ jobs:
             --vault "$VAULT" \
             --endpoint "http://127.0.0.1:5273/mcp" \
             --api-key "kioku-ci-smoke-token" \
+            --coordination \
             --timeout-seconds 120 \
             2>&1 | tee http-smoke.log
 

@@ -15,7 +15,8 @@ internal sealed class VaultMutationService(
     ICoordinationFileSystem fileSystem,
     ICoordinationClaimStore claims,
     IVaultIndexOperations index,
-    TimeProvider timeProvider) : IVaultMutationService
+    TimeProvider timeProvider,
+    ICoordinationFaultInjector? faultInjector = null) : IVaultMutationService
 {
     private const string MutationRecordRoot = ".kioku/coordination/mutations";
 
@@ -61,6 +62,18 @@ internal sealed class VaultMutationService(
                             normalized,
                             resourceKey,
                             current,
+                            observed[resourceKey],
+                            timeProvider,
+                            requireExists: true);
+                        await InjectAsync(
+                                CoordinationFaultPoint.AfterCasValidationBeforeWrite,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        var latest = await ReadCurrentAsync(source, cancellationToken).ConfigureAwait(false);
+                        ValidatePreconditions(
+                            normalized,
+                            resourceKey,
+                            latest,
                             observed[resourceKey],
                             timeProvider,
                             requireExists: true);
@@ -128,6 +141,29 @@ internal sealed class VaultMutationService(
                             return ConfirmDuplicate(existing, fingerprint, sourceResource, RelativePath(destination));
                         }
 
+                        ValidatePreconditions(
+                            normalized,
+                            sourceResource,
+                            current,
+                            observed[sourceResource],
+                            timeProvider,
+                            requireExists: true);
+                        if (fileSystem.FileExists(destination))
+                        {
+                            throw Conflict(
+                                "DESTINATION_EXISTS",
+                                sourceResource,
+                                normalized,
+                                current,
+                                observed[sourceResource],
+                                "Choose a different destination or re-read the target resource.");
+                        }
+
+                        await InjectAsync(
+                                CoordinationFaultPoint.AfterCasValidationBeforeWrite,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        current = await ReadCurrentAsync(source, cancellationToken).ConfigureAwait(false);
                         ValidatePreconditions(
                             normalized,
                             sourceResource,
@@ -231,7 +267,30 @@ internal sealed class VaultMutationService(
                                 $"The target already exists: '{RelativePath(target)}'.");
                         }
 
+                        await InjectAsync(
+                                CoordinationFaultPoint.AfterCasValidationBeforeWrite,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        current = await ReadCurrentAsync(target, cancellationToken).ConfigureAwait(false);
+                        ValidatePreconditions(
+                            normalized,
+                            resourceKey,
+                            current,
+                            observed[resourceKey],
+                            timeProvider,
+                            requireExists: !requireAbsent);
+                        if (requireAbsent && current is not null)
+                        {
+                            throw new VaultMutationException(
+                                "INVALID_ARGUMENT",
+                                $"The target already exists: '{RelativePath(target)}'.");
+                        }
+
                         await fileSystem.WriteAtomicallyAsync(target, content, cancellationToken)
+                            .ConfigureAwait(false);
+                        await InjectAsync(
+                                CoordinationFaultPoint.AfterTargetWriteBeforeReindex,
+                                cancellationToken)
                             .ConfigureAwait(false);
                         await ReindexAsync(target, cancellationToken).ConfigureAwait(false);
                         var receipt = new VaultMutationReceipt(
@@ -614,6 +673,11 @@ internal sealed class VaultMutationService(
 
     private static VaultMutationException AccessDenied() =>
         new("ACCESS_DENIED", "The requested filesystem operation is outside Kioku's configured security boundary.");
+
+    private Task InjectAsync(
+        CoordinationFaultPoint point,
+        CancellationToken cancellationToken) =>
+        (faultInjector ?? NoOpCoordinationFaultInjector.Instance).InjectAsync(point, cancellationToken);
 
     private sealed record MutationRecord(
         string Fingerprint,
