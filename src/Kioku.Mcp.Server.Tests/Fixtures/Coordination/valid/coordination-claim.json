@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "claim_id": "claim-01",
+  "run_id": "run-01",
+  "work_item_id": "work-01",
+  "attempt_id": "attempt-01",
+  "resource_key": "note:Notes/Plan.md",
+  "fence_generation": 1,
+  "status": "active",
+  "acquired_at": "2026-07-31T05:00:00Z",
+  "lease_expires_at": "2026-07-31T05:05:00Z",
+  "released_at": null,
+  "release_reason": null,
+  "session_id": "session-01",
+  "agent": "agent-a",
+  "client_name": "client-a",
+  "content_hash": "F551B00AA6F49C377F8DA93959B7949A6EC3E2D1869FBFFE9CFBF536337D05F5"
+}

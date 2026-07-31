@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kioku.dev/schemas/coordination/coordination-event-v1.json",
+  "title": "Kioku durable coordination event",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "event_id",
+    "run_id",
+    "work_item_id",
+    "attempt_id",
+    "session_id",
+    "claim_id",
+    "sequence_number",
+    "event_type",
+    "transition_id",
+    "occurred_at",
+    "recorded_at",
+    "actor",
+    "payload",
+    "previous_hash",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "event_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "work_item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "attempt_id": { "type": ["string", "null"], "maxLength": 128 },
+    "session_id": { "type": ["string", "null"], "maxLength": 128 },
+    "claim_id": { "type": ["string", "null"], "maxLength": 128 },
+    "sequence_number": { "type": "integer", "minimum": 1 },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "work-item.created",
+        "work-item.claimed",
+        "work-item.started",
+        "work-item.blocked",
+        "work-item.partial",
+        "work-item.failed",
+        "work-item.completed",
+        "work-item.canceled",
+        "work-item.stale",
+        "work-item.reopened"
+      ]
+    },
+    "transition_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "recorded_at": { "type": "string", "format": "date-time" },
+    "actor": { "$ref": "#/definitions/actor" },
+    "payload": { "$ref": "#/definitions/payload" },
+    "previous_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" },
+    "content_hash": { "type": "string", "pattern": "^[0-9A-F]{64}$" }
+  },
+  "definitions": {
+    "actor": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["agent", "client_name", "session_id"],
+      "properties": {
+        "agent": { "type": ["string", "null"], "maxLength": 128 },
+        "client_name": { "type": ["string", "null"], "maxLength": 128 },
+        "session_id": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "previous_state",
+        "next_state",
+        "expected_state_version",
+        "state_version",
+        "reason",
+        "outcome",
+        "error_code",
+        "retryable",
+        "result_reference",
+        "progress_reference",
+        "lease_expires_at",
+        "expected_hash",
+        "actual_hash"
+      ],
+      "properties": {
+        "previous_state": { "type": ["string", "null"], "maxLength": 64 },
+        "next_state": { "type": ["string", "null"], "maxLength": 64 },
+        "expected_state_version": { "type": ["integer", "null"], "minimum": 0 },
+        "state_version": { "type": ["integer", "null"], "minimum": 0 },
+        "reason": { "type": ["string", "null"], "maxLength": 2000 },
+        "outcome": { "type": ["string", "null"], "maxLength": 2000 },
+        "error_code": { "type": ["string", "null"], "maxLength": 128 },
+        "retryable": { "type": ["boolean", "null"] },
+        "result_reference": { "type": ["string", "null"], "maxLength": 512 },
+        "progress_reference": { "type": ["string", "null"], "maxLength": 512 },
+        "lease_expires_at": { "type": ["string", "null"], "format": "date-time" },
+        "expected_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" },
+        "actual_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" }
+      }
+    }
+  }
+}

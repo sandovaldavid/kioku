@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "run_id": "run-01",
+  "work_item_id": "work-01",
+  "project": "example-project",
+  "state": "pending",
+  "state_version": 0,
+  "revision": 0,
+  "attempt_id": null,
+  "session_id": "session-01",
+  "parent_session_id": null,
+  "resource_scope": ["note:Notes/Plan.md"],
+  "active_claims": [],
+  "blockers": [],
+  "conflicts": [],
+  "last_event_id": "event-01",
+  "last_event_sequence": 1,
+  "created_at": "2026-07-31T05:00:00Z",
+  "updated_at": "2026-07-31T05:00:00Z",
+  "outcome": null,
+  "content_hash": "47F58B2F09CC5EB167E194A06489360460D8396E84297CA94CB8E6A5623FBA3C"
+}

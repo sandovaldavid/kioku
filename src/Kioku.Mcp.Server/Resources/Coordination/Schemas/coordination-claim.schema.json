@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kioku.dev/schemas/coordination/coordination-claim-v1.json",
+  "title": "Kioku durable coordination claim",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "claim_id",
+    "run_id",
+    "work_item_id",
+    "attempt_id",
+    "resource_key",
+    "fence_generation",
+    "status",
+    "acquired_at",
+    "lease_expires_at",
+    "released_at",
+    "release_reason",
+    "session_id",
+    "agent",
+    "client_name",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "claim_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "work_item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "attempt_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "resource_key": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "fence_generation": { "type": "integer", "minimum": 1 },
+    "status": { "type": "string", "enum": ["active", "released", "expired", "fenced"] },
+    "acquired_at": { "type": "string", "format": "date-time" },
+    "lease_expires_at": { "type": "string", "format": "date-time" },
+    "released_at": { "type": ["string", "null"], "format": "date-time" },
+    "release_reason": { "type": ["string", "null"], "maxLength": 2000 },
+    "session_id": { "type": ["string", "null"], "maxLength": 128 },
+    "agent": { "type": ["string", "null"], "maxLength": 128 },
+    "client_name": { "type": ["string", "null"], "maxLength": 128 },
+    "content_hash": { "type": "string", "pattern": "^[0-9A-F]{64}$" }
+  }
+}

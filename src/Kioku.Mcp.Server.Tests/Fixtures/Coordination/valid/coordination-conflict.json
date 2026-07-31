@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "conflict_id": "conflict-01",
+  "run_id": "run-01",
+  "work_item_id": "work-01",
+  "attempt_id": "attempt-01",
+  "resource_key": "note:Notes/Plan.md",
+  "kind": "revision-mismatch",
+  "status": "open",
+  "detected_at": "2026-07-31T05:00:00Z",
+  "expected_revision": 2,
+  "actual_revision": 3,
+  "expected_hash": null,
+  "actual_hash": null,
+  "description": "The resource revision changed before the write.",
+  "resolution": null,
+  "resolved_at": null,
+  "resolved_by": null,
+  "content_hash": "D553AA1B39B139D41A3AF063EE624CBF86CDE9CFD890E90E1B1277925FCBFE6B"
+}
