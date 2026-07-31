@@ -1,10 +1,10 @@
 # Coordination contracts
 
 This document describes the versioned JSON contracts implemented for issue
-[#304](https://github.com/sandovaldavid/kioku/issues/304). The contracts are
-the shared boundary for future coordination persistence, replay, MCP adapters,
-and interoperability fixtures. Event storage, claims, note mutation, and
-coordination tools remain outside this implementation.
+[#304](https://github.com/sandovaldavid/kioku/issues/304) and the event
+persistence and replay boundary implemented for issue
+[#305](https://github.com/sandovaldavid/kioku/issues/305). Claims, note mutation,
+and coordination tools remain outside this implementation.
 
 ## Contract documents
 
@@ -93,7 +93,7 @@ Each event also carries a server-generated `event_id`, a monotonically ordered
 the transition payload. `agent`, `client_name`, and session metadata are
 diagnostic context only. They never grant authority, ownership, or a claim.
 
-The future event store must apply these idempotency rules:
+The event store applies these idempotency rules:
 
 - Repeating a `transition_id` with the same canonical payload returns the
   original result.
@@ -101,6 +101,39 @@ The future event store must apply these idempotency rules:
   conflict.
 - A different event ID does not make a repeated transition valid.
 - Sequence and state-version checks remain separate from idempotency checks.
+
+## Event persistence and replay
+
+The event store keeps coordination records inside the configured vault while
+keeping them outside the normal Markdown knowledge tree. It creates this
+layout on first use:
+
+```text
+.kioku/coordination/
+  manifest.json
+  events/YYYY/MM/<event_id>.json
+  snapshots/work-items/<work_item_id>.json
+  runtime/locks/<work_item_hash>.lock
+```
+
+Each accepted event is written as a separate immutable JSON file with exclusive
+creation. The manifest records the coordination format version and epoch. A
+projection is derived data: it is written atomically after the pure reducer
+accepts the candidate history and can be deleted and rebuilt from the events.
+
+The store serializes writes for one work item with an operating-system file
+lock. It validates the event schema and content hash, rejects sequence gaps,
+hash-chain violations, conflicting duplicate IDs, and conflicting transition
+IDs, and returns an exact duplicate as a stable no-op. If a process stops after
+the event file is accepted but before the projection refresh completes, the
+next replay rebuilds the projection without emitting domain side effects.
+
+Replay orders events by their sequence number and fails closed for malformed,
+truncated, out-of-order, unsupported, or hash-invalid history. A corrupt
+projection is never silently trusted; callers can rebuild it from the event
+history. Filesystem paths are resolved through `VaultPathPolicy`, and the
+`.kioku` control plane does not create Markdown notes or enter ordinary note
+indexing.
 
 ## Validation
 
@@ -110,14 +143,16 @@ coordination model and returns `CoordinationValidationResult` with stable path
 and code pairs.
 
 The tests verify that representative fixtures pass, malformed fixtures fail,
-unknown fields remain readable, canonical hashes are repeatable, and caller
-metadata cannot become an authority scope. Later persistence and MCP work must
-reuse these contracts rather than introduce a second serializer or schema
-catalog.
+unknown fields remain readable, canonical hashes are repeatable, caller
+metadata cannot become an authority scope, event history replays
+deterministically, duplicates are idempotent, invalid history fails closed,
+and projections recover after deletion. Later claims, note mutation, and MCP
+work must reuse these contracts rather than introduce a second serializer or
+schema catalog.
 
 ## Scope boundary
 
-This contract slice does not persist or replay events, acquire or expire claims,
+This slice persists and replays events but does not acquire or expire claims,
 perform compare-and-swap note writes, expose coordination MCP tools, or adopt
 CloudEvents or A2A as mandatory internal formats. Those behaviors remain in the
 dependent issues described by the [durable coordination architecture](durable-coordination.md).

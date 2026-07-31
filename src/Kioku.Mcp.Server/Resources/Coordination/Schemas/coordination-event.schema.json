@@ -27,6 +27,13 @@
     "event_id": { "type": "string", "minLength": 1, "maxLength": 128 },
     "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
     "work_item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "project": { "type": ["string", "null"], "maxLength": 256 },
+    "resource_scope": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+    },
     "attempt_id": { "type": ["string", "null"], "maxLength": 128 },
     "session_id": { "type": ["string", "null"], "maxLength": 128 },
     "claim_id": { "type": ["string", "null"], "maxLength": 128 },

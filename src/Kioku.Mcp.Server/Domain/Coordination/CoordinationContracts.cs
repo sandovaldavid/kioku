@@ -362,6 +362,12 @@ public sealed class CoordinationEvent
     [JsonPropertyName("work_item_id")]
     public required string WorkItemId { get; init; }
 
+    [JsonPropertyName("project")]
+    public string? Project { get; init; }
+
+    [JsonPropertyName("resource_scope")]
+    public IReadOnlyList<string> ResourceScope { get; init; } = [];
+
     [JsonPropertyName("attempt_id")]
     public string? AttemptId { get; init; }
 
@@ -594,7 +600,7 @@ public sealed class WorkItemProjection
     public CoordinationOutcome? Outcome { get; init; }
 
     [JsonPropertyName("content_hash")]
-    public required string ContentHash { get; init; }
+    public string ContentHash { get; set; } = string.Empty;
 }
 
 /// <summary>
