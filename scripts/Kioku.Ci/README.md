@@ -8,3 +8,7 @@ It supports two modes:
 - `http`: launches a published native binary, waits for `/health/ready`, authenticates with an API key, and repeats the same flow over Streamable HTTP.
 
 The harness uses a temporary vault and bounded retries for filesystem-watcher index propagation. It is not intended to replace unit or in-process integration tests.
+
+Pass `--coordination` with an explicitly enabled vault capability to smoke-test
+the durable coordination tools and replay history through the selected
+distribution.

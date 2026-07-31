@@ -97,7 +97,8 @@ internal sealed class CoordinationEventStore(
     VaultPathPolicy paths,
     ICoordinationFileSystem fileSystem,
     CoordinationContractValidator validator,
-    TimeProvider timeProvider) : ICoordinationEventStore
+    TimeProvider timeProvider,
+    ICoordinationFaultInjector? faultInjector = null) : ICoordinationEventStore
 {
     private const string CoordinationRoot = ".kioku/coordination";
     private const string ManifestFileName = "manifest.json";
@@ -212,6 +213,10 @@ internal sealed class CoordinationEventStore(
             throw new CoordinationStoreException(CoordinationStoreErrorCodes.DuplicateEventId);
         }
 
+        await InjectAsync(
+                CoordinationFaultPoint.AfterEventDurabilityBeforeProjection,
+                cancellationToken)
+            .ConfigureAwait(false);
         var projection = await RebuildAndPersistAsync(
             coordinationEvent.RunId,
             coordinationEvent.WorkItemId,
@@ -405,6 +410,8 @@ internal sealed class CoordinationEventStore(
             throw new CoordinationStoreException(exception.Code);
         }
 
+        await InjectAsync(CoordinationFaultPoint.DuringProjectionReplacement, cancellationToken)
+            .ConfigureAwait(false);
         await fileSystem.WriteAtomicallyAsync(
             GetProjectionPath(workItemId),
             CoordinationContractSerializer.Serialize(projection),
@@ -603,6 +610,11 @@ internal sealed class CoordinationEventStore(
             throw new CoordinationStoreException(CoordinationStoreErrorCodes.UnsafeIdentifier);
         }
     }
+
+    private Task InjectAsync(
+        CoordinationFaultPoint point,
+        CancellationToken cancellationToken) =>
+        (faultInjector ?? NoOpCoordinationFaultInjector.Instance).InjectAsync(point, cancellationToken);
 
     private sealed record StoredEvent(CoordinationEvent Event, string CanonicalJson);
 }

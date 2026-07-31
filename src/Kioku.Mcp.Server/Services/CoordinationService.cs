@@ -94,7 +94,8 @@ internal sealed class CoordinationService(
     ICoordinationEventStore events,
     ICoordinationClaimStore claims,
     ICoordinationConflictStore conflicts,
-    TimeProvider timeProvider) : ICoordinationService
+    TimeProvider timeProvider,
+    ICoordinationFaultInjector? faultInjector = null) : ICoordinationService
 {
     public async Task<CoordinationWorkItemSnapshot> CreateWorkItemAsync(
         CoordinationCreateWorkItemRequest request,
@@ -119,6 +120,21 @@ internal sealed class CoordinationService(
 
         try
         {
+            var replay = await events.ReplayAsync(runId, workItemId, cancellationToken).ConfigureAwait(false);
+            if (replay.Projection is not null)
+            {
+                if (replay.Events.Count > 0 &&
+                    string.Equals(replay.Events[0].TransitionId, transitionId, StringComparison.Ordinal))
+                {
+                    return await BuildSnapshotAsync(replay.Projection, cancellationToken).ConfigureAwait(false);
+                }
+
+                throw Operation(
+                    CoordinationOperationErrorCodes.Conflict,
+                    "The work item already exists.",
+                    "Read the existing projection and use a new work_item_id for a different item.");
+            }
+
             var existing = await events.ListProjectionsAsync(
                     workItemId: workItemId,
                     cancellationToken: cancellationToken)
@@ -148,6 +164,8 @@ internal sealed class CoordinationService(
                     "Read the existing projection and use a new work_item_id for a different item.");
             }
 
+            await InjectAsync(CoordinationFaultPoint.BeforeEventCreation, cancellationToken)
+                .ConfigureAwait(false);
             var now = timeProvider.GetUtcNow().ToUniversalTime();
             var created = new CoordinationEvent
             {
@@ -354,6 +372,8 @@ internal sealed class CoordinationService(
                     attemptId,
                     sessionId,
                     cancellationToken)
+                .ConfigureAwait(false);
+            await InjectAsync(CoordinationFaultPoint.BeforeEventCreation, cancellationToken)
                 .ConfigureAwait(false);
             var now = timeProvider.GetUtcNow().ToUniversalTime();
             var transition = new CoordinationEvent
@@ -991,6 +1011,7 @@ internal sealed class CoordinationService(
                 CoordinationOperationErrorCodes.AccessDenied,
                 "The coordination storage boundary denied the operation.",
                 "Verify the configured vault is writable and retry."),
+            CoordinationStoreErrorCodes.DuplicateEventId or
             CoordinationStoreErrorCodes.InvalidSequence or
             CoordinationStoreErrorCodes.CorruptHistory or
             CoordinationStoreErrorCodes.ProjectionCorrupt => Operation(
@@ -1071,4 +1092,9 @@ internal sealed class CoordinationService(
 
     private static CoordinationOperationException Operation(string code, string message, string recovery) =>
         new(code, message, recovery);
+
+    private Task InjectAsync(
+        CoordinationFaultPoint point,
+        CancellationToken cancellationToken) =>
+        (faultInjector ?? NoOpCoordinationFaultInjector.Instance).InjectAsync(point, cancellationToken);
 }

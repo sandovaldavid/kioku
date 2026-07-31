@@ -15,7 +15,8 @@ internal sealed class CoordinationClaimStore(
     ICoordinationFileSystem fileSystem,
     ICoordinationEventStore eventStore,
     CoordinationContractValidator validator,
-    TimeProvider timeProvider) : ICoordinationClaimStore
+    TimeProvider timeProvider,
+    ICoordinationFaultInjector? faultInjector = null) : ICoordinationClaimStore
 {
     private const string CoordinationRoot = ".kioku/coordination";
     private const string LeaseRoot = "leases";
@@ -111,6 +112,8 @@ internal sealed class CoordinationClaimStore(
         }
 
         var renewedUntil = now.Add(request.LeaseDuration);
+        await InjectAsync(CoordinationFaultPoint.BeforeClaimRenewal, cancellationToken)
+            .ConfigureAwait(false);
         await AppendStateTransitionAsync(
             current.RunId,
             current.WorkItemId,
@@ -137,6 +140,8 @@ internal sealed class CoordinationClaimStore(
             releaseReason: null,
             status: CoordinationClaimStatuses.Active);
         await WriteClaimAsync(renewed, cancellationToken).ConfigureAwait(false);
+        await InjectAsync(CoordinationFaultPoint.AfterClaimRenewal, cancellationToken)
+            .ConfigureAwait(false);
         return new(CoordinationClaimDisposition.Renewed, renewed);
     }
 
@@ -304,6 +309,8 @@ internal sealed class CoordinationClaimStore(
                     throw new CoordinationClaimException(CoordinationClaimErrorCodes.ClaimConflict);
                 }
 
+                await InjectAsync(CoordinationFaultPoint.BeforeClaimTakeover, cancellationToken)
+                    .ConfigureAwait(false);
                 current = await ObserveExpiryLockedAsync(
                     current,
                     BuildDerivedTransitionId(request.TransitionId, "expire"),
@@ -313,6 +320,8 @@ internal sealed class CoordinationClaimStore(
             }
             else if (current.Status == CoordinationClaimStatuses.Expired)
             {
+                await InjectAsync(CoordinationFaultPoint.BeforeClaimTakeover, cancellationToken)
+                    .ConfigureAwait(false);
                 disposition = CoordinationClaimDisposition.TakenOver;
             }
             else
@@ -376,6 +385,12 @@ internal sealed class CoordinationClaimStore(
             request.ClientName,
             cancellationToken).ConfigureAwait(false);
         await WriteClaimAsync(claim, cancellationToken).ConfigureAwait(false);
+        await InjectAsync(
+                disposition == CoordinationClaimDisposition.TakenOver
+                    ? CoordinationFaultPoint.AfterClaimTakeover
+                    : CoordinationFaultPoint.AfterClaimAcquisition,
+                cancellationToken)
+            .ConfigureAwait(false);
         return new(disposition, claim);
     }
 
@@ -547,6 +562,8 @@ internal sealed class CoordinationClaimStore(
 
         var now = GetUtcNow();
         var previous = replay.Events[^1];
+        await InjectAsync(CoordinationFaultPoint.BeforeEventCreation, cancellationToken)
+            .ConfigureAwait(false);
         var transition = new CoordinationEvent
         {
             EventId = Guid.CreateVersion7().ToString("D"),
@@ -1042,4 +1059,9 @@ internal sealed class CoordinationClaimStore(
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{source}:{suffix}")));
 
     private DateTimeOffset GetUtcNow() => timeProvider.GetUtcNow().ToUniversalTime();
+
+    private Task InjectAsync(
+        CoordinationFaultPoint point,
+        CancellationToken cancellationToken) =>
+        (faultInjector ?? NoOpCoordinationFaultInjector.Instance).InjectAsync(point, cancellationToken);
 }
