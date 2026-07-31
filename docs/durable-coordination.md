@@ -4,10 +4,13 @@ This document defines the architecture contract for Kioku's durable
 coordination profile. It is the review artifact for issue
 [#303](https://github.com/sandovaldavid/kioku/issues/303); event persistence and
 deterministic projection replay are implemented by issue
-[#305](https://github.com/sandovaldavid/kioku/issues/305), while later
-coordination capabilities remain incomplete.
+[#305](https://github.com/sandovaldavid/kioku/issues/305), and claims, leases,
+and fencing are implemented by issue
+[#306](https://github.com/sandovaldavid/kioku/issues/306). Later coordination
+capabilities remain incomplete.
 
-**Decision status:** Architecture boundary in progress; event persistence is implemented.
+**Decision status:** Architecture boundary in progress; event persistence,
+claims, leases, and fencing are implemented.
 
 The profile coordinates independent Kioku processes that share one vault on a
 supported local filesystem. It is not a distributed lock service, an
@@ -37,7 +40,7 @@ The profile has these boundaries:
 
 The following are explicit non-goals for this profile:
 
-- adding claims or fencing tokens to the server;
+- enforcing fencing on note mutations;
 - changing MCP tool schemas;
 - providing multi-tenant authorization;
 - synchronizing independent Git checkouts;
@@ -253,9 +256,10 @@ version and does not release another actor's claim.
 
 ### Claim and lease rules
 
-Claims provide operational ownership for future implementation slices. They do
-not protect a vault from an operating-system user or process that edits files
-without using Kioku.
+Claims provide operational ownership through the implemented
+`CoordinationClaimStore`. They do not protect a vault from an operating-system
+user or process that edits files without using Kioku, and they do not enforce
+fencing on note mutations until the CAS slice lands.
 
 The following rules are normative:
 
@@ -283,9 +287,10 @@ machine records from becoming ordinary notes or search results.
 ### Coordination layout
 
 The following layout is the normative control-plane layout. Event files,
-manifest validation, projections, and runtime locks are implemented in issue
-`#305`; leases and quarantine remain reserved for later slices. The names are
-vault-relative and remain subject to `VaultPathPolicy`.
+manifest validation, projections, runtime locks, and lease projections are
+implemented in issues `#305` and `#306`; quarantine remains reserved for later
+recovery work. The names are vault-relative and remain subject to
+`VaultPathPolicy`.
 
 ```text
 {vault}/
@@ -317,7 +322,7 @@ Each area has one responsibility:
 - `snapshots/work-items/` contains rebuildable current-state projections. A
   snapshot never replaces the event history as the durable source of truth.
 - `leases/` contains rebuildable active-claim projections. The event history,
-  current epoch, and server-time check remain authoritative.
+  current epoch, resource lock, and server-time check remain authoritative.
 - `quarantine/` preserves malformed or rejected machine records for explicit
   operator recovery. The server must not silently delete them.
 - `runtime/` contains ephemeral process coordination artifacts such as lock
@@ -335,6 +340,12 @@ and are written atomically after a successful reducer pass. Missing snapshots
 are rebuilt from the event history; corrupt snapshots are rejected rather than
 silently repaired.
 
+The claim store serializes competing owners with a hashed resource lock and
+writes lease projections atomically. It never treats an expired, released, or
+superseded claim as current. Takeover creates a new claim ID and increments the
+resource fence generation. The event log records renewals, releases, expiry,
+takeovers, completion, and cancellation without copying note bodies.
+
 ### Source-of-truth relationship
 
 The durable boundaries are explicit so a later implementation cannot turn a
@@ -344,7 +355,7 @@ cache into an authority by accident.
 |---|---|---|
 | Note body and user frontmatter | Markdown note | Vault search and graph indexes |
 | Existing work-session history | Session Markdown and preserved frontmatter | Session lists and work-context views |
-| Coordination state and transition history | `.kioku/coordination/events/` | Work-item snapshots and future lease projections |
+| Coordination state and transition history | `.kioku/coordination/events/` | Work-item snapshots and lease projections |
 | Embeddings | None; embeddings are rebuildable | `.kioku/embeddings.bin` |
 | Active process locks | Operating-system lock state | Files under `coordination/runtime/` |
 
@@ -441,11 +452,12 @@ The compatibility rules are:
 ## Threat-model update
 
 The profile adds durable machine metadata and improves concurrency handling,
-but it does not expand Kioku's authentication boundary. Event persistence
-controls are implemented in issue `#305`; claim, fencing, compare-and-swap, and
-public-tool controls remain **Planned** until their implementation issues land.
+but it does not expand Kioku's authentication boundary. Event persistence,
+claims, leases, and fencing are implemented in issues `#305` and `#306`.
+Compare-and-swap and public-tool controls remain **Planned** until their
+implementation issues land.
 
-| Threat | Planned control | Residual risk |
+| Threat | Control | Residual risk |
 |---|---|---|
 | A crashed or abandoned owner keeps a claim | Server-time lease expiry, persisted `stale` state, and a new fence generation for the next attempt. | A process that edits files directly can bypass the claim. |
 | Two local Kioku processes race for one resource | Canonical resource keys, exclusive claim acquisition, state-version checks, and fencing. | The guarantee applies only inside the supported filesystem and server boundary. |

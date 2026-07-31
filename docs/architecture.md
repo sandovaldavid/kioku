@@ -31,7 +31,7 @@ The repository currently keeps these boundaries inside the single `Kioku.Mcp.Ser
 | Domain | Note metadata, frontmatter values, invariants, and error models | `Note`, `NoteFrontmatter`, `KiokuError` |
 | Presentation | Render application results as MCP text and structured content | `NoteResultPresenter` |
 | Infrastructure ports | Contracts for external effects | `IWorkSessionFileSystem`, `IProjectDocumentFileSystem`, `ICoordinationFileSystem` |
-| Infrastructure services | Filesystem, indexing, bridge, embeddings, generation, and derived persistence | `WorkSessionFileSystem`, `ProjectDocumentFileSystem`, `CoordinationFileSystem`, `CoordinationEventStore`, `VaultIndexService`, `ObsidianBridgeService`, `EmbeddingService` |
+| Infrastructure services | Filesystem, indexing, bridge, embeddings, generation, and derived persistence | `WorkSessionFileSystem`, `ProjectDocumentFileSystem`, `CoordinationFileSystem`, `CoordinationEventStore`, `CoordinationClaimStore`, `VaultIndexService`, `ObsidianBridgeService`, `EmbeddingService` |
 | Hosting | Configuration, dependency injection, lifecycle, transports, and readiness | `KiokuHostingExtensions`, `KiokuLifecycleService`, `Program.cs` |
 
 ## Storage and indexing
@@ -47,11 +47,12 @@ See [indexing-pipeline.md](indexing-pipeline.md), [vault-config.md](vault-config
 The coordination slice persists immutable event files and rebuildable work-item
 projections under `.kioku/coordination/`. `CoordinationEventStore` validates
 schema versions, hashes, sequence numbers, idempotency, and state transitions
-before atomically writing an event. It uses per-work-item filesystem locks and
-the pure `CoordinationProjectionReducer` to recover projections after restart.
-Claims, note compare-and-swap mutation, and coordination MCP tools remain future
-slices. The architecture and supported-filesystem boundary are documented in
-[durable-coordination.md](durable-coordination.md).
+before atomically writing an event. `CoordinationClaimStore` adds resource locks,
+lease projections, server-time expiry, and monotonic fencing. Both services use
+the pure `CoordinationProjectionReducer` and remain internal application
+boundaries; compare-and-swap note mutation and coordination MCP tools remain
+future slices. The architecture and supported-filesystem boundary are
+documented in [durable-coordination.md](durable-coordination.md).
 
 ## Retrieval
 

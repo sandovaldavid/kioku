@@ -164,9 +164,9 @@ Concurrent edits to the same note body are not a transactional merge system. Coo
 ### Partial durable coordination implementation
 
 The durable coordination architecture is documented in
-[durable-coordination.md](durable-coordination.md). The event persistence
-slice is implemented; claims, fencing, compare-and-swap note mutation, and
-public coordination tools remain planned.
+[durable-coordination.md](durable-coordination.md). Event persistence, claims,
+leases, and fencing are implemented; compare-and-swap note mutation and public
+coordination tools remain planned.
 
 The implementation adds a private `.kioku/coordination/` event log for machine
 coordination state. It does not copy note bodies and does not make `agent`,
@@ -179,21 +179,19 @@ any backup that contains it.
 Implemented controls include exclusive immutable event creation, atomic
 projection writes, schema and content-hash validation, deterministic replay,
 idempotent duplicate handling, sequence and hash-chain checks, and
-vault-boundary validation. A missing projection can be rebuilt; corrupt event
-history fails closed without deleting the original files.
+vault-boundary validation. Claims add hashed resource locks, bounded
+server-time leases, takeover fencing, and fail-closed lease/history
+reconciliation. A missing projection can be rebuilt; corrupt event history or
+claim state fails closed without deleting the original files.
 
-The remaining planned controls cover these cases:
+The remaining threat-model boundaries are:
 
-- stale owners are detected with server-time lease expiry and persisted as
-  `stale` before a later attempt can claim the resource;
-- local Kioku processes use canonical resource keys, state versions, and
-  fencing within the supported filesystem boundary;
-- manual Obsidian edits cause resource revalidation or compare-and-swap
-  conflicts instead of silent claim-protected overwrites;
+- manual Obsidian edits require resource revalidation or compare-and-swap
+  conflicts before a claim-protected overwrite;
 - network filesystems, cloud-sync replicas, and independent Git checkouts are
   unsupported for shared coordination;
-- corruption, unsupported schema versions, and invalid restore epochs fail
-  closed for claim-protected writes rather than deleting event history.
+- unsupported restore epochs require explicit recovery before claim-protected
+  writes resume.
 
 These controls do not protect against a same-user process that edits the vault
 directly, merge arbitrary note bodies, or provide multi-tenant authorization.

@@ -29,6 +29,8 @@
     "work_item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
     "attempt_id": { "type": "string", "minLength": 1, "maxLength": 128 },
     "resource_key": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "transition_id": { "type": ["string", "null"], "maxLength": 128 },
+    "revision": { "type": "integer", "minimum": 0 },
     "fence_generation": { "type": "integer", "minimum": 1 },
     "status": { "type": "string", "enum": ["active", "released", "expired", "fenced"] },
     "acquired_at": { "type": "string", "format": "date-time" },

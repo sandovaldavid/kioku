@@ -40,6 +40,8 @@ public static class CoordinationProjectionReducer
             [CoordinationEventTypes.WorkItemCanceled] = CoordinationStates.Canceled,
             [CoordinationEventTypes.WorkItemStale] = CoordinationStates.Stale,
             [CoordinationEventTypes.WorkItemReopened] = CoordinationStates.Pending,
+            [CoordinationEventTypes.WorkItemClaimRenewed] = CoordinationStates.Claimed,
+            [CoordinationEventTypes.WorkItemClaimReleased] = CoordinationStates.Pending,
         };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> AllowedTransitions =
@@ -57,6 +59,9 @@ public static class CoordinationProjectionReducer
                 CoordinationStates.Failed,
                 CoordinationStates.Canceled,
                 CoordinationStates.Stale,
+                CoordinationStates.Claimed,
+                CoordinationStates.Pending,
+                CoordinationStates.Completed,
             },
             [CoordinationStates.Running] = new HashSet<string>(StringComparer.Ordinal)
             {
@@ -66,6 +71,7 @@ public static class CoordinationProjectionReducer
                 CoordinationStates.Completed,
                 CoordinationStates.Canceled,
                 CoordinationStates.Stale,
+                CoordinationStates.Pending,
             },
             [CoordinationStates.Blocked] = new HashSet<string>(StringComparer.Ordinal)
             {
