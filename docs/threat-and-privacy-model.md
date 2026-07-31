@@ -23,7 +23,6 @@ Tool arguments and vault content are still treated as untrusted at filesystem, H
 - Obsidian editor state exposed by the optional bridge.
 - Availability of Kioku, Ollama, and the optional plugin.
 - Secrets: `KIOKU_API_KEY`, `KIOKU_BRIDGE_TOKEN`, and `KIOKU_SENTRY_DSN`.
-- `KIOKU_GITHUB_TOKEN` is a **Deprecated** compatibility setting. No registered current tool consumes it.
 
 ## Local and external data flows
 
@@ -191,12 +190,6 @@ The planned controls cover these cases:
 
 These controls do not protect against a same-user process that edits the vault
 directly, merge arbitrary note bodies, or provide multi-tenant authorization.
-
-## Deprecated compatibility configuration
-
-`KIOKU_GITHUB_TOKEN` is still accepted by configuration binding but no registered current tool reads it. The removed Gist-sharing behavior is not an active data flow. Do not configure this value for new deployments.
-
-Removing the setting from the public configuration surface is a future compatibility change and must be handled through release and migration policy rather than silently deleted.
 
 ## Deployment checklist
 

@@ -115,13 +115,6 @@ public sealed class KiokuConfiguration
     public int HttpRequestTimeoutSeconds { get; init; } = 300;
 
     /// <summary>
-    /// GitHub personal access token for Gist sharing.
-    /// Requires the 'gist' scope. Optional.
-    /// Environment variable: KIOKU_GITHUB_TOKEN
-    /// </summary>
-    public string? GitHubToken { get; init; }
-
-    /// <summary>
     /// Enables lightweight, in-memory tool-call telemetry.
     /// When enabled, Kioku counts tool invocations (never note contents).
     /// Default: false. Environment variable: KIOKU_ENABLE_METRICS
@@ -224,7 +217,6 @@ public sealed class KiokuConfiguration
             "KIOKU_HTTP_MAX_REQUEST_BODY_BYTES", 1024 * 1024);
         var httpRequestTimeoutSeconds = ReadInt(
             "KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS", 300);
-        var githubToken = Environment.GetEnvironmentVariable("KIOKU_GITHUB_TOKEN");
         var enableMetrics = bool.TryParse(
             Environment.GetEnvironmentVariable("KIOKU_ENABLE_METRICS"), out var em) && em;
         var sentryDsn = Environment.GetEnvironmentVariable("KIOKU_SENTRY_DSN");
@@ -255,7 +247,6 @@ public sealed class KiokuConfiguration
             AllowInsecureHttp = allowInsecureHttp,
             HttpMaxRequestBodyBytes = httpMaxRequestBodyBytes,
             HttpRequestTimeoutSeconds = httpRequestTimeoutSeconds,
-            GitHubToken = githubToken,
             EnableMetrics = enableMetrics,
             SentryDsn = sentryDsn,
             AllowExternalReads = allowExternalReads,

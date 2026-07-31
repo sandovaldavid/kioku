@@ -98,10 +98,6 @@
           "description": "Enables irreversible deletion; soft delete remains available when false."
         },
         {
-          "name": "KIOKU_GITHUB_TOKEN",
-          "description": "Deprecated compatibility setting retained in configuration binding; no registered current tool consumes it."
-        },
-        {
           "name": "KIOKU_ENABLE_METRICS",
           "description": "Enables in-memory tool-call counters; note contents are never recorded."
         },

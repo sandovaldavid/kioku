@@ -71,6 +71,7 @@ public sealed class KiokuOptionsValidatorTests : IDisposable
             ["KIOKU_MAX_RESULTS"] = "42",
             ["KIOKU_HTTP_ALLOWED_ORIGINS"] = "https://one.example,https://two.example",
             ["KIOKU_EXTERNAL_READ_ROOTS"] = string.Join(Path.PathSeparator, _vaultPath, Path.GetTempPath()),
+            ["KIOKU_GITHUB_TOKEN"] = "unused",
         };
 
         var values = KiokuOptionsConfiguration.GetLegacyValues(
@@ -81,6 +82,7 @@ public sealed class KiokuOptionsValidatorTests : IDisposable
         Assert.Equal("https://one.example", values["Kioku:HttpAllowedOrigins:0"]);
         Assert.Equal("https://two.example", values["Kioku:HttpAllowedOrigins:1"]);
         Assert.Equal(_vaultPath, values["Kioku:ExternalReadRoots:0"]);
+        Assert.DoesNotContain("Kioku:GitHubToken", values.Keys);
     }
 
     public void Dispose()
