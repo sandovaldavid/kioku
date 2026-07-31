@@ -70,6 +70,8 @@ public static class CoordinationEventTypes
     public const string WorkItemCanceled = "work-item.canceled";
     public const string WorkItemStale = "work-item.stale";
     public const string WorkItemReopened = "work-item.reopened";
+    public const string WorkItemClaimRenewed = "work-item.claim.renewed";
+    public const string WorkItemClaimReleased = "work-item.claim.released";
 
     public static IReadOnlySet<string> All { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -83,6 +85,8 @@ public static class CoordinationEventTypes
         WorkItemCanceled,
         WorkItemStale,
         WorkItemReopened,
+        WorkItemClaimRenewed,
+        WorkItemClaimReleased,
     };
 }
 
@@ -343,10 +347,16 @@ public sealed class CoordinationTransitionPayload
 
     [JsonPropertyName("actual_hash")]
     public string? ActualHash { get; init; }
+
+    [JsonPropertyName("resource_key")]
+    public string? ResourceKey { get; init; }
+
+    [JsonPropertyName("fence_generation")]
+    public long? FenceGeneration { get; init; }
 }
 
 /// <summary>
-/// Immutable transition record for a future coordination event log.
+/// Immutable transition record for the coordination event log.
 /// </summary>
 public sealed class CoordinationEvent
 {
@@ -427,6 +437,12 @@ public sealed class CoordinationClaim
 
     [JsonPropertyName("resource_key")]
     public required string ResourceKey { get; init; }
+
+    [JsonPropertyName("transition_id")]
+    public string? TransitionId { get; init; }
+
+    [JsonPropertyName("revision")]
+    public long Revision { get; init; }
 
     [JsonPropertyName("fence_generation")]
     public long FenceGeneration { get; init; }

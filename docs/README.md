@@ -29,7 +29,7 @@ Active repository documentation should normally describe **Implemented** behavio
 |---|---|---|
 | [Installation](install.md) | Implemented | Install the server, register clients, build from source, and verify a deployment. |
 | [Architecture](architecture.md) | Implemented | Current component responsibilities and dependency direction. |
-| [Durable coordination profile](durable-coordination.md) | In progress | Coordination domain, state machine, storage boundary, and support classification; event persistence is implemented incrementally. |
+| [Durable coordination profile](durable-coordination.md) | In progress | Coordination domain, state machine, storage boundary, event persistence, claims, leases, and fencing; compare-and-swap writes and public tools remain planned. |
 | [Troubleshooting](troubleshooting.md) | Implemented | Diagnose server, HTTP, indexing, Ollama, bridge, and Docker problems. |
 | [Focused-tool migration](focused-tool-migration.md) | Implemented / Deprecated | Preferred focused tools and the generic wrappers retained only for compatibility. |
 
@@ -44,7 +44,7 @@ Active repository documentation should normally describe **Implemented** behavio
 | [Versioning](versioning.md) | Implemented / generated | Server, plugin, workspace, and bridge compatibility rules. |
 | [MCP tool contract](mcp-tool-contract.md) | Implemented | Result envelopes, annotations, errors, and contract expectations. |
 | [Work sessions](work-sessions.md) | Implemented | Session identity, ownership, lifecycle, and handoff behavior. |
-| [Coordination contracts](coordination-contracts.md) | In progress | Versioned coordination contracts plus append-only event persistence and deterministic projection replay. |
+| [Coordination contracts](coordination-contracts.md) | In progress | Versioned coordination contracts plus append-only event persistence, replay, leases, and fencing. |
 | [Indexing pipeline](indexing-pipeline.md) | Implemented | Bounded indexing, synchronization, recovery, and metrics. |
 
 ## Security and deployment

@@ -3,8 +3,10 @@
 This document describes the versioned JSON contracts implemented for issue
 [#304](https://github.com/sandovaldavid/kioku/issues/304) and the event
 persistence and replay boundary implemented for issue
-[#305](https://github.com/sandovaldavid/kioku/issues/305). Claims, note mutation,
-and coordination tools remain outside this implementation.
+[#305](https://github.com/sandovaldavid/kioku/issues/305), plus the durable
+claims, leases, and fencing boundary implemented for issue
+[#306](https://github.com/sandovaldavid/kioku/issues/306). Note mutation and
+coordination tools remain outside this implementation.
 
 ## Contract documents
 
@@ -15,7 +17,7 @@ assembly and the representative fixtures are copied into the test output.
 | Contract | Domain purpose | Schema |
 |---|---|---|
 | Handoff packet | Transfers run, work-item, attempt, session, scope, checkpoint, and safe next-action state. | `handoff-packet.schema.json` |
-| Coordination event | Records one immutable state transition for a future event log. | `coordination-event.schema.json` |
+| Coordination event | Records one immutable state transition in the coordination event log. | `coordination-event.schema.json` |
 | Coordination claim | Projects one server-issued lease and fence generation. | `coordination-claim.schema.json` |
 | Coordination conflict | Records a safe revision, claim, history, or manual-edit conflict. | `coordination-conflict.schema.json` |
 | Work-item projection | Represents rebuildable current state derived from events. | `work-item-projection.schema.json` |
@@ -63,7 +65,7 @@ hash. Only the root field is excluded when verifying a top-level contract.
 
 Readers ignore unknown fields and schemas permit additional properties. This
 supports additive forward-compatible fields while preserving the original JSON
-bytes for a future persistence layer to retain. A typed reader must not rewrite
+ bytes for coordination stores to retain. A typed reader must not rewrite
 an unknown field away unless an explicit migration owns that behavior.
 
 The compatibility policy is:
@@ -85,8 +87,9 @@ The compatibility policy is:
 `CoordinationEvent.EventType` is a stable discriminator. The current values are
 `work-item.created`, `work-item.claimed`, `work-item.started`,
 `work-item.blocked`, `work-item.partial`, `work-item.failed`,
-`work-item.completed`, `work-item.canceled`, `work-item.stale`, and
-`work-item.reopened`.
+`work-item.completed`, `work-item.canceled`, `work-item.stale`,
+`work-item.reopened`, `work-item.claim.renewed`, and
+`work-item.claim.released`.
 
 Each event also carries a server-generated `event_id`, a monotonically ordered
 `sequence_number`, a `transition_id`, server timestamps, actor diagnostics, and
@@ -101,6 +104,32 @@ The event store applies these idempotency rules:
   conflict.
 - A different event ID does not make a repeated transition valid.
 - Sequence and state-version checks remain separate from idempotency checks.
+
+## Claims and leases
+
+The claim store protects one canonical resource key at a time. It stores the
+current lease projection at
+`.kioku/coordination/leases/<sha256-resource-key>.json` and uses a separate
+hashed runtime lock for cross-process acquisition. The lease projection carries
+the server-issued claim ID, work and attempt identity, owner session, revision,
+fence generation, status, timestamps, and the last operation ID.
+
+Acquire, renew, release, expiry observation, takeover, completion, and
+cancellation all record state transitions through the event store. Exact
+retries of one operation ID return the previous result. A different owner
+cannot renew or release the current claim. An expired claim is first persisted
+as `stale` in work-item history, then marked `expired`; a takeover reopens the
+work item, creates a new claim, and increments the resource fence generation.
+
+Lease durations use server time and are bounded from one second through one
+hour, with a default of thirty seconds. Caller timestamps and authority scopes
+are not accepted as claim authority. Note resource keys are canonicalized
+through `VaultPathPolicy`; logical resources use a restricted namespace.
+
+When a lease projection and event history disagree, the claim store fails closed
+instead of choosing a most-recent file. A missing or corrupt projection cannot
+silently grant ownership. A restarted server reads the persisted lease and
+continues using the injected server clock.
 
 ## Event persistence and replay
 
@@ -146,13 +175,15 @@ The tests verify that representative fixtures pass, malformed fixtures fail,
 unknown fields remain readable, canonical hashes are repeatable, caller
 metadata cannot become an authority scope, event history replays
 deterministically, duplicates are idempotent, invalid history fails closed,
-and projections recover after deletion. Later claims, note mutation, and MCP
-work must reuse these contracts rather than introduce a second serializer or
-schema catalog.
+projections recover after deletion, competing claimants produce one owner,
+expiry advances fencing, stale owners are rejected, and lease state survives a
+restart. Later note mutation and MCP work must reuse these contracts rather
+than introduce a second serializer or schema catalog.
 
 ## Scope boundary
 
-This slice persists and replays events but does not acquire or expire claims,
-perform compare-and-swap note writes, expose coordination MCP tools, or adopt
-CloudEvents or A2A as mandatory internal formats. Those behaviors remain in the
-dependent issues described by the [durable coordination architecture](durable-coordination.md).
+This slice persists and replays events and implements durable claims, leases,
+expiry, and fencing. It does not enforce fencing on note mutations, expose
+coordination MCP tools, or adopt CloudEvents or A2A as mandatory internal
+formats. Those behaviors remain in the dependent issues described by the
+[durable coordination architecture](durable-coordination.md).

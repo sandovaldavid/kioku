@@ -50,7 +50,9 @@
         "work-item.completed",
         "work-item.canceled",
         "work-item.stale",
-        "work-item.reopened"
+        "work-item.reopened",
+        "work-item.claim.renewed",
+        "work-item.claim.released"
       ]
     },
     "transition_id": { "type": "string", "minLength": 1, "maxLength": 128 },
@@ -103,7 +105,9 @@
         "progress_reference": { "type": ["string", "null"], "maxLength": 512 },
         "lease_expires_at": { "type": ["string", "null"], "format": "date-time" },
         "expected_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" },
-        "actual_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" }
+        "actual_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" },
+        "resource_key": { "type": ["string", "null"], "maxLength": 512 },
+        "fence_generation": { "type": ["integer", "null"], "minimum": 1 }
       }
     }
   }
