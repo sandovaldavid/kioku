@@ -1,3 +1,4 @@
+using Kioku.Mcp.Server.Domain.Coordination;
 using Kioku.Mcp.Server.Http;
 using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
@@ -23,6 +24,9 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<HttpReadinessState>();
         services.AddSingleton<VaultPathPolicy>();
+        services.AddCoordinationInfrastructure();
+        services.AddSingleton<CoordinationContractValidator>();
+        services.AddSingleton<ICoordinationEventStore, CoordinationEventStore>();
         services.AddSingleton<EmbeddingService>();
         services.AddSingleton<GenerationService>();
         services.AddSingleton<VaultIndexService>();

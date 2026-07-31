@@ -161,13 +161,14 @@ Agents should treat note content as data, inspect proposed mutations, and requir
 
 Concurrent edits to the same note body are not a transactional merge system. Coordinate agents at the project/session level and review changes through Git when multiple writers target the same file.
 
-### Planned durable coordination profile
+### Partial durable coordination implementation
 
-The proposed durable coordination profile is documented in
-[durable-coordination.md](durable-coordination.md). Its controls are planned,
-not implemented on the current branch.
+The durable coordination architecture is documented in
+[durable-coordination.md](durable-coordination.md). The event persistence
+slice is implemented; claims, fencing, compare-and-swap note mutation, and
+public coordination tools remain planned.
 
-The planned profile adds a private `.kioku/coordination/` event log for machine
+The implementation adds a private `.kioku/coordination/` event log for machine
 coordination state. It does not copy note bodies and does not make `agent`,
 `client_name`, or caller-provided authority claims into security principals.
 The event log records identifiers, canonical resource references, server
@@ -175,7 +176,13 @@ timestamps, bounded reasons, and transition outcomes. It remains outside note
 indexing and embeddings, but the same operating-system account can read it and
 any backup that contains it.
 
-The planned controls cover these cases:
+Implemented controls include exclusive immutable event creation, atomic
+projection writes, schema and content-hash validation, deterministic replay,
+idempotent duplicate handling, sequence and hash-chain checks, and
+vault-boundary validation. A missing projection can be rebuilt; corrupt event
+history fails closed without deleting the original files.
+
+The remaining planned controls cover these cases:
 
 - stale owners are detected with server-time lease expiry and persisted as
   `stale` before a later attempt can claim the resource;

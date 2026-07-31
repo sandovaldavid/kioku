@@ -1,11 +1,13 @@
 # Durable coordination profile
 
-This document defines the proposed architecture contract for Kioku's planned
-durable coordination profile. It is the review artifact for issue
-[#303](https://github.com/sandovaldavid/kioku/issues/303) and does not describe
-behavior implemented on `develop` today.
+This document defines the architecture contract for Kioku's durable
+coordination profile. It is the review artifact for issue
+[#303](https://github.com/sandovaldavid/kioku/issues/303); event persistence and
+deterministic projection replay are implemented by issue
+[#305](https://github.com/sandovaldavid/kioku/issues/305), while later
+coordination capabilities remain incomplete.
 
-**Decision status:** Proposed design; planned implementation.
+**Decision status:** Architecture boundary in progress; event persistence is implemented.
 
 The profile coordinates independent Kioku processes that share one vault on a
 supported local filesystem. It is not a distributed lock service, an
@@ -27,15 +29,14 @@ The profile has these boundaries:
   derived data and must be rebuildable.
 - The control plane stores references, identifiers, timestamps, outcomes, and
   safe reasons. It must not copy note bodies by default.
-- Coordination operations remain gated by server configuration and a future
-  capability group. This issue adds no MCP tool, environment variable, or
-  capability group.
+- Coordination MCP operations remain gated by server configuration and a future
+  capability group. Event persistence is an internal service and adds no MCP
+  tool, environment variable, or capability group.
 - A caller can coordinate work only through the Kioku server. Direct edits to
   the vault remain outside the coordination guarantee.
 
 The following are explicit non-goals for this profile:
 
-- implementing the event store;
 - adding claims or fencing tokens to the server;
 - changing MCP tool schemas;
 - providing multi-tenant authorization;
@@ -279,10 +280,12 @@ The control plane lives inside the configured vault but outside the indexed
 Markdown tree. This keeps coordination local to the vault while preventing
 machine records from becoming ordinary notes or search results.
 
-### Proposed layout
+### Coordination layout
 
-The following layout is the normative proposal for the event-store issue. The
-names are vault-relative and remain subject to `VaultPathPolicy`.
+The following layout is the normative control-plane layout. Event files,
+manifest validation, projections, and runtime locks are implemented in issue
+`#305`; leases and quarantine remain reserved for later slices. The names are
+vault-relative and remain subject to `VaultPathPolicy`.
 
 ```text
 {vault}/
@@ -324,6 +327,14 @@ The `.kioku` directory is already excluded from indexing because Kioku skips
 hidden paths. The control plane must remain excluded from note retrieval,
 embeddings, graph analysis, and ordinary vault organization tools.
 
+The event store writes one immutable event per file, uses exclusive creation,
+and serializes writers for one work item with a runtime lock. It validates the
+manifest, event schema, content hash, sequence, hash chain, idempotency, and
+state transition before accepting an event. Work-item snapshots are derived
+and are written atomically after a successful reducer pass. Missing snapshots
+are rebuilt from the event history; corrupt snapshots are rejected rather than
+silently repaired.
+
 ### Source-of-truth relationship
 
 The durable boundaries are explicit so a later implementation cannot turn a
@@ -333,7 +344,7 @@ cache into an authority by accident.
 |---|---|---|
 | Note body and user frontmatter | Markdown note | Vault search and graph indexes |
 | Existing work-session history | Session Markdown and preserved frontmatter | Session lists and work-context views |
-| Coordination state and transition history | `.kioku/coordination/events/` | Work-item snapshots and lease projections |
+| Coordination state and transition history | `.kioku/coordination/events/` | Work-item snapshots and future lease projections |
 | Embeddings | None; embeddings are rebuildable | `.kioku/embeddings.bin` |
 | Active process locks | Operating-system lock state | Files under `coordination/runtime/` |
 
@@ -430,8 +441,9 @@ The compatibility rules are:
 ## Threat-model update
 
 The profile adds durable machine metadata and improves concurrency handling,
-but it does not expand Kioku's authentication boundary. All controls in this
-section are **Planned** until the implementation issues land.
+but it does not expand Kioku's authentication boundary. Event persistence
+controls are implemented in issue `#305`; claim, fencing, compare-and-swap, and
+public-tool controls remain **Planned** until their implementation issues land.
 
 | Threat | Planned control | Residual risk |
 |---|---|---|

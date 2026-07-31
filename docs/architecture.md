@@ -30,8 +30,8 @@ The repository currently keeps these boundaries inside the single `Kioku.Mcp.Ser
 | Workflow services | Session, project-document, and note-query orchestration | `WorkSessionService`, `ProjectDocumentService`, `NoteQueryService`, `ProjectWorkspaceService` |
 | Domain | Note metadata, frontmatter values, invariants, and error models | `Note`, `NoteFrontmatter`, `KiokuError` |
 | Presentation | Render application results as MCP text and structured content | `NoteResultPresenter` |
-| Infrastructure ports | Contracts for external effects | `IWorkSessionFileSystem`, `IProjectDocumentFileSystem` |
-| Infrastructure services | Filesystem, indexing, bridge, embeddings, generation, and derived persistence | `WorkSessionFileSystem`, `ProjectDocumentFileSystem`, `VaultIndexService`, `ObsidianBridgeService`, `EmbeddingService` |
+| Infrastructure ports | Contracts for external effects | `IWorkSessionFileSystem`, `IProjectDocumentFileSystem`, `ICoordinationFileSystem` |
+| Infrastructure services | Filesystem, indexing, bridge, embeddings, generation, and derived persistence | `WorkSessionFileSystem`, `ProjectDocumentFileSystem`, `CoordinationFileSystem`, `CoordinationEventStore`, `VaultIndexService`, `ObsidianBridgeService`, `EmbeddingService` |
 | Hosting | Configuration, dependency injection, lifecycle, transports, and readiness | `KiokuHostingExtensions`, `KiokuLifecycleService`, `Program.cs` |
 
 ## Storage and indexing
@@ -44,11 +44,14 @@ Embeddings are derived data cached at `{vault}/.kioku/embeddings.bin`. The cache
 
 See [indexing-pipeline.md](indexing-pipeline.md), [vault-config.md](vault-config.md), and [threat-and-privacy-model.md](threat-and-privacy-model.md).
 
-The current branch does not implement a durable coordination event store. The
-proposed, planned control-plane boundary for future multi-process coordination
-is documented in [durable-coordination.md](durable-coordination.md). It keeps
-Markdown as the source of truth for note content and existing work-session
-history while placing machine coordination events under `.kioku/coordination/`.
+The coordination slice persists immutable event files and rebuildable work-item
+projections under `.kioku/coordination/`. `CoordinationEventStore` validates
+schema versions, hashes, sequence numbers, idempotency, and state transitions
+before atomically writing an event. It uses per-work-item filesystem locks and
+the pure `CoordinationProjectionReducer` to recover projections after restart.
+Claims, note compare-and-swap mutation, and coordination MCP tools remain future
+slices. The architecture and supported-filesystem boundary are documented in
+[durable-coordination.md](durable-coordination.md).
 
 ## Retrieval
 
