@@ -336,6 +336,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
     {
         var startedAt = _timeProvider.GetTimestamp();
         Volatile.Write(ref _ready, 0);
+        _index.SetReady(false);
         _readiness.MarkIndexRebuilding();
         _logger.LogInformation(
             "Starting vault reconciliation ({Reason}) with maximum concurrency {Concurrency}.",
@@ -386,6 +387,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
             Volatile.Write(
                 ref _lastScanUnixMilliseconds,
                 _timeProvider.GetUtcNow().ToUnixTimeMilliseconds());
+            _index.SetReady(true);
             Volatile.Write(ref _ready, 1);
             _metrics.ReconciliationCompleted(duration, files.Length);
             _readiness.MarkIndexReady();
@@ -396,6 +398,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
         }
         catch
         {
+            _index.SetReady(false);
             _readiness.MarkIndexFailed();
             throw;
         }

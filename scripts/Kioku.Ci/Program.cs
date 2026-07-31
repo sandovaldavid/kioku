@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
@@ -137,6 +138,7 @@ internal static class Program
             },
             cancellationToken: cancellationToken);
         EnsureSuccess("create_note", createResult);
+        EnsureStructuredEnvelope("create_note", createResult);
         if (!File.Exists(expectedPath))
         {
             throw new InvalidOperationException($"create_note did not persist '{expectedPath}'.");
@@ -170,6 +172,7 @@ internal static class Program
                 },
                 cancellationToken: cancellationToken);
             EnsureSuccess("read_note", readResult);
+            EnsureStructuredEnvelope("read_note", readResult);
             lastResponse = ExtractResultText(readResult);
             if (lastResponse.Contains(SmokeMarker, StringComparison.Ordinal))
             {
@@ -329,6 +332,17 @@ internal static class Program
         if (result.IsError is true)
         {
             throw new InvalidOperationException($"{tool} returned an MCP tool error: {ExtractResultText(result)}");
+        }
+    }
+
+    private static void EnsureStructuredEnvelope(string tool, CallToolResult result)
+    {
+        if (result.StructuredContent is not { ValueKind: JsonValueKind.Object } structured ||
+            !structured.TryGetProperty("success", out var success) ||
+            success.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        {
+            throw new InvalidOperationException(
+                $"{tool} did not return the expected structured MCP envelope.");
         }
     }
 

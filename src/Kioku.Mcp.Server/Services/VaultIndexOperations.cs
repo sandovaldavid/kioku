@@ -11,6 +11,8 @@ public interface IVaultIndexOperations
 {
     IReadOnlyCollection<Note> GetNotesSnapshot();
 
+    void SetReady(bool ready);
+
     Task ReindexAsync(string filePath, CancellationToken cancellationToken);
 
     Task MoveAsync(string oldPath, string newPath, CancellationToken cancellationToken);
@@ -21,6 +23,8 @@ public interface IVaultIndexOperations
 internal sealed class VaultIndexOperations(VaultIndexService vault) : IVaultIndexOperations
 {
     public IReadOnlyCollection<Note> GetNotesSnapshot() => vault.GetAllNotes().ToArray();
+
+    public void SetReady(bool ready) => vault.SetReady(ready);
 
     public async Task ReindexAsync(string filePath, CancellationToken cancellationToken)
     {
