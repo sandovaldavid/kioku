@@ -27,6 +27,7 @@ internal static class KiokuTypedResultFilters
         "create_literature_note",
         "create_moc",
         "create_folder_readme",
+        "get_server_capabilities",
         "create_coordination_work_item",
         "get_coordination_work_item",
         "list_coordination_work_items",
@@ -115,7 +116,9 @@ internal static class KiokuTypedResultFilters
                 }
 
                 var text = result.Content.OfType<TextContentBlock>().FirstOrDefault()?.Text ?? string.Empty;
-                var classified = Classify(text, result.IsError == true);
+                var classified = context.Params.Name == "get_server_capabilities" && IsJsonObject(text)
+                    ? new Classification(false, string.Empty, string.Empty, null)
+                    : Classify(text, result.IsError == true);
                 var data = ParseData(text, classified.IsError);
                 var pagination = ExtractPagination(data);
                 var envelope = new
@@ -246,6 +249,24 @@ internal static class KiokuTypedResultFilters
     {
         var closingBracket = value.IndexOf(']');
         return closingBracket >= 0 ? value[(closingBracket + 1)..].Trim() : value;
+    }
+
+    private static bool IsJsonObject(string value)
+    {
+        if (!value.StartsWith('{'))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return document.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private sealed record Classification(bool IsError, string Code, string Message, string? Warning);

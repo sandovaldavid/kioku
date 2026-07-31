@@ -123,7 +123,10 @@ The complete, generated list of environment variables and canonical configuratio
 
 ## Verify an installation
 
-After starting the server, use an MCP client to run `tools/list`, then call `get_server_status`. For HTTP deployments:
+After starting the server, use an MCP client to run `tools/list`, then call
+`get_server_status` and `get_server_capabilities`. Coordination must report a
+gated rollout and a disabled capability group unless you explicitly enabled it
+for a reviewed local-filesystem deployment. For HTTP deployments:
 
 ```bash
 curl http://127.0.0.1:5173/health/live

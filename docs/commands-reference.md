@@ -6,8 +6,8 @@
 
 ## Profiles
 
-- Default profile: **43 tools**.
-- All-capabilities profile: **76 tools**.
+- Default profile: **44 tools**.
+- All-capabilities profile: **77 tools**.
 - Prompts: **12**; direct resources: **2**; resource templates: **4**.
 
 Enabled by default: `tasks`, `organization`, `sessions`, `workflows`, `graph`, `engineering`.
@@ -51,6 +51,7 @@ Disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugi
 | `get_links` | default | direction:string; format:string; note:string* | — | readOnly=true; destructive=false; idempotent=true; openWorld=false |
 | `get_obsidian_state` | optional | object | — | readOnly=true; destructive=false; idempotent=true; openWorld=true |
 | `get_project_context` | default | include_content:boolean; limit:integer; project:string*; types:string | data:object*; error:object\|null*; pagination:object\|null*; success:boolean*; warnings:array<string>* | readOnly=true; destructive=false; idempotent=true; openWorld=false |
+| `get_server_capabilities` | default | object | data:object*; error:object\|null*; pagination:object\|null*; success:boolean*; warnings:array<string>* | readOnly=true; destructive=false; idempotent=true; openWorld=false |
 | `get_server_status` | default | object | — | readOnly=false; destructive=false; idempotent=false; openWorld=false |
 | `get_vault_snapshot` | default | island_threshold:integer | — | readOnly=true; destructive=false; idempotent=true; openWorld=false |
 | `get_work_context` | default | inbox_folder:string; max_per_section:integer; recent_folder:string; recent_limit:integer | — | readOnly=false; destructive=false; idempotent=false; openWorld=false |

@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Text.Json;
+using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using ModelContextProtocol.Server;
 
@@ -75,10 +77,67 @@ public sealed class UtilityTools(
                       $"\n      Disabled: {string.Join(", ", vaultConfig.DisabledCapabilityGroups)}" +
                       $"\n      Removed: {string.Join(", ", vaultConfig.RemovedCapabilityGroups)}" +
                       "\n      Changes require server restart";
+            result += $"\n   Coordination profile: {KiokuCapabilityCatalog.CoordinationProfileId}/v" +
+                      $"{KiokuCapabilityCatalog.CoordinationProfileVersion}" +
+                      $" ({(vaultConfig.IsGroupEnabled("coordination") ? "enabled" : "gated")})";
         }
 
         result += $"\nUTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
         return result;
+    }
+
+    [McpServerTool, Description(
+        "Returns the stable Kioku capability and coordination profile contract. Clients can use " +
+        "this read-only document to detect enabled coordination features, schema versions, " +
+        "transport support, observability state, and rollout gating without parsing prose.")]
+    public string get_server_capabilities()
+    {
+        var coordinationEnabled = vaultConfig?.IsGroupEnabled("coordination") == true;
+        var features = KiokuCapabilityCatalog.CoordinationFeatures.ToDictionary(
+            feature => feature,
+            feature => new
+            {
+                version = KiokuCapabilityCatalog.CoordinationProfileVersion,
+                enabled = coordinationEnabled,
+            },
+            StringComparer.Ordinal);
+        var serverVersion = typeof(UtilityTools).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+        var document = new
+        {
+            schema_version = KiokuCapabilityCatalog.CoordinationSchemaVersion,
+            profile_id = KiokuCapabilityCatalog.CoordinationProfileId,
+            profile_version = KiokuCapabilityCatalog.CoordinationProfileVersion,
+            server_version = serverVersion,
+            transport = config.Transport,
+            supported_transports = new[] { "stdio", "http" },
+            capability_group = new
+            {
+                id = "coordination",
+                enabled = coordinationEnabled,
+            },
+            capabilities = features,
+            compatibility = new
+            {
+                additive_fields = true,
+                breaking_changes_require_profile_version = true,
+                unknown_capabilities = "ignore",
+                unsupported_profile_version = "disable",
+                downgrade = "read-only-unavailable",
+            },
+            observability = new
+            {
+                metrics_enabled = metrics?.Enabled == true,
+                tracing_enabled = metrics?.TracingEnabled == true,
+                exporters = "host-configured",
+            },
+            rollout = new
+            {
+                status = "gated",
+                default_enabled = false,
+                requirement = "reliability-and-distribution-gates",
+            },
+        };
+        return JsonSerializer.Serialize(document);
     }
 
     private static string FormatLastIndexed(DateTimeOffset? value) =>

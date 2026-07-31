@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Domain.Coordination;
+using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
 
@@ -16,7 +17,9 @@ internal sealed class VaultMutationService(
     ICoordinationClaimStore claims,
     IVaultIndexOperations index,
     TimeProvider timeProvider,
-    ICoordinationFaultInjector? faultInjector = null) : IVaultMutationService
+    ICoordinationFaultInjector? faultInjector = null,
+    MetricsService? metrics = null,
+    ILogger<VaultMutationService>? logger = null) : IVaultMutationService
 {
     private const string MutationRecordRoot = ".kioku/coordination/mutations";
 
@@ -43,6 +46,9 @@ internal sealed class VaultMutationService(
         var normalized = NormalizePreconditions(preconditions);
         var resourceKey = ResolveResourceKey(source, normalized);
         var fingerprint = ComputeFingerprint("delete", resourceKey, source, null, normalized);
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.mutation.delete",
+            claimId: normalized.ClaimId);
 
         try
         {
@@ -84,21 +90,25 @@ internal sealed class VaultMutationService(
                             fingerprint,
                             new VaultMutationReceipt(resourceKey, RelativePath(source), null),
                             cancellationToken).ConfigureAwait(false);
+                        metrics?.RecordCoordinationMutation("committed");
                         return new VaultMutationReceipt(resourceKey, RelativePath(source), null);
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (VaultMutationException)
+        catch (VaultMutationException exception)
         {
+            RecordMutationFailure(exception.Code);
             throw;
         }
         catch (VaultAccessDeniedException)
         {
+            RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
         catch (IOException)
         {
+            RecordMutationFailure("WRITE_CONFLICT");
             throw new VaultMutationException("INTERNAL", "The vault mutation could not be committed.",
                 new VaultMutationConflict(
                     VaultMutationErrorCodes.WriteConflict,
@@ -126,6 +136,9 @@ internal sealed class VaultMutationService(
         var destinationResource = ResolveResourceKey(destination, null);
         var fingerprint = ComputeFingerprint(
             "move", sourceResource, source, destination + "\n" + replacementContent, normalized);
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.mutation.move",
+            claimId: normalized.ClaimId);
 
         try
         {
@@ -205,21 +218,25 @@ internal sealed class VaultMutationService(
                                 : VaultRevision.Compute(replacementContent));
                         await PersistMutationRecordAsync(
                             normalized.MutationId, fingerprint, receipt, cancellationToken).ConfigureAwait(false);
+                        metrics?.RecordCoordinationMutation("committed");
                         return receipt;
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (VaultMutationException)
+        catch (VaultMutationException exception)
         {
+            RecordMutationFailure(exception.Code);
             throw;
         }
         catch (VaultAccessDeniedException)
         {
+            RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
         catch (IOException)
         {
+            RecordMutationFailure("WRITE_CONFLICT");
             throw new VaultMutationException(
                 "INTERNAL", "The vault move could not be committed.");
         }
@@ -238,6 +255,9 @@ internal sealed class VaultMutationService(
         var resourceKey = ResolveResourceKey(target, normalized);
         var fingerprint = ComputeFingerprint(
             requireAbsent ? "create" : "write", resourceKey, target, content, normalized);
+        using var activity = metrics?.StartCoordinationActivity(
+            requireAbsent ? "coordination.mutation.create" : "coordination.mutation.write",
+            claimId: normalized.ClaimId);
 
         try
         {
@@ -299,21 +319,25 @@ internal sealed class VaultMutationService(
                             VaultRevision.Compute(content));
                         await PersistMutationRecordAsync(
                             normalized.MutationId, fingerprint, receipt, cancellationToken).ConfigureAwait(false);
+                        metrics?.RecordCoordinationMutation("committed");
                         return receipt;
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (VaultMutationException)
+        catch (VaultMutationException exception)
         {
+            RecordMutationFailure(exception.Code);
             throw;
         }
         catch (VaultAccessDeniedException)
         {
+            RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
         catch (IOException)
         {
+            RecordMutationFailure("WRITE_CONFLICT");
             throw new VaultMutationException(
                 "INTERNAL", "The vault mutation could not be committed.");
         }
@@ -673,6 +697,12 @@ internal sealed class VaultMutationService(
 
     private static VaultMutationException AccessDenied() =>
         new("ACCESS_DENIED", "The requested filesystem operation is outside Kioku's configured security boundary.");
+
+    private void RecordMutationFailure(string code)
+    {
+        metrics?.RecordCoordinationMutation(code);
+        logger?.LogWarning("Vault mutation rejected. Code={Code}.", code);
+    }
 
     private Task InjectAsync(
         CoordinationFaultPoint point,

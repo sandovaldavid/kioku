@@ -192,6 +192,6 @@ contracts rather than introducing a second serializer or schema catalog.
 This slice persists and replays events, implements durable claims, leases,
 expiry, fencing, guarded vault mutations, and exposes the opt-in coordination
 MCP surface. It does not adopt CloudEvents or A2A as mandatory internal
-formats. Session compatibility, crash/restart coverage, and rollout policy
-remain in the dependent issues described by the [durable coordination
-architecture](durable-coordination.md).
+formats. Session compatibility and crash/restart coverage are implemented, and
+the capability and rollout policy is documented in
+[coordination-rollout.md](coordination-rollout.md).

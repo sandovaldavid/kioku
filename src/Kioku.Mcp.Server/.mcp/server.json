@@ -102,6 +102,10 @@
           "description": "Enables in-memory tool-call counters; note contents are never recorded."
         },
         {
+          "name": "KIOKU_ENABLE_TRACING",
+          "description": "Enables W3C-compatible coordination activities; Kioku configures no trace exporter."
+        },
+        {
           "name": "KIOKU_SENTRY_DSN",
           "description": "Opt-in Sentry DSN for crash reporting."
         }

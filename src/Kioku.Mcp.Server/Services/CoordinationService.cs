@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kioku.Mcp.Server.Domain.Coordination;
+using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
 
@@ -95,7 +96,9 @@ internal sealed class CoordinationService(
     ICoordinationClaimStore claims,
     ICoordinationConflictStore conflicts,
     TimeProvider timeProvider,
-    ICoordinationFaultInjector? faultInjector = null) : ICoordinationService
+    ICoordinationFaultInjector? faultInjector = null,
+    MetricsService? metrics = null,
+    ILogger<CoordinationService>? logger = null) : ICoordinationService
 {
     public async Task<CoordinationWorkItemSnapshot> CreateWorkItemAsync(
         CoordinationCreateWorkItemRequest request,
@@ -324,6 +327,13 @@ internal sealed class CoordinationService(
         ValidateOptionalText(request.ResultReference, "result_reference", 512);
         ValidateOptionalText(request.ProgressReference, "progress_reference", 512);
         ValidateClaimPrecondition(request.ClaimId, request.FenceGeneration);
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.transition",
+            request.RunId,
+            request.WorkItemId,
+            request.AttemptId,
+            request.SessionId,
+            request.ClaimId);
 
         try
         {
@@ -434,12 +444,34 @@ internal sealed class CoordinationService(
         CoordinationClaimAcquireRequest request,
         CancellationToken cancellationToken = default)
     {
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.claim.acquire",
+            request.RunId,
+            request.WorkItemId,
+            request.AttemptId,
+            request.SessionId);
         try
         {
-            return await claims.AcquireAsync(request, cancellationToken).ConfigureAwait(false);
+            var result = await claims.AcquireAsync(request, cancellationToken).ConfigureAwait(false);
+            metrics?.RecordCoordinationClaim(result.Disposition.ToString());
+            logger?.LogInformation(
+                "Coordination claim operation completed. RunId={RunId} WorkItemId={WorkItemId} AttemptId={AttemptId} Disposition={Disposition} FenceGeneration={FenceGeneration}.",
+                request.RunId,
+                request.WorkItemId,
+                request.AttemptId,
+                result.Disposition,
+                result.Claim.FenceGeneration);
+            return result;
         }
         catch (CoordinationClaimException exception)
         {
+            metrics?.RecordCoordinationClaim(exception.Code);
+            logger?.LogWarning(
+                "Coordination claim operation rejected. RunId={RunId} WorkItemId={WorkItemId} AttemptId={AttemptId} Code={Code}.",
+                request.RunId,
+                request.WorkItemId,
+                request.AttemptId,
+                exception.Code);
             if (exception.Code == CoordinationClaimErrorCodes.ClaimConflict)
             {
                 await RecordClaimConflictAsync(request, exception.Code, cancellationToken).ConfigureAwait(false);
@@ -453,12 +485,22 @@ internal sealed class CoordinationService(
         CoordinationClaimMutationRequest request,
         CancellationToken cancellationToken = default)
     {
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.claim.renew",
+            request.RunId,
+            request.WorkItemId,
+            request.AttemptId,
+            request.SessionId,
+            request.ClaimId);
         try
         {
-            return await claims.RenewAsync(request, cancellationToken).ConfigureAwait(false);
+            var result = await claims.RenewAsync(request, cancellationToken).ConfigureAwait(false);
+            metrics?.RecordCoordinationClaim(result.Disposition.ToString());
+            return result;
         }
         catch (CoordinationClaimException exception)
         {
+            metrics?.RecordCoordinationClaim(exception.Code);
             throw TranslateClaimException(exception);
         }
     }
@@ -467,12 +509,22 @@ internal sealed class CoordinationService(
         CoordinationClaimMutationRequest request,
         CancellationToken cancellationToken = default)
     {
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.claim.release",
+            request.RunId,
+            request.WorkItemId,
+            request.AttemptId,
+            request.SessionId,
+            request.ClaimId);
         try
         {
-            return await claims.ReleaseAsync(request, cancellationToken).ConfigureAwait(false);
+            var result = await claims.ReleaseAsync(request, cancellationToken).ConfigureAwait(false);
+            metrics?.RecordCoordinationClaim(result.Disposition.ToString());
+            return result;
         }
         catch (CoordinationClaimException exception)
         {
+            metrics?.RecordCoordinationClaim(exception.Code);
             throw TranslateClaimException(exception);
         }
     }
@@ -481,12 +533,21 @@ internal sealed class CoordinationService(
         CoordinationClaimExpiryRequest request,
         CancellationToken cancellationToken = default)
     {
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.claim.expire",
+            request.RunId,
+            request.WorkItemId,
+            request.AttemptId,
+            claimId: request.ClaimId);
         try
         {
-            return await claims.ExpireAsync(request, cancellationToken).ConfigureAwait(false);
+            var result = await claims.ExpireAsync(request, cancellationToken).ConfigureAwait(false);
+            metrics?.RecordCoordinationClaim(result.Disposition.ToString());
+            return result;
         }
         catch (CoordinationClaimException exception)
         {
+            metrics?.RecordCoordinationClaim(exception.Code);
             throw TranslateClaimException(exception);
         }
     }

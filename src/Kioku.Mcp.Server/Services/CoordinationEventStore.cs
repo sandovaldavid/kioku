@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kioku.Mcp.Server.Domain.Coordination;
+using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
 
@@ -98,7 +99,9 @@ internal sealed class CoordinationEventStore(
     ICoordinationFileSystem fileSystem,
     CoordinationContractValidator validator,
     TimeProvider timeProvider,
-    ICoordinationFaultInjector? faultInjector = null) : ICoordinationEventStore
+    ICoordinationFaultInjector? faultInjector = null,
+    MetricsService? metrics = null,
+    ILogger<CoordinationEventStore>? logger = null) : ICoordinationEventStore
 {
     private const string CoordinationRoot = ".kioku/coordination";
     private const string ManifestFileName = "manifest.json";
@@ -109,6 +112,13 @@ internal sealed class CoordinationEventStore(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(coordinationEvent);
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.event.append",
+            coordinationEvent.RunId,
+            coordinationEvent.WorkItemId,
+            coordinationEvent.AttemptId,
+            coordinationEvent.SessionId,
+            coordinationEvent.ClaimId);
         ValidateIdentifier(coordinationEvent.EventId);
         ValidateIdentifier(coordinationEvent.TransitionId);
         ValidateIdentifier(coordinationEvent.RunId);
@@ -150,6 +160,7 @@ internal sealed class CoordinationEventStore(
                 coordinationEvent.WorkItemId,
                 storedEvents,
                 cancellationToken).ConfigureAwait(false);
+            metrics?.RecordCoordinationReplay("duplicate");
             return new(CoordinationAppendDisposition.Duplicate, duplicateId.Event, duplicateProjection);
         }
 
@@ -172,6 +183,7 @@ internal sealed class CoordinationEventStore(
                 coordinationEvent.WorkItemId,
                 storedEvents,
                 cancellationToken).ConfigureAwait(false);
+            metrics?.RecordCoordinationReplay("duplicate");
             return new(CoordinationAppendDisposition.Duplicate, duplicateTransition.Event, transitionProjection);
         }
 
@@ -222,6 +234,13 @@ internal sealed class CoordinationEventStore(
             coordinationEvent.WorkItemId,
             allEvents.Select(eventItem => new StoredEvent(eventItem, CoordinationContractSerializer.Serialize(eventItem))).ToArray(),
             cancellationToken).ConfigureAwait(false);
+        metrics?.RecordCoordinationTransition(coordinationEvent.EventType);
+        logger?.LogInformation(
+            "Coordination event accepted. RunId={RunId} WorkItemId={WorkItemId} EventType={EventType} SequenceNumber={SequenceNumber}.",
+            coordinationEvent.RunId,
+            coordinationEvent.WorkItemId,
+            coordinationEvent.EventType,
+            coordinationEvent.SequenceNumber);
         return new(CoordinationAppendDisposition.Appended, coordinationEvent, projection);
     }
 
@@ -238,10 +257,37 @@ internal sealed class CoordinationEventStore(
     {
         ValidateIdentifier(runId);
         ValidateIdentifier(workItemId);
-        await using var gate = await AcquireWorkItemLockAsync(workItemId, cancellationToken).ConfigureAwait(false);
-        await EnsureManifestAsync(cancellationToken).ConfigureAwait(false);
-        var storedEvents = await ReadStoredEventsAsync(cancellationToken).ConfigureAwait(false);
-        return await RebuildAndReturnAsync(runId, workItemId, storedEvents, cancellationToken).ConfigureAwait(false);
+        using var activity = metrics?.StartCoordinationActivity(
+            "coordination.history.replay",
+            runId,
+            workItemId);
+        var startedAt = timeProvider.GetTimestamp();
+        var succeeded = false;
+        try
+        {
+            await using var gate = await AcquireWorkItemLockAsync(workItemId, cancellationToken).ConfigureAwait(false);
+            await EnsureManifestAsync(cancellationToken).ConfigureAwait(false);
+            var storedEvents = await ReadStoredEventsAsync(cancellationToken).ConfigureAwait(false);
+            var result = await RebuildAndReturnAsync(runId, workItemId, storedEvents, cancellationToken)
+                .ConfigureAwait(false);
+            metrics?.RecordCoordinationReplay("replayed");
+            succeeded = true;
+            return result;
+        }
+        catch (CoordinationStoreException exception)
+        {
+            metrics?.RecordCoordinationReplay(exception.Code);
+            logger?.LogWarning(
+                "Coordination replay failed. RunId={RunId} WorkItemId={WorkItemId} Code={Code}.",
+                runId,
+                workItemId,
+                exception.Code);
+            throw;
+        }
+        finally
+        {
+            metrics?.RecordCoordinationRecovery(timeProvider.GetElapsedTime(startedAt), succeeded);
+        }
     }
 
     public async Task<IReadOnlyList<CoordinationEvent>> ReadHistoryAsync(

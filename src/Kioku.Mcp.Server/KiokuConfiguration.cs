@@ -122,6 +122,13 @@ public sealed class KiokuConfiguration
     public bool EnableMetrics { get; init; }
 
     /// <summary>
+    /// Enables W3C-compatible coordination activities for an explicitly configured listener.
+    /// No exporter is configured by Kioku. Default: false. Environment variable:
+    /// KIOKU_ENABLE_TRACING
+    /// </summary>
+    public bool EnableTracing { get; init; }
+
+    /// <summary>
     /// Sentry DSN for opt-in crash reporting.
     /// If null or empty, crash reporting is disabled.
     /// Environment variable: KIOKU_SENTRY_DSN
@@ -219,6 +226,8 @@ public sealed class KiokuConfiguration
             "KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS", 300);
         var enableMetrics = bool.TryParse(
             Environment.GetEnvironmentVariable("KIOKU_ENABLE_METRICS"), out var em) && em;
+        var enableTracing = bool.TryParse(
+            Environment.GetEnvironmentVariable("KIOKU_ENABLE_TRACING"), out var et) && et;
         var sentryDsn = Environment.GetEnvironmentVariable("KIOKU_SENTRY_DSN");
         var allowExternalReads = bool.TryParse(
             Environment.GetEnvironmentVariable("KIOKU_ALLOW_EXTERNAL_READS"), out var aer) && aer;
@@ -248,6 +257,7 @@ public sealed class KiokuConfiguration
             HttpMaxRequestBodyBytes = httpMaxRequestBodyBytes,
             HttpRequestTimeoutSeconds = httpRequestTimeoutSeconds,
             EnableMetrics = enableMetrics,
+            EnableTracing = enableTracing,
             SentryDsn = sentryDsn,
             AllowExternalReads = allowExternalReads,
             ExternalReadRoots = externalReadRoots,

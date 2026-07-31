@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* **server:** add privacy-preserving coordination observability, capability negotiation, interoperability mappings, and gated rollout controls ([#311](https://github.com/sandovaldavid/kioku/issues/311))
+
 ## [2.3.0](https://github.com/sandovaldavid/kioku/compare/v2.2.1...v2.3.0) (2026-07-15)
 
 
