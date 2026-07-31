@@ -31,6 +31,7 @@ public sealed class KiokuOptions
     public long HttpMaxRequestBodyBytes { get; set; } = 1024 * 1024;
     public int HttpRequestTimeoutSeconds { get; set; } = 300;
     public bool EnableMetrics { get; set; }
+    public bool EnableTracing { get; set; }
     public string? SentryDsn { get; set; }
     public bool AllowExternalReads { get; set; }
     public string[] ExternalReadRoots { get; set; } = [];
@@ -59,6 +60,7 @@ public sealed class KiokuOptions
         HttpMaxRequestBodyBytes = HttpMaxRequestBodyBytes,
         HttpRequestTimeoutSeconds = HttpRequestTimeoutSeconds,
         EnableMetrics = EnableMetrics,
+        EnableTracing = EnableTracing,
         SentryDsn = SentryDsn,
         AllowExternalReads = AllowExternalReads,
         ExternalReadRoots = ExternalReadRoots.Select(Path.GetFullPath).ToArray(),
@@ -86,6 +88,7 @@ internal static class KiokuOptionsConfiguration
             ["KIOKU_HTTP_MAX_REQUEST_BODY_BYTES"] = nameof(KiokuOptions.HttpMaxRequestBodyBytes),
             ["KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS"] = nameof(KiokuOptions.HttpRequestTimeoutSeconds),
             ["KIOKU_ENABLE_METRICS"] = nameof(KiokuOptions.EnableMetrics),
+            ["KIOKU_ENABLE_TRACING"] = nameof(KiokuOptions.EnableTracing),
             ["KIOKU_SENTRY_DSN"] = nameof(KiokuOptions.SentryDsn),
             ["KIOKU_ALLOW_EXTERNAL_READS"] = nameof(KiokuOptions.AllowExternalReads),
             ["KIOKU_ALLOW_PERMANENT_DELETE"] = nameof(KiokuOptions.AllowPermanentDelete),

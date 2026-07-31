@@ -24,10 +24,12 @@ SDK:
 
 1. Pack `kioku-mcp-server` into an isolated local NuGet feed, install it into a clean tool path,
    launch the installed `kioku` command over stdio, complete initialization and `tools/list`, then
-   create, read, and delete a note. Kioku itself is resolved from the local feed while its
-   transitive dependencies are resolved through an explicit NuGet.org package-source mapping.
+   verify `get_server_capabilities`, then create, read, and delete a note. Kioku itself is
+   resolved from the local feed while its transitive dependencies are resolved through an
+   explicit NuGet.org package-source mapping.
 2. Resolve the runner's native RID, publish a self-contained single-file server, launch it with
-   authenticated Streamable HTTP, wait for readiness, and repeat the same MCP read/write flow.
+   authenticated Streamable HTTP, wait for readiness, verify `get_server_capabilities`, and repeat
+   the same MCP read/write flow.
 
 The smoke client lives in `scripts/Kioku.Ci`. It deliberately starts real processes and does not
 replace the transport with in-memory test doubles.

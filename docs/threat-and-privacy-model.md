@@ -34,7 +34,9 @@ Kioku's default configuration keeps vault content on the local machine.
 | Note-derived generation prompts | `{KIOKU_OLLAMA_URL}/api/generate` | Generation disabled unless configured | The generation capability is enabled, a model is configured, and Ollama is non-local. |
 | MCP HTTP requests and responses | Bound Streamable HTTP interface | `127.0.0.1` | The operator binds a non-loopback interface. |
 | Crash data | Configured Sentry DSN | Disabled | The operator sets `KIOKU_SENTRY_DSN`. |
+| Coordination diagnostics | Process stderr | Local process | The operator forwards logs to an external collector. |
 | Tool-call counters | Process memory | Disabled | Never; there is no metrics network sink. |
+| Coordination activities | Host-configured activity listener | Disabled | The host registers a listener or exporter. |
 | External BibTeX input | Allowlisted local directories | Disabled | Never; this is a local read. |
 | Deprecated GitHub token setting | No current consumer | Unset | Never through a registered current tool. |
 
@@ -117,11 +119,12 @@ The bridge plugin is maintained in [`sandovaldavid/kioku-obsidian`](https://gith
 
 - Sentry is disabled when `KIOKU_SENTRY_DSN` is unset.
 - Default PII sending, tracing, profiling, and automatic session tracking are disabled by configuration.
+- The `before_send` filter removes the server name, replaces captured exception values with `redacted`, and removes captured stack traces.
 - No current tool intentionally sends note content to Sentry.
 
 ### Unconfirmed
 
-- Exception messages can include contextual values such as paths or arguments depending on the throw site.
+- Exception messages outside the filtered exception fields can include contextual values such as paths or arguments depending on the throw site.
 - The exact runtime interaction between ASP.NET Core Sentry integration and the repository's logging-provider reset requires an integration test against a controlled endpoint.
 - Until that behavior is verified, treat enabled Sentry as capable of receiving crash data and possibly error-level logging context.
 
@@ -179,6 +182,15 @@ timestamps, bounded reasons, and transition outcomes. It remains outside note
 indexing and embeddings, but the same operating-system account can read it and
 any backup that contains it.
 
+Coordination logs correlate operations with validated domain identifiers such as
+`run_id`, `work_item_id`, `attempt_id`, `session_id`, and `claim_id`. Bounded
+metrics remain in process memory, and W3C activities are created only when
+`KIOKU_ENABLE_TRACING=true` and a host listener is configured. Neither signal
+is part of the event-log authority. Logs and activities must not contain note
+bodies, handoff payloads, canonical paths, raw resource keys, tokens,
+authority scopes, or sensitive conflict details. See
+[coordination-observability.md](coordination-observability.md).
+
 Implemented controls include exclusive immutable event creation, atomic
 projection writes, schema and content-hash validation, deterministic replay,
 idempotent duplicate handling, sequence and hash-chain checks, and
@@ -212,5 +224,7 @@ authoritative.
 5. Configure exact origins and trusted proxies.
 6. Configure `KIOKU_BRIDGE_TOKEN` before enabling bridge capabilities.
 7. Confirm `KIOKU_OLLAMA_URL` and `KIOKU_SENTRY_DSN` point to intended hosts.
-8. Remove secrets and private paths from logs before sharing diagnostics.
-9. Verify server/plugin protocol compatibility using versioned fixtures and the [versioning reference](versioning.md).
+8. Call `get_server_capabilities` and confirm optional coordination is gated
+   unless the deployment has passed the release gates.
+9. Remove secrets and private paths from logs before sharing diagnostics.
+10. Verify server/plugin protocol compatibility using versioned fixtures and the [versioning reference](versioning.md).

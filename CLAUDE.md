@@ -8,7 +8,7 @@ which bridges via WebSocket on port 7765, lives in its own repository:
 
 ```
 src/Kioku.Mcp.Server/       C# MCP server (stdio transport)
-  Tools/                    MCP tools: default/all-capabilities profiles are 43/76 tools; see commands-reference.md
+  Tools/                    MCP tools: default/all-capabilities profiles are 44/77 tools; see commands-reference.md
   Services/                 VaultIndexService, EmbeddingService, EmbeddingPersistence,
                               ObsidianBridgeService, FrontmatterParser, MarkdownTextExtractor
   Domain/                   Note, NoteMetadata, SearchResult
@@ -64,7 +64,7 @@ gh pr create --base develop
 
 ## MCP tool surface
 
-The server exposes 43 tools in the default profile and 76 with all capabilities enabled.
+The server exposes 44 tools in the default profile and 77 with all capabilities enabled.
 `NoteQueryTools`, `NoteCommandTools`, and `UtilityTools` are always enabled. The default-disabled
 groups are `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
 `git`, `restore`, and `zettelkasten` are removed groups; use native Git, `manage_trash`, and

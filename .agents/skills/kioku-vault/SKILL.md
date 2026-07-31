@@ -1,6 +1,6 @@
 ---
 name: kioku-vault
-description: Use when working with an Obsidian vault via the Kioku MCP server. Covers the implemented 43-tool default surface, 76-tool all-capabilities surface, workflows, capability gating, and safety notes.
+description: Use when working with an Obsidian vault via the Kioku MCP server. Covers the implemented 44-tool default surface, 77-tool all-capabilities surface, workflows, capability gating, and safety notes.
 ---
 
 # Kioku vault skill
@@ -28,12 +28,18 @@ description or `docs/commands-reference.md`; do not guess parameter names.
 - **Assets**: `find_orphan_assets`, `tidy_attachments`.
 - **Plugin bridge**: `apply_template`, `get_installed_plugins`, `lint`, `query_dataview`.
 - **Obsidian UI**: `edit_in_obsidian`, `get_obsidian_state`, `open_note_in_obsidian`, `trigger_obsidian_command`.
-- **Utilities**: `get_server_status`, `rebuild_index`.
+- **Utilities**: `get_server_capabilities`, `get_server_status`, `rebuild_index`.
 
 The core groups are always available. `research`, `generation`, `css`, `assets`, `bridge`,
 `plugin`, and `coordination` are disabled by default. `git`, `restore`, and `zettelkasten` are removed groups. Check
 `.kioku/config.yml` when a capability is unavailable instead of assuming an unknown-tool error is
 a code defect.
+
+Call `get_server_capabilities` before using coordination tools. Check the
+`kioku.durable-coordination` profile ID, profile and schema versions, enabled
+feature flags, transport, observability state, and rollout status. The profile
+is gated and disabled by default; domain IDs and trace IDs are diagnostic data,
+not authorization or ownership evidence.
 
 ## Search and reading
 
@@ -97,5 +103,5 @@ This is especially important for permanent `delete_note`, vault-wide `manage_tag
 
 ## Finding the full tool list
 
-The complete 43-tool default inventory, 76-tool all-capabilities inventory, and exact schemas are in `docs/commands-reference.md`, or can be
+The complete 44-tool default inventory, 77-tool all-capabilities inventory, and exact schemas are in `docs/commands-reference.md`, or can be
 queried through MCP `tools/list`.

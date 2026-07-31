@@ -31,8 +31,8 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 - Target framework: `net10.0`, configured in `Directory.Build.props`.
 - Solution: `Kioku.slnx`.
 - Server package version on `develop`: `2.3.0`; the branch can contain unreleased changes.
-- Default MCP profile: 43 tools.
-- All-capabilities profile: 59 tools.
+- Default MCP profile: 44 tools.
+- All-capabilities profile: 77 tools.
 - Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
 - The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative for tool names, schemas, annotations, prompts, resources, and profile counts.
 - The generated [`docs/configuration-reference.md`](docs/configuration-reference.md) is authoritative for public process configuration.
