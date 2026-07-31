@@ -29,6 +29,7 @@ Active repository documentation should normally describe **Implemented** behavio
 |---|---|---|
 | [Installation](install.md) | Implemented | Install the server, register clients, build from source, and verify a deployment. |
 | [Architecture](architecture.md) | Implemented | Current component responsibilities and dependency direction. |
+| [Durable coordination profile](durable-coordination.md) | Proposed architecture | Proposed domain model, state machine, storage proposal, and support boundary for future coordination work. |
 | [Troubleshooting](troubleshooting.md) | Implemented | Diagnose server, HTTP, indexing, Ollama, bridge, and Docker problems. |
 | [Focused-tool migration](focused-tool-migration.md) | Implemented / Deprecated | Preferred focused tools and the generic wrappers retained only for compatibility. |
 

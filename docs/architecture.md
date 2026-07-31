@@ -44,6 +44,12 @@ Embeddings are derived data cached at `{vault}/.kioku/embeddings.bin`. The cache
 
 See [indexing-pipeline.md](indexing-pipeline.md), [vault-config.md](vault-config.md), and [threat-and-privacy-model.md](threat-and-privacy-model.md).
 
+The current branch does not implement a durable coordination event store. The
+proposed, planned control-plane boundary for future multi-process coordination
+is documented in [durable-coordination.md](durable-coordination.md). It keeps
+Markdown as the source of truth for note content and existing work-session
+history while placing machine coordination events under `.kioku/coordination/`.
+
 ## Retrieval
 
 - Keyword retrieval uses indexed full-text scoring.

@@ -99,7 +99,7 @@
         },
         {
           "name": "KIOKU_GITHUB_TOKEN",
-          "description": "GitHub token used by the share_as_gist tool."
+          "description": "Deprecated compatibility setting retained in configuration binding; no registered current tool consumes it."
         },
         {
           "name": "KIOKU_ENABLE_METRICS",
