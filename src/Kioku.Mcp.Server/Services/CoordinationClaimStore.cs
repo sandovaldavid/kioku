@@ -241,6 +241,43 @@ internal sealed class CoordinationClaimStore(
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<CoordinationClaim>> ListAsync(
+        string? runId = null,
+        string? workItemId = null,
+        string? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var leaseRoot = paths.ResolveVaultReadPath(Path.Combine(CoordinationRoot, LeaseRoot));
+        var claims = new List<CoordinationClaim>();
+        foreach (var candidatePath in fileSystem.EnumerateJsonFiles(leaseRoot).OrderBy(path => path, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var persisted = await ReadClaimFileAsync(candidatePath, cancellationToken).ConfigureAwait(false);
+            if (persisted is null)
+            {
+                continue;
+            }
+
+            var current = persisted.Status == CoordinationClaimStatuses.Active
+                ? await ReadAsync(persisted.ResourceKey, cancellationToken).ConfigureAwait(false)
+                : persisted;
+            if (current is null ||
+                (runId is not null && !string.Equals(current.RunId, runId, StringComparison.Ordinal)) ||
+                (workItemId is not null && !string.Equals(current.WorkItemId, workItemId, StringComparison.Ordinal)) ||
+                (status is not null && !string.Equals(current.Status, status, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            claims.Add(current);
+        }
+
+        return claims
+            .OrderByDescending(claim => claim.AcquiredAt)
+            .ThenBy(claim => claim.ResourceKey, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     private async Task<CoordinationClaimResult> AcquireCoreAsync(
         CoordinationClaimAcquireRequest request,
         CancellationToken cancellationToken)
@@ -576,6 +613,19 @@ internal sealed class CoordinationClaimStore(
             return null;
         }
 
+        return await ReadClaimFileAsync(path, cancellationToken, resourceKey).ConfigureAwait(false);
+    }
+
+    private async Task<CoordinationClaim?> ReadClaimFileAsync(
+        string path,
+        CancellationToken cancellationToken,
+        string? expectedResourceKey = null)
+    {
+        if (!fileSystem.FileExists(path))
+        {
+            return null;
+        }
+
         try
         {
             var json = await fileSystem.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
@@ -592,7 +642,7 @@ internal sealed class CoordinationClaimStore(
                 json,
                 CoordinationJsonContext.Default.CoordinationClaim)
                 ?? throw new CoordinationClaimException(CoordinationClaimErrorCodes.CorruptClaimState);
-            ValidatePersistedClaim(claim, resourceKey);
+            ValidatePersistedClaim(claim, expectedResourceKey ?? claim.ResourceKey);
             return claim;
         }
         catch (CoordinationClaimException)

@@ -13,7 +13,7 @@ internal sealed class VaultCapabilityProfile
     private static readonly HashSet<string> DefaultDisabledGroups =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            "research", "generation", "css", "assets", "bridge", "plugin",
+            "research", "generation", "css", "assets", "bridge", "plugin", "coordination",
         };
 
     private static readonly HashSet<string> RemovedGroups =

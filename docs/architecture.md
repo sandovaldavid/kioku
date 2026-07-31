@@ -25,13 +25,13 @@ The repository currently keeps these boundaries inside the single `Kioku.Mcp.Ser
 
 | Area | Responsibility | Current examples |
 |---|---|---|
-| MCP adapters | MCP attributes, descriptions, protocol arguments, client metadata, cancellation capture, delegation | `SessionContextTools`, `EngineeringWorkflowTools`, `NoteQueryTools`, `FocusedCreationTools` |
-| Application contracts | Stable operations exposed to adapters | `IWorkSessionService`, `IProjectDocumentService`, `INoteQueryService` |
-| Workflow services | Session, project-document, and note-query orchestration | `WorkSessionService`, `ProjectDocumentService`, `NoteQueryService`, `ProjectWorkspaceService` |
+| MCP adapters | MCP attributes, descriptions, protocol arguments, client metadata, cancellation capture, delegation | `SessionContextTools`, `EngineeringWorkflowTools`, `NoteQueryTools`, `FocusedCreationTools`, `CoordinationTools`, `CoordinationResources` |
+| Application contracts | Stable operations exposed to adapters | `IWorkSessionService`, `IProjectDocumentService`, `INoteQueryService`, `ICoordinationService` |
+| Workflow services | Session, project-document, note-query, and coordination orchestration | `WorkSessionService`, `ProjectDocumentService`, `NoteQueryService`, `ProjectWorkspaceService`, `CoordinationService` |
 | Domain | Note metadata, frontmatter values, invariants, and error models | `Note`, `NoteFrontmatter`, `KiokuError` |
 | Presentation | Render application results as MCP text and structured content | `NoteResultPresenter` |
 | Infrastructure ports | Contracts for external effects | `IWorkSessionFileSystem`, `IProjectDocumentFileSystem`, `ICoordinationFileSystem` |
-| Infrastructure services | Filesystem, indexing, bridge, embeddings, generation, and derived persistence | `WorkSessionFileSystem`, `ProjectDocumentFileSystem`, `CoordinationFileSystem`, `CoordinationEventStore`, `CoordinationClaimStore`, `VaultIndexService`, `ObsidianBridgeService`, `EmbeddingService` |
+| Infrastructure services | Filesystem, indexing, bridge, embeddings, generation, and derived persistence | `WorkSessionFileSystem`, `ProjectDocumentFileSystem`, `CoordinationFileSystem`, `CoordinationEventStore`, `CoordinationClaimStore`, `CoordinationConflictStore`, `VaultIndexService`, `ObsidianBridgeService`, `EmbeddingService` |
 | Hosting | Configuration, dependency injection, lifecycle, transports, and readiness | `KiokuHostingExtensions`, `KiokuLifecycleService`, `Program.cs` |
 
 ## Storage and indexing
@@ -48,12 +48,14 @@ The coordination slice persists immutable event files and rebuildable work-item
 projections under `.kioku/coordination/`. `CoordinationEventStore` validates
 schema versions, hashes, sequence numbers, idempotency, and state transitions
 before atomically writing an event. `CoordinationClaimStore` adds resource locks,
-lease projections, server-time expiry, and monotonic fencing. Both services use
-the pure `CoordinationProjectionReducer` and remain internal application
-boundaries. `VaultMutationService` adds canonical resource locking, optional
-revision/hash checks, claim fencing, atomic text mutations, and retry
-idempotency for writes. The public coordination MCP surface remains a future
-slice. The architecture and supported-filesystem boundary are documented in
+lease projections, server-time expiry, and monotonic fencing.
+`CoordinationConflictStore` persists safe conflict records without rewriting
+event history. `CoordinationService` is the application boundary used by the
+gated MCP tools and resources. All four services use the pure
+`CoordinationProjectionReducer` and keep domain rules below the protocol layer.
+`VaultMutationService` adds canonical resource locking, optional revision/hash
+checks, claim fencing, atomic text mutations, and retry idempotency for writes.
+The architecture and supported-filesystem boundary are documented in
 [durable-coordination.md](durable-coordination.md).
 
 ## Retrieval
@@ -90,7 +92,7 @@ The service reads current note content when required and otherwise works from th
 
 ## Capability profiles
 
-Core query, command, and utility tools are always registered. The default profile enables `tasks`, `organization`, `sessions`, `workflows`, `graph`, and `engineering`. The optional groups `research`, `generation`, `css`, `assets`, `bridge`, and `plugin` are disabled by default.
+Core query, command, and utility tools are always registered. The default profile enables `tasks`, `organization`, `sessions`, `workflows`, `graph`, and `engineering`. The optional groups `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination` are disabled by default. Coordination tools and resources are absent until the vault explicitly enables `coordination`.
 
 Vault-level capability configuration controls registration at startup. Exact profile counts and schemas are generated in [commands-reference.md](commands-reference.md); configuration semantics are documented in [vault-config.md](vault-config.md).
 
@@ -112,6 +114,7 @@ The test suite covers:
 - frontmatter preservation;
 - indexing synchronization and recovery;
 - bridge protocol fixtures;
+- coordination event, claim, conflict, MCP-surface, and capability-gating tests;
 - HTTP authentication, origins, limits, and readiness.
 
 Generated contracts are verified by `node scripts/generate-public-docs.mjs --check`. See [ci-quality-gates.md](ci-quality-gates.md) for the complete versioned gate.

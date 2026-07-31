@@ -39,3 +39,8 @@ Unknown tools receive conservative defaults: not read-only, not destructive, not
 | `summarize_note` | yes | no | yes | yes |
 | `query_dataview` | yes | no | no | yes |
 | `trigger_obsidian_command` | no | yes | no | yes |
+| `get_coordination_work_item` | yes | no | yes | no |
+| `list_coordination_history` | yes | no | yes | no |
+| `acquire_coordination_claim` | no | no | yes | no |
+| `transition_coordination_work_item` | no | no | no | no |
+| `resolve_coordination_conflict` | no | no | yes | no |

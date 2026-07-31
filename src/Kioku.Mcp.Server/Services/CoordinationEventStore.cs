@@ -73,6 +73,18 @@ public interface ICoordinationEventStore
         string workItemId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<CoordinationEvent>> ReadHistoryAsync(
+        string runId,
+        string workItemId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<WorkItemProjection>> ListProjectionsAsync(
+        string? runId = null,
+        string? workItemId = null,
+        string? project = null,
+        string? state = null,
+        CancellationToken cancellationToken = default);
+
     Task<WorkItemProjection?> ReadProjectionAsync(
         string workItemId,
         CancellationToken cancellationToken = default);
@@ -225,6 +237,110 @@ internal sealed class CoordinationEventStore(
         await EnsureManifestAsync(cancellationToken).ConfigureAwait(false);
         var storedEvents = await ReadStoredEventsAsync(cancellationToken).ConfigureAwait(false);
         return await RebuildAndReturnAsync(runId, workItemId, storedEvents, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<CoordinationEvent>> ReadHistoryAsync(
+        string runId,
+        string workItemId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateIdentifier(runId);
+        ValidateIdentifier(workItemId);
+        await using var gate = await AcquireWorkItemLockAsync(workItemId, cancellationToken).ConfigureAwait(false);
+        await EnsureManifestAsync(cancellationToken).ConfigureAwait(false);
+        var events = (await ReadStoredEventsAsync(cancellationToken).ConfigureAwait(false))
+            .Where(stored =>
+                string.Equals(stored.Event.RunId, runId, StringComparison.Ordinal) &&
+                string.Equals(stored.Event.WorkItemId, workItemId, StringComparison.Ordinal))
+            .OrderBy(stored => stored.Event.SequenceNumber)
+            .Select(stored => stored.Event)
+            .ToArray();
+
+        if (events.Length > 0)
+        {
+            try
+            {
+                CoordinationProjectionReducer.Reduce(events);
+            }
+            catch (CoordinationProjectionException exception)
+            {
+                throw new CoordinationStoreException(exception.Code);
+            }
+        }
+
+        return events;
+    }
+
+    public async Task<IReadOnlyList<WorkItemProjection>> ListProjectionsAsync(
+        string? runId = null,
+        string? workItemId = null,
+        string? project = null,
+        string? state = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (runId is not null)
+        {
+            ValidateIdentifier(runId);
+        }
+
+        if (workItemId is not null)
+        {
+            ValidateIdentifier(workItemId);
+        }
+
+        await EnsureManifestAsync(cancellationToken).ConfigureAwait(false);
+        var snapshotRoot = paths.ResolveVaultReadPath(Path.Combine(CoordinationRoot, "snapshots", "work-items"));
+        var projections = new List<WorkItemProjection>();
+        foreach (var candidatePath in fileSystem.EnumerateJsonFiles(snapshotRoot).OrderBy(path => path, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var safePath = paths.ResolveVaultReadPath(candidatePath);
+                var json = await fileSystem.ReadAllTextAsync(safePath, cancellationToken).ConfigureAwait(false);
+                var validation = await validator.ValidateAsync(
+                    CoordinationContractKind.WorkItemProjection,
+                    json,
+                    cancellationToken).ConfigureAwait(false);
+                if (!validation.IsValid)
+                {
+                    throw new CoordinationStoreException(CoordinationStoreErrorCodes.ProjectionCorrupt);
+                }
+
+                var projection = JsonSerializer.Deserialize(
+                    json,
+                    CoordinationJsonContext.Default.WorkItemProjection)
+                    ?? throw new CoordinationStoreException(CoordinationStoreErrorCodes.ProjectionCorrupt);
+                if ((runId is null || string.Equals(projection.RunId, runId, StringComparison.Ordinal)) &&
+                    (workItemId is null || string.Equals(projection.WorkItemId, workItemId, StringComparison.Ordinal)) &&
+                    (project is null || string.Equals(projection.Project, project, StringComparison.Ordinal)) &&
+                    (state is null || string.Equals(projection.State, state, StringComparison.Ordinal)))
+                {
+                    projections.Add(projection);
+                }
+            }
+            catch (CoordinationStoreException)
+            {
+                throw;
+            }
+            catch (JsonException)
+            {
+                throw new CoordinationStoreException(CoordinationStoreErrorCodes.ProjectionCorrupt);
+            }
+            catch (VaultAccessDeniedException)
+            {
+                throw new CoordinationStoreException(CoordinationStoreErrorCodes.AccessDenied);
+            }
+            catch (IOException)
+            {
+                throw new CoordinationStoreException(CoordinationStoreErrorCodes.ProjectionCorrupt);
+            }
+        }
+
+        return projections
+            .OrderByDescending(projection => projection.UpdatedAt)
+            .ThenBy(projection => projection.WorkItemId, StringComparer.Ordinal)
+            .ToArray();
     }
 
     public async Task<WorkItemProjection?> ReadProjectionAsync(

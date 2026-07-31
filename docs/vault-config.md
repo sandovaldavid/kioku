@@ -42,14 +42,14 @@ tasks, organization, sessions, workflows, graph, engineering
 Optional groups disabled by default are:
 
 ```text
-research, generation, css, assets, bridge, plugin
+research, generation, css, assets, bridge, plugin, coordination
 ```
 
 Use either a denylist:
 
 ```yaml
 capabilities:
-  disabled: [research, generation, css, assets, bridge, plugin]
+  disabled: [research, generation, css, assets, bridge, plugin, coordination]
 ```
 
 or explicit allowlist mode:

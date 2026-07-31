@@ -33,9 +33,11 @@ The profile has these boundaries:
   derived data and must be rebuildable.
 - The control plane stores references, identifiers, timestamps, outcomes, and
   safe reasons. It must not copy note bodies by default.
-- Coordination MCP operations remain gated by server configuration and a future
-  capability group. Event persistence is an internal service and adds no MCP
-  tool, environment variable, or capability group.
+- Coordination MCP operations remain gated by server configuration and the
+  default-off `coordination` capability group. The surface exposes focused tools
+  for projections, runs, transitions, claims, history, handoffs, blockers,
+  stale work, failed attempts, and conflicts, plus read-only resources for
+  projections, history, and handoff packets.
 - A caller can coordinate work only through the Kioku server. Direct edits to
   the vault remain outside the coordination guarantee.
 - A mutation can require an expected content revision or hash, a current claim
@@ -139,7 +141,7 @@ The coordination profile does not change that assumption.
 ### Capability authority
 
 The server derives operational authority from configuration, not from request
-metadata. A future coordination operation is admissible only when all of the
+metadata. A coordination operation is admissible only when all of the
 following checks pass:
 
 - the transport satisfies the existing server access policy;
@@ -156,8 +158,7 @@ the existing optional groups. A client cannot enable a group by sending an
 
 ### Derived coordination scopes
 
-The future coordination capability group maps to coarse server-derived scopes.
-The exact configuration key is an implementation detail for issue `#304`; the
+The `coordination` capability group maps to coarse server-derived scopes. The
 authority relationship is fixed by this contract.
 
 | Scope | Derivation | Grant |

@@ -21,7 +21,7 @@
   ],
   "capabilities": {
     "enabledByDefault": ["tasks", "organization", "sessions", "workflows", "graph", "engineering"],
-    "disabledByDefault": ["research", "generation", "css", "assets", "bridge", "plugin"]
+    "disabledByDefault": ["research", "generation", "css", "assets", "bridge", "plugin", "coordination"]
   },
   "environmentVariables": [
     {"name":"KIOKU_VAULT_PATH","configurationPath":"Kioku:VaultPath","required":true,"sensitive":false,"default":null,"category":"Core","description":"Absolute path to the Obsidian vault root."},

@@ -129,10 +129,17 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultCapabilityProfil
         builder.WithTools<EngineeringWorkflowTools>();
     }
 
+    if (capabilities.IsEnabled("coordination"))
+    {
+        builder.WithTools<CoordinationTools>();
+    }
+
     builder.WithKiokuTypedResults();
 }
 
-static void ConfigureKiokuPromptsAndResources(IMcpServerBuilder builder)
+static void ConfigureKiokuPromptsAndResources(
+    IMcpServerBuilder builder,
+    VaultCapabilityProfile capabilities)
 {
     builder
         .WithPrompts<KiokuPrompts>()
@@ -152,6 +159,11 @@ static void ConfigureKiokuPromptsAndResources(IMcpServerBuilder builder)
                 .ToList();
             return await Task.FromResult(new ListResourcesResult { Resources = recent });
         });
+
+    if (capabilities.IsEnabled("coordination"))
+    {
+        builder.WithResources<CoordinationResources>();
+    }
 }
 
 static void ConfigureLogging(ILoggingBuilder logging)
@@ -210,7 +222,7 @@ static async Task<int> RunHttpAsync(
     var capabilities = VaultCapabilityProfile.Load(config.VaultPath);
     var mcpBuilder = builder.Services.AddMcpServer().WithHttpTransport();
     ConfigureKiokuTools(mcpBuilder, capabilities);
-    ConfigureKiokuPromptsAndResources(mcpBuilder);
+    ConfigureKiokuPromptsAndResources(mcpBuilder, capabilities);
 
     var app = builder.Build();
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
@@ -247,7 +259,7 @@ static async Task<int> RunStdioAsync(
     var capabilities = VaultCapabilityProfile.Load(config.VaultPath);
     var mcpBuilder = builder.Services.AddMcpServer().WithStdioServerTransport();
     ConfigureKiokuTools(mcpBuilder, capabilities);
-    ConfigureKiokuPromptsAndResources(mcpBuilder);
+    ConfigureKiokuPromptsAndResources(mcpBuilder, capabilities);
 
     using var host = builder.Build();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();

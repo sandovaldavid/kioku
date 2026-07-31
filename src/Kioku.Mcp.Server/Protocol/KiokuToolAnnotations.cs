@@ -18,6 +18,10 @@ internal static class KiokuToolAnnotations
         "summarize_note", "list_tasks", "get_task", "get_daily_note",
         "list_templates", "read_template", "list_assets", "find_orphan_assets",
         "get_metrics", "health_check",
+        "get_coordination_work_item", "list_coordination_work_items", "list_coordination_runs",
+        "list_coordination_claims", "list_coordination_history", "get_coordination_handoff",
+        "list_coordination_blockers", "list_stale_coordination_work", "list_failed_coordination_attempts",
+        "list_coordination_conflicts",
     };
 
     private static readonly HashSet<string> DestructiveTools = new(StringComparer.Ordinal)
@@ -34,6 +38,12 @@ internal static class KiokuToolAnnotations
         "get_obsidian_state", "get_installed_plugins", "query_dataview", "summarize_note",
         "setup_agent_workflow", "update_frontmatter", "open_note_in_obsidian",
         "get_metrics", "health_check", "create_moc", "create_folder_readme",
+        "get_coordination_work_item", "list_coordination_work_items", "list_coordination_runs",
+        "list_coordination_claims", "list_coordination_history", "get_coordination_handoff",
+        "list_coordination_blockers", "list_stale_coordination_work", "list_failed_coordination_attempts",
+        "list_coordination_conflicts",
+        "acquire_coordination_claim", "renew_coordination_claim", "release_coordination_claim",
+        "expire_coordination_claim", "resolve_coordination_conflict",
     };
 
     private static readonly HashSet<string> OpenWorldTools = new(StringComparer.Ordinal)

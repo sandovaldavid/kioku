@@ -28,6 +28,8 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<CoordinationContractValidator>();
         services.AddSingleton<ICoordinationEventStore, CoordinationEventStore>();
         services.AddSingleton<ICoordinationClaimStore, CoordinationClaimStore>();
+        services.AddSingleton<ICoordinationConflictStore, CoordinationConflictStore>();
+        services.AddSingleton<ICoordinationService, CoordinationService>();
         services.AddSingleton<EmbeddingService>();
         services.AddSingleton<GenerationService>();
         services.AddSingleton<VaultIndexService>();
