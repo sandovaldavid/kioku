@@ -25,6 +25,7 @@ public sealed class VaultIndexingPipelineTests
         Assert.Equal(500, index.GetNotesSnapshot().Count);
         Assert.InRange(index.MaximumObservedConcurrency, 1, 4);
         Assert.InRange(pipeline.Metrics.MaximumObservedConcurrency, 1, 4);
+        Assert.True(index.IsReady);
         Assert.True(pipeline.IsReady);
     }
 
@@ -82,6 +83,7 @@ public sealed class VaultIndexingPipelineTests
             pipeline.InitializeAsync(cancellation.Token));
 
         Assert.True(index.GetNotesSnapshot().Count < 1000);
+        Assert.False(index.IsReady);
         Assert.InRange(index.MaximumObservedConcurrency, 0, 3);
     }
 
@@ -142,11 +144,15 @@ public sealed class VaultIndexingPipelineTests
         private int _active;
         private int _maximumObservedConcurrency;
 
+        public bool IsReady { get; private set; }
+
         public int MaximumObservedConcurrency => Volatile.Read(ref _maximumObservedConcurrency);
 
         public int GetReindexCalls(string path) => _reindexCalls.GetValueOrDefault(Path.GetFullPath(path));
 
         public IReadOnlyCollection<Note> GetNotesSnapshot() => _notes.Values.ToArray();
+
+        public void SetReady(bool ready) => IsReady = ready;
 
         public async Task ReindexAsync(string filePath, CancellationToken cancellationToken)
         {

@@ -70,7 +70,10 @@ public sealed class VaultIndexService : IDisposable
     public DateTimeOffset LastIndexed => _lastIndexed;
 
     /// <summary>Indicates if the index has completed its initial load.</summary>
-    public bool IsReady => _isReady;
+    public bool IsReady => Volatile.Read(ref _isReady);
+
+    /// <summary>Synchronizes readiness with the bounded indexing pipeline.</summary>
+    internal void SetReady(bool ready) => Volatile.Write(ref _isReady, ready);
 
     // Public API
 
@@ -96,7 +99,7 @@ public sealed class VaultIndexService : IDisposable
             await _embedding.InitializeAsync(_notesByPath.Values, cancellationToken);
         }
 
-        _isReady = true;
+        SetReady(true);
         _logger.Info("Index ready. {Count} notes indexed.", _indexedCount);
     }
 
@@ -412,7 +415,7 @@ public sealed class VaultIndexService : IDisposable
         _tagIndex.Clear();
         _backlinkIndex.Clear();
         _indexedCount = 0;
-        _isReady = false;
+        SetReady(false);
 
         await IndexVaultAsync(cancellationToken);
         if (_embedding is not null)
@@ -420,7 +423,7 @@ public sealed class VaultIndexService : IDisposable
             await _embedding.SaveAsync();
         }
 
-        _isReady = true;
+        SetReady(true);
         _logger.Info("Full re-indexing complete. {Count} notes.", _indexedCount);
     }
 

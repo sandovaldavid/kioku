@@ -91,7 +91,8 @@ internal static class KiokuTypedResultFilters
             filters.AddCallToolFilter(next => async (context, cancellationToken) =>
             {
                 var result = await next(context, cancellationToken);
-                if (!MigratedTools.Contains(context.Params.Name) || result.StructuredContent is not null)
+                if (!MigratedTools.Contains(context.Params.Name) ||
+                    result.StructuredContent is JsonElement { ValueKind: JsonValueKind.Object })
                 {
                     return result;
                 }
