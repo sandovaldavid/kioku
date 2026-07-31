@@ -197,6 +197,11 @@ internal static class KiokuTypedResultFilters
             return new(true, "CONFLICT", StripPrefix(normalized), null);
         }
 
+        if (normalized.StartsWith("[error:WRITE_CONFLICT]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(true, "WRITE_CONFLICT", StripPrefix(normalized), null);
+        }
+
         if (normalized.StartsWith("[error:ACCESS_DENIED]", StringComparison.OrdinalIgnoreCase))
         {
             return new(true, "ACCESS_DENIED", StripPrefix(normalized), null);

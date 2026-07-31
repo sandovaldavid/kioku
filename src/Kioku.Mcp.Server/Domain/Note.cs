@@ -31,4 +31,7 @@ public sealed class Note
 
     /// <summary>MD5 hash of the content — to detect changes without reading the full file.</summary>
     public required string ContentHash { get; init; }
+
+    /// <summary>SHA-256 revision token used for optimistic concurrency checks.</summary>
+    public string Revision => VaultRevision.Compute(RawContent);
 }

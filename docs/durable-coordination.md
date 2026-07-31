@@ -10,7 +10,8 @@ and fencing are implemented by issue
 capabilities remain incomplete.
 
 **Decision status:** Architecture boundary in progress; event persistence,
-claims, leases, and fencing are implemented.
+claims, leases, fencing, and the guarded vault-mutation boundary are
+implemented.
 
 The profile coordinates independent Kioku processes that share one vault on a
 supported local filesystem. It is not a distributed lock service, an
@@ -37,11 +38,14 @@ The profile has these boundaries:
   tool, environment variable, or capability group.
 - A caller can coordinate work only through the Kioku server. Direct edits to
   the vault remain outside the coordination guarantee.
+- A mutation can require an expected content revision or hash, a current claim
+  and fence generation, and an idempotency key. Empty preconditions preserve
+  the legacy write behavior.
 
 The following are explicit non-goals for this profile:
 
-- enforcing fencing on note mutations;
-- changing MCP tool schemas;
+- providing a distributed transaction across unrelated vault resources;
+- making direct filesystem edits participate in Kioku's coordination locks;
 - providing multi-tenant authorization;
 - synchronizing independent Git checkouts;
 - making cloud-sync folders safe for concurrent writers.
@@ -171,8 +175,10 @@ and a read scope never implies ownership of a work item or resource.
 
 Operational ownership is a concurrency property, not an authentication
 property. The server grants ownership through a current `claim_id`, its
-resource key, its lease, and its fence generation. A claim-scoped mutation
-must present the current values and the expected work-item version.
+resource key, its lease, and its fence generation. `VaultMutationService` can
+require those values, together with an expected content revision or hash,
+before it commits a write. It does not infer ownership from agent or client
+labels.
 
 The server uses `session_id` to associate an operation with a work context
 when one is supplied. It uses `agent` and `client_name` for audit output and
@@ -258,8 +264,9 @@ version and does not release another actor's claim.
 
 Claims provide operational ownership through the implemented
 `CoordinationClaimStore`. They do not protect a vault from an operating-system
-user or process that edits files without using Kioku, and they do not enforce
-fencing on note mutations until the CAS slice lands.
+user or process that edits files without using Kioku. `VaultMutationService`
+revalidates content and optional claim/fence preconditions while holding the
+canonical resource lock before committing a mutation.
 
 The following rules are normative:
 
@@ -308,6 +315,8 @@ recovery work. The names are vault-relative and remain subject to
           <work_item_id>.json
       leases/
         <resource_key_hash>.json
+      mutations/
+        <mutation_id_hash>.json
       quarantine/
       runtime/
 ```
@@ -323,6 +332,8 @@ Each area has one responsibility:
   snapshot never replaces the event history as the durable source of truth.
 - `leases/` contains rebuildable active-claim projections. The event history,
   current epoch, resource lock, and server-time check remain authoritative.
+- `mutations/` contains bounded idempotency records for committed retries. A
+  reused mutation ID with different operation inputs is rejected.
 - `quarantine/` preserves malformed or rejected machine records for explicit
   operator recovery. The server must not silently delete them.
 - `runtime/` contains ephemeral process coordination artifacts such as lock
@@ -356,6 +367,7 @@ cache into an authority by accident.
 | Note body and user frontmatter | Markdown note | Vault search and graph indexes |
 | Existing work-session history | Session Markdown and preserved frontmatter | Session lists and work-context views |
 | Coordination state and transition history | `.kioku/coordination/events/` | Work-item snapshots and lease projections |
+| Mutation retry identity | `.kioku/coordination/mutations/` | None |
 | Embeddings | None; embeddings are rebuildable | `.kioku/embeddings.bin` |
 | Active process locks | Operating-system lock state | Files under `coordination/runtime/` |
 
@@ -454,14 +466,15 @@ The compatibility rules are:
 The profile adds durable machine metadata and improves concurrency handling,
 but it does not expand Kioku's authentication boundary. Event persistence,
 claims, leases, and fencing are implemented in issues `#305` and `#306`.
-Compare-and-swap and public-tool controls remain **Planned** until their
-implementation issues land.
+The guarded vault-mutation boundary and precondition arguments on core
+single-resource write tools are implemented in issue `#307`. Batch tools still
+apply per-file mutations without one expected revision covering the batch.
 
 | Threat | Control | Residual risk |
 |---|---|---|
 | A crashed or abandoned owner keeps a claim | Server-time lease expiry, persisted `stale` state, and a new fence generation for the next attempt. | A process that edits files directly can bypass the claim. |
 | Two local Kioku processes race for one resource | Canonical resource keys, exclusive claim acquisition, state-version checks, and fencing. | The guarantee applies only inside the supported filesystem and server boundary. |
-| Obsidian manually edits or moves a protected note | Resource revalidation and compare-and-swap checks reject an unexpected version or path change instead of silently overwriting it. | Direct edits are not transactionally merged. A human or agent must resolve the conflict. |
+| Obsidian manually edits or moves a protected note | A supplied expected revision or hash rejects an unexpected version instead of silently overwriting it. | Direct edits are not transactionally merged, and callers that omit preconditions retain legacy unconditional-write behavior. |
 | A caller supplies a convincing owner or authority label | Server-derived capability scope and server-issued claim data; `agent`, `client_name`, and caller claims remain untrusted. | Same-user processes and configured server operators retain the authority of the existing local trust model. |
 | Control-plane data exposes private vault content | Event records contain identifiers, paths, labels, bounded reasons, and result references, not note bodies by default. The directory remains hidden from indexing. | The same operating-system account can read the vault and backups. Resource paths and labels can still be sensitive. |
 | A cloud replica replays old claims | The support boundary rejects concurrent replicated folders and restore establishes a new coordination epoch. | An operator can still misuse an unsupported replica and lose coordination guarantees. |
@@ -514,7 +527,7 @@ Each identifier is intended to become one or more deterministic test cases.
 - **I-17 Session compatibility:** Existing session notes remain readable and
   preserve unknown frontmatter fields after coordination links are added.
 - **I-18 Manual-edit safety:** An unexpected note version or path change
-  prevents a claim-protected overwrite and exposes a conflict for resolution.
+  prevents a preconditioned overwrite and exposes a conflict for resolution.
 
 ## Implementation gates
 
@@ -531,7 +544,7 @@ The planned sequence is:
 3. [#306](https://github.com/sandovaldavid/kioku/issues/306) implements claims,
    leases, expiry observation, and fencing.
 4. [#307](https://github.com/sandovaldavid/kioku/issues/307) implements
-   compare-and-swap note mutation and manual-edit conflict handling.
+   compare-and-swap vault mutation and manual-edit conflict handling.
 5. [#308](https://github.com/sandovaldavid/kioku/issues/308) adds the gated MCP
    surface without making caller metadata authoritative.
 6. [#309](https://github.com/sandovaldavid/kioku/issues/309) documents and tests

@@ -14,7 +14,8 @@ public sealed class ZettelkastenTools(
     HybridSearchService hybrid,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
-    ObsidianBridgeService bridge)
+    ObsidianBridgeService bridge,
+    IVaultMutationService? mutations = null)
 {
     // create_zettel
 
@@ -29,7 +30,13 @@ public sealed class ZettelkastenTools(
         [Description("Tags to add in the frontmatter (comma-separated). E.g. 'idea, philosophy'.")] string tags = "",
         [Description("Folder inside the vault to create the note in. Leave empty to use the configured default, or auto-detect via content similarity if no default is set.")] string folder = "",
         [Description("If true, automatically finds up to 5 semantically related notes and adds [[wikilinks]] to them.")] bool link_related = true,
-        [Description("Maximum number of related notes to link (default 5). Only used when link_related=true.")] int max_links = 5)
+        [Description("Maximum number of related notes to link (default 5). Only used when link_related=true.")] int max_links = 5,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -48,7 +55,14 @@ public sealed class ZettelkastenTools(
 
         var noteName = $"{targetFolder.TrimEnd('/')}/{zettelId}";
         var filePath = BuildFilePath(noteName);
-        if (File.Exists(filePath))
+        var preconditions = VaultMutationPreconditions.FromToolArguments(
+            expected_revision,
+            expected_hash,
+            claim_id,
+            fence_generation,
+            resource_key,
+            mutation_id);
+        if (File.Exists(filePath) && string.IsNullOrWhiteSpace(preconditions.MutationId))
         {
             return $"[error] A note with ID '{zettelId}' already exists. Wait one second and retry.";
         }
@@ -87,9 +101,18 @@ public sealed class ZettelkastenTools(
             updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
         var fullContent = frontmatter + "\n" + body;
 
-        var dir = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, NoteHelpers.Utf8NoBom);
+        try
+        {
+            await WriteNoteAsync(
+                filePath,
+                fullContent,
+                requireAbsent: true,
+                preconditions);
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
@@ -133,7 +156,13 @@ public sealed class ZettelkastenTools(
     public async Task<string> create_moc(
         [Description("Vault-relative folder path to generate the MOC for (e.g. 'Projects', 'Areas/Work').")] string folder,
         [Description("Name of the output MOC note (without extension). Default: '<folder>-MOC'.")] string output_name = "",
-        [Description("Folder to save the MOC note. Defaults to the same folder being mapped.")] string output_folder = "")
+        [Description("Folder to save the MOC note. Defaults to the same folder being mapped.")] string output_folder = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the output note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -180,9 +209,24 @@ public sealed class ZettelkastenTools(
             updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
         var fullContent = frontmatter + "\n" + body;
 
-        var dir = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, NoteHelpers.Utf8NoBom);
+        try
+        {
+            await WriteNoteAsync(
+                filePath,
+                fullContent,
+                requireAbsent: false,
+                VaultMutationPreconditions.FromToolArguments(
+                    expected_revision,
+                    expected_hash,
+                    claim_id,
+                    fence_generation,
+                    resource_key,
+                    mutation_id));
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
@@ -201,7 +245,13 @@ public sealed class ZettelkastenTools(
         "Overwrites any existing note with the same name in that folder. " +
         "Only supports folders up to level 2 depth (e.g. 'Projects' or 'Areas/Work').")]
     public async Task<string> create_folder_readme(
-        [Description("Vault-relative folder path (max level 2, e.g. 'Projects' or 'Areas/Work').")] string folder)
+        [Description("Vault-relative folder path (max level 2, e.g. 'Projects' or 'Areas/Work').")] string folder,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the output note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -241,9 +291,24 @@ public sealed class ZettelkastenTools(
                 ["kioku_source_folder"] = $"\"{folder}\"",
             },
             updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
-        var dir = Path.GetDirectoryName(folderNotePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(folderNotePath, frontmatter + "\n" + sb, NoteHelpers.Utf8NoBom);
+        try
+        {
+            await WriteNoteAsync(
+                folderNotePath,
+                frontmatter + "\n" + sb,
+                requireAbsent: false,
+                VaultMutationPreconditions.FromToolArguments(
+                    expected_revision,
+                    expected_hash,
+                    claim_id,
+                    fence_generation,
+                    resource_key,
+                    mutation_id));
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
         await vault.SynchronizeFileReindexAsync(folderNotePath);
 
         var relPath = Path.GetRelativePath(config.VaultPath, folderNotePath).Replace('\\', '/');
@@ -263,7 +328,13 @@ public sealed class ZettelkastenTools(
         [Description("Source or URL (e.g. 'https://...', 'ISBN 978-...').")] string source = "",
         [Description("Brief summary or key insight from the work.")] string summary = "",
         [Description("Tags to add in frontmatter (comma-separated). 'literature' is always included.")] string tags = "",
-        [Description("Folder to save the note in. Default: 'Literature'.")] string folder = "Literature")
+        [Description("Folder to save the note in. Default: 'Literature'.")] string folder = "Literature",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -274,7 +345,14 @@ public sealed class ZettelkastenTools(
         var noteName = $"{folder.TrimEnd('/')}/{year}-{safeTitle}";
         var filePath = BuildFilePath(noteName);
 
-        if (File.Exists(filePath))
+        var preconditions = VaultMutationPreconditions.FromToolArguments(
+            expected_revision,
+            expected_hash,
+            claim_id,
+            fence_generation,
+            resource_key,
+            mutation_id);
+        if (File.Exists(filePath) && string.IsNullOrWhiteSpace(preconditions.MutationId))
         {
             var relExisting = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
             return $"[error] Literature note already exists: {relExisting}";
@@ -306,9 +384,18 @@ public sealed class ZettelkastenTools(
             updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
         var fullContent = frontmatter + "\n" + body;
 
-        var dir = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, NoteHelpers.Utf8NoBom);
+        try
+        {
+            await WriteNoteAsync(
+                filePath,
+                fullContent,
+                requireAbsent: true,
+                preconditions);
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
@@ -496,13 +583,41 @@ public sealed class ZettelkastenTools(
 
             updatedContent = NoteHelpers.TouchUpdated(
                 updatedContent, DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
-            await File.WriteAllTextAsync(index.FilePath, updatedContent, NoteHelpers.Utf8NoBom);
-            await vault.SynchronizeFileReindexAsync(index.FilePath);
+            await WriteNoteAsync(index.FilePath, updatedContent, requireAbsent: false, preconditions: null);
         }
     }
 
     private static string NormalizeFolder(string folder) =>
         folder.Trim().Trim('/').Replace('\\', '/');
+
+    private async Task WriteNoteAsync(
+        string path,
+        string content,
+        bool requireAbsent,
+        VaultMutationPreconditions? preconditions)
+    {
+        if (mutations is null)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(path, content, NoteHelpers.Utf8NoBom);
+            await vault.SynchronizeFileReindexAsync(path);
+            return;
+        }
+
+        if (requireAbsent)
+        {
+            await mutations.CreateTextAsync(path, content, preconditions);
+        }
+        else
+        {
+            await mutations.WriteTextAsync(path, content, preconditions);
+        }
+    }
 
     private static bool IsSameOrDescendant(string path, string parent) =>
         path.Equals(parent, StringComparison.OrdinalIgnoreCase) ||

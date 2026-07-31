@@ -18,12 +18,14 @@ public sealed partial class NoteCommandTools(
     VaultConfigService vaultConfig,
     ZettelkastenTools? zettelkasten = null,
     MetricsService? metrics = null,
-    VaultPathPolicy? pathPolicy = null)
+    VaultPathPolicy? pathPolicy = null,
+    IVaultMutationService? mutations = null)
 {
     private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
 
     private static readonly UTF8Encoding Utf8NoBom = NoteHelpers.Utf8NoBom;
     private readonly VaultPathPolicy _paths = pathPolicy ?? new VaultPathPolicy(config);
+    private readonly IVaultMutationService? _mutations = mutations;
 
     // Serializes trash destination-name allocation per vault. The soft-delete path computes a
     // unique name in .trash and then moves the file; without a lock two concurrent delete_note
@@ -67,14 +69,23 @@ public sealed partial class NoteCommandTools(
         [Description("For kind='zettel', automatically add related wikilinks.")] bool link_related = true,
         [Description("For kind='zettel', maximum related notes to link.")] int max_links = 5,
         [Description("For kind='moc', optional output filename without extension.")] string output_name = "",
-        [Description("For kind='moc', optional output folder.")] string output_folder = "")
+        [Description("For kind='moc', optional output folder.")] string output_folder = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         Count(nameof(create_note), metrics);
+        var preconditions = CreatePreconditions(
+            expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id);
 
         switch (kind.Trim().ToLowerInvariant())
         {
             case "note":
-                return await CreateRegularNoteAsync(name, content, tags, type, status, folder, template);
+                return await CreateRegularNoteAsync(
+                    name, content, tags, type, status, folder, template, preconditions);
 
             case "zettel":
                 if (zettelkasten is null)
@@ -93,7 +104,13 @@ public sealed partial class NoteCommandTools(
                 }
 
                 return await zettelkasten.create_zettel(
-                    name, content, tags, folder, link_related, max_links);
+                    name, content, tags, folder, link_related, max_links,
+                    preconditions.ExpectedRevision ?? string.Empty,
+                    preconditions.ExpectedHash ?? string.Empty,
+                    preconditions.ClaimId ?? string.Empty,
+                    preconditions.FenceGeneration ?? 0,
+                    preconditions.ResourceKey ?? string.Empty,
+                    preconditions.MutationId ?? string.Empty);
 
             case "literature":
                 if (zettelkasten is null)
@@ -108,7 +125,13 @@ public sealed partial class NoteCommandTools(
 
                 return await zettelkasten.create_literature_note(
                     name, author, year, source, summary, tags,
-                    string.IsNullOrWhiteSpace(folder) ? "Literature" : folder);
+                    string.IsNullOrWhiteSpace(folder) ? "Literature" : folder,
+                    preconditions.ExpectedRevision ?? string.Empty,
+                    preconditions.ExpectedHash ?? string.Empty,
+                    preconditions.ClaimId ?? string.Empty,
+                    preconditions.FenceGeneration ?? 0,
+                    preconditions.ResourceKey ?? string.Empty,
+                    preconditions.MutationId ?? string.Empty);
 
             case "moc":
                 if (zettelkasten is null)
@@ -124,7 +147,13 @@ public sealed partial class NoteCommandTools(
                 return await zettelkasten.create_moc(
                     folder,
                     string.IsNullOrWhiteSpace(output_name) ? name : output_name,
-                    output_folder);
+                    output_folder,
+                    preconditions.ExpectedRevision ?? string.Empty,
+                    preconditions.ExpectedHash ?? string.Empty,
+                    preconditions.ClaimId ?? string.Empty,
+                    preconditions.FenceGeneration ?? 0,
+                    preconditions.ResourceKey ?? string.Empty,
+                    preconditions.MutationId ?? string.Empty);
 
             case "folder-readme":
                 if (zettelkasten is null)
@@ -137,7 +166,14 @@ public sealed partial class NoteCommandTools(
                     return KiokuError.InvalidArgument("kind='folder-readme' requires folder.");
                 }
 
-                return await zettelkasten.create_folder_readme(folder);
+                return await zettelkasten.create_folder_readme(
+                    folder,
+                    preconditions.ExpectedRevision ?? string.Empty,
+                    preconditions.ExpectedHash ?? string.Empty,
+                    preconditions.ClaimId ?? string.Empty,
+                    preconditions.FenceGeneration ?? 0,
+                    preconditions.ResourceKey ?? string.Empty,
+                    preconditions.MutationId ?? string.Empty);
 
             default:
                 return KiokuError.InvalidArgument(
@@ -152,7 +188,8 @@ public sealed partial class NoteCommandTools(
         string type,
         string status,
         string folder,
-        string template)
+        string template,
+        VaultMutationPreconditions preconditions)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -163,7 +200,7 @@ public sealed partial class NoteCommandTools(
             ? name
             : $"{folder.TrimEnd('/', '\\')}/{name.TrimStart('/', '\\')}";
         var filePath = BuildFilePath(noteName);
-        if (File.Exists(filePath))
+        if (File.Exists(filePath) && string.IsNullOrWhiteSpace(preconditions.MutationId))
         {
             return KiokuError.InvalidArgument($"Note already exists: '{noteName}'. Use edit_note to modify it.");
         }
@@ -208,9 +245,25 @@ public sealed partial class NoteCommandTools(
             tagList, noteType, noteStatus, DateOnly.FromDateTime(DateTime.Today), domain: domain,
             updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
         var directory = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(directory);
-        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Utf8NoBom);
-        await vault.SynchronizeFileReindexAsync(filePath);
+        try
+        {
+            if (_mutations is not null)
+            {
+                await _mutations.CreateTextAsync(
+                    filePath, frontmatter + "\n" + body, preconditions);
+            }
+            else
+            {
+                Directory.CreateDirectory(directory);
+                await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Utf8NoBom);
+                await vault.SynchronizeFileReindexAsync(filePath);
+            }
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
+
         await RefreshGeneratedIndexesAsync(targetFolder);
 
         var relativePath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
@@ -227,9 +280,17 @@ public sealed partial class NoteCommandTools(
         [Description("Name or path of the note.")] string note,
         [Description("The content to write (in Markdown).")] string content,
         [Description("'replace' (default), 'append', or 'prepend'.")] string mode = "replace",
-        [Description("Append mode only: adds a horizontal separator (---) before the new content.")] bool add_separator = false)
+        [Description("Append mode only: adds a horizontal separator (---) before the new content.")] bool add_separator = false,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         Count(nameof(edit_note), metrics);
+        var preconditions = CreatePreconditions(
+            expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -245,8 +306,14 @@ public sealed partial class NoteCommandTools(
                     var frontmatter = rawContent[..bodyStart];
                     var updatedContent = NoteHelpers.TouchUpdated(
                         frontmatter + content, DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
-                    await File.WriteAllTextAsync(found.FilePath, updatedContent, Utf8NoBom);
-                    await vault.SynchronizeFileReindexAsync(found.FilePath);
+                    try
+                    {
+                        await WriteNoteTextAsync(found.FilePath, updatedContent, preconditions);
+                    }
+                    catch (VaultMutationException exception)
+                    {
+                        return exception.ToToolError();
+                    }
                     await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
                     return $"[ok] Content updated in '{found.Name}'";
                 }
@@ -260,8 +327,14 @@ public sealed partial class NoteCommandTools(
                     var newContent = NoteHelpers.TouchUpdated(
                         frontmatter + content.Replace("\\n", "\n") + "\n" + body,
                         DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
-                    await File.WriteAllTextAsync(found.FilePath, newContent, Utf8NoBom);
-                    await vault.SynchronizeFileReindexAsync(found.FilePath);
+                    try
+                    {
+                        await WriteNoteTextAsync(found.FilePath, newContent, preconditions);
+                    }
+                    catch (VaultMutationException exception)
+                    {
+                        return exception.ToToolError();
+                    }
                     await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
                     return $"[ok] Content prepended to the start of '{found.Name}'";
                 }
@@ -278,8 +351,14 @@ public sealed partial class NoteCommandTools(
                     var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
                     var updatedContent = NoteHelpers.TouchUpdated(
                         rawContent + toAppend.ToString(), DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
-                    await File.WriteAllTextAsync(found.FilePath, updatedContent, Utf8NoBom);
-                    await vault.SynchronizeFileReindexAsync(found.FilePath);
+                    try
+                    {
+                        await WriteNoteTextAsync(found.FilePath, updatedContent, preconditions);
+                    }
+                    catch (VaultMutationException exception)
+                    {
+                        return exception.ToToolError();
+                    }
                     await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
                     return $"[ok] Content appended to '{found.Name}' ({content.Length} characters)";
                 }
@@ -302,9 +381,17 @@ public sealed partial class NoteCommandTools(
         [Description("New note type. Leave empty to not modify.")] string type = "",
         [Description("If true, removes all tags regardless of the 'tags' argument.")] bool clear_tags = false,
         [Description("Tag(s) to add to the existing set (comma-separated).")] string add_tags = "",
-        [Description("Tag(s) to remove from the existing set (comma-separated).")] string remove_tags = "")
+        [Description("Tag(s) to remove from the existing set (comma-separated).")] string remove_tags = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         Count(nameof(update_frontmatter), metrics);
+        var preconditions = CreatePreconditions(
+            expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -353,8 +440,15 @@ public sealed partial class NoteCommandTools(
         var newContent = NoteHelpers.TouchUpdated(
             frontmatter + body, DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
 
-        await File.WriteAllTextAsync(found.FilePath, newContent, Utf8NoBom);
-        await vault.SynchronizeFileReindexAsync(found.FilePath);
+        try
+        {
+            await WriteNoteTextAsync(found.FilePath, newContent, preconditions);
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
+
         await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
         return $"[ok] Frontmatter updated in '{found.Name}'";
     }
@@ -372,9 +466,17 @@ public sealed partial class NoteCommandTools(
         [Description("Destination folder (relative to the vault). E.g. 'Archive/2024'. Empty = keep folder.")] string destination_folder = "",
         [Description("New name (without .md, may include subfolders). Empty = keep name.")] string new_name = "",
         [Description("If true (default), rewrites inbound wikilinks to the note's new location.")] bool update_links = true,
-        [Description("If true, previews the change without modifying any file.")] bool dry_run = false)
+        [Description("If true, previews the change without modifying any file.")] bool dry_run = false,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         Count(nameof(move_note), metrics);
+        var preconditions = CreatePreconditions(
+            expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -433,19 +535,37 @@ public sealed partial class NoteCommandTools(
             return FormatDryRunResult(action, found.VaultRelativePath, newRelativePath, update_links, linkSummary);
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
         var oldPath = found.FilePath;
-        File.Move(oldPath, destPath);
+        string? replacementContent = null;
         if (vaultConfig.MaintainUpdated)
         {
-            var movedContent = await File.ReadAllTextAsync(destPath, Encoding.UTF8);
-            await File.WriteAllTextAsync(
-                destPath,
-                NoteHelpers.TouchUpdated(movedContent, DateOnly.FromDateTime(DateTime.Today), true),
-                Utf8NoBom);
+            var movedContent = await File.ReadAllTextAsync(oldPath, Encoding.UTF8);
+            replacementContent = NoteHelpers.TouchUpdated(
+                movedContent, DateOnly.FromDateTime(DateTime.Today), true);
         }
 
-        await vault.SynchronizeFileMoveAsync(oldPath, destPath);
+        try
+        {
+            if (_mutations is not null)
+            {
+                await _mutations.MoveAsync(oldPath, destPath, replacementContent, preconditions);
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+                File.Move(oldPath, destPath);
+                if (replacementContent is not null)
+                {
+                    await File.WriteAllTextAsync(destPath, replacementContent, Utf8NoBom);
+                }
+
+                await vault.SynchronizeFileMoveAsync(oldPath, destPath);
+            }
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         if (update_links && linkSummary.LinksUpdated > 0)
         {
@@ -469,9 +589,17 @@ public sealed partial class NoteCommandTools(
     public async Task<string> delete_note(
         [Description("Name or path of the note to delete.")] string note,
         [Description("If true, only reports what would be deleted without modifying the vault.")] bool dry_run = false,
-        [Description("If true, deletes permanently instead of moving to trash. Default: false (soft delete).")] bool permanent = false)
+        [Description("If true, deletes permanently instead of moving to trash. Default: false (soft delete).")] bool permanent = false,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         Count(nameof(delete_note), metrics);
+        var preconditions = CreatePreconditions(
+            expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id);
         var found = ResolveNote(note);
         if (found is null)
         {
@@ -504,8 +632,23 @@ public sealed partial class NoteCommandTools(
         if (permanent)
         {
             // Permanent delete
-            File.Delete(filePath);
-            vault.SynchronizeFileDelete(filePath);
+            try
+            {
+                if (_mutations is not null)
+                {
+                    await _mutations.DeleteAsync(filePath, preconditions);
+                }
+                else
+                {
+                    File.Delete(filePath);
+                    vault.SynchronizeFileDelete(filePath);
+                }
+            }
+            catch (VaultMutationException exception)
+            {
+                return exception.ToToolError();
+            }
+
             await RefreshGeneratedIndexesAsync(Path.GetDirectoryName(found.VaultRelativePath));
             return $"[ok] Note permanently deleted: {found.VaultRelativePath}";
         }
@@ -543,8 +686,24 @@ public sealed partial class NoteCommandTools(
                 // overwrite: false so a name collision fails loudly instead of losing a note,
                 // even if some future caller reaches this move without holding the lock.
                 var move = _paths.ResolveVaultMove(filePath, trashPath);
-                File.Move(move.Source, move.Destination, overwrite: false);
-                trashPath = move.Destination;
+                try
+                {
+                    if (_mutations is not null)
+                    {
+                        await _mutations.MoveAsync(
+                            move.Source, move.Destination, preconditions: preconditions);
+                    }
+                    else
+                    {
+                        File.Move(move.Source, move.Destination, overwrite: false);
+                    }
+
+                    trashPath = move.Destination;
+                }
+                catch (VaultMutationException exception)
+                {
+                    return exception.ToToolError();
+                }
             }
 
             vault.SynchronizeFileDelete(filePath);
@@ -569,9 +728,17 @@ public sealed partial class NoteCommandTools(
         [Description("Restore only: if true, reports what would be restored without moving the file.")] bool dry_run = false,
         [Description("List only: case-insensitive relative-path prefix filter.")] string prefix = "",
         [Description("List only: maximum entries to return (default: 50).")] int limit = 50,
-        [Description("List only: number of matching entries to skip.")] int offset = 0)
+        [Description("List only: number of matching entries to skip.")] int offset = 0,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the trash path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         Count(nameof(manage_trash), metrics);
+        var preconditions = CreatePreconditions(
+            expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id);
         switch (action.ToLowerInvariant())
         {
             case "list":
@@ -674,15 +841,31 @@ public sealed partial class NoteCommandTools(
                         return $"[info] Would restore: {srcRel} → {dstRel}";
                     }
 
-                    var destDir = Path.GetDirectoryName(destPath)!;
-                    if (!string.IsNullOrEmpty(destDir))
+                    var restore = _paths.ResolveVaultMove(sourcePath, destPath);
+                    try
                     {
-                        Directory.CreateDirectory(destDir);
+                        if (_mutations is not null)
+                        {
+                            await _mutations.MoveAsync(
+                                restore.Source, restore.Destination, preconditions: preconditions);
+                        }
+                        else
+                        {
+                            var destDir = Path.GetDirectoryName(destPath)!;
+                            if (!string.IsNullOrEmpty(destDir))
+                            {
+                                Directory.CreateDirectory(destDir);
+                            }
+
+                            File.Move(restore.Source, restore.Destination);
+                            await vault.SynchronizeFileReindexAsync(destPath);
+                        }
+                    }
+                    catch (VaultMutationException exception)
+                    {
+                        return exception.ToToolError();
                     }
 
-                    var restore = _paths.ResolveVaultMove(sourcePath, destPath);
-                    File.Move(restore.Source, restore.Destination);
-                    await vault.SynchronizeFileReindexAsync(destPath);
                     return $"[ok] Note restored to: {Path.GetRelativePath(config.VaultPath, destPath)}";
                 }
 
@@ -753,6 +936,38 @@ public sealed partial class NoteCommandTools(
             folders.Where(f => !string.IsNullOrWhiteSpace(f)).Select(f => f!));
     }
 
+    private async Task WriteNoteTextAsync(
+        string filePath,
+        string content,
+        VaultMutationPreconditions preconditions)
+    {
+        if (_mutations is not null)
+        {
+            await _mutations.WriteTextAsync(filePath, content, preconditions);
+            return;
+        }
+
+        await File.WriteAllTextAsync(filePath, content, Utf8NoBom);
+        await vault.SynchronizeFileReindexAsync(filePath);
+    }
+
+    private static VaultMutationPreconditions CreatePreconditions(
+        string expectedRevision,
+        string expectedHash,
+        string claimId,
+        long fenceGeneration,
+        string resourceKey,
+        string mutationId) =>
+        new()
+        {
+            ExpectedRevision = string.IsNullOrWhiteSpace(expectedRevision) ? null : expectedRevision,
+            ExpectedHash = string.IsNullOrWhiteSpace(expectedHash) ? null : expectedHash,
+            ClaimId = string.IsNullOrWhiteSpace(claimId) ? null : claimId,
+            FenceGeneration = fenceGeneration > 0 ? fenceGeneration : null,
+            ResourceKey = string.IsNullOrWhiteSpace(resourceKey) ? null : resourceKey,
+            MutationId = string.IsNullOrWhiteSpace(mutationId) ? null : mutationId,
+        };
+
     private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
 
     private static string BuildFrontmatter(
@@ -820,8 +1035,10 @@ public sealed partial class NoteCommandTools(
             {
                 var contentToWrite = NoteHelpers.TouchUpdated(
                     result.NewContent, DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
-                await File.WriteAllTextAsync(source.FilePath, contentToWrite, Utf8NoBom);
-                await vault.SynchronizeFileReindexAsync(source.FilePath);
+                await WriteNoteTextAsync(
+                    source.FilePath,
+                    contentToWrite,
+                    new VaultMutationPreconditions());
             }
         }
 

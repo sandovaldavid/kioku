@@ -525,6 +525,13 @@ public sealed class CoordinationEventStoreTests : IDisposable
 
         public bool DirectoryExists(string path) => _inner.DirectoryExists(path);
 
+        public void CreateDirectory(string path) => _inner.CreateDirectory(path);
+
+        public void DeleteFile(string path) => _inner.DeleteFile(path);
+
+        public void MoveFile(string sourcePath, string destinationPath, bool overwrite) =>
+            _inner.MoveFile(sourcePath, destinationPath, overwrite);
+
         public Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken) =>
             _inner.ReadAllTextAsync(path, cancellationToken);
 

@@ -71,7 +71,9 @@ public static class TemplaterFolderTemplates
     /// every folder already had a mapping).
     /// </summary>
     public static async Task<int> RegisterFolderTemplatesAsync(
-        string vaultPath, IReadOnlyList<(string Folder, string Template)> entries)
+        string vaultPath,
+        IReadOnlyList<(string Folder, string Template)> entries,
+        IVaultMutationService? mutations = null)
     {
         var path = SettingsPath(vaultPath);
         if (!File.Exists(path))
@@ -124,10 +126,15 @@ public static class TemplaterFolderTemplates
         obj["folder_templates"] = arr;
         obj["enable_folder_templates"] = true;
 
-        await File.WriteAllTextAsync(
-            path,
-            obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
-            Utf8NoBom);
+        var content = obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(path, content, Utf8NoBom);
+        }
+        else
+        {
+            await mutations.WriteTextAsync(path, content);
+        }
 
         return added;
     }

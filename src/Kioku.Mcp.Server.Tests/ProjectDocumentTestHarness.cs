@@ -50,38 +50,54 @@ internal sealed class ProjectDocumentTestHarness
         string content = "",
         string description = "",
         CancellationToken cancellationToken = default) =>
-        _documents.CreateProjectDocAsync(
-            doc_type, project, title, status, tags, context, decision, consequences, alternatives,
-            symptom, root_cause, fix, related_files, objective, steps, ticket, content, description,
-            cancellationToken);
+         _documents.CreateProjectDocAsync(
+             doc_type, project, title, status, tags, context, decision, consequences, alternatives,
+             symptom, root_cause, fix, related_files, objective, steps, ticket, content, description,
+             preconditions: null,
+             cancellationToken: cancellationToken);
 
     public Task<string> record_adr(
         string project, string title, string context, string decision, string consequences,
         string alternatives = "", string status = "accepted", string tags = "",
         CancellationToken cancellationToken = default) =>
-        _documents.RecordAdrAsync(project, title, context, decision, consequences, alternatives, status, tags, cancellationToken);
+        _documents.RecordAdrAsync(
+            project, title, context, decision, consequences, alternatives, status, tags,
+            preconditions: null,
+            cancellationToken: cancellationToken);
 
     public Task<string> log_bug(
         string project, string title, string symptom, string root_cause, string fix,
         string status = "fixed", string related_files = "", string tags = "",
         CancellationToken cancellationToken = default) =>
-        _documents.LogBugAsync(project, title, symptom, root_cause, fix, status, related_files, tags, cancellationToken);
+        _documents.LogBugAsync(
+            project, title, symptom, root_cause, fix, status, related_files, tags,
+            preconditions: null,
+            cancellationToken: cancellationToken);
 
     public Task<string> create_plan(
         string project, string title, string objective, string steps,
         string status = "draft", string ticket = "", string tags = "",
         CancellationToken cancellationToken = default) =>
-        _documents.CreatePlanAsync(project, title, objective, steps, status, ticket, tags, cancellationToken);
+        _documents.CreatePlanAsync(
+            project, title, objective, steps, status, ticket, tags,
+            preconditions: null,
+            cancellationToken: cancellationToken);
 
     public Task<string> add_knowledge(
         string title, string content, string project = "", string tags = "",
         CancellationToken cancellationToken = default) =>
-        _documents.AddKnowledgeAsync(title, content, project, tags, cancellationToken);
+        _documents.AddKnowledgeAsync(
+            title, content, project, tags,
+            preconditions: null,
+            cancellationToken: cancellationToken);
 
     public Task<string> add_backlog_item(
         string project, string title, string description, string tags = "",
         CancellationToken cancellationToken = default) =>
-        _documents.AddBacklogItemAsync(project, title, description, tags, cancellationToken);
+        _documents.AddBacklogItemAsync(
+            project, title, description, tags,
+            preconditions: null,
+            cancellationToken: cancellationToken);
 
     public Task<string> get_project_context(
         string project, bool include_content = false, string types = "", int limit = 20,
@@ -101,7 +117,12 @@ internal sealed class ProjectDocumentTestHarness
     public Task<string> set_engineering_template(
         string type_key, string content = "", bool reset_to_default = false,
         CancellationToken cancellationToken = default) =>
-        _documents.SetEngineeringTemplateAsync(type_key, content, reset_to_default, cancellationToken);
+        _documents.SetEngineeringTemplateAsync(
+            type_key,
+            content,
+            reset_to_default,
+            preconditions: null,
+            cancellationToken: cancellationToken);
 
     public Task<string> setup_agent_workflow(
         string project = "", bool write_templates = true, bool patch_config = true,

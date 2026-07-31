@@ -155,7 +155,13 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
     public async Task<string> set_task_state(
         [Description("Name or path of the note containing the task.")] string note,
         [Description("1-based line number of the task within the note.")] int line_number,
-        [Description("True to mark the task complete ('- [x]'); false to reopen it ('- [ ]').")] bool completed)
+        [Description("True to mark the task complete ('- [x]'); false to reopen it ('- [ ]').")] bool completed,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         var found = ResolveNote(note);
         if (found is null)
@@ -163,7 +169,17 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
             return KiokuError.NotFound($"Note not found: '{note}'.");
         }
 
-        var result = await tasks.SetTaskCompletionAsync(found.FilePath, line_number, completed);
+        var result = await tasks.SetTaskCompletionAsync(
+            found.FilePath,
+            line_number,
+            completed,
+            VaultMutationPreconditions.FromToolArguments(
+                expected_revision,
+                expected_hash,
+                claim_id,
+                fence_generation,
+                resource_key,
+                mutation_id));
 
         if (result is null)
         {

@@ -1,4 +1,5 @@
 using System.Text;
+using Kioku.Mcp.Server.Domain;
 
 namespace Kioku.Mcp.Server.Services;
 
@@ -45,6 +46,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
     private readonly ProjectWorkspaceService _workspace;
     private readonly ObsidianBridgeService _bridge;
     private readonly IProjectDocumentFileSystem _fileSystem;
+    private readonly IVaultMutationService? _mutations;
 
     public ProjectDocumentService(
         VaultIndexService vault,
@@ -52,7 +54,8 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         VaultConfigService vaultConfig,
         ProjectWorkspaceService workspace,
         ObsidianBridgeService bridge,
-        IProjectDocumentFileSystem fileSystem)
+        IProjectDocumentFileSystem fileSystem,
+        IVaultMutationService? mutations = null)
     {
         _vault = vault;
         _config = config;
@@ -60,6 +63,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         _workspace = workspace;
         _bridge = bridge;
         _fileSystem = fileSystem;
+        _mutations = mutations;
     }
 
     public async Task<string> CreateProjectDocAsync(
@@ -81,6 +85,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         string ticket,
         string content,
         string description,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -118,13 +123,14 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
 
             if (string.IsNullOrWhiteSpace(project))
             {
-                return await CreateGeneralKnowledgeAsync(title, content, tags, cancellationToken);
+                return await CreateGeneralKnowledgeAsync(title, content, tags, preconditions, cancellationToken);
             }
 
             return await CreateDocAsync(
                 project, "knowledge", NoteHelpers.SanitizeFileName(title), "knowledge", "active", "knowledge", tags,
                 "knowledge", title, new Dictionary<string, string> { ["content"] = content },
-                cancellationToken: cancellationToken);
+                 preconditions: preconditions,
+                 cancellationToken: cancellationToken);
         }
 
         if (normalizedType == "adr")
@@ -149,7 +155,8 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                     ["alternatives"] = string.IsNullOrWhiteSpace(alternatives) ? "_(none recorded)_" : alternatives,
                 },
                 new Dictionary<string, string> { ["adr"] = $"\"{number:D4}\"" }, [$"ADR-{number:D4}"],
-                cancellationToken);
+                 preconditions: preconditions,
+                 cancellationToken: cancellationToken);
         }
 
         if (normalizedType == "bug")
@@ -167,7 +174,8 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                     ["fix"] = fix,
                     ["related_files"] = relatedList,
                 },
-                cancellationToken: cancellationToken);
+                 preconditions: preconditions,
+                 cancellationToken: cancellationToken);
         }
 
         if (normalizedType == "plan")
@@ -182,12 +190,14 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                     ["ticket"] = string.IsNullOrWhiteSpace(ticket) ? "_(none)_" : $"[[{ticket}]]",
                 },
                 string.IsNullOrWhiteSpace(ticket) ? null : new Dictionary<string, string> { ["ticket"] = $"\"[[{ticket}]]\"" },
-                cancellationToken: cancellationToken);
+                 preconditions: preconditions,
+                 cancellationToken: cancellationToken);
         }
 
         return await CreateDocAsync(
             project, "backlog", NoteHelpers.SanitizeFileName(title), "idea", effectiveStatus,
             "idea", tags, "idea", title, new Dictionary<string, string> { ["description"] = description },
+            preconditions: preconditions,
             cancellationToken: cancellationToken);
     }
 
@@ -200,11 +210,12 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         string alternatives,
         string status,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
         CreateProjectDocAsync(
             "adr", project, title, status, tags, context, decision, consequences, alternatives,
             symptom: "", rootCause: "", fix: "", relatedFiles: "", objective: "", steps: "", ticket: "",
-            content: "", description: "", cancellationToken: cancellationToken);
+             content: "", description: "", preconditions: preconditions, cancellationToken: cancellationToken);
 
     public Task<string> LogBugAsync(
         string project,
@@ -215,13 +226,14 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         string status,
         string relatedFiles,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
         CreateProjectDocAsync(
             "bug", project, title, status, tags,
             context: "", decision: "", consequences: "", alternatives: "",
             symptom: symptom, rootCause: rootCause, fix: fix, relatedFiles: relatedFiles,
-            objective: "", steps: "", ticket: "", content: "", description: "",
-            cancellationToken: cancellationToken);
+             objective: "", steps: "", ticket: "", content: "", description: "",
+             preconditions: preconditions, cancellationToken: cancellationToken);
 
     public Task<string> CreatePlanAsync(
         string project,
@@ -231,39 +243,42 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         string status,
         string ticket,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
         CreateProjectDocAsync(
             "plan", project, title, status, tags,
             context: "", decision: "", consequences: "", alternatives: "",
             symptom: "", rootCause: "", fix: "", relatedFiles: "",
-            objective: objective, steps: steps, ticket: ticket, content: "", description: "",
-            cancellationToken: cancellationToken);
+             objective: objective, steps: steps, ticket: ticket, content: "", description: "",
+             preconditions: preconditions, cancellationToken: cancellationToken);
 
     public Task<string> AddKnowledgeAsync(
         string title,
         string content,
         string project,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
         CreateProjectDocAsync(
             "knowledge", project: project, title: title, status: "", tags: tags,
             context: "", decision: "", consequences: "", alternatives: "",
             symptom: "", rootCause: "", fix: "", relatedFiles: "",
-            objective: "", steps: "", ticket: "", content: content, description: "",
-            cancellationToken: cancellationToken);
+             objective: "", steps: "", ticket: "", content: content, description: "",
+             preconditions: preconditions, cancellationToken: cancellationToken);
 
     public Task<string> AddBacklogItemAsync(
         string project,
         string title,
         string description,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
         CreateProjectDocAsync(
             "backlog", project: project, title: title, status: "", tags: tags,
             context: "", decision: "", consequences: "", alternatives: "",
             symptom: "", rootCause: "", fix: "", relatedFiles: "",
-            objective: "", steps: "", ticket: "", content: "", description: description,
-            cancellationToken: cancellationToken);
+             objective: "", steps: "", ticket: "", content: "", description: description,
+             preconditions: preconditions, cancellationToken: cancellationToken);
 
     public async Task<string> GetProjectContextAsync(
         string project,
@@ -496,6 +511,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         string typeKey,
         string content,
         bool resetToDefault,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -509,7 +525,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
             var existing = _workspace.GetVaultTemplatePath(typeKey);
             if (existing is not null && _fileSystem.FileExists(existing))
             {
-                _fileSystem.DeleteFile(existing);
+                await DeleteFileAsync(existing, preconditions, cancellationToken);
                 return $"[ok] Reverted '{typeKey}' to the embedded default (removed {_workspace.ToVaultRelative(existing)}).";
             }
 
@@ -525,7 +541,12 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         _fileSystem.CreateDirectory(targetDir);
         var targetPath = Path.Combine(targetDir, $"{typeKey}.md");
 
-        await _fileSystem.WriteAllTextAsync(targetPath, content, cancellationToken);
+        await WriteTextAsync(
+            targetPath,
+            content,
+            requireAbsent: false,
+            preconditions,
+            cancellationToken);
 
         var recognized = new HashSet<string>(ProjectWorkspaceService.SupportedVariablesFor(typeKey), StringComparer.OrdinalIgnoreCase);
         var unknownVars = ProjectWorkspaceService.ExtractTemplateVariableNames(content)
@@ -620,7 +641,11 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
     // Private helpers
 
     private async Task<string> CreateGeneralKnowledgeAsync(
-        string title, string content, string tags, CancellationToken cancellationToken)
+        string title,
+        string content,
+        string tags,
+        VaultMutationPreconditions? preconditions,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(title))
         {
@@ -629,7 +654,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
 
         _fileSystem.CreateDirectory(_workspace.KnowledgeRoot);
         var filePath = Path.Combine(_workspace.KnowledgeRoot, NoteHelpers.SanitizeFileName(title) + ".md");
-        if (_fileSystem.FileExists(filePath))
+        if (_fileSystem.FileExists(filePath) && string.IsNullOrWhiteSpace(preconditions?.MutationId))
         {
             return $"[error] Note already exists: '{_workspace.ToVaultRelative(filePath)}'. Use edit_note to modify it.";
         }
@@ -652,7 +677,12 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                 cssClasses: ["kioku-knowledge"],
                 updated: _vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
-        await _fileSystem.WriteAllTextAsync(filePath, frontmatter + "\n" + body, cancellationToken);
+        await WriteTextAsync(
+            filePath,
+            frontmatter + "\n" + body,
+            requireAbsent: true,
+            preconditions,
+            cancellationToken: cancellationToken);
         await _vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
 
         var vaultRelPath = _workspace.ToVaultRelative(filePath);
@@ -679,6 +709,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         Dictionary<string, string> variables,
         Dictionary<string, string>? extraFields = null,
         IEnumerable<string>? aliases = null,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default)
     {
         if (ProjectWorkspaceService.ValidateProjectName(project) is { } nameError)
@@ -695,7 +726,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
 
         var folder = _workspace.GetSubfolder(project, subfolderKey);
         var filePath = Path.Combine(folder, fileName + ".md");
-        if (_fileSystem.FileExists(filePath))
+        if (_fileSystem.FileExists(filePath) && string.IsNullOrWhiteSpace(preconditions?.MutationId))
         {
             return $"[error] Note already exists: '{_workspace.ToVaultRelative(filePath)}'. Use edit_note to modify it.";
         }
@@ -736,7 +767,12 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
             updated: _vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null,
             extraFields: fields);
 
-        await _fileSystem.WriteAllTextAsync(filePath, frontmatter + "\n" + body, cancellationToken);
+        await WriteTextAsync(
+            filePath,
+            frontmatter + "\n" + body,
+            requireAbsent: true,
+            preconditions,
+            cancellationToken: cancellationToken);
         await _vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
 
         var vaultRelPath = _workspace.ToVaultRelative(filePath);
@@ -879,11 +915,56 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                 return (false, ".kioku/config.yml (engineering section already documented)");
             }
 
-            await _fileSystem.AppendAllTextAsync(configPath, referenceBlock + "\n", cancellationToken);
+            await WriteTextAsync(
+                configPath,
+                existing + referenceBlock + "\n",
+                requireAbsent: false,
+                cancellationToken: cancellationToken);
             return (true, ".kioku/config.yml (appended commented engineering reference)");
         }
 
-        await _fileSystem.WriteAllTextAsync(configPath, referenceBlock.TrimStart('\n') + "\n", cancellationToken);
+        await WriteTextAsync(
+            configPath,
+            referenceBlock.TrimStart('\n') + "\n",
+            requireAbsent: true,
+            cancellationToken: cancellationToken);
         return (true, ".kioku/config.yml (created with commented engineering reference)");
+    }
+
+    private async Task WriteTextAsync(
+        string path,
+        string content,
+        bool requireAbsent,
+        VaultMutationPreconditions? preconditions = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (_mutations is null)
+        {
+            await _fileSystem.WriteAllTextAsync(path, content, cancellationToken);
+            return;
+        }
+
+        if (requireAbsent)
+        {
+            await _mutations.CreateTextAsync(path, content, preconditions, cancellationToken);
+        }
+        else
+        {
+            await _mutations.WriteTextAsync(path, content, preconditions, cancellationToken);
+        }
+    }
+
+    private async Task DeleteFileAsync(
+        string path,
+        VaultMutationPreconditions? preconditions,
+        CancellationToken cancellationToken)
+    {
+        if (_mutations is null)
+        {
+            _fileSystem.DeleteFile(path);
+            return;
+        }
+
+        await _mutations.DeleteAsync(path, preconditions, cancellationToken);
     }
 }

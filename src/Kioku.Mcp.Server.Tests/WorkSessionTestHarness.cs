@@ -78,7 +78,7 @@ internal sealed class WorkSessionTestHarness
             session_id,
             parent_session_id,
             mcpClientName: null,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
     public Task<string> end_work_session(
         string session_note = "",
@@ -94,7 +94,7 @@ internal sealed class WorkSessionTestHarness
             session_id,
             agent,
             mcpClientName: null,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
     public Task<string> list_work_sessions(
         string sessions_folder = "",

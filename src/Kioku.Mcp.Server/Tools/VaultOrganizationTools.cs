@@ -17,7 +17,8 @@ public sealed class VaultOrganizationTools(
     KiokuConfiguration config,
     HybridSearchService hybrid,
     EmbeddingService embedding,
-    VaultConfigService vaultConfig)
+    VaultConfigService vaultConfig,
+    IVaultMutationService? mutations = null)
 {
     // manage_tags
 
@@ -418,8 +419,15 @@ public sealed class VaultOrganizationTools(
             else
             {
                 var oldPath = note.FilePath;
-                File.Move(oldPath, destPath);
-                await vault.SynchronizeFileMoveAsync(oldPath, destPath);
+                if (mutations is null)
+                {
+                    File.Move(oldPath, destPath);
+                    await vault.SynchronizeFileMoveAsync(oldPath, destPath);
+                }
+                else
+                {
+                    await mutations.MoveAsync(oldPath, destPath);
+                }
                 var newRelativePath = Path.GetRelativePath(config.VaultPath, destPath);
 
                 var updatedLinks = await UpdateInboundWikilinksForMoveAsync(note, newRelativePath);
@@ -442,8 +450,7 @@ public sealed class VaultOrganizationTools(
                 mergedTags, meta.NoteType, meta.Status, meta.Date, domain: meta.Domain, extraFields: meta.ExtraFields,
                 updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
-            await File.WriteAllTextAsync(current.FilePath, frontmatter + body, NoteHelpers.Utf8NoBom);
-            await vault.SynchronizeFileReindexAsync(current.FilePath);
+            await WriteNoteAsync(current.FilePath, frontmatter + body);
             current = vault.GetNote(current.FilePath) ?? current;
 
             actions.Add($"tagged: {string.Join(", ", plan.Tags.Select(t => "#" + t))}");
@@ -457,8 +464,8 @@ public sealed class VaultOrganizationTools(
                 relatedSection.AppendLine($"- [[{related.Name}]]");
             }
 
-            await File.AppendAllTextAsync(current.FilePath, relatedSection.ToString(), NoteHelpers.Utf8NoBom);
-            await vault.SynchronizeFileReindexAsync(current.FilePath);
+            var rawContent = await File.ReadAllTextAsync(current.FilePath, Encoding.UTF8);
+            await WriteNoteAsync(current.FilePath, rawContent + relatedSection);
 
             actions.Add($"linked: {string.Join(", ", plan.RelatedNotes.Select(n => $"[[{n.Name}]]"))}");
         }
@@ -509,8 +516,7 @@ public sealed class VaultOrganizationTools(
                 continue;
             }
 
-            await File.WriteAllTextAsync(source.FilePath, result.NewContent, NoteHelpers.Utf8NoBom);
-            await vault.SynchronizeFileReindexAsync(source.FilePath);
+            await WriteNoteAsync(source.FilePath, result.NewContent);
             updatedLinks += result.ReplacedCount;
         }
 
@@ -570,14 +576,25 @@ public sealed class VaultOrganizationTools(
                 continue;
             }
 
-            await File.WriteAllTextAsync(note.FilePath, newContent, NoteHelpers.Utf8NoBom);
-            await vault.SynchronizeFileReindexAsync(note.FilePath);
+            await WriteNoteAsync(note.FilePath, newContent);
             changedTags += note.Metadata.Tags.Count(tag => TagWouldChange(
                 tag, note.Metadata.Tags, operation, oldTag, newTag, sourceTag, targetTag));
             updatedNotes++;
         }
 
         return (changedTags, updatedNotes);
+    }
+
+    private async Task WriteNoteAsync(string path, string content)
+    {
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(path, content, NoteHelpers.Utf8NoBom);
+            await vault.SynchronizeFileReindexAsync(path);
+            return;
+        }
+
+        await mutations.WriteTextAsync(path, content);
     }
 
     private static string? GetTagReplacement(

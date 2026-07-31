@@ -20,7 +20,8 @@ public sealed class GenerationTools(
     GenerationService generation,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
-    MetricsService? metrics = null)
+    MetricsService? metrics = null,
+    IVaultMutationService? mutations = null)
 {
     private static void Count(string name, MetricsService? metrics) => metrics?.RecordToolCall(name);
 
@@ -83,7 +84,13 @@ public sealed class GenerationTools(
         [Description("Number of flashcards to generate (default: 10).")] int count = 10,
         [Description("Output format: 'spaced-repetition' (default), 'anki-csv', or 'cloze'.")] string format = "spaced-repetition",
         [Description("Path to write the flashcards to. Default: 'Flashcards/{note}.md' ('.csv' for anki-csv, in the assets folder).")] string output_note = "",
-        [Description("Preview the generated flashcards without writing any file.")] bool dry_run = false)
+        [Description("Preview the generated flashcards without writing any file.")] bool dry_run = false,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the output path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         Count(nameof(generate_flashcards), metrics);
 
@@ -144,8 +151,23 @@ public sealed class GenerationTools(
         if (normalizedFormat == "anki-csv")
         {
             var csvPath = ResolveCsvPath(output_note, found.Name);
-            Directory.CreateDirectory(Path.GetDirectoryName(csvPath)!);
-            await File.WriteAllTextAsync(csvPath, rendered, NoteHelpers.Utf8NoBom);
+            try
+            {
+                await WriteGeneratedFileAsync(
+                    csvPath,
+                    rendered,
+                    VaultMutationPreconditions.FromToolArguments(
+                        expected_revision,
+                        expected_hash,
+                        claim_id,
+                        fence_generation,
+                        resource_key,
+                        mutation_id));
+            }
+            catch (VaultMutationException exception)
+            {
+                return exception.ToToolError();
+            }
             var relCsvPath = Path.GetRelativePath(config.VaultPath, csvPath).Replace('\\', '/');
             return $"[ok] Generated {actualCount} flashcard(s), written to {relCsvPath}:\n\n{rendered}";
         }
@@ -156,11 +178,46 @@ public sealed class GenerationTools(
             extraFields: new Dictionary<string, string> { ["source"] = $"\"[[{found.Name}]]\"" },
             updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(notePath)!);
-        await File.WriteAllTextAsync(notePath, frontmatter + "\n" + rendered, NoteHelpers.Utf8NoBom);
+        try
+        {
+            await WriteGeneratedFileAsync(
+                notePath,
+                frontmatter + "\n" + rendered,
+                VaultMutationPreconditions.FromToolArguments(
+                    expected_revision,
+                    expected_hash,
+                    claim_id,
+                    fence_generation,
+                    resource_key,
+                    mutation_id));
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         var relPath = Path.GetRelativePath(config.VaultPath, notePath).Replace('\\', '/');
         return $"[ok] Generated {actualCount} flashcard(s), written to {relPath}";
+    }
+
+    private async Task WriteGeneratedFileAsync(
+        string path,
+        string content,
+        VaultMutationPreconditions preconditions)
+    {
+        if (mutations is null)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllTextAsync(path, content, NoteHelpers.Utf8NoBom);
+            if (path.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+            {
+                await vault.SynchronizeFileReindexAsync(path);
+            }
+
+            return;
+        }
+
+        await mutations.WriteTextAsync(path, content, preconditions);
     }
 
     // Flashcard helpers

@@ -21,6 +21,7 @@ internal sealed partial class WorkSessionService
     private readonly ObsidianBridgeService _bridge;
     private readonly IWorkSessionFileSystem _fileSystem;
     private readonly TimeProvider _timeProvider;
+    private readonly IVaultMutationService? _mutations;
 
     public WorkSessionService(
         VaultIndexService vault,
@@ -29,7 +30,8 @@ internal sealed partial class WorkSessionService
         ProjectWorkspaceService workspace,
         ObsidianBridgeService bridge,
         IWorkSessionFileSystem fileSystem,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IVaultMutationService? mutations = null)
     {
         _vault = vault;
         _config = config;
@@ -38,6 +40,7 @@ internal sealed partial class WorkSessionService
         _bridge = bridge;
         _fileSystem = fileSystem;
         _timeProvider = timeProvider;
+        _mutations = mutations;
     }
 
     public Task<string> GetWorkContextAsync(
@@ -143,12 +146,13 @@ internal sealed partial class WorkSessionService
         string sessionId,
         string parentSessionId,
         string? mcpClientName,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!string.IsNullOrWhiteSpace(sessionId))
         {
-            return await ResumeAsync(sessionId.Trim(), project, cancellationToken);
+            return await ResumeAsync(sessionId.Trim(), project, preconditions, cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(project) &&
@@ -235,7 +239,7 @@ internal sealed partial class WorkSessionService
                 now,
                 cancellationToken)
             : await BuildGlobalBodyAsync(title, goal, relativeFolder, now, cancellationToken);
-        var filePath = await _fileSystem.WriteNewSessionFileAsync(
+        var filePath = await WriteNewSessionFileAsync(
             targetFolder,
             preferredName,
             fallbackName,
@@ -271,6 +275,7 @@ internal sealed partial class WorkSessionService
         string sessionId,
         string agent,
         string? mcpClientName,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -281,7 +286,7 @@ internal sealed partial class WorkSessionService
             agent,
             NormalizeClientName(mcpClientName));
         return resolution.Error is null
-            ? await CloseAsync(resolution.Session!, summary, cancellationToken)
+            ? await CloseAsync(resolution.Session!, summary, preconditions, cancellationToken)
             : resolution.Error;
     }
 
@@ -350,6 +355,7 @@ internal sealed partial class WorkSessionService
     private async Task<string> ResumeAsync(
         string sessionId,
         string project,
+        VaultMutationPreconditions? preconditions,
         CancellationToken cancellationToken)
     {
         var matches = FindSessionsById(sessionId);
@@ -399,9 +405,10 @@ internal sealed partial class WorkSessionService
                 document.SetDate("updated", DateOnly.FromDateTime(now.UtcDateTime), "modified");
             }
 
-            await _fileSystem.WriteAtomicallyAsync(
+            await WriteSessionTextAsync(
                 session.Note.FilePath,
                 document.Serialize(),
+                preconditions,
                 cancellationToken);
             await _vault.SynchronizeFileReindexAsync(session.Note.FilePath).WaitAsync(cancellationToken);
             return FormatSuccess(
@@ -506,6 +513,7 @@ internal sealed partial class WorkSessionService
     private async Task<string> CloseAsync(
         SessionDescriptor selected,
         string summary,
+        VaultMutationPreconditions? preconditions,
         CancellationToken cancellationToken)
     {
         var gate = GetLock(selected);
@@ -553,9 +561,10 @@ internal sealed partial class WorkSessionService
                 document.SetDate("updated", DateOnly.FromDateTime(now.UtcDateTime), "modified");
             }
 
-            await _fileSystem.WriteAtomicallyAsync(
+            await WriteSessionTextAsync(
                 selected.Note.FilePath,
                 document.Serialize(),
+                preconditions,
                 cancellationToken);
             await _vault.SynchronizeFileReindexAsync(selected.Note.FilePath).WaitAsync(cancellationToken);
             var payload = JsonSerializer.Serialize(new
@@ -574,6 +583,55 @@ internal sealed partial class WorkSessionService
         {
             gate.Release();
         }
+    }
+
+    private async Task<string> WriteNewSessionFileAsync(
+        string directory,
+        string preferredName,
+        string fallbackName,
+        string content,
+        CancellationToken cancellationToken)
+    {
+        if (_mutations is null)
+        {
+            return await _fileSystem.WriteNewSessionFileAsync(
+                directory,
+                preferredName,
+                fallbackName,
+                content,
+                cancellationToken);
+        }
+
+        foreach (var name in new[] { preferredName, fallbackName })
+        {
+            var path = Path.Combine(directory, name);
+            try
+            {
+                await _mutations.CreateTextAsync(path, content, cancellationToken: cancellationToken);
+                return path;
+            }
+            catch (VaultMutationException exception) when (exception.Code == "INVALID_ARGUMENT")
+            {
+                // Another process claimed the preferred name; use the UUID-derived fallback.
+            }
+        }
+
+        throw new IOException("Could not allocate a unique work-session filename.");
+    }
+
+    private async Task WriteSessionTextAsync(
+        string path,
+        string content,
+        VaultMutationPreconditions? preconditions,
+        CancellationToken cancellationToken)
+    {
+        if (_mutations is null)
+        {
+            await _fileSystem.WriteAtomicallyAsync(path, content, cancellationToken);
+            return;
+        }
+
+        await _mutations.WriteTextAsync(path, content, preconditions, cancellationToken);
     }
 
     private async Task<string> BuildProjectBodyAsync(

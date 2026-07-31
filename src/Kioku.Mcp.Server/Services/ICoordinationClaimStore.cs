@@ -7,6 +7,15 @@ namespace Kioku.Mcp.Server.Services;
 /// </summary>
 public interface ICoordinationClaimStore
 {
+    /// <summary>
+    /// Runs an operation while holding every canonical resource lock in a stable order.
+    /// The callback receives the claims observed while those locks are held.
+    /// </summary>
+    Task<TResult> ExecuteUnderResourceLocksAsync<TResult>(
+        IReadOnlyList<string> resourceKeys,
+        Func<IReadOnlyDictionary<string, CoordinationClaim?>, Task<TResult>> operation,
+        CancellationToken cancellationToken = default);
+
     Task<CoordinationClaimResult> AcquireAsync(
         CoordinationClaimAcquireRequest request,
         CancellationToken cancellationToken = default);

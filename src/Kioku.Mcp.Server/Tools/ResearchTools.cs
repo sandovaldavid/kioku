@@ -14,7 +14,8 @@ namespace Kioku.Mcp.Server.Tools;
 public sealed partial class ResearchTools(
     VaultIndexService vault,
     KiokuConfiguration config,
-    VaultConfigService vaultConfig)
+    VaultConfigService vaultConfig,
+    IVaultMutationService? mutations = null)
 {
     [McpServerTool, Description(
         "Imports a BibTeX (.bib) file or raw BibTeX content as literature notes, one per entry. " +
@@ -161,11 +162,16 @@ public sealed partial class ResearchTools(
             extraFields: BuildExtraFields(entry),
             updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-        await File.WriteAllTextAsync(
-            filePath,
-            frontmatter + "\n" + BuildBibtexNoteBody(entry),
-            NoteHelpers.Utf8NoBom);
+        var content = frontmatter + "\n" + BuildBibtexNoteBody(entry);
+        if (mutations is null)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            await File.WriteAllTextAsync(filePath, content, NoteHelpers.Utf8NoBom);
+        }
+        else
+        {
+            await mutations.CreateTextAsync(filePath, content);
+        }
     }
 
     private async Task UpdateLiteratureNoteFrontmatterAsync(Note existingNote, BibtexEntry entry)
@@ -183,7 +189,14 @@ public sealed partial class ResearchTools(
             document.SetDate("updated", DateOnly.FromDateTime(DateTime.Today), "modified");
         }
 
-        await File.WriteAllTextAsync(existingNote.FilePath, document.Serialize(), NoteHelpers.Utf8NoBom);
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(existingNote.FilePath, document.Serialize(), NoteHelpers.Utf8NoBom);
+        }
+        else
+        {
+            await mutations.WriteTextAsync(existingNote.FilePath, document.Serialize());
+        }
     }
 
     private static Dictionary<string, string> BuildExtraFields(BibtexEntry entry)

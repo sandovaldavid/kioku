@@ -21,6 +21,52 @@ internal sealed class CoordinationClaimStore(
     private const string LeaseRoot = "leases";
     private const string RuntimeLockRoot = "runtime/locks/resources";
 
+    public async Task<TResult> ExecuteUnderResourceLocksAsync<TResult>(
+        IReadOnlyList<string> resourceKeys,
+        Func<IReadOnlyDictionary<string, CoordinationClaim?>, Task<TResult>> operation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(resourceKeys);
+        ArgumentNullException.ThrowIfNull(operation);
+
+        var normalizedKeys = resourceKeys
+            .Select(NormalizeResourceKey)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToArray();
+        if (normalizedKeys.Length == 0)
+        {
+            throw new ArgumentException("At least one resource key is required.", nameof(resourceKeys));
+        }
+
+        return await ExecuteUnderResourceLocksCoreAsync(normalizedKeys, 0, operation, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<TResult> ExecuteUnderResourceLocksCoreAsync<TResult>(
+        IReadOnlyList<string> resourceKeys,
+        int index,
+        Func<IReadOnlyDictionary<string, CoordinationClaim?>, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        await using var gate = await AcquireResourceLockAsync(resourceKeys[index], cancellationToken)
+            .ConfigureAwait(false);
+        if (index + 1 < resourceKeys.Count)
+        {
+            return await ExecuteUnderResourceLocksCoreAsync(
+                    resourceKeys, index + 1, operation, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var claims = new Dictionary<string, CoordinationClaim?>(StringComparer.Ordinal);
+        foreach (var resourceKey in resourceKeys)
+        {
+            claims[resourceKey] = await ReadClaimAsync(resourceKey, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await operation(claims).ConfigureAwait(false);
+    }
+
     public Task<CoordinationClaimResult> AcquireAsync(
         CoordinationClaimAcquireRequest request,
         CancellationToken cancellationToken = default) =>

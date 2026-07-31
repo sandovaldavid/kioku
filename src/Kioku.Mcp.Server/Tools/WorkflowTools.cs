@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
+using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using ModelContextProtocol.Server;
 
@@ -16,7 +17,8 @@ public sealed partial class WorkflowTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
-    ObsidianBridgeService bridge)
+    ObsidianBridgeService bridge,
+    IVaultMutationService? mutations = null)
 {
     private static readonly string[] TemplateFolderCandidates =
         ["Templates", "99_System/Templates", "_templates", "System/Templates"];
@@ -39,7 +41,13 @@ public sealed partial class WorkflowTools(
         [Description("Engineering template type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc. Required for engineering get/set.")] string type_key = "",
         [Description("Template body. Required for engineering set unless reset_to_default=true; optional for vault set.")] string content = "",
         [Description("Vault templates folder relative to the vault. Leave empty to auto-detect.")] string templates_folder = "",
-        [Description("For engineering set, delete the vault override and use the embedded default.")] bool reset_to_default = false)
+        [Description("For engineering set, delete the vault override and use the embedded default.")] bool reset_to_default = false,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         var normalizedScope = scope.Trim().ToLowerInvariant();
         if (normalizedScope is not ("vault" or "engineering"))
@@ -53,9 +61,24 @@ public sealed partial class WorkflowTools(
             return $"[error] Invalid template action '{action}'. Valid actions: list, get, set.";
         }
 
-        return normalizedScope == "vault"
-            ? await ManageVaultTemplatesAsync(normalizedAction, name, content, templates_folder)
-            : await ManageEngineeringTemplatesAsync(normalizedAction, type_key, content, reset_to_default);
+        var preconditions = VaultMutationPreconditions.FromToolArguments(
+            expected_revision,
+            expected_hash,
+            claim_id,
+            fence_generation,
+            resource_key,
+            mutation_id);
+        try
+        {
+            return normalizedScope == "vault"
+                ? await ManageVaultTemplatesAsync(normalizedAction, name, content, templates_folder, preconditions)
+                : await ManageEngineeringTemplatesAsync(
+                    normalizedAction, type_key, content, reset_to_default, preconditions);
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
     }
 
     // create_note_from_template
@@ -71,7 +94,13 @@ public sealed partial class WorkflowTools(
             "Variables to inject into the template as key-value pairs. " +
             "Example: {\"title\": \"My Note\", \"status\": \"draft\", \"author\": \"David\"}. " +
             "Built-in variables (date, time, title) are auto-populated if not provided.")] Dictionary<string, string>? variables = null,
-        [Description("Templates folder relative to vault root. Leave empty to auto-detect.")] string templates_folder = "")
+        [Description("Templates folder relative to vault root. Leave empty to auto-detect.")] string templates_folder = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         // Resolve template file
         var folder = ResolveTemplatesFolder(templates_folder);
@@ -120,8 +149,30 @@ public sealed partial class WorkflowTools(
 
         // Create target directory and write note
         var targetDir = Path.GetDirectoryName(targetFilePath)!;
-        Directory.CreateDirectory(targetDir);
-        await File.WriteAllTextAsync(targetFilePath, rendered, NoteHelpers.Utf8NoBom);
+        try
+        {
+            var preconditions = VaultMutationPreconditions.FromToolArguments(
+                expected_revision,
+                expected_hash,
+                claim_id,
+                fence_generation,
+                resource_key,
+                mutation_id);
+            if (mutations is null)
+            {
+                Directory.CreateDirectory(targetDir);
+                await File.WriteAllTextAsync(targetFilePath, rendered, NoteHelpers.Utf8NoBom);
+                await vault.SynchronizeFileReindexAsync(targetFilePath);
+            }
+            else
+            {
+                await mutations.CreateTextAsync(targetFilePath, rendered, preconditions);
+            }
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
         // Reindex immediately (matches every other creation tool) instead of relying solely on
         // the FileSystemWatcher's 500ms debounce — a caller following the documented pattern of
         // an immediate follow-up update_frontmatter call would otherwise race the watcher and
@@ -157,7 +208,11 @@ public sealed partial class WorkflowTools(
     // Private helpers
 
     private async Task<string> ManageVaultTemplatesAsync(
-        string action, string name, string content, string templatesFolder)
+        string action,
+        string name,
+        string content,
+        string templatesFolder,
+        VaultMutationPreconditions preconditions)
     {
         if (action == "list")
         {
@@ -210,7 +265,14 @@ public sealed partial class WorkflowTools(
             return $"[error] Template '{name}' already exists. Delete it first or use a different name.";
         }
 
-        await File.WriteAllTextAsync(filePath, content, NoteHelpers.Utf8NoBom);
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(filePath, content, NoteHelpers.Utf8NoBom);
+        }
+        else
+        {
+            await mutations.CreateTextAsync(filePath, content, preconditions);
+        }
         var variables = TemplateVarRegex()
             .Matches(content)
             .Select(m => m.Groups["var"].Value)
@@ -263,14 +325,18 @@ public sealed partial class WorkflowTools(
     }
 
     private async Task<string> ManageEngineeringTemplatesAsync(
-        string action, string typeKey, string content, bool resetToDefault)
+        string action,
+        string typeKey,
+        string content,
+        bool resetToDefault,
+        VaultMutationPreconditions preconditions)
     {
         if (action != "list" && !ProjectWorkspaceService.TemplateKeys.Contains(typeKey, StringComparer.OrdinalIgnoreCase))
         {
             return $"[error] Unknown template type '{typeKey}'. Valid types: {string.Join(", ", ProjectWorkspaceService.TemplateKeys)}.";
         }
 
-        var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge);
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge, mutations);
         var overridePath = workspace.GetVaultTemplatePath(typeKey);
         var isOverride = overridePath is not null && File.Exists(overridePath);
 
@@ -307,7 +373,14 @@ public sealed partial class WorkflowTools(
         {
             if (isOverride)
             {
-                File.Delete(overridePath!);
+                if (mutations is null)
+                {
+                    File.Delete(overridePath!);
+                }
+                else
+                {
+                    await mutations.DeleteAsync(overridePath!, preconditions);
+                }
                 return $"[ok] Reverted '{typeKey}' to the embedded default (removed {workspace.ToVaultRelative(overridePath!)}).";
             }
 
@@ -322,7 +395,14 @@ public sealed partial class WorkflowTools(
         var targetDir = Path.Combine(workspace.ResolveTemplatesFolderOrDefault(), "kioku");
         Directory.CreateDirectory(targetDir);
         var targetPath = Path.Combine(targetDir, $"{typeKey}.md");
-        await File.WriteAllTextAsync(targetPath, content, NoteHelpers.Utf8NoBom);
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(targetPath, content, NoteHelpers.Utf8NoBom);
+        }
+        else
+        {
+            await mutations.WriteTextAsync(targetPath, content, preconditions);
+        }
 
         var recognized = new HashSet<string>(ProjectWorkspaceService.SupportedVariablesFor(typeKey), StringComparer.OrdinalIgnoreCase);
         var unknownVars = ProjectWorkspaceService.ExtractTemplateVariableNames(content)

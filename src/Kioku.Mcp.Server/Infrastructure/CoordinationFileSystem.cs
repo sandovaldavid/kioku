@@ -8,6 +8,13 @@ internal sealed class CoordinationFileSystem : ICoordinationFileSystem
 
     public bool DirectoryExists(string path) => Directory.Exists(path);
 
+    public void CreateDirectory(string path) => Directory.CreateDirectory(path);
+
+    public void DeleteFile(string path) => File.Delete(path);
+
+    public void MoveFile(string sourcePath, string destinationPath, bool overwrite) =>
+        File.Move(sourcePath, destinationPath, overwrite);
+
     public Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken) =>
         File.ReadAllTextAsync(path, NoteHelpers.Utf8NoBom, cancellationToken);
 

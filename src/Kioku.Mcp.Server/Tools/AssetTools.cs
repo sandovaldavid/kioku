@@ -10,12 +10,13 @@ namespace Kioku.Mcp.Server.Tools;
 public sealed class AssetTools(
     VaultIndexService vault,
     KiokuConfiguration config,
-    VaultPathPolicy? pathPolicy = null)
+    VaultPathPolicy? pathPolicy = null,
+    IVaultMutationService? mutations = null)
 {
     private readonly VaultPathPolicy _paths = pathPolicy ?? new VaultPathPolicy(config);
 
     [McpServerTool, Description("Find asset files (images, PDFs, Excalidraw) not referenced by any note. When dry_run=false, moves orphans to .trash/.kioku-orphans/.")]
-    public string find_orphan_assets(
+    public async Task<string> find_orphan_assets(
         [Description("If true (default), lists orphans without moving them.")] bool dry_run = true)
     {
         if (!vault.IsReady)
@@ -95,7 +96,14 @@ public sealed class AssetTools(
             var filename = Path.GetFileName(orphan);
             var destPath = _paths.ResolveVaultWritePath(Path.Combine(trashDir, filename));
             var move = _paths.ResolveVaultMove(orphan, destPath);
-            File.Move(move.Source, move.Destination, overwrite: true);
+            if (mutations is null)
+            {
+                File.Move(move.Source, move.Destination, overwrite: true);
+            }
+            else
+            {
+                await mutations.MoveAsync(move.Source, move.Destination);
+            }
             movedCount++;
         }
 
@@ -230,10 +238,17 @@ public sealed class AssetTools(
         foreach (var move in moves)
         {
             var validated = _paths.ResolveVaultMove(move.OldPath, move.NewPath);
-            File.Move(validated.Source, validated.Destination);
+            if (mutations is null)
+            {
+                File.Move(validated.Source, validated.Destination);
+            }
+            else
+            {
+                await mutations.MoveAsync(validated.Source, validated.Destination);
+            }
         }
 
-        ApplyRenamesSafely(renames, targetPath);
+        await ApplyRenamesSafelyAsync(renames, targetPath);
 
         var allNotes = vault.GetAllNotes().ToList();
         var updatedCount = 0;
@@ -248,7 +263,14 @@ public sealed class AssetTools(
 
             if (newContent != note.RawContent)
             {
-                File.WriteAllText(note.FilePath, newContent, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                if (mutations is null)
+                {
+                    File.WriteAllText(note.FilePath, newContent, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                }
+                else
+                {
+                    await mutations.WriteTextAsync(note.FilePath, newContent);
+                }
                 updatedCount++;
             }
         }
@@ -324,7 +346,7 @@ public sealed class AssetTools(
         return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), comparison);
     }
 
-    private void ApplyRenamesSafely(IEnumerable<AssetRename> renames, string targetPath)
+    private async Task ApplyRenamesSafelyAsync(IEnumerable<AssetRename> renames, string targetPath)
     {
         var staged = new List<(string TemporaryPath, string NewPath)>();
         foreach (var rename in renames)
@@ -332,14 +354,28 @@ public sealed class AssetTools(
             var temporaryPath = _paths.ResolveVaultWritePath(
                 Path.Combine(targetPath, $".kioku-tidy-{Guid.NewGuid():N}.tmp"));
             var stagedMove = _paths.ResolveVaultMove(rename.OldPath, temporaryPath);
-            File.Move(stagedMove.Source, stagedMove.Destination);
+            if (mutations is null)
+            {
+                File.Move(stagedMove.Source, stagedMove.Destination);
+            }
+            else
+            {
+                await mutations.MoveAsync(stagedMove.Source, stagedMove.Destination);
+            }
             staged.Add((temporaryPath, rename.NewPath));
         }
 
         foreach (var (temporaryPath, newPath) in staged)
         {
             var finalMove = _paths.ResolveVaultMove(temporaryPath, newPath);
-            File.Move(finalMove.Source, finalMove.Destination);
+            if (mutations is null)
+            {
+                File.Move(finalMove.Source, finalMove.Destination);
+            }
+            else
+            {
+                await mutations.MoveAsync(finalMove.Source, finalMove.Destination);
+            }
         }
     }
 

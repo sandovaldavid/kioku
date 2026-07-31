@@ -14,7 +14,8 @@ public sealed class GraphAnalysisTools(
     VaultIndexService vault,
     HybridSearchService hybrid,
     EmbeddingService embedding,
-    KiokuConfiguration config)
+    KiokuConfiguration config,
+    IVaultMutationService? mutations = null)
 {
     private const int IslandThreshold = 3;
 
@@ -34,7 +35,13 @@ public sealed class GraphAnalysisTools(
         [Description("Maximum number of semantic suggestions to return or apply (default: 10).")]
         int max_suggestions = 10,
         [Description("Minimum semantic similarity score 0.0–1.0 (default: 0.7).")]
-        float min_similarity = 0.7f)
+        float min_similarity = 0.7f,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -53,9 +60,16 @@ public sealed class GraphAnalysisTools(
 
         try
         {
+            var preconditions = VaultMutationPreconditions.FromToolArguments(
+                expected_revision,
+                expected_hash,
+                claim_id,
+                fence_generation,
+                resource_key,
+                mutation_id);
             if (!string.IsNullOrWhiteSpace(targets))
             {
-                return await ApplyExplicitTargets(note, targets, section, !apply);
+                return await ApplyExplicitTargets(note, targets, section, !apply, preconditions);
             }
 
             if (!string.IsNullOrWhiteSpace(note))
@@ -80,7 +94,7 @@ public sealed class GraphAnalysisTools(
                 var suggestions = SuggestLinksForNote(found, max_suggestions, min_similarity);
                 return !apply
                     ? FormatSuggestions(suggestions, $"'{DisplayNote(found)}'")
-                    : await ApplySemanticSuggestions(suggestions, section);
+                    : await ApplySemanticSuggestions(suggestions, section, preconditions);
             }
 
             if (!embedding.IsAvailable)
@@ -96,7 +110,7 @@ public sealed class GraphAnalysisTools(
             var vaultSuggestions = SuggestLinksForVault(max_suggestions, min_similarity);
             return !apply
                 ? FormatSuggestions(vaultSuggestions, "the vault")
-                : await ApplySemanticSuggestions(vaultSuggestions, section);
+                : await ApplySemanticSuggestions(vaultSuggestions, section, preconditions);
         }
         catch (Exception)
         {
@@ -186,7 +200,8 @@ public sealed class GraphAnalysisTools(
         string note,
         string targets,
         string section,
-        bool dryRun)
+        bool dryRun,
+        VaultMutationPreconditions preconditions)
     {
         if (string.IsNullOrWhiteSpace(note))
         {
@@ -254,19 +269,42 @@ public sealed class GraphAnalysisTools(
             return AppendMissingTargets(preview, missing);
         }
 
-        await File.WriteAllTextAsync(found.FilePath, updatedContent, NoteHelpers.Utf8NoBom);
-        await vault.SynchronizeFileReindexAsync(found.FilePath);
+        try
+        {
+            await WriteNoteAsync(found.FilePath, updatedContent, preconditions);
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         var applied = $"[ok] Added {newTargets.Count} link(s) to '{DisplayNote(found)}' under '## {section}':\n" +
                       string.Join("\n", newTargets.Select(t => $"  - [[{t.Link}]]"));
         return AppendMissingTargets(applied, missing);
     }
 
-    private async Task<string> ApplySemanticSuggestions(IReadOnlyList<LinkSuggestion> suggestions, string section)
+    private async Task<string> ApplySemanticSuggestions(
+        IReadOnlyList<LinkSuggestion> suggestions,
+        string section,
+        VaultMutationPreconditions preconditions)
     {
         if (suggestions.Count == 0)
         {
             return "[info] No link suggestions to apply.";
+        }
+
+        if (preconditions.HasContentPrecondition &&
+            suggestions.Select(s => s.Source.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any())
+        {
+            return KiokuError.InvalidArgument(
+                "expected_revision/expected_hash can only be applied to one source note; use explicit targets or a single-note request.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(preconditions.MutationId) &&
+            suggestions.Select(s => s.Source.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any())
+        {
+            return KiokuError.InvalidArgument(
+                "mutation_id can only be applied to one source note; use explicit targets or a single-note request.");
         }
 
         var applied = new List<(Note Source, List<LinkSuggestion> Suggestions)>();
@@ -293,8 +331,14 @@ public sealed class GraphAnalysisTools(
                 continue;
             }
 
-            await File.WriteAllTextAsync(source.FilePath, updatedContent, NoteHelpers.Utf8NoBom);
-            await vault.SynchronizeFileReindexAsync(source.FilePath);
+            try
+            {
+                await WriteNoteAsync(source.FilePath, updatedContent, preconditions);
+            }
+            catch (VaultMutationException exception)
+            {
+                return exception.ToToolError();
+            }
             applied.Add((source, newSuggestions));
         }
 
@@ -320,6 +364,21 @@ public sealed class GraphAnalysisTools(
         missing.Count == 0
             ? result
             : $"{result}\n\n[info] Could not resolve: {string.Join(", ", missing)}";
+
+    private async Task WriteNoteAsync(
+        string path,
+        string content,
+        VaultMutationPreconditions? preconditions)
+    {
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(path, content, NoteHelpers.Utf8NoBom);
+            await vault.SynchronizeFileReindexAsync(path);
+            return;
+        }
+
+        await mutations.WriteTextAsync(path, content, preconditions);
+    }
 
     private string FormatStructuralFallback()
     {
