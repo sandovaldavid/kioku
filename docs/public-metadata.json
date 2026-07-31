@@ -45,7 +45,6 @@
     {"name":"KIOKU_ALLOW_EXTERNAL_READS","configurationPath":"Kioku:AllowExternalReads","required":false,"sensitive":false,"default":"false","category":"Filesystem security","description":"Allows read-only imports outside the vault only from explicitly configured roots."},
     {"name":"KIOKU_EXTERNAL_READ_ROOTS","configurationPath":"Kioku:ExternalReadRoots","required":false,"sensitive":false,"default":null,"category":"Filesystem security","description":"Platform-path-separator-delimited roots allowed for external read-only imports."},
     {"name":"KIOKU_ALLOW_PERMANENT_DELETE","configurationPath":"Kioku:AllowPermanentDelete","required":false,"sensitive":false,"default":"false","category":"Filesystem security","description":"Enables irreversible deletion; soft delete remains available when false."},
-    {"name":"KIOKU_GITHUB_TOKEN","configurationPath":"Kioku:GitHubToken","required":false,"sensitive":true,"default":null,"category":"Deprecated compatibility","description":"Deprecated compatibility setting retained in configuration binding; no registered current tool consumes it."},
     {"name":"KIOKU_ENABLE_METRICS","configurationPath":"Kioku:EnableMetrics","required":false,"sensitive":false,"default":"false","category":"Observability","description":"Enables in-memory tool-call counters; note contents are never recorded."},
     {"name":"KIOKU_SENTRY_DSN","configurationPath":"Kioku:SentryDsn","required":false,"sensitive":true,"default":null,"category":"Observability","description":"Opt-in Sentry DSN for crash reporting."}
   ],

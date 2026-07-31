@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kioku.dev/schemas/coordination/handoff-packet-v1.json",
+  "title": "Kioku durable coordination handoff packet",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "run_id",
+    "work_item_id",
+    "attempt_id",
+    "session_id",
+    "parent_session_id",
+    "agent",
+    "client_name",
+    "project",
+    "resource_scope",
+    "authority_scope",
+    "state",
+    "checkpoint",
+    "next_actions",
+    "artifacts",
+    "blockers",
+    "conflicts",
+    "created_at",
+    "updated_at",
+    "sequence",
+    "state_version",
+    "revision",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "work_item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "attempt_id": { "type": ["string", "null"], "maxLength": 128 },
+    "session_id": { "type": ["string", "null"], "maxLength": 128 },
+    "parent_session_id": { "type": ["string", "null"], "maxLength": 128 },
+    "agent": { "type": ["string", "null"], "maxLength": 128 },
+    "client_name": { "type": ["string", "null"], "maxLength": 128 },
+    "project": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "resource_scope": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+    },
+    "authority_scope": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "state": {
+      "type": "string",
+      "enum": ["pending", "claimed", "running", "blocked", "partial", "failed", "stale", "completed", "canceled"]
+    },
+    "checkpoint": { "$ref": "#/definitions/checkpoint" },
+    "next_actions": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/definitions/action" }
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/definitions/artifact" }
+    },
+    "blockers": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/definitions/blocker" }
+    },
+    "conflicts": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/definitions/conflict_reference" }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "state_version": { "type": "integer", "minimum": 0 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "content_hash": { "type": "string", "pattern": "^[0-9A-F]{64}$" }
+  },
+  "definitions": {
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["summary", "reference", "revision", "content_hash"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "reference": { "type": ["string", "null"], "maxLength": 512 },
+        "revision": { "type": ["integer", "null"], "minimum": 0 },
+        "content_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["action_id", "description", "resource_key", "status"],
+      "properties": {
+        "action_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "resource_key": { "type": ["string", "null"], "maxLength": 512 },
+        "status": { "type": ["string", "null"], "maxLength": 64 }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind", "reference", "content_hash"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reference": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "content_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["code", "reason", "resolution_reference"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "resolution_reference": { "type": ["string", "null"], "maxLength": 512 }
+      }
+    },
+    "conflict_reference": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["conflict_id", "resource_key", "status"],
+      "properties": {
+        "conflict_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "resource_key": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "status": { "type": "string", "enum": ["open", "resolved", "ignored"] }
+      }
+    }
+  }
+}

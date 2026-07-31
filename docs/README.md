@@ -44,6 +44,7 @@ Active repository documentation should normally describe **Implemented** behavio
 | [Versioning](versioning.md) | Implemented / generated | Server, plugin, workspace, and bridge compatibility rules. |
 | [MCP tool contract](mcp-tool-contract.md) | Implemented | Result envelopes, annotations, errors, and contract expectations. |
 | [Work sessions](work-sessions.md) | Implemented | Session identity, ownership, lifecycle, and handoff behavior. |
+| [Coordination contracts](coordination-contracts.md) | In progress | Versioned handoff, event, claim, conflict, and projection JSON contracts. |
 | [Indexing pipeline](indexing-pipeline.md) | Implemented | Bounded indexing, synchronization, recovery, and metrics. |
 
 ## Security and deployment

@@ -33,6 +33,7 @@
     <None Include="Fixtures\**\*.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\golden-set.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\BridgeProtocol\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\Coordination\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -30,7 +30,6 @@ public sealed class KiokuOptions
     public bool AllowInsecureHttp { get; set; }
     public long HttpMaxRequestBodyBytes { get; set; } = 1024 * 1024;
     public int HttpRequestTimeoutSeconds { get; set; } = 300;
-    public string? GitHubToken { get; set; }
     public bool EnableMetrics { get; set; }
     public string? SentryDsn { get; set; }
     public bool AllowExternalReads { get; set; }
@@ -59,7 +58,6 @@ public sealed class KiokuOptions
         AllowInsecureHttp = AllowInsecureHttp,
         HttpMaxRequestBodyBytes = HttpMaxRequestBodyBytes,
         HttpRequestTimeoutSeconds = HttpRequestTimeoutSeconds,
-        GitHubToken = GitHubToken,
         EnableMetrics = EnableMetrics,
         SentryDsn = SentryDsn,
         AllowExternalReads = AllowExternalReads,
@@ -87,7 +85,6 @@ internal static class KiokuOptionsConfiguration
             ["KIOKU_ALLOW_INSECURE_HTTP"] = nameof(KiokuOptions.AllowInsecureHttp),
             ["KIOKU_HTTP_MAX_REQUEST_BODY_BYTES"] = nameof(KiokuOptions.HttpMaxRequestBodyBytes),
             ["KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS"] = nameof(KiokuOptions.HttpRequestTimeoutSeconds),
-            ["KIOKU_GITHUB_TOKEN"] = nameof(KiokuOptions.GitHubToken),
             ["KIOKU_ENABLE_METRICS"] = nameof(KiokuOptions.EnableMetrics),
             ["KIOKU_SENTRY_DSN"] = nameof(KiokuOptions.SentryDsn),
             ["KIOKU_ALLOW_EXTERNAL_READS"] = nameof(KiokuOptions.AllowExternalReads),

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "event_id": "event-01",
+  "run_id": "run-01",
+  "work_item_id": "work-01",
+  "sequence_number": 0,
+  "event_type": "caller.grants.authority",
+  "transition_id": "transition-01",
+  "occurred_at": "not-a-date",
+  "recorded_at": "2026-07-31T05:00:00Z",
+  "actor": {},
+  "payload": {},
+  "content_hash": "not-a-sha256-hash"
+}
