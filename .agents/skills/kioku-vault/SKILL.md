@@ -1,6 +1,6 @@
 ---
 name: kioku-vault
-description: Use when working with an Obsidian vault via the Kioku MCP server. Covers the implemented 49-tool surface, workflows, capability gating, and safety notes.
+description: Use when working with an Obsidian vault via the Kioku MCP server. Covers the implemented 43-tool default surface, 76-tool all-capabilities surface, workflows, capability gating, and safety notes.
 ---
 
 # Kioku vault skill
@@ -21,6 +21,7 @@ description or `docs/commands-reference.md`; do not guess parameter names.
 - **Engineering**: `create_project_doc`, `get_project_context`, `list_projects`, `setup_agent_workflow`.
 - **Templates**: `manage_templates`.
 - **Knowledge graph**: `get_concept_map`, `get_vault_snapshot`, `suggest_links`.
+- **Coordination**: `create_coordination_work_item`, `get_coordination_work_item`, `list_coordination_work_items`, `list_coordination_runs`, `transition_coordination_work_item`, `acquire_coordination_claim`, `renew_coordination_claim`, `release_coordination_claim`, `expire_coordination_claim`, `list_coordination_claims`, `list_coordination_history`, `get_coordination_handoff`, `list_coordination_blockers`, `list_stale_coordination_work`, `list_failed_coordination_attempts`, `list_coordination_conflicts`, `resolve_coordination_conflict`.
 - **Research**: `audit_citations`, `export_citations`, `import_bibtex`.
 - **Local generation**: `generate_flashcards`, `summarize_note`.
 - **CSS**: `manage_css_snippets`.
@@ -29,8 +30,8 @@ description or `docs/commands-reference.md`; do not guess parameter names.
 - **Obsidian UI**: `edit_in_obsidian`, `get_obsidian_state`, `open_note_in_obsidian`, `trigger_obsidian_command`.
 - **Utilities**: `get_server_status`, `rebuild_index`.
 
-The core groups are always available. `research`, `generation`, `css`, `assets`, `bridge`, and
-`plugin` are disabled by default. `git`, `restore`, and `zettelkasten` are removed groups. Check
+The core groups are always available. `research`, `generation`, `css`, `assets`, `bridge`,
+`plugin`, and `coordination` are disabled by default. `git`, `restore`, and `zettelkasten` are removed groups. Check
 `.kioku/config.yml` when a capability is unavailable instead of assuming an unknown-tool error is
 a code defect.
 
@@ -96,5 +97,5 @@ This is especially important for permanent `delete_note`, vault-wide `manage_tag
 
 ## Finding the full tool list
 
-The complete 49-tool inventory and exact schemas are in `docs/commands-reference.md`, or can be
+The complete 43-tool default inventory, 76-tool all-capabilities inventory, and exact schemas are in `docs/commands-reference.md`, or can be
 queried through MCP `tools/list`.

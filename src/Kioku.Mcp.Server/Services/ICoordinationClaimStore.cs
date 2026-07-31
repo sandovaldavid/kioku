@@ -47,4 +47,10 @@ public interface ICoordinationClaimStore
     Task<CoordinationClaim?> ReadAsync(
         string resourceKey,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CoordinationClaim>> ListAsync(
+        string? runId = null,
+        string? workItemId = null,
+        string? status = null,
+        CancellationToken cancellationToken = default);
 }

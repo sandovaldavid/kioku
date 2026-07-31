@@ -33,7 +33,7 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 - Server package version on `develop`: `2.3.0`; the branch can contain unreleased changes.
 - Default MCP profile: 43 tools.
 - All-capabilities profile: 59 tools.
-- Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, and `plugin`.
+- Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
 - The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative for tool names, schemas, annotations, prompts, resources, and profile counts.
 - The generated [`docs/configuration-reference.md`](docs/configuration-reference.md) is authoritative for public process configuration.
 - Markdown files in the vault are the durable source of truth. Runtime indexes and the embeddings cache are derived data; there are no database migrations to maintain.

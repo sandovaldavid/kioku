@@ -5,14 +5,19 @@ This document describes the versioned JSON contracts implemented for issue
 persistence and replay boundary implemented for issue
 [#305](https://github.com/sandovaldavid/kioku/issues/305), plus the durable
 claims, leases, and fencing boundary implemented for issue
-[#306](https://github.com/sandovaldavid/kioku/issues/306). Note mutation and
-coordination tools remain outside this implementation.
+[#306](https://github.com/sandovaldavid/kioku/issues/306), the guarded vault
+mutation boundary implemented for issue
+[#307](https://github.com/sandovaldavid/kioku/issues/307), and the gated MCP
+surface implemented for issue
+[#308](https://github.com/sandovaldavid/kioku/issues/308).
 
 ## Contract documents
 
 Each top-level document uses `schema_version: 1` and includes a root
 `content_hash` field. The reviewed schemas are embedded in the server
 assembly and the representative fixtures are copied into the test output.
+Coordination tools return these typed documents inside the standard Kioku MCP
+result envelope, while coordination resources expose read-only JSON views.
 
 | Contract | Domain purpose | Schema |
 |---|---|---|
@@ -142,6 +147,8 @@ layout on first use:
   manifest.json
   events/YYYY/MM/<event_id>.json
   snapshots/work-items/<work_item_id>.json
+  leases/<sha256-resource-key>.json
+  conflicts/<conflict_id>.json
   runtime/locks/<work_item_hash>.lock
 ```
 
@@ -177,13 +184,14 @@ metadata cannot become an authority scope, event history replays
 deterministically, duplicates are idempotent, invalid history fails closed,
 projections recover after deletion, competing claimants produce one owner,
 expiry advances fencing, stale owners are rejected, and lease state survives a
-restart. Later note mutation and MCP work must reuse these contracts rather
-than introduce a second serializer or schema catalog.
+restart. The coordination application service and MCP adapters reuse these
+contracts rather than introducing a second serializer or schema catalog.
 
 ## Scope boundary
 
-This slice persists and replays events and implements durable claims, leases,
-expiry, and fencing. It does not enforce fencing on note mutations, expose
-coordination MCP tools, or adopt CloudEvents or A2A as mandatory internal
-formats. Those behaviors remain in the dependent issues described by the
-[durable coordination architecture](durable-coordination.md).
+This slice persists and replays events, implements durable claims, leases,
+expiry, fencing, guarded vault mutations, and exposes the opt-in coordination
+MCP surface. It does not adopt CloudEvents or A2A as mandatory internal
+formats. Session compatibility, crash/restart coverage, and rollout policy
+remain in the dependent issues described by the [durable coordination
+architecture](durable-coordination.md).

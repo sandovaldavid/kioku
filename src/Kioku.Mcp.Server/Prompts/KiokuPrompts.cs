@@ -128,6 +128,40 @@ public sealed class KiokuPrompts
         MCP prompts provide instructions; they do not execute the listed tools automatically.
         """;
 
+    [McpServerPrompt(Name = "coordinate_work"), Description(
+        "Guides clients through durable coordination state, claims, transitions, and handoff recovery.")]
+    public static string coordinate_work(
+        [Description("Run identity. Leave empty when creating a new run.")] string run_id = "",
+        [Description("Work-item identity. Leave empty when creating a new work item.")] string work_item_id = "")
+    {
+        var selector = string.IsNullOrWhiteSpace(run_id) || string.IsNullOrWhiteSpace(work_item_id)
+            ? "the target work item"
+            : $"run_id='{run_id}' and work_item_id='{work_item_id}'";
+        return $"""
+            Coordinate {selector} through the gated durable coordination profile:
+
+            1. If the work item does not exist, call `create_coordination_work_item` with a project,
+               resource_scope, and bounded summary. Save the returned run_id, work_item_id, and
+               attempt_id.
+            2. Call `get_coordination_work_item` before changing state and use its current
+               state_version, active claim, and unresolved conflicts.
+            3. Acquire or renew a claim with `acquire_coordination_claim` or
+               `renew_coordination_claim` before protected transitions or note mutations. Never
+               treat agent or client metadata as authority.
+            4. Call `transition_coordination_work_item` with the current claim_id,
+               fence_generation, and expected_state_version. Use `list_coordination_history` when
+               a transition is rejected or a restart needs explanation.
+            5. Use `get_coordination_handoff` for a versioned handoff packet. Inspect
+               `list_stale_coordination_work`, `list_failed_coordination_attempts`, and
+               `list_coordination_conflicts` during recovery.
+            6. Resolve a conflict only after reviewing its safe revision, claim, and resource
+               metadata with `resolve_coordination_conflict`.
+
+            The `coordination` capability is disabled by default. If its tools or resources are
+            unavailable, report that the vault must explicitly enable the capability.
+            """;
+    }
+
     [McpServerPrompt(Name = "record_decision"), Description(
         "Records an architecture decision for a project.")]
     public static string record_decision(

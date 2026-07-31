@@ -7,7 +7,8 @@ quality (Recall@K/MRR/NDCG@K).
 
 The runner lives at [`scripts/Kioku.Benchmarks`](../scripts/Kioku.Benchmarks) (a `suite`
 subcommand alongside the project's existing BenchmarkDotNet micro-benchmarks). The full JSON
-report from the run summarized below is committed at
+report from the baseline run summarized in sections 1 through 5 and section 7
+below is committed at
 [`scripts/Kioku.Benchmarks/output/benchmark-report.json`](../scripts/Kioku.Benchmarks/output/benchmark-report.json).
 
 ## Read this before trusting a number
@@ -167,11 +168,15 @@ proxy for GPT-style tokenization. This repo has no tokenizer library dependency,
 an order-of-magnitude estimate for comparing profiles against each other, not an exact
 provider-specific token cost.
 
+The original report predates the optional `coordination` capability. The values below are a
+current live schema probe after adding that capability; the other benchmark sections remain the
+historical baseline described above.
+
 | Profile | Tools | Schema JSON | Estimated tokens |
 |---|---:|---:|---:|
-| default | 43 | 53,313 bytes | ~13,329 |
-| all-capabilities | 59 | 64,753 bytes | ~16,189 |
-| **Delta** | **+16** | **+11,440 bytes** | **+2,860 (~21%)** |
+| default | 43 | 69,933 bytes | ~17,484 |
+| all-capabilities | 76 | 108,591 bytes | ~27,148 |
+| **Delta** | **+33** | **+38,658 bytes** | **+9,664 (~55%)** |
 
 ## 7. Retrieval quality — Recall@K / MRR / NDCG@K
 

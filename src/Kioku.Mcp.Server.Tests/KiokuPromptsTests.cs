@@ -91,6 +91,19 @@ public class KiokuPromptsTests
     }
 
     [Fact]
+    public void CoordinateWork_UsesClaimsVersionsAndHandoffTools()
+    {
+        var result = KiokuPrompts.coordinate_work("run-01", "work-01");
+
+        Assert.Contains("run_id='run-01'", result);
+        Assert.Contains("get_coordination_work_item", result);
+        Assert.Contains("acquire_coordination_claim", result);
+        Assert.Contains("expected_state_version", result);
+        Assert.Contains("get_coordination_handoff", result);
+        Assert.Contains("coordination", result);
+    }
+
+    [Fact]
     public void RecordDecision_ChecksPriorAdrsAndHandlesSupersede()
     {
         var result = KiokuPrompts.record_decision("kioku", "database choice");

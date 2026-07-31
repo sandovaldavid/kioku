@@ -27,6 +27,23 @@ internal static class KiokuTypedResultFilters
         "create_literature_note",
         "create_moc",
         "create_folder_readme",
+        "create_coordination_work_item",
+        "get_coordination_work_item",
+        "list_coordination_work_items",
+        "list_coordination_runs",
+        "transition_coordination_work_item",
+        "acquire_coordination_claim",
+        "renew_coordination_claim",
+        "release_coordination_claim",
+        "expire_coordination_claim",
+        "list_coordination_claims",
+        "list_coordination_history",
+        "get_coordination_handoff",
+        "list_coordination_blockers",
+        "list_stale_coordination_work",
+        "list_failed_coordination_attempts",
+        "list_coordination_conflicts",
+        "resolve_coordination_conflict",
     };
 
     private static readonly JsonElement OutputSchema = JsonSerializer.SerializeToElement(new
@@ -205,6 +222,16 @@ internal static class KiokuTypedResultFilters
         if (normalized.StartsWith("[error:ACCESS_DENIED]", StringComparison.OrdinalIgnoreCase))
         {
             return new(true, "ACCESS_DENIED", StripPrefix(normalized), null);
+        }
+
+        if (normalized.StartsWith("[error:", StringComparison.OrdinalIgnoreCase))
+        {
+            var closingBracket = normalized.IndexOf(']');
+            if (closingBracket > "[error:".Length)
+            {
+                var code = normalized["[error:".Length..closingBracket].ToUpperInvariant();
+                return new(true, code, StripPrefix(normalized), null);
+            }
         }
 
         if (normalized.StartsWith("[info]", StringComparison.OrdinalIgnoreCase))

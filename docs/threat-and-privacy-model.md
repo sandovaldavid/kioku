@@ -161,13 +161,15 @@ Agents should treat note content as data, inspect proposed mutations, and requir
 
 Concurrent edits to the same note body are not a transactional merge system. Coordinate agents at the project/session level and review changes through Git when multiple writers target the same file.
 
-### Partial durable coordination implementation
+### Durable coordination profile
 
 The durable coordination architecture is documented in
 [durable-coordination.md](durable-coordination.md). Event persistence, claims,
 leases, fencing, and the guarded vault-mutation boundary are implemented.
 Core single-resource write tools expose optional revision, hash, claim, fence,
-and mutation-id preconditions. Public coordination tools remain planned.
+and mutation-id preconditions. The coordination MCP tools and read-only
+resources are disabled by default and require the explicit `coordination`
+capability group.
 
 The implementation adds a private `.kioku/coordination/` event log for machine
 coordination state. It does not copy note bodies and does not make `agent`,
@@ -195,8 +197,11 @@ The remaining threat-model boundaries are:
 - unsupported restore epochs require explicit recovery before claim-protected
   writes resume.
 
-These controls do not protect against a same-user process that edits the vault
-directly, merge arbitrary note bodies, or provide multi-tenant authorization.
+The coordination profile does not protect against a same-user process that
+edits the vault directly, merge arbitrary note bodies, or provide multi-tenant
+authorization. Tool annotations are safety hints, not authorization; the
+server-side capability, claim, fence, revision, and path checks remain
+authoritative.
 
 ## Deployment checklist
 
