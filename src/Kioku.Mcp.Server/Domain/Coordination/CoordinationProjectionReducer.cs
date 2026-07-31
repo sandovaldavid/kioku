@@ -194,6 +194,7 @@ public static class CoordinationProjectionReducer
             Revision = last.SequenceNumber,
             AttemptId = last.AttemptId,
             SessionId = last.SessionId,
+            ParentSessionId = first.ParentSessionId,
             ResourceScope = first.ResourceScope,
             ActiveClaims = [],
             Blockers = blockers,

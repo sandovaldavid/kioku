@@ -10,8 +10,9 @@ and fencing are implemented by issue
 capabilities remain incomplete.
 
 **Decision status:** Architecture boundary in progress; event persistence,
-claims, leases, fencing, and the guarded vault-mutation boundary are
-implemented.
+claims, leases, fencing, the guarded vault-mutation boundary, and work-session
+compatibility are implemented. Crash/restart coverage, observability, and
+rollout controls remain in later issues.
 
 The profile coordinates independent Kioku processes that share one vault on a
 supported local filesystem. It is not a distributed lock service, an
@@ -446,6 +447,8 @@ The compatibility rules are:
 
 - Existing session notes retain their current `session_id`, `agent`,
   `client_name`, `status`, timestamps, and `parent_session_id` fields.
+- `run_id`, `work_item_id`, and `attempt_id` are additive frontmatter fields;
+  they are written only when a caller explicitly opts into coordination.
 - Existing `active` and `done` session statuses are not translated into the
   coordination work-item state machine.
 - A session can be the execution context for multiple work items. Closing a
@@ -459,6 +462,16 @@ The compatibility rules are:
   from filenames or modification times.
 - `parent_session_id` remains provenance only. It never reopens or closes the
   parent session and never grants the child session its claim.
+- A new linked session creates one idempotent pending work item. Linking an
+  existing session requires an expected content revision or hash, but no claim,
+  because the link operation does not grant ownership.
+- Resume and close operations for a linked session require an expected content
+  revision or hash together with the current `claim_id` and
+  `fence_generation`. A legacy selector cannot bypass those checks after the
+  link is persisted.
+- Closing a session does not implicitly transition its work item. The work item
+  can continue after the session ends and a later session can reference it
+  explicitly.
 - Coordination writes must preserve unknown frontmatter fields and must not
   rewrite session Markdown unless an explicit session operation requests it.
 
@@ -548,8 +561,9 @@ The planned sequence is:
    compare-and-swap vault mutation and manual-edit conflict handling.
 5. [#308](https://github.com/sandovaldavid/kioku/issues/308) adds the gated MCP
    surface without making caller metadata authoritative.
-6. [#309](https://github.com/sandovaldavid/kioku/issues/309) documents and tests
-   compatibility with existing sessions and profiles.
+6. [#309](https://github.com/sandovaldavid/kioku/issues/309) adds and documents
+   additive work-session compatibility, lazy linking, and guarded legacy
+   resume/close behavior. This gate is implemented on the current branch.
 7. [#310](https://github.com/sandovaldavid/kioku/issues/310) derives crash,
    restart, concurrency, restore, and filesystem-boundary tests from the
    invariants.

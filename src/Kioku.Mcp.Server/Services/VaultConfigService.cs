@@ -9,7 +9,7 @@ public sealed class VaultConfigService
     private static readonly HashSet<string> DefaultDisabledGroups =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            "research", "generation", "css", "assets", "bridge", "plugin",
+            "research", "generation", "css", "assets", "bridge", "plugin", "coordination",
         };
 
     private static readonly HashSet<string> RemovedGroups =
@@ -107,7 +107,7 @@ public sealed class VaultConfigService
     public static IReadOnlyList<string> KnownGroups { get; } =
     [
         "tasks", "organization", "sessions", "workflows", "graph", "research", "generation",
-        "css", "assets", "bridge", "plugin", "engineering"
+        "css", "assets", "bridge", "plugin", "engineering", "coordination"
     ];
 
     /// <summary>
@@ -270,7 +270,7 @@ public sealed class CapabilitiesConfig
     /// <summary>
     /// Tool groups that should be disabled. Use '*' to disable all optional groups.
     /// Known groups: css, assets, research, graph, workflows, organization, sessions, bridge,
-    /// plugin, tasks, generation, engineering.
+    /// plugin, tasks, generation, engineering, coordination.
     /// </summary>
     public List<string>? Disabled { get; init; }
 

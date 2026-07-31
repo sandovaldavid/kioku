@@ -46,6 +46,9 @@ public sealed partial class SessionContextTools
         [Description("Agent name. Empty auto-detects it from the MCP client.")] string agent = "",
         [Description("Existing durable session identifier to resume.")] string session_id = "",
         [Description("Optional parent session identifier for handoff chains.")] string parent_session_id = "",
+        [Description("Optional coordination run identity. Requires work_item_id when supplied.")] string run_id = "",
+        [Description("Optional coordination work-item identity. Requires run_id when supplied.")] string work_item_id = "",
+        [Description("Optional coordination attempt identity. Empty generates one for a new link.")] string attempt_id = "",
         [Description("Expected SHA-256 revision from a prior read when resuming; empty keeps legacy behavior.")] string expected_revision = "",
         [Description("Expected SHA-256 hash alias when resuming; empty keeps legacy behavior.")] string expected_hash = "",
         [Description("Current claim ID protecting the session note, when fencing is required.")] string claim_id = "",
@@ -63,14 +66,15 @@ public sealed partial class SessionContextTools
             session_id,
             parent_session_id,
             server?.ClientInfo?.Name,
-            VaultMutationPreconditions.FromToolArguments(
+            coordination: WorkSessionCoordinationRequest.FromToolArguments(run_id, work_item_id, attempt_id),
+            preconditions: VaultMutationPreconditions.FromToolArguments(
                 expected_revision,
                 expected_hash,
                 claim_id,
                 fence_generation,
                 resource_key,
                 mutation_id),
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
     [McpServerTool, Description(
         "Closes an active work session. session_id is the primary selector. A note/path remains " +

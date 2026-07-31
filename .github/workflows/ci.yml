@@ -269,6 +269,8 @@ jobs:
           VAULT="$RUNNER_TEMP/kioku-tool-vault"
           mkdir -p "$VAULT"
           printf '# Seed\n\nPackage smoke fixture.\n' > "$VAULT/seed.md"
+          mkdir -p "$VAULT/Sessions"
+          cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
           dotnet run \
             --project scripts/Kioku.Ci/Kioku.Ci.csproj \
             --configuration Release \
@@ -318,6 +320,8 @@ jobs:
           VAULT="$RUNNER_TEMP/kioku-http-vault"
           mkdir -p "$VAULT"
           printf '# Seed\n\nHTTP smoke fixture.\n' > "$VAULT/seed.md"
+          mkdir -p "$VAULT/Sessions"
+          cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
           dotnet run \
             --project scripts/Kioku.Ci/Kioku.Ci.csproj \
             --configuration Release \

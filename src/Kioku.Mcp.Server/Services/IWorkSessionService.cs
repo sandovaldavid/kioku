@@ -24,6 +24,7 @@ public interface IWorkSessionService
         string sessionId,
         string parentSessionId,
         string? mcpClientName,
+        WorkSessionCoordinationRequest? coordination = null,
         VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 

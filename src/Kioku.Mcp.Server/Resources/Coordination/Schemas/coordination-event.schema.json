@@ -36,6 +36,7 @@
     },
     "attempt_id": { "type": ["string", "null"], "maxLength": 128 },
     "session_id": { "type": ["string", "null"], "maxLength": 128 },
+    "parent_session_id": { "type": ["string", "null"], "maxLength": 128 },
     "claim_id": { "type": ["string", "null"], "maxLength": 128 },
     "sequence_number": { "type": "integer", "minimum": 1 },
     "event_type": {

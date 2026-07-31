@@ -62,6 +62,11 @@ capabilities:
 
 Changes require a server restart. The generated [MCP contract reference](commands-reference.md) records exact profile counts and schemas from live protocol discovery.
 
+The coordination group controls coordination tools and resources. The existing session tools
+remain registered when coordination is disabled so legacy callers continue to work, but a caller
+that supplies coordination identifiers receives a stable `COORDINATION_DISABLED` error and no
+session is created or linked.
+
 ## Related documentation
 
 - [MCP contract reference](commands-reference.md)

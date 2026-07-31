@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Kioku.Mcp.Server.Domain;
+using Kioku.Mcp.Server.Domain.Coordination;
 
 namespace Kioku.Mcp.Server.Services;
 
@@ -9,6 +10,12 @@ internal sealed partial class WorkSessionService
 {
     private static readonly string[] KnownAgentNames =
         ["claude", "codex", "antigravity", "opencode", "cursor", "gemini", "copilot", "windsurf"];
+
+    private static readonly string[] RequiredCoordinatedPreconditions =
+        ["expected_revision", "claim_id", "fence_generation"];
+
+    private static readonly string[] RequiredCoordinationLinkPreconditions =
+        ["expected_revision"];
 
     private List<SessionDescriptor> FindActiveSessions() =>
         _vault.GetAllNotes()
@@ -42,7 +49,9 @@ internal sealed partial class WorkSessionService
             GetString(fields, "client_name"),
             note.Metadata.Status ?? "unknown",
             ParseUtc(GetString(fields, "started_at")) ?? note.LastModified.ToUniversalTime(),
-            ParseUtc(GetString(fields, "ended_at")));
+            ParseUtc(GetString(fields, "ended_at")),
+            GetString(fields, "parent_session_id"),
+            ReadCoordinationLink(fields));
     }
 
     private static SemaphoreSlim GetLock(SessionDescriptor session)
@@ -75,6 +84,314 @@ internal sealed partial class WorkSessionService
                 variables,
                 title,
                 _timeProvider.GetUtcNow());
+    }
+
+    private CoordinationRequestResult NormalizeCoordinationRequest(
+        WorkSessionCoordinationRequest? request)
+    {
+        if (request is null || !request.IsRequested)
+        {
+            return new(null, null);
+        }
+
+        if (!_vaultConfig.IsGroupEnabled("coordination"))
+        {
+            return new(
+                null,
+                FormatError(
+                    "COORDINATION_DISABLED",
+                    "The coordination capability is disabled for this vault.",
+                    new { capability = "coordination" }));
+        }
+
+        if (_coordination is null || _mutations is null)
+        {
+            return new(
+                null,
+                FormatError(
+                    "COORDINATION_UNAVAILABLE",
+                    "The coordination compatibility service is unavailable.",
+                    new { capability = "coordination" }));
+        }
+
+        var runId = request.RunId?.Trim();
+        var workItemId = request.WorkItemId?.Trim();
+        if (string.IsNullOrWhiteSpace(runId) != string.IsNullOrWhiteSpace(workItemId))
+        {
+            return new(
+                null,
+                FormatError(
+                    "COORDINATION_LINK_INVALID",
+                    "run_id and work_item_id must be supplied together.",
+                    new { run_id = runId, work_item_id = workItemId }));
+        }
+
+        if (string.IsNullOrWhiteSpace(runId))
+        {
+            return new(
+                null,
+                FormatError(
+                    "COORDINATION_LINK_INVALID",
+                    "attempt_id cannot be supplied without run_id and work_item_id.",
+                    new { attempt_id = request.AttemptId }));
+        }
+
+        var attemptId = string.IsNullOrWhiteSpace(request.AttemptId)
+            ? Guid.CreateVersion7().ToString("D")
+            : request.AttemptId.Trim();
+        var invalid = FirstInvalidIdentifier(
+            ("run_id", runId),
+            ("work_item_id", workItemId),
+            ("attempt_id", attemptId));
+        if (invalid is not null)
+        {
+            return new(
+                null,
+                FormatError(
+                    "COORDINATION_LINK_INVALID",
+                    $"{invalid.Value.Field} is missing or unsafe.",
+                    new { field = invalid.Value.Field }));
+        }
+
+        return new(
+            new WorkSessionCoordinationLink(
+                runId!,
+                workItemId!,
+                attemptId),
+            null);
+    }
+
+    private async Task<CoordinationLinkResult> TryCreateCoordinationLinkAsync(
+        WorkSessionCoordinationLink? requested,
+        string sessionId,
+        string parentSessionId,
+        string relativePath,
+        string project,
+        string agent,
+        string clientName,
+        CancellationToken cancellationToken)
+    {
+        if (requested is null)
+        {
+            return new(null, null);
+        }
+
+        try
+        {
+            var snapshot = await _coordination!.CreateWorkItemAsync(
+                new CoordinationCreateWorkItemRequest
+                {
+                    RunId = requested.RunId,
+                    WorkItemId = requested.WorkItemId,
+                    AttemptId = requested.AttemptId,
+                    SessionId = sessionId,
+                    ParentSessionId = string.IsNullOrWhiteSpace(parentSessionId)
+                        ? null
+                        : parentSessionId.Trim(),
+                    Agent = agent,
+                    ClientName = clientName,
+                    Project = string.IsNullOrWhiteSpace(project) ? "global" : project,
+                    ResourceScope = [$"note:{relativePath}"],
+                    Summary = "The work session was linked to a durable coordination work item.",
+                    TransitionId = $"session-link:{sessionId}:{requested.WorkItemId}",
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            return new(
+                new WorkSessionCoordinationLink(
+                    snapshot.Projection.RunId,
+                    snapshot.Projection.WorkItemId,
+                    snapshot.Projection.AttemptId ?? requested.AttemptId),
+                null);
+        }
+        catch (CoordinationOperationException exception)
+        {
+            return new(
+                null,
+                $"Coordination link was not created ({exception.Code}); the session remains legacy/uncoordinated.");
+        }
+    }
+
+    private async Task<string?> PersistCoordinationLinkAsync(
+        string filePath,
+        WorkSessionCoordinationLink link,
+        CancellationToken cancellationToken)
+    {
+        var current = await _fileSystem.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
+        var document = FrontmatterDocument.Parse(current);
+        var fields = document.ToNoteMetadata().ExtraFields;
+        var existing = ReadCoordinationLink(fields);
+        var hasPartialLink = HasCoordinationMetadata(fields);
+        if (existing is not null)
+        {
+            return existing == link
+                ? null
+                : "Coordination link was not persisted because the session already references another work item.";
+        }
+
+        if (hasPartialLink)
+        {
+            return "Coordination link was not persisted because the session has partial coordination metadata.";
+        }
+
+        document.SetString("run_id", link.RunId);
+        document.SetString("work_item_id", link.WorkItemId);
+        document.SetString("attempt_id", link.AttemptId);
+        try
+        {
+            var preconditions = _mutations is null
+                ? null
+                : new VaultMutationPreconditions
+                {
+                    ExpectedRevision = VaultRevision.Compute(current),
+                    ResourceKey = $"note:{Path.GetRelativePath(_config.VaultPath, filePath).Replace('\\', '/')}",
+                };
+            await WriteSessionTextAsync(
+                filePath,
+                document.Serialize(),
+                preconditions,
+                cancellationToken).ConfigureAwait(false);
+            await _vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
+            return null;
+        }
+        catch (VaultMutationException exception)
+        {
+            return $"Coordination link was not persisted ({exception.Code}); the session remains usable without the link.";
+        }
+        catch (IOException)
+        {
+            return "Coordination link was not persisted; the session remains usable without the link.";
+        }
+    }
+
+    private static string? ValidateRequestedCoordinationLink(
+        WorkSessionCoordinationLink? existing,
+        WorkSessionCoordinationLink? requested)
+    {
+        if (existing is null || requested is null)
+        {
+            return null;
+        }
+
+        return existing == requested
+            ? null
+            : FormatError(
+                "COORDINATION_LINK_MISMATCH",
+                "The requested coordination context does not match the session's persisted context.",
+                new
+                {
+                    persisted_run_id = existing.RunId,
+                    persisted_work_item_id = existing.WorkItemId,
+                    persisted_attempt_id = existing.AttemptId,
+                });
+    }
+
+    private string? ValidateCoordinationLinkPreconditions(
+        SessionDescriptor session,
+        VaultMutationPreconditions? preconditions,
+        WorkSessionCoordinationLink? persistedLink,
+        WorkSessionCoordinationLink? requestedLink)
+    {
+        if (persistedLink is null && requestedLink is null)
+        {
+            return null;
+        }
+
+        if (_coordination is null || _mutations is null)
+        {
+            return FormatError(
+                "COORDINATION_UNAVAILABLE",
+                "The coordination compatibility service is unavailable; the session cannot be mutated safely.",
+                new { capability = "coordination", session_id = session.SessionId });
+        }
+
+        if (persistedLink is null && requestedLink is not null &&
+            preconditions is not { HasContentPrecondition: true })
+        {
+            return FormatError(
+                "COORDINATED_SESSION_REQUIRES_PRECONDITIONS",
+                "Linking an existing session requires an expected revision or hash before it can be mutated.",
+                new
+                {
+                    session_id = session.SessionId,
+                    run_id = requestedLink.RunId,
+                    work_item_id = requestedLink.WorkItemId,
+                    required = RequiredCoordinationLinkPreconditions,
+                });
+        }
+
+        return ValidateCoordinatedPreconditions(session, preconditions, persistedLink);
+    }
+
+    private string? ValidateCoordinatedPreconditions(
+        SessionDescriptor session,
+        VaultMutationPreconditions? preconditions,
+        WorkSessionCoordinationLink? persistedLink)
+    {
+        if (persistedLink is null)
+        {
+            return null;
+        }
+
+        if (_coordination is null || _mutations is null)
+        {
+            return FormatError(
+                "COORDINATION_UNAVAILABLE",
+                "The coordination compatibility service is unavailable; the session cannot be mutated safely.",
+                new { capability = "coordination", session_id = session.SessionId });
+        }
+
+        if (preconditions is { HasContentPrecondition: true, HasClaimPrecondition: true })
+        {
+            return null;
+        }
+
+        return FormatError(
+            "COORDINATED_SESSION_REQUIRES_PRECONDITIONS",
+            "This coordinated session requires an expected revision/hash and the current claim fence before it can be mutated.",
+            new
+            {
+                session_id = session.SessionId,
+                run_id = persistedLink.RunId,
+                work_item_id = persistedLink.WorkItemId,
+                required = RequiredCoordinatedPreconditions,
+            });
+    }
+
+    private static object? ToCoordinationPayload(WorkSessionCoordinationLink? link) =>
+        link is null
+            ? null
+            : new
+            {
+                run_id = link.RunId,
+                work_item_id = link.WorkItemId,
+                attempt_id = link.AttemptId,
+            };
+
+    private static string? CombineWarnings(params string?[] warnings)
+    {
+        var values = warnings
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim())
+            .ToArray();
+        return values.Length == 0 ? null : string.Join(" ", values);
+    }
+
+    private static (string Field, string Value)? FirstInvalidIdentifier(
+        params (string Field, string? Value)[] values)
+    {
+        foreach (var (field, value) in values)
+        {
+            if (string.IsNullOrWhiteSpace(value) ||
+                value.Length > 128 ||
+                value.Any(character =>
+                    !char.IsLetterOrDigit(character) && character is not '-' and not '_' and not '.' and not ':'))
+            {
+                return (field, value ?? string.Empty);
+            }
+        }
+
+        return null;
     }
 
     private string? FindSessionsFolder()
@@ -197,6 +514,44 @@ internal sealed partial class WorkSessionService
     private static string? NormalizeClientName(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private static WorkSessionCoordinationLink? ReadCoordinationLink(
+        IReadOnlyDictionary<string, string> fields)
+    {
+        var runId = GetString(fields, "run_id");
+        var workItemId = GetString(fields, "work_item_id");
+        var attemptId = GetString(fields, "attempt_id");
+        return string.IsNullOrWhiteSpace(runId) ||
+            string.IsNullOrWhiteSpace(workItemId) ||
+            string.IsNullOrWhiteSpace(attemptId)
+                ? null
+                : new WorkSessionCoordinationLink(runId, workItemId, attemptId);
+    }
+
+    private static WorkSessionCoordinationLink? ReadCoordinationLink(
+        IReadOnlyDictionary<string, object?> fields)
+    {
+        var runId = GetString(fields, "run_id");
+        var workItemId = GetString(fields, "work_item_id");
+        var attemptId = GetString(fields, "attempt_id");
+        return string.IsNullOrWhiteSpace(runId) ||
+            string.IsNullOrWhiteSpace(workItemId) ||
+            string.IsNullOrWhiteSpace(attemptId)
+                ? null
+                : new WorkSessionCoordinationLink(runId, workItemId, attemptId);
+    }
+
+    private static bool HasCoordinationMetadata(IReadOnlyDictionary<string, string> fields) =>
+        fields.Keys.Any(key =>
+            key.Equals("run_id", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("work_item_id", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("attempt_id", StringComparison.OrdinalIgnoreCase));
+
+    private static bool HasCoordinationMetadata(IReadOnlyDictionary<string, object?> fields) =>
+        fields.Keys.Any(key =>
+            key.Equals("run_id", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("work_item_id", StringComparison.OrdinalIgnoreCase) ||
+            key.Equals("attempt_id", StringComparison.OrdinalIgnoreCase));
+
     private static string? GetString(
         IReadOnlyDictionary<string, string> fields,
         string key) =>
@@ -231,7 +586,8 @@ internal sealed partial class WorkSessionService
         string agent,
         string clientName,
         DateTimeOffset startedAt,
-        string? warning)
+        string? warning,
+        WorkSessionCoordinationLink? coordination = null)
     {
         var payload = JsonSerializer.Serialize(new
         {
@@ -242,6 +598,7 @@ internal sealed partial class WorkSessionService
             agent,
             client_name = clientName,
             started_at = FormatUtc(startedAt),
+            coordination = ToCoordinationPayload(coordination),
         });
         var result = $"[ok] Work session {action}: {path}\n{payload}";
         return warning is null ? result : $"{result}\n[warning] {warning}";
@@ -301,6 +658,14 @@ internal sealed partial class WorkSessionService
             : $"{duration.Minutes}m";
     }
 
+    private sealed record CoordinationRequestResult(
+        WorkSessionCoordinationLink? Link,
+        string? Error);
+
+    private sealed record CoordinationLinkResult(
+        WorkSessionCoordinationLink? Link,
+        string? Warning);
+
     private sealed record SessionDescriptor(
         Note Note,
         string? SessionId,
@@ -309,7 +674,9 @@ internal sealed partial class WorkSessionService
         string? ClientName,
         string Status,
         DateTimeOffset StartedAt,
-        DateTimeOffset? EndedAt);
+        DateTimeOffset? EndedAt,
+        string? ParentSessionId,
+        WorkSessionCoordinationLink? Coordination);
 
     private sealed record SessionResolution(SessionDescriptor? Session, string? Error);
 }

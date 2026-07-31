@@ -110,6 +110,7 @@ internal sealed class CoordinationService(
             "transition_id",
             fallback: $"create:{workItemId}");
         ValidateOptionalIdentifier(request.SessionId, "session_id");
+        ValidateOptionalIdentifier(request.ParentSessionId, "parent_session_id");
         ValidateActor(request.Agent, request.ClientName);
         var resourceScope = NormalizeResourceScope(request.ResourceScope);
         var summary = string.IsNullOrWhiteSpace(request.Summary)
@@ -157,6 +158,7 @@ internal sealed class CoordinationService(
                 ResourceScope = resourceScope,
                 AttemptId = attemptId,
                 SessionId = request.SessionId,
+                ParentSessionId = request.ParentSessionId,
                 ClaimId = null,
                 SequenceNumber = 1,
                 EventType = CoordinationEventTypes.WorkItemCreated,
@@ -543,7 +545,7 @@ internal sealed class CoordinationService(
                 WorkItemId = workItemId,
                 AttemptId = snapshot.Projection.AttemptId,
                 SessionId = snapshot.Projection.SessionId,
-                ParentSessionId = null,
+                ParentSessionId = snapshot.Projection.ParentSessionId,
                 Agent = last.Actor.Agent,
                 ClientName = last.Actor.ClientName,
                 Project = snapshot.Projection.Project,
