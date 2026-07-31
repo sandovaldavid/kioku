@@ -29,7 +29,7 @@ Active repository documentation should normally describe **Implemented** behavio
 |---|---|---|
 | [Installation](install.md) | Implemented | Install the server, register clients, build from source, and verify a deployment. |
 | [Architecture](architecture.md) | Implemented | Current component responsibilities and dependency direction. |
-| [Durable coordination profile](durable-coordination.md) | In progress | Coordination domain, state machine, storage boundary, event persistence, claims, leases, and fencing; compare-and-swap writes and public tools remain planned. |
+| [Durable coordination profile](durable-coordination.md) | In progress | Coordination domain, state machine, storage boundary, event persistence, claims, leases, fencing, and guarded vault mutations; the public coordination tool surface remains planned. |
 | [Troubleshooting](troubleshooting.md) | Implemented | Diagnose server, HTTP, indexing, Ollama, bridge, and Docker problems. |
 | [Focused-tool migration](focused-tool-migration.md) | Implemented / Deprecated | Preferred focused tools and the generic wrappers retained only for compatibility. |
 

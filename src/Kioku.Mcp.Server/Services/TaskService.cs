@@ -13,7 +13,8 @@ public sealed partial class TaskService(
     ILogger<TaskService> logger,
     KiokuConfiguration config,
     VaultIndexService? vault = null,
-    VaultConfigService? vaultConfig = null)
+    VaultConfigService? vaultConfig = null,
+    IVaultMutationService? mutations = null)
 {
     // Matches '- [ ] text' (open) and '- [x] text' / '- [X] text' (done)
     [GeneratedRegex(@"^(?<indent>\s*)- \[(?<state>[ xX])\] (?<text>.+)$", RegexOptions.Multiline)]
@@ -109,7 +110,11 @@ public sealed partial class TaskService(
     /// <param name="lineNumber">1-based line number of the task.</param>
     /// <param name="complete">True to mark complete ('- [x]'), false to reopen ('- [ ]').</param>
     /// <returns>The updated task item, or null if the line was not a valid task.</returns>
-    public async Task<TaskItem?> SetTaskCompletionAsync(string filePath, int lineNumber, bool complete)
+    public async Task<TaskItem?> SetTaskCompletionAsync(
+        string filePath,
+        int lineNumber,
+        bool complete,
+        VaultMutationPreconditions? preconditions = null)
     {
         var lines = (await File.ReadAllLinesAsync(filePath)).ToList();
 
@@ -136,7 +141,14 @@ public sealed partial class TaskService(
         var updatedContent = string.Join(Environment.NewLine, lines);
         updatedContent = NoteHelpers.TouchUpdated(
             updatedContent, DateOnly.FromDateTime(DateTime.Today), vaultConfig?.MaintainUpdated == true);
-        await File.WriteAllTextAsync(filePath, updatedContent, NoteHelpers.Utf8NoBom);
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(filePath, updatedContent, NoteHelpers.Utf8NoBom);
+        }
+        else
+        {
+            await mutations.WriteTextAsync(filePath, updatedContent, preconditions);
+        }
         logger.Info("Task at line {Line} in {Path} marked as {State}", lineNumber, filePath, complete ? "complete" : "open");
 
         var vaultRelative = Path.GetRelativePath(_vaultPath, filePath).Replace('\\', '/');

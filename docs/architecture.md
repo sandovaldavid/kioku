@@ -50,9 +50,11 @@ schema versions, hashes, sequence numbers, idempotency, and state transitions
 before atomically writing an event. `CoordinationClaimStore` adds resource locks,
 lease projections, server-time expiry, and monotonic fencing. Both services use
 the pure `CoordinationProjectionReducer` and remain internal application
-boundaries; compare-and-swap note mutation and coordination MCP tools remain
-future slices. The architecture and supported-filesystem boundary are
-documented in [durable-coordination.md](durable-coordination.md).
+boundaries. `VaultMutationService` adds canonical resource locking, optional
+revision/hash checks, claim fencing, atomic text mutations, and retry
+idempotency for writes. The public coordination MCP surface remains a future
+slice. The architecture and supported-filesystem boundary are documented in
+[durable-coordination.md](durable-coordination.md).
 
 ## Retrieval
 

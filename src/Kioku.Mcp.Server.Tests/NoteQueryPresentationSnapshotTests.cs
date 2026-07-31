@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -68,10 +69,11 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
 
         using var doc = JsonDocument.Parse(result);
         var root = doc.RootElement;
-        Assert.Equal(3, root.EnumerateObject().Count());
+        Assert.Equal(4, root.EnumerateObject().Count());
         Assert.Equal("Note One", root.GetProperty("name").GetString());
         Assert.Equal("Note One.md", root.GetProperty("path").GetString());
         Assert.Equal(expectedContent, root.GetProperty("content").GetString());
+        Assert.Equal(VaultRevision.Compute(expectedContent), root.GetProperty("revision").GetString());
     }
 
     [Fact]
@@ -168,7 +170,8 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
         Assert.Equal("Projects", root.GetProperty("folder").GetString());
         var notes = root.GetProperty("notes").EnumerateArray().ToList();
         Assert.Equal(2, notes.Count);
-        Assert.Equal(7, notes[0].EnumerateObject().Count());
+        Assert.Equal(8, notes[0].EnumerateObject().Count());
+        Assert.False(string.IsNullOrWhiteSpace(notes[0].GetProperty("revision").GetString()));
     }
 
     [Fact]

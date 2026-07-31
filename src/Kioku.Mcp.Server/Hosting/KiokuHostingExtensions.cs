@@ -32,6 +32,7 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<GenerationService>();
         services.AddSingleton<VaultIndexService>();
         services.AddSingleton<IVaultIndexOperations, VaultIndexOperations>();
+        services.AddSingleton<IVaultMutationService, VaultMutationService>();
         services.AddSingleton<VaultIndexingMetrics>();
         services.AddSingleton<VaultIndexingPipeline>();
         services.AddSingleton<ObsidianBridgeService>();

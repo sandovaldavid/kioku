@@ -51,6 +51,7 @@ internal static class NoteResultPresenter
                 name = found.Name,
                 path = found.VaultRelativePath,
                 content,
+                revision = VaultRevision.Compute(content),
             })
             : content;
 
@@ -63,6 +64,7 @@ internal static class NoteResultPresenter
             {
                 name = found.Name,
                 path = found.VaultRelativePath,
+                revision = found.Revision,
                 modified = found.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
                 tags = m.Tags,
                 aliases = m.Aliases,
@@ -189,6 +191,7 @@ internal static class NoteResultPresenter
                 {
                     name = n.Name,
                     path = n.VaultRelativePath,
+                    revision = n.Revision,
                     tags = n.Metadata.Tags,
                     status = n.Metadata.Status,
                     type = n.Metadata.NoteType,
@@ -293,6 +296,7 @@ internal static class NoteResultPresenter
                     rank = i + 1,
                     name = r.Note.Name,
                     path = r.Note.VaultRelativePath,
+                    revision = r.Note.Revision,
                     score = r.Score,
                     match = r.Label,
                     snippet = r.Snippet,

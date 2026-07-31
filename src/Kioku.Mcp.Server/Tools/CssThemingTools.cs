@@ -13,7 +13,9 @@ namespace Kioku.Mcp.Server.Tools;
 /// restarting Obsidian.
 /// </summary>
 [McpServerToolType]
-public sealed class CssThemingTools(KiokuConfiguration config)
+public sealed class CssThemingTools(
+    KiokuConfiguration config,
+    IVaultMutationService? mutations = null)
 {
     private string SnippetsFolder => Path.Combine(config.VaultPath, ".obsidian", "snippets");
     private string AppJsonPath => Path.Combine(config.VaultPath, ".obsidian", "app.json");
@@ -96,7 +98,7 @@ public sealed class CssThemingTools(KiokuConfiguration config)
         var filePath = Path.Combine(SnippetsFolder, safeName + ".css");
         var isNew = !File.Exists(filePath);
 
-        await File.WriteAllTextAsync(filePath, cssContent, NoteHelpers.Utf8NoBom);
+        await WriteTextAsync(filePath, cssContent);
 
         var enableResult = enable ? await EnableSnippetInAppJson(safeName) : string.Empty;
         var operation = isNew ? "created" : "updated";
@@ -170,7 +172,14 @@ public sealed class CssThemingTools(KiokuConfiguration config)
 
         try
         {
-            File.Delete(filePath);
+            if (mutations is null)
+            {
+                File.Delete(filePath);
+            }
+            else
+            {
+                await mutations.DeleteAsync(filePath);
+            }
 
             var removalResult = await RemoveSnippetFromAppJson(safeName);
 
@@ -225,7 +234,7 @@ public sealed class CssThemingTools(KiokuConfiguration config)
                 dict["enabledCssSnippets"] = enabledSnippets;
 
                 var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(AppJsonPath, updatedJson, NoteHelpers.Utf8NoBom);
+                await WriteTextAsync(AppJsonPath, updatedJson);
 
                 return $"   Snippet removed from enabledCssSnippets in app.json.";
             }
@@ -281,7 +290,7 @@ public sealed class CssThemingTools(KiokuConfiguration config)
                 dict["enabledCssSnippets"] = enabledSnippets;
 
                 var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
-                await File.WriteAllTextAsync(AppJsonPath, updatedJson, NoteHelpers.Utf8NoBom);
+                await WriteTextAsync(AppJsonPath, updatedJson);
 
                 return $"   Snippet added to enabledCssSnippets in app.json.";
             }
@@ -323,6 +332,23 @@ public sealed class CssThemingTools(KiokuConfiguration config)
         }
 
         return [];
+    }
+
+    private async Task WriteTextAsync(string path, string content)
+    {
+        if (mutations is null)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(path, content, NoteHelpers.Utf8NoBom);
+            return;
+        }
+
+        await mutations.WriteTextAsync(path, content);
     }
 
     private static async Task<string?> GetCssPreview(string filePath)

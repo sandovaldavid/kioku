@@ -1,4 +1,7 @@
 using Kioku.Mcp.Server;
+using Kioku.Mcp.Server.Domain;
+using Kioku.Mcp.Server.Domain.Coordination;
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,6 +40,80 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         var zettelkasten = new ZettelkastenTools(
             _fixture.Index, embedding, hybrid, config, vaultConfig, bridge);
         return new NoteCommandTools(_fixture.Index, config, vaultConfig, zettelkasten);
+    }
+
+    private NoteCommandTools CreateMutationTools()
+    {
+        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
+        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
+        var embedding = new EmbeddingService(
+            config,
+            NullLogger<EmbeddingService>.Instance,
+            new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
+                Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)))));
+        var hybrid = new HybridSearchService(_fixture.Index, embedding);
+        var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
+        var mutations = CreateMutationService(config);
+        var zettelkasten = new ZettelkastenTools(
+            _fixture.Index, embedding, hybrid, config, vaultConfig, bridge, mutations);
+        return new NoteCommandTools(
+            _fixture.Index,
+            config,
+            vaultConfig,
+            zettelkasten,
+            pathPolicy: new VaultPathPolicy(config),
+            mutations: mutations);
+    }
+
+    private IVaultMutationService CreateMutationService(KiokuConfiguration config)
+    {
+        var paths = new VaultPathPolicy(config);
+        var fileSystem = new CoordinationFileSystem();
+        var timeProvider = TimeProvider.System;
+        var validator = new CoordinationContractValidator();
+        var events = new CoordinationEventStore(paths, fileSystem, validator, timeProvider);
+        var claims = new CoordinationClaimStore(paths, fileSystem, events, validator, timeProvider);
+        return new VaultMutationService(
+            paths,
+            fileSystem,
+            claims,
+            new VaultIndexOperations(_fixture.Index),
+            timeProvider);
+    }
+
+    [Fact]
+    public async Task EditNote_WithStaleRevision_ReturnsConflictAndPreservesExternalEdit()
+    {
+        var tools = CreateMutationTools();
+        var name = $"Cas-{Guid.NewGuid():N}";
+        var create = await tools.create_note(name, "initial");
+        Assert.StartsWith("[ok]", create);
+
+        var path = _fixture.GetNotePath(name);
+        var expectedRevision = VaultRevision.Compute(await File.ReadAllTextAsync(path));
+        await File.WriteAllTextAsync(path, "external edit");
+
+        var result = await tools.edit_note(
+            name,
+            "stale write",
+            expected_revision: expectedRevision);
+
+        Assert.StartsWith("[error:WRITE_CONFLICT]", result);
+        Assert.Equal("external edit", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
+    public async Task CreateNote_WithMutationIdRetryReturnsSuccessfulIdempotentResult()
+    {
+        var tools = CreateMutationTools();
+        var name = $"Idempotent-{Guid.NewGuid():N}";
+
+        var first = await tools.create_note(name, "same body", mutation_id: "create-retry-01");
+        var duplicate = await tools.create_note(name, "same body", mutation_id: "create-retry-01");
+
+        Assert.StartsWith("[ok]", first);
+        Assert.StartsWith("[ok]", duplicate);
+        Assert.Equal("\nsame body", await _fixture.ReadNoteBodyAsync(name));
     }
 
     [Fact]

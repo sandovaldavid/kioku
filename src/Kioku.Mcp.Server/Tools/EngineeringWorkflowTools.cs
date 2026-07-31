@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using ModelContextProtocol.Server;
 
@@ -42,18 +43,30 @@ public sealed class EngineeringWorkflowTools
         [Description("Optional plan ticket note name.")] string ticket = "",
         [Description("Knowledge content in markdown.")] string content = "",
         [Description("Backlog idea description.")] string description = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the target, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "",
         CancellationToken cancellationToken = default) =>
         _documents.CreateProjectDocAsync(
             doc_type, project, title, status, tags, context, decision, consequences, alternatives,
             symptom, root_cause, fix, related_files, objective, steps, ticket, content, description,
-            cancellationToken);
+            preconditions: VaultMutationPreconditions.FromToolArguments(
+                expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id),
+            cancellationToken: cancellationToken);
 
     // Kept as a non-MCP compatibility entry point for existing in-process callers.
     public Task<string> record_adr(
         string project, string title, string context, string decision, string consequences,
         string alternatives = "", string status = "accepted", string tags = "",
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        _documents.RecordAdrAsync(project, title, context, decision, consequences, alternatives, status, tags, cancellationToken);
+        _documents.RecordAdrAsync(
+            project, title, context, decision, consequences, alternatives, status, tags,
+            preconditions: preconditions,
+            cancellationToken: cancellationToken);
 
     // Legacy compatibility wrappers are intentionally not MCP-exposed.
     // log_bug
@@ -71,8 +84,12 @@ public sealed class EngineeringWorkflowTools
         [Description("Bug status: open or fixed.")] string status = "fixed",
         [Description("Related source files, comma-separated (e.g. 'src/a.ts, src/b.ts').")] string related_files = "",
         [Description("Extra tags, comma-separated.")] string tags = "",
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        _documents.LogBugAsync(project, title, symptom, root_cause, fix, status, related_files, tags, cancellationToken);
+        _documents.LogBugAsync(
+            project, title, symptom, root_cause, fix, status, related_files, tags,
+            preconditions: preconditions,
+            cancellationToken: cancellationToken);
 
     // create_plan
 
@@ -89,8 +106,12 @@ public sealed class EngineeringWorkflowTools
         [Description("Plan status: draft, active, or done.")] string status = "draft",
         [Description("Optional ticket note name this plan implements; linked as a wikilink.")] string ticket = "",
         [Description("Extra tags, comma-separated.")] string tags = "",
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        _documents.CreatePlanAsync(project, title, objective, steps, status, ticket, tags, cancellationToken);
+        _documents.CreatePlanAsync(
+            project, title, objective, steps, status, ticket, tags,
+            preconditions: preconditions,
+            cancellationToken: cancellationToken);
 
     // add_knowledge
 
@@ -103,8 +124,12 @@ public sealed class EngineeringWorkflowTools
         [Description("The knowledge content in markdown.")] string content,
         [Description("Project name for project-specific knowledge. Leave empty for general knowledge.")] string project = "",
         [Description("Extra tags, comma-separated.")] string tags = "",
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        _documents.AddKnowledgeAsync(title, content, project, tags, cancellationToken);
+        _documents.AddKnowledgeAsync(
+            title, content, project, tags,
+            preconditions: preconditions,
+            cancellationToken: cancellationToken);
 
     // add_backlog_item
 
@@ -117,8 +142,12 @@ public sealed class EngineeringWorkflowTools
         [Description("Short idea title.")] string title,
         [Description("What the improvement is and why it was deferred.")] string description,
         [Description("Extra tags, comma-separated.")] string tags = "",
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        _documents.AddBacklogItemAsync(project, title, description, tags, cancellationToken);
+        _documents.AddBacklogItemAsync(
+            project, title, description, tags,
+            preconditions: preconditions,
+            cancellationToken: cancellationToken);
 
     // get_project_context
 
@@ -179,7 +208,12 @@ public sealed class EngineeringWorkflowTools
         [Description("New template body content. Ignored when reset_to_default=true.")] string content = "",
         [Description("Delete the vault override and revert to the embedded default instead of writing.")] bool reset_to_default = false,
         CancellationToken cancellationToken = default) =>
-        _documents.SetEngineeringTemplateAsync(type_key, content, reset_to_default, cancellationToken);
+        _documents.SetEngineeringTemplateAsync(
+            type_key,
+            content,
+            reset_to_default,
+            preconditions: null,
+            cancellationToken: cancellationToken);
 
     // setup_agent_workflow
 

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using ModelContextProtocol.Server;
 
@@ -45,6 +46,12 @@ public sealed partial class SessionContextTools
         [Description("Agent name. Empty auto-detects it from the MCP client.")] string agent = "",
         [Description("Existing durable session identifier to resume.")] string session_id = "",
         [Description("Optional parent session identifier for handoff chains.")] string parent_session_id = "",
+        [Description("Expected SHA-256 revision from a prior read when resuming; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias when resuming; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the session note, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the session note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "",
         McpServer? server = null,
         CancellationToken cancellationToken = default) =>
         _sessions.StartAsync(
@@ -56,6 +63,13 @@ public sealed partial class SessionContextTools
             session_id,
             parent_session_id,
             server?.ClientInfo?.Name,
+            VaultMutationPreconditions.FromToolArguments(
+                expected_revision,
+                expected_hash,
+                claim_id,
+                fence_generation,
+                resource_key,
+                mutation_id),
             cancellationToken);
 
     [McpServerTool, Description(
@@ -68,6 +82,12 @@ public sealed partial class SessionContextTools
         [Description("Optional project scope for implicit resolution.")] string project = "",
         [Description("Durable session identifier; takes precedence over session_note.")] string session_id = "",
         [Description("Agent identity used when MCP client metadata is unavailable.")] string agent = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the session note, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the session note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "",
         McpServer? server = null,
         CancellationToken cancellationToken = default) =>
         _sessions.EndAsync(
@@ -77,6 +97,13 @@ public sealed partial class SessionContextTools
             session_id,
             agent,
             server?.ClientInfo?.Name,
+            VaultMutationPreconditions.FromToolArguments(
+                expected_revision,
+                expected_hash,
+                claim_id,
+                fence_generation,
+                resource_key,
+                mutation_id),
             cancellationToken);
 
     [McpServerTool, Description(

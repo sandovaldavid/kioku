@@ -9,6 +9,12 @@ internal interface ICoordinationFileSystem
 
     bool DirectoryExists(string path);
 
+    void CreateDirectory(string path);
+
+    void DeleteFile(string path);
+
+    void MoveFile(string sourcePath, string destinationPath, bool overwrite);
+
     Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken);
 
     IReadOnlyList<string> EnumerateJsonFiles(string directory);

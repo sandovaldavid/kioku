@@ -1,3 +1,5 @@
+using Kioku.Mcp.Server.Domain;
+
 namespace Kioku.Mcp.Server.Services;
 
 /// <summary>
@@ -22,6 +24,7 @@ public interface IWorkSessionService
         string sessionId,
         string parentSessionId,
         string? mcpClientName,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> EndAsync(
@@ -31,6 +34,7 @@ public interface IWorkSessionService
         string sessionId,
         string agent,
         string? mcpClientName,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> ListAsync(

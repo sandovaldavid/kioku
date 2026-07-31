@@ -1,3 +1,5 @@
+using Kioku.Mcp.Server.Domain;
+
 namespace Kioku.Mcp.Server.Services;
 
 /// <summary>
@@ -27,6 +29,7 @@ public interface IProjectDocumentService
         string ticket,
         string content,
         string description,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> RecordAdrAsync(
@@ -38,6 +41,7 @@ public interface IProjectDocumentService
         string alternatives,
         string status,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> LogBugAsync(
@@ -49,6 +53,7 @@ public interface IProjectDocumentService
         string status,
         string relatedFiles,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> CreatePlanAsync(
@@ -59,6 +64,7 @@ public interface IProjectDocumentService
         string status,
         string ticket,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> AddKnowledgeAsync(
@@ -66,6 +72,7 @@ public interface IProjectDocumentService
         string content,
         string project,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> AddBacklogItemAsync(
@@ -73,6 +80,7 @@ public interface IProjectDocumentService
         string title,
         string description,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> GetProjectContextAsync(
@@ -94,6 +102,7 @@ public interface IProjectDocumentService
         string typeKey,
         string content,
         bool resetToDefault,
+        VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
     Task<string> SetupAgentWorkflowAsync(

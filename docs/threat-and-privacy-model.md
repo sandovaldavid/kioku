@@ -165,8 +165,9 @@ Concurrent edits to the same note body are not a transactional merge system. Coo
 
 The durable coordination architecture is documented in
 [durable-coordination.md](durable-coordination.md). Event persistence, claims,
-leases, and fencing are implemented; compare-and-swap note mutation and public
-coordination tools remain planned.
+leases, fencing, and the guarded vault-mutation boundary are implemented.
+Core single-resource write tools expose optional revision, hash, claim, fence,
+and mutation-id preconditions. Public coordination tools remain planned.
 
 The implementation adds a private `.kioku/coordination/` event log for machine
 coordination state. It does not copy note bodies and does not make `agent`,
@@ -186,8 +187,9 @@ claim state fails closed without deleting the original files.
 
 The remaining threat-model boundaries are:
 
-- manual Obsidian edits require resource revalidation or compare-and-swap
-  conflicts before a claim-protected overwrite;
+- callers must supply an expected revision or hash when they need manual
+  Obsidian edits to produce a conflict instead of being overwritten by a
+  legacy unconditional write;
 - network filesystems, cloud-sync replicas, and independent Git checkouts are
   unsupported for shared coordination;
 - unsupported restore epochs require explicit recovery before claim-protected
