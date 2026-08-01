@@ -1,31 +1,21 @@
 {
   "name": "kioku",
-  "version": "1.0.0",
   "private": true,
   "license": "MIT",
-  "description": "Kioku — MCP Server for Obsidian + Obsidian plugin",
+  "description": "Kioku — MCP Server for Obsidian (the companion Obsidian plugin lives at sandovaldavid/kioku-obsidian)",
   "engines": {
     "node": ">=24.0.0",
     "pnpm": ">=11.0.0"
   },
   "scripts": {
     "prepare": "husky",
-    "lint:plugin": "pnpm --filter obsidian-kioku-mcp run lint",
-    "lint:plugin:fix": "pnpm --filter obsidian-kioku-mcp run lint:fix",
-    "format:plugin": "pnpm --filter obsidian-kioku-mcp run format",
-    "build:plugin": "pnpm --filter obsidian-kioku-mcp run build",
-    "build:server": "dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj"
+    "build:server": "dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj",
+    "docs:generate": "node scripts/generate-public-docs.mjs --write",
+    "docs:check": "node scripts/generate-public-docs.mjs --check"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
     "@commitlint/config-conventional": "^19.0.0",
-    "husky": "^9.0.0",
-    "lint-staged": "^15.0.0"
-  },
-  "lint-staged": {
-    "src/obsidian-kioku-mcp/src/**/*.ts": [
-      "pnpm --filter obsidian-kioku-mcp exec eslint --fix",
-      "pnpm --filter obsidian-kioku-mcp exec prettier --write"
-    ]
+    "husky": "^9.0.0"
   }
 }

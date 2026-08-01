@@ -121,6 +121,46 @@ public class NoteHelpersTests
     }
 
     [Fact]
+    public void SanitizeFileName_NormalizesEmDashAndCollapsesHyphens()
+    {
+        // The reported case: an LLM-authored title with an em dash surrounded by spaces.
+        var result = NoteHelpers.SanitizeFileName("EmployeeDebt Projection — Feature Deep Dive");
+
+        Assert.Equal("EmployeeDebt-Projection-Feature-Deep-Dive", result);
+        Assert.DoesNotContain("—", result);
+        Assert.DoesNotContain("--", result);
+    }
+
+    [Theory]
+    [InlineData("A – B")] // en dash
+    [InlineData("A — B")] // em dash
+    [InlineData("A ― B")] // horizontal bar
+    [InlineData("A ‒ B")] // figure dash
+    [InlineData("A − B")] // minus sign
+    public void SanitizeFileName_NormalizesUnicodeDashes(string input)
+    {
+        var result = NoteHelpers.SanitizeFileName(input);
+
+        Assert.Equal("A-B", result);
+    }
+
+    [Fact]
+    public void SanitizeFileName_CollapsesConsecutiveHyphens()
+    {
+        var result = NoteHelpers.SanitizeFileName("Alpha---Beta");
+
+        Assert.Equal("Alpha-Beta", result);
+    }
+
+    [Fact]
+    public void SanitizeFileName_TreatsNonBreakingSpaceAsHyphen()
+    {
+        var result = NoteHelpers.SanitizeFileName("My Note");
+
+        Assert.Equal("My-Note", result);
+    }
+
+    [Fact]
     public void MergeTagsWithInheritance_NoDuplicates()
     {
         var userTags = new[] { "project", "ai" };
@@ -363,6 +403,44 @@ public class NoteHelpersTests
 
         Assert.DoesNotContain("aliases:", result);
         Assert.DoesNotContain("cssclasses:", result);
+    }
+
+    [Fact]
+    public void TouchUpdated_Disabled_PreservesContent()
+    {
+        const string content = "---\ntitle: Note\n---\nBody";
+
+        var result = NoteHelpers.TouchUpdated(content, new DateOnly(2026, 7, 15), enabled: false);
+
+        Assert.Equal(content, result);
+    }
+
+    [Fact]
+    public void TouchUpdated_ExistingUpdatedField_ReplacesOnlyTheField()
+    {
+        const string content = "---\ntitle: Note\nupdated: 2020-01-01\n---\nBody";
+
+        var result = NoteHelpers.TouchUpdated(content, new DateOnly(2026, 7, 15), enabled: true);
+
+        Assert.Equal("---\ntitle: Note\nupdated: 2026-07-15\n---\nBody", result);
+    }
+
+    [Fact]
+    public void TouchUpdated_ModifiedField_PreservesFieldName()
+    {
+        const string content = "---\ntitle: Note\nmodified: 2020-01-01\n---\nBody";
+
+        var result = NoteHelpers.TouchUpdated(content, new DateOnly(2026, 7, 15), enabled: true);
+
+        Assert.Equal("---\ntitle: Note\nmodified: 2026-07-15\n---\nBody", result);
+    }
+
+    [Fact]
+    public void TouchUpdated_NoFrontmatter_AddsMinimalFrontmatter()
+    {
+        var result = NoteHelpers.TouchUpdated("Body", new DateOnly(2026, 7, 15), enabled: true);
+
+        Assert.Equal("---\nupdated: 2026-07-15\n---\nBody", result);
     }
 
     [Fact]

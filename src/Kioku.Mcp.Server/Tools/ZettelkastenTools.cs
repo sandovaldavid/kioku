@@ -2,37 +2,41 @@ using System.ComponentModel;
 using System.Text;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
-using ModelContextProtocol.Server;
 
 namespace Kioku.Mcp.Server.Tools;
 
 /// <summary>
-/// MCP tools for Zettelkasten-style note creation and knowledge graph management.
-/// Focused on creating structured, interconnected notes that follow
-/// the Zettelkasten method for building a personal knowledge base.
+/// Internal helper for Zettelkasten-style note creation delegated by NoteCommandTools.
 /// </summary>
-[McpServerToolType]
 public sealed class ZettelkastenTools(
     VaultIndexService vault,
     EmbeddingService embedding,
     HybridSearchService hybrid,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
-    ObsidianBridgeService bridge)
+    ObsidianBridgeService bridge,
+    IVaultMutationService? mutations = null)
 {
     // create_zettel
 
-    [McpServerTool, Description(
-        "Creates a Zettelkasten note with a unique timestamp ID (YYYYMMDDHHMMSS) as the filename. " +
+    [Description(
+        "Creates a Zettelkasten note with a unique timestamp ID (YYYY-MM-DD-HH-mm-ss) as the filename. " +
         "Optionally finds semantically related notes and adds wikilinks to them. " +
-        "Returns the created note's path and ID.")]
+        "The title is stored as the note heading and alias; it is not the filename. Returns the " +
+        "created note's path, ID, title, and canonical wikilink.")]
     public async Task<string> create_zettel(
         [Description("Title of the note (used as the H1 heading inside the note).")] string title,
         [Description("Main content of the note in Markdown.")] string content,
         [Description("Tags to add in the frontmatter (comma-separated). E.g. 'idea, philosophy'.")] string tags = "",
         [Description("Folder inside the vault to create the note in. Leave empty to use the configured default, or auto-detect via content similarity if no default is set.")] string folder = "",
         [Description("If true, automatically finds up to 5 semantically related notes and adds [[wikilinks]] to them.")] bool link_related = true,
-        [Description("Maximum number of related notes to link (default 5). Only used when link_related=true.")] int max_links = 5)
+        [Description("Maximum number of related notes to link (default 5). Only used when link_related=true.")] int max_links = 5,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -51,7 +55,14 @@ public sealed class ZettelkastenTools(
 
         var noteName = $"{targetFolder.TrimEnd('/')}/{zettelId}";
         var filePath = BuildFilePath(noteName);
-        if (File.Exists(filePath))
+        var preconditions = VaultMutationPreconditions.FromToolArguments(
+            expected_revision,
+            expected_hash,
+            claim_id,
+            fence_generation,
+            resource_key,
+            mutation_id);
+        if (File.Exists(filePath) && string.IsNullOrWhiteSpace(preconditions.MutationId))
         {
             return $"[error] A note with ID '{zettelId}' already exists. Wait one second and retry.";
         }
@@ -86,24 +97,38 @@ public sealed class ZettelkastenTools(
                   ?? vaultConfig.GetDefaults("zettel")?.Domain;
 
         var frontmatter = BuildFrontmatter(tagList, "zettel", "published",
-            DateOnly.FromDateTime(DateTime.Today), zettelId, domain: domain);
+            DateOnly.FromDateTime(DateTime.Today), zettelId, domain: domain, aliases: [title],
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
         var fullContent = frontmatter + "\n" + body;
 
-        var dir = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
+        try
+        {
+            await WriteNoteAsync(
+                filePath,
+                fullContent,
+                requireAbsent: true,
+                preconditions);
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
-        if (evalResult.Applied)
+        await vault.SynchronizeFileReindexAsync(filePath);
+
+        if (vaultConfig.RefreshGeneratedIndexes)
         {
-            await vault.SynchronizeFileReindexAsync(filePath);
+            await RefreshGeneratedIndexesAsync([targetFolder]);
         }
 
         var sb = new StringBuilder();
         sb.AppendLine($"[ok] Zettel created: {relPath}");
+        sb.AppendLine($"  Path: {relPath}");
         sb.AppendLine($"  ID: {zettelId}");
         sb.AppendLine($"  Title: {title}");
+        sb.AppendLine($"  Link: [[{relPath[..^3]}|{title.Replace('|', '-')}]]");
 
         if (relatedLinks.Count > 0)
         {
@@ -124,14 +149,20 @@ public sealed class ZettelkastenTools(
 
     // create_moc
 
-    [McpServerTool, Description(
+    [Description(
         "Generates a Map of Content (MOC) note for a given vault folder. " +
         "The MOC lists all notes in the folder with their tags and a brief description, " +
         "organized hierarchically by subfolder. Overwrites any existing MOC for the same folder.")]
     public async Task<string> create_moc(
         [Description("Vault-relative folder path to generate the MOC for (e.g. 'Projects', 'Areas/Work').")] string folder,
         [Description("Name of the output MOC note (without extension). Default: '<folder>-MOC'.")] string output_name = "",
-        [Description("Folder to save the MOC note. Defaults to the same folder being mapped.")] string output_folder = "")
+        [Description("Folder to save the MOC note. Defaults to the same folder being mapped.")] string output_folder = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the output note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -143,16 +174,6 @@ public sealed class ZettelkastenTools(
             return "[error] 'folder' parameter is required.";
         }
 
-        var notes = vault.GetNotesInFolder(folder)
-            .Where(n => !n.Name.EndsWith("-MOC", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(n => n.VaultRelativePath)
-            .ToList();
-
-        if (notes.Count == 0)
-        {
-            return $"[error] No notes found in folder '{folder}'.";
-        }
-
         var folderTitle = folder.Split('/', '\\').Last();
         var mocName = string.IsNullOrWhiteSpace(output_name)
             ? $"{folderTitle}-MOC"
@@ -160,32 +181,56 @@ public sealed class ZettelkastenTools(
 
         var saveFolder = string.IsNullOrWhiteSpace(output_folder) ? folder : output_folder;
         var fullMocName = $"{saveFolder.TrimEnd('/')}/{mocName}";
+        var filePath = BuildFilePath(fullMocName);
+        var notes = vault.GetNotesInFolder(folder)
+            .Where(n => !n.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase))
+            .Where(n => !n.Name.EndsWith("-MOC", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(n => n.VaultRelativePath)
+            .ToList();
 
         // A user template only replaces the wrapper/heading — the notes list itself is always
         // generated fresh from the folder scan via {{moc_list}}, never replaced by static content.
         var notesList = BuildMocNotesList(folder, notes);
+        var managedNotesList = WrapManagedSection(notesList, "moc");
         var body = await TryRenderFolderTemplateAsync(
             saveFolder,
-            new Dictionary<string, string> { ["folder"] = folder, ["moc_list"] = notesList },
+            new Dictionary<string, string> { ["folder"] = folder, ["moc_list"] = managedNotesList },
             mocName)
-            ?? BuildMocBody(folder, notesList);
+            ?? BuildMocBody(folder, managedNotesList);
         var domain = vaultConfig.GetDomainForFolder(saveFolder)
                   ?? vaultConfig.GetDefaults("moc")?.Domain;
         var frontmatter = BuildFrontmatter(["moc", "index"], "moc", "published",
-            DateOnly.FromDateTime(DateTime.Today), domain: domain);
+            DateOnly.FromDateTime(DateTime.Today), domain: domain,
+            extraFields: new Dictionary<string, string>
+            {
+                ["kioku_generated"] = "\"moc\"",
+                ["kioku_source_folder"] = $"\"{folder}\"",
+            },
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
         var fullContent = frontmatter + "\n" + body;
 
-        var filePath = BuildFilePath(fullMocName);
-        var dir = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
+        try
+        {
+            await WriteNoteAsync(
+                filePath,
+                fullContent,
+                requireAbsent: false,
+                VaultMutationPreconditions.FromToolArguments(
+                    expected_revision,
+                    expected_hash,
+                    claim_id,
+                    fence_generation,
+                    resource_key,
+                    mutation_id));
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
-        if (evalResult.Applied)
-        {
-            await vault.SynchronizeFileReindexAsync(filePath);
-        }
+        await vault.SynchronizeFileReindexAsync(filePath);
 
         var result = $"[ok] MOC created: {relPath} ({notes.Count} notes indexed)";
         return evalResult.Warning is null ? result : $"{result}\n  [warning] {evalResult.Warning}";
@@ -193,14 +238,20 @@ public sealed class ZettelkastenTools(
 
     // create_folder_readme
 
-    [McpServerTool, Description(
+    [Description(
         "Creates a folder note (named after the folder, e.g. Projects.md inside Projects/) " +
         "listing all its notes. Compatible with the Obsidian Folder Notes plugin. " +
         "Acts as a lightweight, non-Zettelkasten alternative to create_moc. " +
         "Overwrites any existing note with the same name in that folder. " +
         "Only supports folders up to level 2 depth (e.g. 'Projects' or 'Areas/Work').")]
     public async Task<string> create_folder_readme(
-        [Description("Vault-relative folder path (max level 2, e.g. 'Projects' or 'Areas/Work').")] string folder)
+        [Description("Vault-relative folder path (max level 2, e.g. 'Projects' or 'Areas/Work').")] string folder,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the output note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -218,116 +269,55 @@ public sealed class ZettelkastenTools(
         }
 
         var folderTitle = folder.Split('/', '\\').Last();
+        var folderNotePath = NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, folder.TrimEnd('/'), $"{folderTitle}.md"));
         var notes = vault.GetNotesInFolder(folder)
-            .Where(n => !n.Name.Equals(folderTitle, StringComparison.OrdinalIgnoreCase))
+            .Where(n => !n.FilePath.Equals(folderNotePath, StringComparison.OrdinalIgnoreCase))
             .OrderBy(n => n.VaultRelativePath)
             .ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine($"# {folderTitle}\n");
         sb.AppendLine($"> Auto-generated index for `{folder}`. Last updated: {DateTime.Today:yyyy-MM-dd}\n");
+        sb.Append(WrapManagedSection(BuildFolderReadmeNotesList(folder, notes), "folder-readme"));
 
-        if (notes.Count == 0)
-        {
-            sb.AppendLine("*No notes found in this folder.*");
-        }
-        else
-        {
-            sb.AppendLine("## Notes\n");
-            string? currentSubfolder = null;
-
-            foreach (var note in notes)
+        var frontmatter = NoteHelpers.BuildFrontmatter(
+            ["index"], "folder-readme", "published", DateOnly.FromDateTime(DateTime.Today),
+            domain: vaultConfig.GetDomainForFolder(folder),
+            extraFields: new Dictionary<string, string>
             {
-                var relToFolder = Path.GetRelativePath(folder, note.VaultRelativePath.Replace('\\', '/'))
-                    .Replace('\\', '/');
-                var noteSubfolder = Path.GetDirectoryName(relToFolder)?.Replace('\\', '/');
-
-                if (noteSubfolder != currentSubfolder && !string.IsNullOrEmpty(noteSubfolder))
-                {
-                    currentSubfolder = noteSubfolder;
-                    sb.AppendLine($"\n### {noteSubfolder}\n");
-                }
-
-                var tags = note.Metadata.Tags.Count > 0
-                    ? $" _{string.Join(", ", note.Metadata.Tags.Select(t => $"#{t}"))}_"
-                    : "";
-
-                sb.AppendLine($"- [[{note.Name}]]{tags}");
-            }
+                ["kioku_generated"] = "\"folder-readme\"",
+                ["kioku_source_folder"] = $"\"{folder}\"",
+            },
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
+        try
+        {
+            await WriteNoteAsync(
+                folderNotePath,
+                frontmatter + "\n" + sb,
+                requireAbsent: false,
+                VaultMutationPreconditions.FromToolArguments(
+                    expected_revision,
+                    expected_hash,
+                    claim_id,
+                    fence_generation,
+                    resource_key,
+                    mutation_id));
         }
-
-        var folderNotePath = NoteHelpers.EnsureInsideVault(
-            config.VaultPath,
-            Path.Combine(config.VaultPath, folder.TrimEnd('/'), $"{folderTitle}.md"));
-        var dir = Path.GetDirectoryName(folderNotePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(folderNotePath, sb.ToString(), Encoding.UTF8);
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
+        await vault.SynchronizeFileReindexAsync(folderNotePath);
 
         var relPath = Path.GetRelativePath(config.VaultPath, folderNotePath).Replace('\\', '/');
         return $"[ok] Folder note created: {relPath} ({notes.Count} notes listed)";
     }
 
-    // link_related_notes
-
-    [McpServerTool, Description(
-        "Finds notes that are semantically related to a given note and appends wikilinks to them " +
-        "in a 'Related' section at the end of the note. " +
-        "Requires Ollama to be running (semantic search). " +
-        "Does not add links that already exist in the note.")]
-    public async Task<string> link_related_notes(
-        [Description("Name or path of the note to find related notes for and link.")] string note,
-        [Description("Maximum number of related notes to link (default 5).")] int max_links = 5,
-        [Description("Minimum similarity score (0.0–1.0). Notes below this threshold are excluded. Default: 0.65.")] double min_similarity = 0.65)
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        if (!embedding.IsAvailable)
-        {
-            return "[info] Semantic search is unavailable. Ensure Ollama is running to use link_related_notes.";
-        }
-
-        var found = ResolveNote(note);
-        if (found is null)
-        {
-            return $"[error] Note not found: '{note}'.";
-        }
-
-        // Use FindSimilar which handles vector lookup and note dictionary internally
-        var similar = hybrid.FindSimilar(found, max_links + 5, (float)min_similarity)
-            .Take(max_links)
-            .ToList();
-
-        if (similar.Count == 0)
-        {
-            return $"[info] No notes found with similarity >= {min_similarity:P0} to '{found.Name}'.";
-        }
-
-        // Read current content, check which links already exist
-        var currentContent = await File.ReadAllTextAsync(found.FilePath);
-        var existingLinks = found.OutgoingLinks.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var updatedContent = NoteHelpers.AppendLinkSection(
-            currentContent, existingLinks, "Related",
-            similar.Select(r => (r.Note.Name, (string?)$"{r.Score:P0} similar")));
-
-        if (updatedContent is null)
-        {
-            return $"[info] All {similar.Count} related notes are already linked from '{found.Name}'.";
-        }
-
-        await File.WriteAllTextAsync(found.FilePath, updatedContent, Encoding.UTF8);
-
-        var newLinks = similar.Where(r => !existingLinks.Contains(r.Note.Name)).ToList();
-        return $"[ok] Added {newLinks.Count} related links to '{found.Name}':\n" +
-               string.Join("\n", newLinks.Select(r => $"  - [[{r.Note.Name}]] ({r.Score:P0})"));
-    }
-
     // create_literature_note
 
-    [McpServerTool, Description(
+    [Description(
         "Creates a structured literature note for a book, article, or paper " +
         "using the standard Zettelkasten literature note template. " +
         "The note includes fields for author, year, title, source, and a summary section.")]
@@ -338,7 +328,13 @@ public sealed class ZettelkastenTools(
         [Description("Source or URL (e.g. 'https://...', 'ISBN 978-...').")] string source = "",
         [Description("Brief summary or key insight from the work.")] string summary = "",
         [Description("Tags to add in frontmatter (comma-separated). 'literature' is always included.")] string tags = "",
-        [Description("Folder to save the note in. Default: 'Literature'.")] string folder = "Literature")
+        [Description("Folder to save the note in. Default: 'Literature'.")] string folder = "Literature",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the note path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         if (!vault.IsReady)
         {
@@ -349,7 +345,14 @@ public sealed class ZettelkastenTools(
         var noteName = $"{folder.TrimEnd('/')}/{year}-{safeTitle}";
         var filePath = BuildFilePath(noteName);
 
-        if (File.Exists(filePath))
+        var preconditions = VaultMutationPreconditions.FromToolArguments(
+            expected_revision,
+            expected_hash,
+            claim_id,
+            fence_generation,
+            resource_key,
+            mutation_id);
+        if (File.Exists(filePath) && string.IsNullOrWhiteSpace(preconditions.MutationId))
         {
             var relExisting = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
             return $"[error] Literature note already exists: {relExisting}";
@@ -377,18 +380,30 @@ public sealed class ZettelkastenTools(
         var domain = vaultConfig.GetDomainForFolder(folder)
                   ?? vaultConfig.GetDefaults("literature")?.Domain;
         var frontmatter = BuildFrontmatter(tagList, "literature", "draft",
-            DateOnly.FromDateTime(DateTime.Today), domain: domain);
+            DateOnly.FromDateTime(DateTime.Today), domain: domain, aliases: [title],
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
         var fullContent = frontmatter + "\n" + body;
 
-        var dir = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, fullContent, Encoding.UTF8);
+        try
+        {
+            await WriteNoteAsync(
+                filePath,
+                fullContent,
+                requireAbsent: true,
+                preconditions);
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
 
         var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
         var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relPath);
-        if (evalResult.Applied)
+        await vault.SynchronizeFileReindexAsync(filePath);
+
+        if (vaultConfig.RefreshGeneratedIndexes)
         {
-            await vault.SynchronizeFileReindexAsync(filePath);
+            await RefreshGeneratedIndexesAsync([folder]);
         }
 
         var result = $"[ok] Literature note created: {relPath}";
@@ -409,8 +424,12 @@ public sealed class ZettelkastenTools(
         string status,
         DateOnly? date = null,
         string? zettelId = null,
-        string? domain = null) =>
-        NoteHelpers.BuildFrontmatter(tags, type, status, date, zettelId, domain);
+        string? domain = null,
+        IReadOnlyDictionary<string, string>? extraFields = null,
+        IEnumerable<string>? aliases = null,
+        DateOnly? updated = null) =>
+        NoteHelpers.BuildFrontmatter(tags, type, status, date, zettelId, domain,
+            aliases: aliases, extraFields: extraFields, updated: updated);
 
     private static string BuildZettelBody(string title, string content, IReadOnlyList<string> relatedLinks)
     {
@@ -468,6 +487,141 @@ public sealed class ZettelkastenTools(
 
         return sb.ToString();
     }
+
+    private static string BuildFolderReadmeNotesList(string folder, IReadOnlyList<Note> notes)
+    {
+        var sb = new StringBuilder();
+        if (notes.Count == 0)
+        {
+            sb.AppendLine("*No notes found in this folder.*");
+            return sb.ToString();
+        }
+
+        sb.AppendLine("## Notes\n");
+        string? currentSubfolder = null;
+        foreach (var note in notes)
+        {
+            var relToFolder = Path.GetRelativePath(folder, note.VaultRelativePath.Replace('\\', '/'))
+                .Replace('\\', '/');
+            var noteSubfolder = Path.GetDirectoryName(relToFolder)?.Replace('\\', '/');
+            if (noteSubfolder != currentSubfolder && !string.IsNullOrEmpty(noteSubfolder))
+            {
+                currentSubfolder = noteSubfolder;
+                sb.AppendLine($"\n### {noteSubfolder}\n");
+            }
+
+            var tags = note.Metadata.Tags.Count > 0
+                ? $" _{string.Join(", ", note.Metadata.Tags.Select(t => $"#{t}"))}_"
+                : "";
+            sb.AppendLine($"- [[{note.Name}]]{tags}");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string WrapManagedSection(string content, string kind) =>
+        $"<!-- kioku:{kind}:start -->\n{content.TrimEnd()}\n<!-- kioku:{kind}:end -->\n";
+
+    private static string? ReplaceManagedSection(string raw, string kind, string content)
+    {
+        var start = $"<!-- kioku:{kind}:start -->";
+        var end = $"<!-- kioku:{kind}:end -->";
+        var startIndex = raw.IndexOf(start, StringComparison.Ordinal);
+        var endIndex = raw.IndexOf(end, startIndex + start.Length, StringComparison.Ordinal);
+        if (startIndex < 0 || endIndex < 0)
+        {
+            return null;
+        }
+
+        var replacement = WrapManagedSection(content, kind).TrimEnd();
+        return raw[..startIndex] + replacement + raw[(endIndex + end.Length)..];
+    }
+
+    /// <summary>Refreshes Kioku-owned generated indexes covering the supplied source folders.</summary>
+    public async Task RefreshGeneratedIndexesAsync(IEnumerable<string> affectedFolders)
+    {
+        if (!vaultConfig.RefreshGeneratedIndexes)
+        {
+            return;
+        }
+
+        var affected = affectedFolders
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .Select(NormalizeFolder)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var generated = vault.GetAllNotes()
+            .Where(n => n.Metadata.ExtraFields.TryGetValue("kioku_generated", out var kind) &&
+                        (kind.Equals("moc", StringComparison.OrdinalIgnoreCase) ||
+                         kind.Equals("folder-readme", StringComparison.OrdinalIgnoreCase)) &&
+                        n.Metadata.ExtraFields.ContainsKey("kioku_source_folder"))
+            .ToList();
+
+        foreach (var index in generated)
+        {
+            var sourceFolder = NormalizeFolder(index.Metadata.ExtraFields["kioku_source_folder"]);
+            if (!affected.Any(folder => IsSameOrDescendant(folder, sourceFolder) || IsSameOrDescendant(sourceFolder, folder)))
+            {
+                continue;
+            }
+
+            var sourceNotes = vault.GetNotesInFolder(sourceFolder)
+                .Where(n => !n.FilePath.Equals(index.FilePath, StringComparison.OrdinalIgnoreCase))
+                .Where(n => !n.Name.EndsWith("-MOC", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(n => n.VaultRelativePath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var kind = index.Metadata.ExtraFields["kioku_generated"];
+            var generatedList = kind.Equals("moc", StringComparison.OrdinalIgnoreCase)
+                ? BuildMocNotesList(sourceFolder, sourceNotes)
+                : BuildFolderReadmeNotesList(sourceFolder, sourceNotes);
+            var updatedContent = ReplaceManagedSection(index.RawContent, kind, generatedList);
+            if (updatedContent is null)
+            {
+                continue;
+            }
+
+            updatedContent = NoteHelpers.TouchUpdated(
+                updatedContent, DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
+            await WriteNoteAsync(index.FilePath, updatedContent, requireAbsent: false, preconditions: null);
+        }
+    }
+
+    private static string NormalizeFolder(string folder) =>
+        folder.Trim().Trim('/').Replace('\\', '/');
+
+    private async Task WriteNoteAsync(
+        string path,
+        string content,
+        bool requireAbsent,
+        VaultMutationPreconditions? preconditions)
+    {
+        if (mutations is null)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(path, content, NoteHelpers.Utf8NoBom);
+            await vault.SynchronizeFileReindexAsync(path);
+            return;
+        }
+
+        if (requireAbsent)
+        {
+            await mutations.CreateTextAsync(path, content, preconditions);
+        }
+        else
+        {
+            await mutations.WriteTextAsync(path, content, preconditions);
+        }
+    }
+
+    private static bool IsSameOrDescendant(string path, string parent) =>
+        path.Equals(parent, StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith(parent + "/", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Resolves a per-folder template (Kioku's own template_folders override, or Templater's own

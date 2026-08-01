@@ -11,7 +11,10 @@ namespace Kioku.Mcp.Server.Services;
 /// and doc enumeration. Used by EngineeringWorkflowTools and SessionContextTools.
 /// </summary>
 public sealed partial class ProjectWorkspaceService(
-    KiokuConfiguration config, VaultConfigService vaultConfig, ObsidianBridgeService bridge)
+    KiokuConfiguration config,
+    VaultConfigService vaultConfig,
+    ObsidianBridgeService bridge,
+    IVaultMutationService? mutations = null)
 {
     /// <summary>Doc type keys, each mapping to a per-project subfolder.</summary>
     public static readonly string[] SubfolderKeys =
@@ -168,9 +171,10 @@ public sealed partial class ProjectWorkspaceService(
                 date: DateOnly.FromDateTime(DateTime.Now),
                 domain: vaultConfig.GetDomainForFolder(relFolder),
                 cssClasses: ["kioku-project-moc"],
+                updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null,
                 extraFields: new Dictionary<string, string> { ["project"] = project });
 
-            await File.WriteAllTextAsync(mocPath, frontmatter + "\n" + body, Encoding.UTF8);
+            await WriteTextAsync(mocPath, frontmatter + "\n" + body, requireAbsent: true);
 
             var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, ToVaultRelative(mocPath));
             created.Add(evalResult.Warning is null
@@ -192,6 +196,7 @@ public sealed partial class ProjectWorkspaceService(
 
         return created;
     }
+
 
     /// <summary>Doc type key each engineering subfolder maps to, for Templater folder-template registration.</summary>
     private static readonly (string SubfolderKey, string TemplateKey)[] SubfolderTemplatePairs =
@@ -224,7 +229,7 @@ public sealed partial class ProjectWorkspaceService(
             }
             else
             {
-                await File.WriteAllTextAsync(target, ReadEmbeddedTemplate(key), Encoding.UTF8);
+                await WriteTextAsync(target, ReadEmbeddedTemplate(key), requireAbsent: true);
                 created.Add(rel);
             }
         }
@@ -253,11 +258,35 @@ public sealed partial class ProjectWorkspaceService(
 
         return entries.Count == 0
             ? 0
-            : await TemplaterFolderTemplates.RegisterFolderTemplatesAsync(config.VaultPath, entries);
+            : await TemplaterFolderTemplates.RegisterFolderTemplatesAsync(config.VaultPath, entries, mutations);
     }
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> AdrLocks =
         new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task WriteTextAsync(string path, string content, bool requireAbsent)
+    {
+        if (mutations is null)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(path, content, NoteHelpers.Utf8NoBom);
+            return;
+        }
+
+        if (requireAbsent)
+        {
+            await mutations.CreateTextAsync(path, content);
+        }
+        else
+        {
+            await mutations.WriteTextAsync(path, content);
+        }
+    }
 
     /// <summary>
     /// Serializes ADR number allocation per project. GetNextAdrNumber scans disk with no

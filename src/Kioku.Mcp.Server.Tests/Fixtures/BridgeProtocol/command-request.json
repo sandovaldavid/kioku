@@ -1,0 +1,9 @@
+{
+  "description": "A typical runtime command sent after a successful handshake.",
+  "message": {
+    "command": "open-file",
+    "payload": { "path": "Notes/Example.md" },
+    "requestId": "req-1",
+    "protocolVersion": 3
+  }
+}

@@ -3,201 +3,56 @@ layout: default
 title: Home
 is_home: true
 sidebar: false
-description: Kioku (記憶) is an MCP server and Obsidian plugin that bridges the gap between local AI coding assistants and your knowledge base.
+description: Kioku is a local-first MCP server that gives AI agents persistent, structured memory in an Obsidian vault.
 ---
 
-<!-- Hero Section -->
 <section class="hero-section">
   <div class="hero-logo-container">
-    <img src="{{ site.baseurl }}/assets/images/logo.svg" alt="Kioku Logo" class="hero-logo">
+    <img src="{{ site.baseurl }}/assets/images/logo.svg" alt="Kioku logo" class="hero-logo">
   </div>
-  <div>
-    <h1 class="hero-title">Kioku</h1>
-  </div>
+  <h1 class="hero-title">Kioku</h1>
   <p class="hero-subtitle">
-    Connect your AI coding assistants directly to your Obsidian vault. 
-    A high-performance Model Context Protocol (MCP) server that lets agents read, write, search, and organize your knowledge base.
+    Persistent, local-first memory for Claude Code, Codex, OpenCode, and other MCP clients,
+    backed by readable Markdown and typed YAML frontmatter in Obsidian.
   </p>
   <div class="hero-buttons">
-    <a href="{{ site.baseurl }}/install.html" class="btn btn-primary">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-      Get Started
-    </a>
-    <a href="https://github.com/{{ site.github_repo }}" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">
-      <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
-      View on GitHub
-    </a>
+    <a href="{{ site.baseurl }}/install.html" class="btn btn-primary">Get started</a>
+    <a href="https://github.com/{{ site.github_repo }}" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">View on GitHub</a>
   </div>
 </section>
 
-<!-- Core Features Section -->
 <section>
-  <h2 class="home-section-title">Core Capabilities</h2>
+  <h2 class="home-section-title">What Kioku provides</h2>
   <div class="feature-grid">
-    <div class="feature-card">
-      <div class="feature-icon-wrapper">🔎</div>
-      <h3>Hybrid Search</h3>
-      <p>Blends keyword search with local vector embeddings (via Ollama & nomic-embed-text) using Reciprocal Rank Fusion (RRF) for highly relevant context discovery.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon-wrapper">📝</div>
-      <h3>Read & Write Notes</h3>
-      <p>Natively edit notes, inject content into notes, parse and update frontmatter, and maintain structural YAML tags directly from the agent's context.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon-wrapper">✅</div>
-      <h3>Task Management</h3>
-      <p>Read, filter, complete, or reopen checkboxes across your entire vault. Supports filtering by due dates, tags, and overdue status.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon-wrapper">🕸️</div>
-      <h3>Zettelkasten & Graphs</h3>
-      <p>Create MOCs (Maps of Content), link related notes, calculate graph islands, analyze orphan notes, and construct visual concept maps of your thinking.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon-wrapper">🎨</div>
-      <h3>Obsidian UI Bridge</h3>
-      <p>Connects over WebSockets to open notes, trigger commands, insert snippets, or toggle reading mode directly inside the active Obsidian editor window.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon-wrapper">🚀</div>
-      <h3>On-Demand Daemon</h3>
-      <p>Starts in milliseconds and shuts down when your agent session completes, keeping VRAM and CPU footprint near zero during ordinary usage.</p>
-    </div>
+    <div class="feature-card"><h3>Multi-agent handoff</h3><p>Persist project context, plans, decisions, bugs, and session ownership across fresh agent sessions.</p></div>
+    <div class="feature-card"><h3>Hybrid retrieval</h3><p>Combine indexed full-text search with optional local Ollama embeddings and reciprocal rank fusion.</p></div>
+    <div class="feature-card"><h3>Safe vault mutations</h3><p>Keep writes inside the configured vault and preserve typed custom frontmatter.</p></div>
+    <div class="feature-card"><h3>Stable MCP contracts</h3><p>Generate schemas, annotations, prompts, resources, and profile inventories from live protocol discovery.</p></div>
+    <div class="feature-card"><h3>Two transports</h3><p>Use local stdio or authenticated Streamable HTTP with secure loopback defaults.</p></div>
+    <div class="feature-card"><h3>Optional Obsidian bridge</h3><p>Open notes, run approved commands, and integrate supported plugins through an authenticated WebSocket bridge.</p></div>
   </div>
 </section>
 
-<!-- Architecture Section -->
 <section class="arch-block">
-  <h2 style="margin-top:0;">System Architecture</h2>
-  <p style="color: var(--text-muted); max-width: 600px; margin: 0.5rem auto 1.5rem auto;">
-    Kioku decouples indexing and file modifications (C# Server) from editor interactions (TypeScript Plugin), communicating over WebSocket and standard MCP transports.
-  </p>
-  
-  <div class="mermaid" style="margin-top: 2rem; background: var(--bg-deep); padding: 1.5rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+  <h2>Architecture</h2>
+  <div class="mermaid">
     graph TD
-      Agent["AI Agent <br/> (Claude Code / Cursor / agy)"]
-      Server["Kioku Server <br/> (C# .NET 10)"]
-      Plugin["Obsidian Plugin <br/> (TypeScript 6)"]
-      Vault[("Obsidian Vault <br/> (.md files)")]
-
-      Agent -->|stdio v1 local / HTTP-SSE v2 VM| Server
-      Server <-->|WebSocket Port 7765| Plugin
-      Server -->|Direct File I/O| Vault
+      Agent["MCP client"]
+      Server["Kioku server (.NET 10)"]
+      Plugin["Optional Obsidian plugin"]
+      Vault[("Obsidian vault")]
+      Agent -->|stdio or Streamable HTTP| Server
+      Server -->|bounded file access| Vault
+      Server <-->|authenticated WebSocket| Plugin
   </div>
 </section>
 
-<!-- Quick Installation Section -->
-<section class="setup-container">
-  <h2 style="margin-top:0;">Quick Setup</h2>
-  
-  <div class="tab-headers">
-    <button class="tab-button active" onclick="switchTab(event, 'docker-tab')">Docker (Recommended)</button>
-    <button class="tab-button" onclick="switchTab(event, 'dotnet-tab')">.NET Global Tool</button>
-    <button class="tab-button" onclick="switchTab(event, 'agent-tab')">Register Agent</button>
-  </div>
-  
-  <div id="docker-tab" class="tab-pane active">
-    <p>Run the C# MCP server within a lightweight container. Ensure Docker and Docker Compose are installed.</p>
-    <pre><code># Clone the repository
-git clone https://github.com/sandovaldavid/kioku.git
-cd kioku
-
-# Set your vault directory path
-export KIOKU_VAULT_PATH=/path/to/your/vault
-
-# Spin up the containers
-docker-compose up -d
-
-# Download embedding model for semantic search (first time only)
-docker exec kioku-ollama ollama pull nomic-embed-text</code></pre>
-  </div>
-  
-  <div id="dotnet-tab" class="tab-pane">
-    <p>Install the server directly on your host machine. Requires the <a href="https://dotnet.microsoft.com/download/dotnet/10.0" target="_blank">ASP.NET Core 10 Runtime</a> (contains Web Sdk dependencies for HTTP-SSE).</p>
-    <pre><code># Install global tool
-dotnet tool install -g kioku-mcp-server
-
-# Set your vault path
-export KIOKU_VAULT_PATH=/path/to/your/vault
-
-# Start the server (runs stdio listener by default)
-kioku</code></pre>
-  </div>
-  
-  <div id="agent-tab" class="tab-pane">
-    <p>Configure the server inside your AI environment in one command. Supports Claude Code, Codex, and Antigravity:</p>
-    <pre><code># Claude Code — registers Kioku and installs the kioku-vault skill
-claude plugin marketplace add sandovaldavid/kioku &amp;&amp; claude plugin install kioku@kioku
-
-# Antigravity CLI &amp; IDE (local workspace setup)
-./scripts/add-to-client.sh antigravity --vault /path/to/your/vault
-
-# Codex CLI
-./scripts/add-to-client.sh codex --vault /path/to/your/vault</code></pre>
-    <p style="font-size:0.9rem; color:var(--text-muted); margin-top:1rem;">
-      See the manual configuration files for VS Code, Cursor, and Zed in the <a href="{{ site.baseurl }}/install.html">Installation Guide</a>.
-    </p>
-  </div>
-</section>
-
-<!-- Documentation Index / Hub -->
-<section style="margin-bottom: 5rem;">
-  <h2 class="home-section-title">Developer &amp; User Manuals</h2>
+<section>
+  <h2 class="home-section-title">Documentation</h2>
   <div class="docs-grid">
-    <div class="doc-card">
-      <div>
-        <h4>Setup &amp; Deployment</h4>
-        <p>Full installation methods (Homebrew, WinGet, static binaries, Docker) and client configurations.</p>
-      </div>
-      <a href="{{ site.baseurl }}/install.html" class="doc-card-link">Read Guide</a>
-    </div>
-    <div class="doc-card">
-      <div>
-        <h4>117 MCP Tools Reference</h4>
-        <p>Complete documentation for all 18 capability groups, parameters, and return types.</p>
-      </div>
-      <a href="{{ site.baseurl }}/commands-reference.html" class="doc-card-link">View Reference</a>
-    </div>
-    <div class="doc-card">
-      <div>
-        <h4>Vault Configuration</h4>
-        <p>How to configure `.kioku/config.yml` in your vault to toggle capability groups and define folders.</p>
-      </div>
-      <a href="{{ site.baseurl }}/vault-config.html" class="doc-card-link">View Layout</a>
-    </div>
-    <div class="doc-card">
-      <div>
-        <h4>Authentication &amp; Security</h4>
-        <p>Secure the HTTP-SSE transport with API Keys, setup Sentry crash logs, and configure local bridge tokens.</p>
-      </div>
-      <a href="{{ site.baseurl }}/deploy/auth-options.html" class="doc-card-link">View Security</a>
-    </div>
+    <div class="doc-card"><div><h4>Installation</h4><p>Install the tool, configure clients, build from source, or deploy with Docker.</p></div><a href="{{ site.baseurl }}/install.html" class="doc-card-link">Read guide</a></div>
+    <div class="doc-card"><div><h4>MCP contracts</h4><p>Live tool schemas, annotations, prompts, resources, and capability profiles.</p></div><a href="{{ site.baseurl }}/commands-reference.html" class="doc-card-link">View reference</a></div>
+    <div class="doc-card"><div><h4>Configuration</h4><p>Generated process configuration and vault-level behavior.</p></div><a href="{{ site.baseurl }}/configuration-reference.html" class="doc-card-link">View configuration</a></div>
+    <div class="doc-card"><div><h4>Security</h4><p>Filesystem boundaries, authentication, origins, proxies, and deployment guidance.</p></div><a href="{{ site.baseurl }}/deploy/auth-options.html" class="doc-card-link">Review security</a></div>
   </div>
 </section>
-
-<!-- Home Footer -->
-<footer class="home-footer">
-  <p>Kioku is created and maintained by <a href="https://github.com/sandovaldavid" target="_blank" rel="noopener noreferrer">David Sandoval</a>.</p>
-  <p>Website themed in Midnight Blue and Obsidian Purple. Released under the MIT License.</p>
-</footer>
-
-<script>
-  function switchTab(evt, tabId) {
-    // Hide all tab panes
-    const tabPanes = document.getElementsByClassName("tab-pane");
-    for (let i = 0; i < tabPanes.length; i++) {
-      tabPanes[i].classList.remove("active");
-    }
-
-    // Deactivate all tab buttons
-    const tabButtons = document.getElementsByClassName("tab-button");
-    for (let i = 0; i < tabButtons.length; i++) {
-      tabButtons[i].classList.remove("active");
-    }
-
-    // Show selected pane and set button active
-    document.getElementById(tabId).classList.add("active");
-    evt.currentTarget.classList.add("active");
-  }
-</script>

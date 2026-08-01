@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "conflict_id": "conflict-01",
+  "run_id": "run-01",
+  "work_item_id": "work-01",
+  "resource_key": "note:Notes/Plan.md",
+  "kind": "caller-authority",
+  "status": "open",
+  "detected_at": "2026-07-31T05:00:00Z",
+  "expected_revision": -1,
+  "actual_revision": 1,
+  "description": "Invalid conflict fixture.",
+  "content_hash": "not-a-sha256-hash"
+}

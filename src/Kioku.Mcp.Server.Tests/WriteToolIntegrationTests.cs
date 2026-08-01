@@ -1,4 +1,7 @@
 using Kioku.Mcp.Server;
+using Kioku.Mcp.Server.Domain;
+using Kioku.Mcp.Server.Domain.Coordination;
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -19,11 +22,98 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         _fixture = fixture;
     }
 
-    private NoteCommandTools CreateTools()
+    private NoteCommandTools CreateTools(bool allowPermanentDelete = false)
+    {
+        var config = new KiokuConfiguration
+        {
+            VaultPath = _fixture.VaultPath,
+            AllowPermanentDelete = allowPermanentDelete,
+        };
+        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
+        var embedding = new EmbeddingService(
+            config,
+            NullLogger<EmbeddingService>.Instance,
+            new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
+                Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)))));
+        var hybrid = new HybridSearchService(_fixture.Index, embedding);
+        var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
+        var zettelkasten = new ZettelkastenTools(
+            _fixture.Index, embedding, hybrid, config, vaultConfig, bridge);
+        return new NoteCommandTools(_fixture.Index, config, vaultConfig, zettelkasten);
+    }
+
+    private NoteCommandTools CreateMutationTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
-        return new NoteCommandTools(_fixture.Index, config, vaultConfig);
+        var embedding = new EmbeddingService(
+            config,
+            NullLogger<EmbeddingService>.Instance,
+            new FakeHttpClientFactory(new FakeHttpMessageHandler((_, _) =>
+                Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)))));
+        var hybrid = new HybridSearchService(_fixture.Index, embedding);
+        var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
+        var mutations = CreateMutationService(config);
+        var zettelkasten = new ZettelkastenTools(
+            _fixture.Index, embedding, hybrid, config, vaultConfig, bridge, mutations);
+        return new NoteCommandTools(
+            _fixture.Index,
+            config,
+            vaultConfig,
+            zettelkasten,
+            pathPolicy: new VaultPathPolicy(config),
+            mutations: mutations);
+    }
+
+    private IVaultMutationService CreateMutationService(KiokuConfiguration config)
+    {
+        var paths = new VaultPathPolicy(config);
+        var fileSystem = new CoordinationFileSystem();
+        var timeProvider = TimeProvider.System;
+        var validator = new CoordinationContractValidator();
+        var events = new CoordinationEventStore(paths, fileSystem, validator, timeProvider);
+        var claims = new CoordinationClaimStore(paths, fileSystem, events, validator, timeProvider);
+        return new VaultMutationService(
+            paths,
+            fileSystem,
+            claims,
+            new VaultIndexOperations(_fixture.Index),
+            timeProvider);
+    }
+
+    [Fact]
+    public async Task EditNote_WithStaleRevision_ReturnsConflictAndPreservesExternalEdit()
+    {
+        var tools = CreateMutationTools();
+        var name = $"Cas-{Guid.NewGuid():N}";
+        var create = await tools.create_note(name, "initial");
+        Assert.StartsWith("[ok]", create);
+
+        var path = _fixture.GetNotePath(name);
+        var expectedRevision = VaultRevision.Compute(await File.ReadAllTextAsync(path));
+        await File.WriteAllTextAsync(path, "external edit");
+
+        var result = await tools.edit_note(
+            name,
+            "stale write",
+            expected_revision: expectedRevision);
+
+        Assert.StartsWith("[error:WRITE_CONFLICT]", result);
+        Assert.Equal("external edit", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
+    public async Task CreateNote_WithMutationIdRetryReturnsSuccessfulIdempotentResult()
+    {
+        var tools = CreateMutationTools();
+        var name = $"Idempotent-{Guid.NewGuid():N}";
+
+        var first = await tools.create_note(name, "same body", mutation_id: "create-retry-01");
+        var duplicate = await tools.create_note(name, "same body", mutation_id: "create-retry-01");
+
+        Assert.StartsWith("[ok]", first);
+        Assert.StartsWith("[ok]", duplicate);
+        Assert.Equal("\nsame body", await _fixture.ReadNoteBodyAsync(name));
     }
 
     [Fact]
@@ -32,10 +122,22 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         var tools = CreateTools();
         var name = $"IntegrationTest-{Guid.NewGuid():N}";
 
-        var result = await tools.create_note(name, "Integration test body", "test-tag");
+        var result = await tools.create_note(name, "Integration test body", tags: "test-tag");
 
         Assert.StartsWith("[ok]", result);
         Assert.True(_fixture.NoteExists(name));
+    }
+
+    [Fact]
+    public async Task CreateNote_ZettelKind_UsesStructuredCreation()
+    {
+        var tools = CreateTools();
+
+        var result = await tools.create_note(
+            "A structured idea", "The idea body", kind: "zettel", folder: "Zettelkasten");
+
+        Assert.StartsWith("[ok] Zettel created:", result);
+        Assert.Single(Directory.GetFiles(_fixture.GetFolderPath("Zettelkasten"), "*.md"));
     }
 
     [Fact]
@@ -44,11 +146,11 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         var tools = CreateTools();
         var baseName = $"RoundTrip-{Guid.NewGuid():N}";
 
-        var createResult = await tools.create_note(baseName, "Initial body", "test");
+        var createResult = await tools.create_note(baseName, "Initial body", tags: "test");
         Assert.StartsWith("[ok]", createResult);
         await _fixture.Index.RebuildIndexAsync();
 
-        var updateResult = await tools.update_note_content(baseName, "Updated body");
+        var updateResult = await tools.edit_note(baseName, "Updated body");
         Assert.StartsWith("[ok]", updateResult);
         var body = await _fixture.ReadNoteBodyAsync(baseName);
         Assert.Contains("Updated body", body);
@@ -61,7 +163,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         Assert.True(_fixture.NoteExists(movedName));
 
         var renamedName = $"SubFolder/{baseName}-renamed";
-        var renameResult = await tools.rename_note(movedName, renamedName);
+        var renameResult = await tools.move_note(movedName, new_name: renamedName);
         Assert.StartsWith("[ok]", renameResult);
         Assert.True(_fixture.NoteExists(renamedName));
 
@@ -77,7 +179,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         var tools = CreateTools();
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => tools.create_note("../../evil-note", "malicious", ""));
+            () => tools.create_note("../../evil-note", "malicious", tags: ""));
     }
 
     [Fact]
@@ -86,7 +188,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         var tools = CreateTools();
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => tools.create_note("/etc/evil-note", "malicious", ""));
+            () => tools.create_note("/etc/evil-note", "malicious", tags: ""));
     }
 
     [Fact]
@@ -94,11 +196,11 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     {
         var tools = CreateTools();
         var name = $"MoveTest-{Guid.NewGuid():N}";
-        await tools.create_note(name, "Body", "");
+        await tools.create_note(name, "Body", tags: "");
         await _fixture.Index.RebuildIndexAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => tools.move_note(name, "../../outside"));
+            () => tools.move_note(name, destination_folder: "../../outside"));
     }
 
     [Fact]
@@ -106,11 +208,11 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     {
         var tools = CreateTools();
         var name = $"RenameTest-{Guid.NewGuid():N}";
-        await tools.create_note(name, "Body", "");
+        await tools.create_note(name, "Body", tags: "");
         await _fixture.Index.RebuildIndexAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => tools.rename_note(name, "../../evil/renamed"));
+            () => tools.move_note(name, new_name: "../../evil/renamed"));
     }
 
     [Fact]
@@ -118,11 +220,11 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     {
         var tools = CreateTools();
         var name = $"RenameAbsTest-{Guid.NewGuid():N}";
-        await tools.create_note(name, "Body", "");
+        await tools.create_note(name, "Body", tags: "");
         await _fixture.Index.RebuildIndexAsync();
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => tools.rename_note(name, "/tmp/evil"));
+            () => tools.move_note(name, new_name: "/tmp/evil"));
     }
 
     [Fact]
@@ -130,7 +232,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     {
         var tools = CreateTools();
         var name = $"SoftDelete-{Guid.NewGuid():N}";
-        await tools.create_note(name, "Soft delete body", "");
+        await tools.create_note(name, "Soft delete body", tags: "");
         await _fixture.Index.RebuildIndexAsync();
 
         var result = await tools.delete_note(name);
@@ -146,11 +248,47 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     }
 
     [Fact]
-    public async Task DeleteNote_PermanentDelete_RemovesFile()
+    public async Task DeleteNote_ConcurrentSameBasename_KeepsBothRecoverable()
     {
         var tools = CreateTools();
+        var trashDir = Path.Combine(_fixture.VaultPath, ".trash");
+
+        // The soft-delete race is timing-dependent, so repeat to make a regression deterministic.
+        for (var iteration = 0; iteration < 15; iteration++)
+        {
+            var basename = $"concurrent-{Guid.NewGuid():N}";
+            var pathA = $"ConcurrentA/{basename}";
+            var pathB = $"ConcurrentB/{basename}";
+            var bodyA = $"body-A-{basename}";
+            var bodyB = $"body-B-{basename}";
+
+            await tools.create_note(pathA, bodyA, tags: "");
+            await tools.create_note(pathB, bodyB, tags: "");
+            await _fixture.Index.RebuildIndexAsync();
+
+            var results = await Task.WhenAll(
+                tools.delete_note(pathA),
+                tools.delete_note(pathB));
+
+            Assert.All(results, r => Assert.StartsWith("[ok]", r));
+
+            // Both notes must survive in the trash under distinct names — the second move must
+            // never overwrite the first when the basenames collide.
+            var trashed = Directory.GetFiles(trashDir, $"{basename}*.md");
+            Assert.Equal(2, trashed.Length);
+
+            var contents = trashed.Select(File.ReadAllText).ToList();
+            Assert.Contains(contents, c => c.Contains(bodyA));
+            Assert.Contains(contents, c => c.Contains(bodyB));
+        }
+    }
+
+    [Fact]
+    public async Task DeleteNote_PermanentDelete_RemovesFile()
+    {
+        var tools = CreateTools(allowPermanentDelete: true);
         var name = $"PermDelete-{Guid.NewGuid():N}";
-        await tools.create_note(name, "Permanent delete body", "");
+        await tools.create_note(name, "Permanent delete body", tags: "");
         await _fixture.Index.RebuildIndexAsync();
 
         var result = await tools.delete_note(name, permanent: true);
@@ -165,7 +303,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     {
         var tools = CreateTools();
         var name = $"DryRunDelete-{Guid.NewGuid():N}";
-        await tools.create_note(name, "Dry run body", "");
+        await tools.create_note(name, "Dry run body", tags: "");
         await _fixture.Index.RebuildIndexAsync();
 
         var result = await tools.delete_note(name, dry_run: true);
@@ -173,6 +311,18 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
         Assert.StartsWith("[info]", result);
         Assert.Contains("Would", result);
         Assert.True(_fixture.NoteExists(name));
+    }
+
+    [Fact]
+    public async Task ManageTrash_RestoreRejectsTraversal()
+    {
+        var tools = CreateTools();
+
+        var result = await tools.manage_trash(
+            action: "restore", note: "../../outside.md");
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("relative path", result);
     }
 
     [Fact]
@@ -201,7 +351,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     {
         var tools = CreateTools();
         var name = $"BomTest-{Guid.NewGuid():N}";
-        await tools.create_note(name, "Body", "", type: "note", status: "draft");
+        await tools.create_note(name, "Body", tags: "", type: "note", status: "draft");
         await _fixture.Index.RebuildIndexAsync();
 
         await tools.update_frontmatter(name, status: "done");
@@ -211,11 +361,153 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     }
 
     [Fact]
+    public async Task EditNote_AppendMode_AddsAtEnd()
+    {
+        var tools = CreateTools();
+        var name = $"AppendTest-{Guid.NewGuid():N}";
+        await tools.create_note(name, "First line", tags: "");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.edit_note(name, "Appended line", mode: "append");
+
+        Assert.StartsWith("[ok]", result);
+        var body = await _fixture.ReadNoteBodyAsync(name);
+        Assert.Contains("First line", body);
+        Assert.True(body.IndexOf("Appended line", StringComparison.Ordinal) >
+                    body.IndexOf("First line", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task EditNote_PrependMode_KeepsFrontmatterFirst()
+    {
+        var tools = CreateTools();
+        var name = $"PrependTest-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Original body", tags: "keep-me");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.edit_note(name, "Prepended line", mode: "prepend");
+
+        Assert.StartsWith("[ok]", result);
+        var raw = await File.ReadAllTextAsync(_fixture.GetNotePath(name));
+        Assert.StartsWith("---", raw);
+        var body = await _fixture.ReadNoteBodyAsync(name);
+        Assert.True(body.IndexOf("Prepended line", StringComparison.Ordinal) <
+                    body.IndexOf("Original body", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task EditNote_ExplicitReplaceMode_ReplacesBodyKeepsFrontmatter()
+    {
+        var tools = CreateTools();
+        var name = $"ReplaceTest-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Old body", tags: "keep-me");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.edit_note(name, "New body", mode: "replace");
+
+        Assert.StartsWith("[ok]", result);
+        var raw = await File.ReadAllTextAsync(_fixture.GetNotePath(name));
+        Assert.Contains("keep-me", raw);
+        Assert.Contains("New body", raw);
+        Assert.DoesNotContain("Old body", raw);
+    }
+
+    [Fact]
+    public async Task EditNote_UnknownMode_ReturnsError()
+    {
+        var tools = CreateTools();
+        var name = $"BadModeTest-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Body", tags: "");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.edit_note(name, "x", mode: "insert");
+
+        Assert.StartsWith("[error]", result);
+        Assert.Contains("replace", result);
+    }
+
+    [Fact]
+    public async Task UpdateFrontmatter_AddTags_MergesWithExisting()
+    {
+        var tools = CreateTools();
+        var name = $"AddTagsTest-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Body", tags: "alpha");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.update_frontmatter(name, add_tags: "beta, alpha");
+
+        Assert.StartsWith("[ok]", result);
+        var found = _fixture.Index.GetNote(_fixture.GetNotePath(name));
+        Assert.NotNull(found);
+        Assert.Contains("alpha", found!.Metadata.Tags);
+        Assert.Contains("beta", found.Metadata.Tags);
+        Assert.Equal(2, found.Metadata.Tags.Count(t => t is "alpha" or "beta"));
+    }
+
+    [Fact]
+    public async Task ManageTrash_ListThenRestore_RoundTrips()
+    {
+        var tools = CreateTools();
+        var name = $"TrashRoundTrip-{Guid.NewGuid():N}";
+        await tools.create_note(name, "Trash me", tags: "");
+        await _fixture.Index.RebuildIndexAsync();
+        await tools.delete_note(name);
+
+        var listResult = await tools.manage_trash(action: "list");
+        Assert.StartsWith("[ok]", listResult);
+        Assert.Contains(name, listResult);
+
+        var restoreResult = await tools.manage_trash(action: "restore", note: name);
+        Assert.StartsWith("[ok]", restoreResult);
+        Assert.True(File.Exists(Path.Combine(_fixture.VaultPath, $"{name}.md")));
+    }
+
+    [Fact]
+    public async Task CreateNote_LiteratureKind_UsesStructuredCreation()
+    {
+        var tools = CreateTools();
+
+        var result = await tools.create_note(
+            "A Great Paper", kind: "literature", author: "Doe", year: "2024");
+
+        Assert.StartsWith("[ok] Literature note created:", result);
+        Assert.True(File.Exists(Path.Combine(_fixture.VaultPath, "Literature", "2024-A-Great-Paper.md")));
+    }
+
+    [Fact]
+    public async Task CreateNote_MocKind_GeneratesIndexNote()
+    {
+        var tools = CreateTools();
+        var folder = $"MocKind-{Guid.NewGuid():N}";
+        await tools.create_note($"{folder}/Inner", "Inner body", tags: "");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.create_note(kind: "moc", folder: folder);
+
+        Assert.StartsWith("[ok] MOC created:", result);
+        Assert.True(File.Exists(Path.Combine(_fixture.VaultPath, folder, $"{folder}-MOC.md")));
+    }
+
+    [Fact]
+    public async Task CreateNote_FolderReadmeKind_GeneratesFolderNote()
+    {
+        var tools = CreateTools();
+        var folder = $"ReadmeKind-{Guid.NewGuid():N}";
+        await tools.create_note($"{folder}/Inner", "Inner body", tags: "");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var result = await tools.create_note(kind: "folder-readme", folder: folder);
+
+        Assert.StartsWith("[ok] Folder note created:", result);
+        Assert.True(File.Exists(Path.Combine(_fixture.VaultPath, folder, $"{folder}.md")));
+    }
+
+    [Fact]
     public async Task UpdateFrontmatter_ThenIndexLookup_ReflectsChangeImmediately()
     {
         var tools = CreateTools();
         var name = $"ReindexTest-{Guid.NewGuid():N}";
-        await tools.create_note(name, "Body", "", type: "note", status: "draft");
+        await tools.create_note(name, "Body", tags: "", type: "note", status: "draft");
         await _fixture.Index.RebuildIndexAsync();
 
         var result = await tools.update_frontmatter(name, status: "done");

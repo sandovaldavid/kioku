@@ -1,21 +1,18 @@
 # Kioku
 
-Monorepo: MCP server (C# .NET 10) + Obsidian plugin (TypeScript 6).
-The server exposes vault tools via stdio MCP; the plugin bridges via WebSocket on port 7765.
+MCP server (C# .NET 10) exposing vault tools via stdio/HTTP MCP. The companion Obsidian plugin,
+which bridges via WebSocket on port 7765, lives in its own repository:
+[`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian).
 
 ## Structure
 
 ```
 src/Kioku.Mcp.Server/       C# MCP server (stdio transport)
-  Tools/                    MCP tools: NoteQueryTools, NoteCommandTools,
-                              ObsidianBridgeTools, UtilityTools
+  Tools/                    MCP tools: default/all-capabilities profiles are 44/77 tools; see commands-reference.md
   Services/                 VaultIndexService, EmbeddingService, EmbeddingPersistence,
                               ObsidianBridgeService, FrontmatterParser, MarkdownTextExtractor
   Domain/                   Note, NoteMetadata, SearchResult
   Logging/                  KiokuLogger (ILogger<T> extension methods)
-src/obsidian-kioku-mcp/     TypeScript Obsidian plugin (WebSocket server)
-  src/main.ts               Plugin entry point (KiokuPlugin class)
-  src/logger.ts             Logger class — use log.info/warn/error/debug
 integrations/               Client-specific packaging (Claude Code plugin, Antigravity plugin)
 scripts/add-to-client.sh    One-command MCP registration for Claude Code/Codex/OpenCode/Antigravity
 ```
@@ -26,10 +23,6 @@ scripts/add-to-client.sh    One-command MCP registration for Claude Code/Codex/O
 |------|---------|
 | Build server | `dotnet build src/Kioku.Mcp.Server/` |
 | Format C# | `dotnet format src/Kioku.Mcp.Server/` |
-| Build plugin | `pnpm build:plugin` |
-| Lint plugin | `pnpm lint:plugin` |
-| Format plugin | `pnpm format:plugin` |
-| Type-check plugin | `pnpm --filter obsidian-kioku-mcp exec tsc --noEmit` |
 
 ## Commit conventions
 
@@ -47,7 +40,6 @@ docs(docs): add WebSocket protocol reference
 
 - No separator comments (`// ── Name ──────────`). Use plain `// Name` instead.
 - No emojis in strings. Use `[error]`, `[ok]`, `[loading]`, `[info]`, `[online]` prefixes.
-- TypeScript logging: `import { log } from "./logger"` → `log.info/warn/error/debug`
 - C# logging: inject `ILogger<T>` and use `.Info()/.Warn()/.Error()/.Debug()` from `Kioku.Mcp.Server.Logging`
 
 ## Branch workflow
@@ -70,6 +62,17 @@ git checkout -b feat/my-feature origin/develop
 gh pr create --base develop
 ```
 
+## MCP tool surface
+
+The server exposes 44 tools in the default profile and 77 with all capabilities enabled.
+`NoteQueryTools`, `NoteCommandTools`, and `UtilityTools` are always enabled. The default-disabled
+groups are `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
+`git`, `restore`, and `zettelkasten` are removed groups; use native Git, `manage_trash`, and
+structured `create_note` kinds instead.
+
+Use [`docs/commands-reference.md`](docs/commands-reference.md) as the authoritative inventory.
+The migration table is in [`docs/migration-v3.md`](docs/migration-v3.md).
+
 ## Environment variables (server)
 
 | Variable | Required | Default | Description |
@@ -82,8 +85,10 @@ gh pr create --base develop
 
 ## Semantic search
 
-The server uses Ollama to generate embeddings for semantic (`search_notes_semantic`) queries.
-If Ollama is unavailable at startup, the service degrades gracefully: keyword search still works.
+The server uses Ollama to generate embeddings for semantic searches
+(`search_notes` with `mode='semantic'`).
+If Ollama is unavailable at startup, the service degrades gracefully: keyword and hybrid search
+still work.
 
 ```bash
 # Pull the embedding model once

@@ -23,36 +23,150 @@ jobs:
         with:
           dotnet-version: "10.x"
 
-      - name: Restore
-        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
 
-      - name: Build
+      - name: Build solution
+        shell: bash
         run: |
-          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-            --configuration Release \
-            --no-restore \
-            --runtime linux-x64
+          set -o pipefail
+          dotnet build Kioku.slnx --configuration Release --no-restore 2>&1 | tee dotnet-build.log
 
-      - name: Build (osx-arm64 cross-check)
-        run: |
-          dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-            --configuration Release \
-            --no-restore \
-            --runtime osx-arm64
+      - name: Upload failed build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: dotnet-build-diagnostics
+          path: dotnet-build.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Build server (linux-x64)
+        run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --runtime linux-x64
+
+      - name: Build server (osx-arm64 cross-check)
+        run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --runtime osx-arm64
+
+      - name: Pack .NET tool
+        run: dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --output ./artifacts/packages
 
       - name: Format check
+        shell: bash
         run: |
-          dotnet format src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-            --verify-no-changes \
-            --verbosity diagnostic
+          set -o pipefail
+          {
+            dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore --verbosity diagnostic
+            dotnet format Kioku.slnx style --verify-no-changes --no-restore --verbosity diagnostic
+          } 2>&1 | tee dotnet-format.log
+
+      - name: Upload failed format diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: dotnet-format-diagnostics
+          path: dotnet-format.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Vulnerability check
+        run: dotnet list Kioku.slnx package --vulnerable --include-transitive
+
+      - name: Generate .NET package inventory
+        shell: bash
         run: |
-          dotnet list src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj package --vulnerable
+          mkdir -p artifacts/inventory
+          dotnet list Kioku.slnx package --include-transitive --format json > artifacts/inventory/dotnet-packages.json
+
+      - name: Upload package inventory
+        uses: actions/upload-artifact@v6
+        with:
+          name: dotnet-package-inventory
+          path: artifacts/inventory/dotnet-packages.json
+          if-no-files-found: error
+          retention-days: 30
 
   test-server:
-    name: test-server (ubuntu-latest)
-    runs-on: ubuntu-latest
+    name: test-server (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
+
+      - name: Test with coverage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity minimal \
+            --collect:"XPlat Code Coverage" \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./test-results \
+            2>&1 | tee dotnet-test.log
+
+      - name: Test natively
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
+            --configuration Release \
+            --no-restore \
+            --verbosity minimal \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./test-results \
+            2>&1 | tee dotnet-test.log
+
+      - name: Enforce server coverage baseline
+        if: runner.os == 'Linux'
+        run: python3 scripts/verify-coverage.py --pattern "test-results/**/coverage.cobertura.xml" --minimum 40
+
+      - name: Upload failed test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: server-test-results-${{ runner.os }}
+          path: |
+            dotnet-test.log
+            test-results/**/*.trx
+            test-results/**/coverage.cobertura.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+      # Local coverage is the protected-branch gate. Codecov remains informational so
+      # pull requests from forks are not blocked by unavailable repository secrets.
+      - name: Upload coverage to Codecov
+        if: runner.os == 'Linux' && success()
+        uses: codecov/codecov-action@v7
+        with:
+          files: ./test-results/**/coverage.cobertura.xml
+          flags: server
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  test-filesystem-sandbox:
+    name: test-filesystem-sandbox (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v7
@@ -65,64 +179,181 @@ jobs:
       - name: Restore
         run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
 
-      - name: Test with coverage
+      - name: Test filesystem security contracts
+        shell: bash
         run: |
+          set -o pipefail
           dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
             --configuration Release \
             --no-restore \
-            --verbosity normal \
-            --collect:"XPlat Code Coverage" \
-            --results-directory ./coverage
+            --verbosity minimal \
+            --logger "trx;LogFileName=filesystem-results.trx" \
+            --results-directory ./filesystem-results \
+            --filter "FullyQualifiedName~VaultPathPolicyTests|FullyQualifiedName~VaultIndexSandboxTests|FullyQualifiedName~SecureResearchToolsTests|FullyQualifiedName~PermanentDeletePolicyTests|FullyQualifiedName~NoteHelpersTests" \
+            2>&1 | tee filesystem-test.log
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+      - name: Upload failed filesystem diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
         with:
-          files: ./coverage/**/coverage.cobertura.xml
-          flags: server
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          name: filesystem-test-results-${{ runner.os }}
+          path: |
+            filesystem-test.log
+            filesystem-results/**/*.trx
+          if-no-files-found: error
+          retention-days: 7
 
-  build-plugin:
-    name: build-plugin (ubuntu-latest)
-    runs-on: ubuntu-latest
+  package-smoke:
+    name: package-smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
         with:
-          version: 11.9.0
-          run_install: false
+          dotnet-version: "10.x"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - name: Restore solution
+        run: dotnet restore Kioku.slnx
+
+      - name: Build MCP smoke client
+        run: dotnet build scripts/Kioku.Ci/Kioku.Ci.csproj --configuration Release --no-restore
+
+      - name: Pack local .NET tool
+        run: dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --output ./artifacts/packages
+
+      - name: Install tool from isolated local feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOL_DIR="$RUNNER_TEMP/kioku-tool"
+          mkdir -p "$TOOL_DIR"
+          cat > "$RUNNER_TEMP/kioku-smoke-nuget.config" <<EOF
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="$GITHUB_WORKSPACE/artifacts/packages" />
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="local">
+                <package pattern="kioku-mcp-server" />
+              </packageSource>
+              <packageSource key="nuget.org">
+                <package pattern="*" />
+              </packageSource>
+            </packageSourceMapping>
+          </configuration>
+          EOF
+          dotnet tool install \
+            --tool-path "$TOOL_DIR" \
+            --configfile "$RUNNER_TEMP/kioku-smoke-nuget.config" \
+            kioku-mcp-server \
+            2>&1 | tee package-install.log
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "KIOKU_TOOL=$TOOL_DIR/kioku.exe" >> "$GITHUB_ENV"
+          else
+            echo "KIOKU_TOOL=$TOOL_DIR/kioku" >> "$GITHUB_ENV"
+          fi
+
+      - name: Smoke installed tool over stdio
+        shell: bash
+        run: |
+          set -euo pipefail
+          VAULT="$RUNNER_TEMP/kioku-tool-vault"
+          mkdir -p "$VAULT"
+          printf '# Seed\n\nPackage smoke fixture.\n' > "$VAULT/seed.md"
+          mkdir -p "$VAULT/.kioku"
+          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n' > "$VAULT/.kioku/config.yml"
+          mkdir -p "$VAULT/Sessions"
+          cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
+          dotnet run \
+            --project scripts/Kioku.Ci/Kioku.Ci.csproj \
+            --configuration Release \
+            --no-build \
+            -- \
+            --transport stdio \
+            --command "$KIOKU_TOOL" \
+            --vault "$VAULT" \
+            --coordination \
+            --timeout-seconds 90 \
+            2>&1 | tee stdio-smoke.log
+
+      - name: Resolve native runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$RUNNER_OS/$RUNNER_ARCH" in
+            Linux/X64) RID=linux-x64 ;;
+            Linux/ARM64) RID=linux-arm64 ;;
+            Windows/X64) RID=win-x64 ;;
+            Windows/ARM64) RID=win-arm64 ;;
+            macOS/X64) RID=osx-x64 ;;
+            macOS/ARM64) RID=osx-arm64 ;;
+            *) echo "Unsupported native runner: $RUNNER_OS/$RUNNER_ARCH" >&2; exit 1 ;;
+          esac
+          echo "NATIVE_RID=$RID" >> "$GITHUB_ENV"
+
+      - name: Publish native single-file server
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+            --configuration Release \
+            --no-restore \
+            --runtime "$NATIVE_RID" \
+            --output "$RUNNER_TEMP/kioku-publish"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "KIOKU_NATIVE=$RUNNER_TEMP/kioku-publish/Kioku.Mcp.Server.exe" >> "$GITHUB_ENV"
+          else
+            chmod +x "$RUNNER_TEMP/kioku-publish/Kioku.Mcp.Server"
+            echo "KIOKU_NATIVE=$RUNNER_TEMP/kioku-publish/Kioku.Mcp.Server" >> "$GITHUB_ENV"
+          fi
+
+      - name: Smoke native binary over Streamable HTTP
+        shell: bash
+        run: |
+          set -euo pipefail
+          VAULT="$RUNNER_TEMP/kioku-http-vault"
+          mkdir -p "$VAULT"
+          printf '# Seed\n\nHTTP smoke fixture.\n' > "$VAULT/seed.md"
+          mkdir -p "$VAULT/.kioku"
+          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n' > "$VAULT/.kioku/config.yml"
+          mkdir -p "$VAULT/Sessions"
+          cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
+          dotnet run \
+            --project scripts/Kioku.Ci/Kioku.Ci.csproj \
+            --configuration Release \
+            --no-build \
+            -- \
+            --transport http \
+            --command "$KIOKU_NATIVE" \
+            --vault "$VAULT" \
+            --endpoint "http://127.0.0.1:5273/mcp" \
+            --api-key "kioku-ci-smoke-token" \
+            --coordination \
+            --timeout-seconds 120 \
+            2>&1 | tee http-smoke.log
+
+      - name: Upload package smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
         with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: "pnpm-lock.yaml"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Audit dependencies
-        run: pnpm audit --audit-level=high
-
-      - name: Type-check
-        run: pnpm --filter obsidian-kioku-mcp exec tsc --noEmit -p tsconfig.json
-
-      - name: Lint
-        run: pnpm --filter obsidian-kioku-mcp run lint
-
-      - name: Format check
-        run: pnpm --filter obsidian-kioku-mcp run format:check
-
-      - name: Test
-        run: pnpm --filter obsidian-kioku-mcp run test
-
-      - name: Build
-        run: pnpm --filter obsidian-kioku-mcp run build
+          name: package-smoke-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            artifacts/packages/*.nupkg
+            package-install.log
+            stdio-smoke.log
+            http-smoke.log
+            ${{ runner.temp }}/kioku-publish/**
+          if-no-files-found: warn
+          retention-days: 7
 
   validate-integrations:
     name: validate-integrations (ubuntu-latest)

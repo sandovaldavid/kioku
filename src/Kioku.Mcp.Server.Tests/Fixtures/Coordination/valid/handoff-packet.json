@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "run_id": "run-01",
+  "work_item_id": "work-01",
+  "attempt_id": "attempt-01",
+  "session_id": "session-01",
+  "parent_session_id": null,
+  "agent": "agent-a",
+  "client_name": "client-a",
+  "project": "example-project",
+  "resource_scope": ["Notes/Plan.md"],
+  "authority_scope": ["coordination.read"],
+  "state": "pending",
+  "checkpoint": {
+    "summary": "Ready to begin the work item.",
+    "reference": "session-01",
+    "revision": 0,
+    "content_hash": null
+  },
+  "next_actions": [
+    {
+      "action_id": "action-01",
+      "description": "Review the contract fixtures.",
+      "resource_key": "note:Notes/Plan.md",
+      "status": "pending"
+    }
+  ],
+  "artifacts": [],
+  "blockers": [],
+  "conflicts": [],
+  "created_at": "2026-07-31T05:00:00Z",
+  "updated_at": "2026-07-31T05:00:00Z",
+  "sequence": 1,
+  "state_version": 0,
+  "revision": 0,
+  "content_hash": "79403C2C84AFA881E68531A04230D6C49A52EED8950867040859DE544F7AF6D6"
+}

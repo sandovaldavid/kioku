@@ -1,27 +1,25 @@
 # ============================================
-# Kioku Vault Configuration — Example
+# Kioku Vault Configuration - Example
 # ============================================
 # Copia este archivo a .kioku/config.yml dentro
 # de tu vault y ajusta los valores según tu
 # estructura de carpetas.
 #
-# Todas las secciones son OPCIONALES. Si el
-# archivo no existe o una sección falta, Kioku
-# usa los valores por defecto documentados.
+# Todas las secciones son opcionales. Si el archivo
+# no existe o falta una sección, Kioku usa los
+# valores por defecto documentados.
 #
-# Guía completa del esquema: docs/vault-config.md
+# Guía completa: docs/vault-config.md
 # ============================================
 
 # --- Identidad del vault ---
-# Solo informativo, se muestra en logs.
 vault:
-  name: "Mi Bóveda"
+  name: "Mi Vault"
 
 # --- Mapeo de carpetas ---
-# Define dónde se crean las notas según su tipo.
-# Cada tool (create_zettel, start_work_session,
-# create_template, etc.) consulta esta sección
-# cuando el usuario no especifica una carpeta.
+# create_note (incluidos sus kinds estructurados),
+# sesiones, ingeniería y templates consultan esta
+# sección cuando no reciben una carpeta explícita.
 folders:
   inbox: "Inbox"
   zettel: "Zettelkasten"
@@ -30,30 +28,17 @@ folders:
   sessions: "Sessions"
   templates: "System/Templates"
   assets: "System/Attachments"
-  projects: "Projects"     # grupo engineering: workspaces por proyecto
-  knowledge: "Knowledge"   # grupo engineering: conocimiento general
+  projects: "Projects"
+  knowledge: "Knowledge"
 
-# --- Dominios por carpeta ---
-# Asigna automáticamente el campo `domain:` en
-# el frontmatter de cualquier nota creada en
-# esa carpeta (o subcarpeta).
-#
-# Precedencia:
-#   1. Carpeta exacta
-#   2. Prefijo de carpeta más largo
-#   3. default.{type}.domain
+# --- Dominios y defaults ---
 domains:
   "Inbox": "general/inbox"
   "Projects": "work/projects"
+  "Research": "academic/research"
   "Zettelkasten": "tech/general"
   "Literature": "academic/research"
-  "Archive": "general/archive"
-  "System": "general/system"
 
-# --- Defaults por tipo de nota ---
-# Valores de frontmatter que se aplican según
-# el `type:` de la nota. Se fusionan con los
-# valores explícitos pasados por el tool call.
 defaults:
   note:
     type: capture
@@ -62,38 +47,20 @@ defaults:
     type: concept
     status: active
     domain: tech/general
-  daily:
-    type: log
-    status: active
-    domain: general/inbox
   literature:
     type: source
     status: draft
     domain: academic/research
-  session:
+  daily:
     type: log
     status: active
-    domain: general/system
-    tags: [session, work-log]
-  moc:
-    type: guide
-    status: published
-    domain: general/system
-    tags: [meta/moc]
+    domain: general/inbox
 
 # --- Carpetas excluidas del índice ---
-# Además de las carpetas ocultas (las que
-# empiezan con `.`), puedes excluir carpetas
-# adicionales de la búsqueda y el índice.
 exclude:
   - "Archive"
 
 # --- Herencia de tags por carpeta ---
-# Las notas creadas bajo una carpeta heredan sus
-# tags (gana el prefijo más largo).
-# exclude_from_tags: campos de frontmatter que
-# nunca se convierten en tags
-# (default: domain, type, status).
 auto_tags:
   inherit:
     "Literature": [research]
@@ -101,30 +68,22 @@ auto_tags:
   exclude_from_tags: [domain, type, status]
 
 # --- Templates por carpeta destino ---
-# Reemplaza el cuerpo por defecto de create_zettel/
-# create_moc/create_literature_note (y la sesión
-# general) según la CARPETA donde se crea la nota,
-# no según un tipo fijo de Kioku. Cada valor es una
-# RUTA a un archivo .md (no el cuerpo embebido) —
-# se lee del disco en cada creación, así que editarlo
-# en Obsidian se aplica de inmediato.
-#
-# Si ya tienes configurado Settings -> Folder Templates
-# en el plugin Templater, Kioku lo respeta automáticamente
-# sin necesidad de nada aquí. Esta sección solo agrega
-# mapeos que Templater no tenga, o sobrescribe para un
-# caso puntual (gana sobre lo que diga Templater).
+# Cada valor es una ruta a un archivo Markdown.
 template_folders:
+  "Journal/Daily": "System/Templates/Daily Note.md"
   "Zettelkasten": "System/Templates/zettel.md"
   "Literature": "System/Templates/literature.md"
 
+# --- Frontmatter and generated indexes ---
+# Both settings are conservative by default. Enable them only when Kioku should own these fields.
+frontmatter:
+  maintain_updated: false
+
+generated_indexes:
+  # manual (default) or on_mutation
+  refresh: manual
+
 # --- Workspaces de ingeniería por proyecto ---
-# Subcarpetas estándar de cada proyecto bajo
-# folders.projects, usadas por el grupo de tools
-# `engineering` (record_adr, log_bug, create_plan,
-# add_knowledge, add_backlog_item, get_project_context,
-# setup_agent_workflow). Los valores mostrados son
-# los defaults; solo cambia lo que necesites.
 engineering:
   subfolders:
     decisions: "decisions"
@@ -136,17 +95,15 @@ engineering:
     tickets: "tickets"
     backlog: "backlog"
 
-# --- Grupos de capacidades (tool groups) ---
-# Los grupos core (query, command, utility) siempre
-# se registran. Los 16 grupos opcionales se pueden
-# desactivar aquí:
-#   tasks, zettelkasten, organization, sessions,
-#   workflows, css, graph, graph-analysis, research,
-#   bridge, plugin, git, restore, assets, generation,
-#   engineering
+# --- Grupos de capacidades ---
+# Los grupos core siempre se registran. Sin esta
+# sección, estos grupos están desactivados:
+# research, generation, css, assets, bridge, plugin
 #
-# Sin esta sección: todos habilitados.
+# git, restore y zettelkasten fueron eliminados como
+# grupos. Git se usa de forma nativa y las notas
+# estructuradas usan create_note.
 capabilities:
-  disabled: []          # p. ej. [git, css] — o ["*"] para desactivar todos
-  # require_explicit: true   # modo allowlist:
-  # enabled: [tasks, zettelkasten]
+  disabled: [research, generation, css, assets, bridge, plugin]
+  # require_explicit: true
+  # enabled: [tasks, organization, engineering]

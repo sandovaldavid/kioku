@@ -1,0 +1,28 @@
+name: dependency-review
+
+# GitHub's dependency-review API compares revisions on the default branch. Kioku feature
+# work targets develop, so dependency review is enforced on the release PR into main;
+# develop PRs remain blocked by the dotnet vulnerability scan in ci.yml (build-server's
+# "Vulnerability check" step).
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

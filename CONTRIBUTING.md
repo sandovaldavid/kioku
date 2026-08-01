@@ -1,125 +1,107 @@
 # Contributing to Kioku
 
-Thanks for your interest in contributing! This project is a monorepo: a C# .NET 10 MCP
-server (`src/Kioku.Mcp.Server/`) and a TypeScript Obsidian plugin
-(`src/obsidian-kioku-mcp/`), bridged over a local WebSocket.
-
-## Before you start
-
-- Check [open issues](https://github.com/sandovaldavid/kioku/issues) and
-  [pull requests](https://github.com/sandovaldavid/kioku/pulls) to avoid duplicate work.
-  For anything non-trivial, open an issue first to discuss the approach.
-- By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-- Found a security issue? Follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+Kioku is a .NET 10 MCP server. Ordinary changes branch from `origin/develop`, pull requests target `develop`, and release promotion to `main` follows the repository release workflow. The companion Obsidian plugin lives in its own repository, [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian), with its own contribution and release workflow.
 
 ## Development setup
 
-See [docs/install.md](docs/install.md) for full setup instructions. In short:
+```bash
+dotnet restore Kioku.slnx
+dotnet build Kioku.slnx --configuration Release --no-restore
+dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
+corepack enable
+pnpm install --frozen-lockfile
+```
+
+See the [documentation index](docs/README.md), [installation guide](docs/install.md), and [Dev Container guide](docs/dev-container.md) for supported setup paths.
+
+## Branches and commits
 
 ```bash
-# Server (requires .NET 10 SDK)
-dotnet build src/Kioku.Mcp.Server/
-dotnet test src/Kioku.Mcp.Server.Tests/
-
-# Plugin (requires Node.js 24+ and pnpm 11+)
-pnpm install
-pnpm build:plugin
-pnpm lint:plugin
+git checkout -b feat/my-change origin/develop
 ```
 
-## Branch workflow
+Use Conventional Commits with a required scope:
 
-All changes branch from `origin/develop`; PRs target `develop` (squash-merge only).
-Never commit directly to `main` or `develop`. Release Please runs only on `main`
-(single channel, prerelease/beta by default); it never opens a `develop` → `main`
-PR itself. Periodically, a maintainer promotes `develop` into `main` via a sync PR
-opened from a short-lived intermediate branch — see `scripts/sync-develop-to-main.sh`.
-Version numbers, `CHANGELOG.md`, and other release-managed files are never hand-edited
-in that sync — they're always resolved to `main`'s current value and left for
-Release Please's own automated release PR to update afterward.
-
-Always merge that sync PR with a **merge commit**, never squash. It can carry
-many individual commits from `develop`; squashing folds every one of their
-messages into a single commit body, which destroys granular history on `main`
-and can make Release Please misfire on old `!` breaking-change markers buried
-in that combined text.
-
-The reverse also applies: if `main` ever needs to be caught back up into
-`develop` (e.g. after a sync PR), that catch-up PR must be merged with
-**"Rebase and merge"**, never squash — `develop`'s branch protection requires
-linear history, which rules out a merge commit there, but squashing a
-multi-commit catch-up hits the exact same problem as above (one squashed PR
-into `develop`, later carried into `main` by a real merge, can still poison
-`main`'s history with a concatenated commit body). Rebase-merge keeps history
-linear *and* keeps each original commit message separate.
-
-To cut a stable release instead of the next beta, temporarily remove `"prerelease"`,
-`"prerelease-type"`, and `"versioning"` from `release-please-config.json`, merge that
-to `main`, let Release Please open and merge its release PR, then restore those three
-keys to resume the beta series.
-
-```bash
-git checkout -b feat/my-feature origin/develop
-# ... work ...
-gh pr create --base develop
-```
-
-## Commit messages
-
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) and are
-linted locally via commitlint (installed as part of `pnpm install`, runs on `git commit`):
-
-```
+```text
 type(scope): imperative description
 ```
 
-- **Scope is required** and must be one of: `server`, `plugin`, `docs`, `ci`, `config`,
-  `deps`, `release`.
-- Lowercase, no trailing period, header under 100 characters.
+The enforced scopes are `server`, `plugin`, `docs`, `ci`, `config`, `deps`, `release`, and `integrations`. The `plugin` scope remains accepted by commitlint for compatibility and cross-repository contract changes; plugin implementation belongs in `sandovaldavid/kioku-obsidian`.
 
-```
-feat(server): add search_by_alias tool
-fix(plugin): handle null vault path on startup
-docs(docs): add WebSocket protocol reference
-```
+Keep the header under 100 characters and do not add a trailing period.
 
 ## Code style
 
-- **C#**: format with `dotnet format src/Kioku.Mcp.Server/` before committing. No
-  separator comments (`// ── Name ──`) — use plain `// Name`. Inject `ILogger<T>` and use
-  the `.Info()/.Warn()/.Error()/.Debug()` extensions from `Kioku.Mcp.Server.Logging`.
-- **TypeScript**: format with `pnpm format:plugin`, lint with `pnpm lint:plugin`. Use
-  `import { log } from "./logger"` and `log.info/warn/error/debug` instead of `console.*`.
-- No emojis in strings or logs — use `[error]`, `[ok]`, `[loading]`, `[info]` prefixes
-  instead.
+- C#: nullable analysis, analyzers, deterministic builds, and warnings-as-errors are configured repository-wide.
+- Use structured logging instead of `Console` in production code.
+- Keep stdout reserved for MCP protocol traffic under `stdio`; diagnostics belong on stderr.
+- Do not add decorative separator comments or emojis to logs and protocol messages.
+- Preserve unknown YAML frontmatter fields and the vault filesystem boundary.
 
-## Adding or changing MCP tools
+## Documentation policy
 
-If your change adds, renames, or changes the signature of a tool, regenerate the tools
-reference before opening the PR:
+Repository documentation describes the current target branch. It must not present an issue, plan, proposal, PR body, historical benchmark, or external repository setting as implemented.
+
+Use the status taxonomy in [AGENTS.md](AGENTS.md):
+
+- `Implemented`
+- `In progress`
+- `Planned`
+- `Blocked`
+- `Deprecated`
+- `Historical`
+- `Discarded`
+- `Unconfirmed`
+
+Keep current behavior, architecture, contracts, setup, testing, deployment, and troubleshooting in this repository. Move alternatives, rationale, completed plans, historical snapshots, cross-repository strategy, and session handoffs to Cortex-L7.
+
+When editing documentation:
+
+- verify commands against versioned scripts or workflows;
+- link to generated references instead of copying tool and environment-variable inventories;
+- mark compatibility-only behavior as `Deprecated`;
+- remove or relocate historical execution documents rather than leaving them beside active guidance;
+- check relative links and generated public metadata.
+
+## MCP contracts and public metadata
+
+Tool schemas, annotations, prompts, resources, environment variables, manifest metadata, and version semantics are generated or mechanically verified. After changing any public MCP or configuration contract, run:
 
 ```bash
-dotnet build src/Kioku.Mcp.Server/
-dotnet run --project scripts/GenerateCommandsRef
+dotnet build Kioku.slnx --configuration Release --no-restore
+node scripts/generate-public-docs.mjs --write
+node scripts/generate-public-docs.mjs --check
 ```
 
-This regenerates `docs/commands-reference.md`. If the change adds new environment
-variables or capability groups, also update the root `README.md`,
-`src/Kioku.Mcp.Server/README.md`, `docs/install.md`, and `docs/vault-config.md`.
+Do not hand-edit these generated files:
 
-## Tests
+- `docs/commands-reference.md`
+- `docs/configuration-reference.md`
+- `docs/versioning.md`
+- `src/Kioku.Mcp.Server/.mcp/server.json`
 
-- Server: `dotnet test src/Kioku.Mcp.Server.Tests/` — please add tests for new tools and
-  bug fixes. Tools that write/move files should use a fresh temporary vault per test
-  (`IAsyncLifetime`), not the shared `VaultFixture`.
-- Plugin: covered by Vitest (`pnpm --filter obsidian-kioku-mcp test`, if configured for
-  your change).
+Update `docs/public-metadata.json` when adding or changing a public environment variable, capability profile, transport, manifest identity, or versioning rule. The check command compares that metadata with live MCP discovery, `KiokuOptions`, package manifests, and version files.
 
-## Submitting a pull request
+## Verification before a pull request
 
-1. Make sure `dotnet build`, `dotnet test`, and `dotnet format --verify-no-changes` are
-   all green for anything touching the server (equivalent `pnpm` commands for the plugin).
-2. Push your branch and open a PR against `develop` with a clear summary of what changed
-   and why, plus how you tested it.
-3. Keep PRs focused — one logical change per PR is easier to review than a bundle of
-   unrelated fixes.
+```bash
+dotnet restore Kioku.slnx
+dotnet build Kioku.slnx --configuration Release --no-restore
+dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
+dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
+dotnet format Kioku.slnx style --verify-no-changes --no-restore
+corepack enable
+pnpm install --frozen-lockfile
+pnpm docs:check
+```
+
+Run change-specific checks when applicable:
+
+```bash
+bash .devcontainer/scripts/validate-devcontainer.sh
+docker compose config
+```
+
+Use a fresh temporary vault for tests that mutate files. Keep pull requests focused and include the exact commands and results used for verification. A skipped or unavailable workflow is not a passing result.
+
+Security issues must follow [SECURITY.md](SECURITY.md), not a public issue.

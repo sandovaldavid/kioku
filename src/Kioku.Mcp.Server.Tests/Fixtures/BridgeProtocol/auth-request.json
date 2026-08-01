@@ -1,0 +1,24 @@
+{
+  "description": "Handshake request sent by the server as the first message on every (re)connection.",
+  "message": {
+    "command": "auth",
+    "payload": {
+      "minProtocolVersion": 3,
+      "maxProtocolVersion": 3,
+      "clientName": "kioku-mcp-server",
+      "requestedCapabilities": [
+        "read",
+        "ui-navigation",
+        "editor-mutation",
+        "third-party-dataview",
+        "third-party-templater",
+        "third-party-linter",
+        "vault-wide",
+        "unsafe-command"
+      ],
+      "token": "example-shared-token"
+    },
+    "requestId": "auth-1",
+    "protocolVersion": 3
+  }
+}

@@ -15,6 +15,7 @@ namespace Kioku.Mcp.Server.Services;
 public sealed class VaultIndexService : IDisposable
 {
     private readonly ILogger<VaultIndexService> _logger;
+    private readonly VaultPathPolicy _paths;
     private readonly string _vaultPath;
 
     // Main index: absolute path -> note
@@ -45,10 +46,16 @@ public sealed class VaultIndexService : IDisposable
     private readonly EmbeddingService? _embedding;
     private readonly HashSet<string> _excludeFolders = [];
 
-    public VaultIndexService(ILogger<VaultIndexService> logger, KiokuConfiguration config, EmbeddingService? embedding = null, VaultConfigService? vaultConfig = null)
+    public VaultIndexService(
+        ILogger<VaultIndexService> logger,
+        KiokuConfiguration config,
+        EmbeddingService? embedding = null,
+        VaultConfigService? vaultConfig = null,
+        VaultPathPolicy? pathPolicy = null)
     {
         _logger = logger;
-        _vaultPath = config.VaultPath;
+        _paths = pathPolicy ?? new VaultPathPolicy(config);
+        _vaultPath = _paths.VaultRoot;
         _embedding = embedding;
         if (vaultConfig is not null)
         {
@@ -63,7 +70,10 @@ public sealed class VaultIndexService : IDisposable
     public DateTimeOffset LastIndexed => _lastIndexed;
 
     /// <summary>Indicates if the index has completed its initial load.</summary>
-    public bool IsReady => _isReady;
+    public bool IsReady => Volatile.Read(ref _isReady);
+
+    /// <summary>Synchronizes readiness with the bounded indexing pipeline.</summary>
+    internal void SetReady(bool ready) => Volatile.Write(ref _isReady, ready);
 
     // Public API
 
@@ -89,23 +99,75 @@ public sealed class VaultIndexService : IDisposable
             await _embedding.InitializeAsync(_notesByPath.Values, cancellationToken);
         }
 
-        _isReady = true;
+        SetReady(true);
         _logger.Info("Index ready. {Count} notes indexed.", _indexedCount);
     }
 
     /// <summary>Gets a note by its absolute path or vault-relative path.</summary>
     public Note? GetNote(string path)
     {
-        var absPath = ResolveAbsolutePath(path);
-        return _notesByPath.TryGetValue(absPath, out var note) ? note : null;
+        try
+        {
+            var absPath = _paths.ResolveVaultReadPath(path);
+            return _notesByPath.TryGetValue(absPath, out var note) ? note : null;
+        }
+        catch (Exception exception) when (
+            exception is VaultAccessDeniedException or ArgumentException or IOException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Gets a note by its name (without extension).</summary>
     public Note? GetNoteByName(string name)
     {
-        return _notesByPath.Values
-            .FirstOrDefault(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return GetNotesByName(name) is [var note] ? note : null;
     }
+
+    /// <summary>Gets all notes with the given basename.</summary>
+    public IReadOnlyList<Note> GetNotesByName(string name) =>
+        _notesByPath.Values
+            .Where(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    /// <summary>
+    /// Resolves an absolute path, vault-relative path, or unique basename. A duplicate basename
+    /// is intentionally ambiguous and is not resolved.
+    /// </summary>
+    public Note? ResolveNote(string nameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(nameOrPath))
+        {
+            return null;
+        }
+
+        var byPath = GetNote(nameOrPath);
+        if (byPath is not null)
+        {
+            return byPath;
+        }
+
+        var normalized = NormalizeVaultPath(nameOrPath);
+        var byRelativePath = normalized.Contains('/')
+            ? _notesByPath.Values
+                .Where(n => NormalizeVaultPath(n.VaultRelativePath).Equals(normalized, StringComparison.OrdinalIgnoreCase))
+                .ToList()
+            : [];
+        if (byRelativePath.Count == 1)
+        {
+            return byRelativePath[0];
+        }
+
+        if (!normalized.Contains('/'))
+        {
+            return GetNoteByName(Path.GetFileNameWithoutExtension(normalized));
+        }
+
+        return null;
+    }
+
+    /// <summary>Resolves a wikilink to a unique note, including path-qualified links.</summary>
+    public Note? ResolveLink(Note source, string link) => ResolveNote(link);
 
     /// <summary>Returns all indexed notes.</summary>
     public IEnumerable<Note> GetAllNotes() => _notesByPath.Values;
@@ -113,12 +175,18 @@ public sealed class VaultIndexService : IDisposable
     /// <summary>Returns all notes in a specific folder.</summary>
     public IEnumerable<Note> GetNotesInFolder(string folderPath)
     {
-        var absFolder = Path.IsPathRooted(folderPath)
-            ? folderPath
-            : Path.Combine(_vaultPath, folderPath);
+        string absFolder;
+        try
+        {
+            absFolder = _paths.ResolveVaultReadPath(folderPath);
+        }
+        catch (Exception exception) when (
+            exception is VaultAccessDeniedException or ArgumentException or IOException)
+        {
+            return [];
+        }
 
-        return _notesByPath.Values
-            .Where(n => n.FilePath.StartsWith(absFolder, StringComparison.OrdinalIgnoreCase));
+        return _notesByPath.Values.Where(note => IsPathWithin(absFolder, note.FilePath));
     }
 
     // Okapi BM25 constants: k1 controls term-frequency saturation, b controls how much
@@ -268,12 +336,12 @@ public sealed class VaultIndexService : IDisposable
                 return false;
             }
 
-            if (dateFrom.HasValue && note.Metadata.Date.HasValue && note.Metadata.Date < dateFrom)
+            if (dateFrom.HasValue && (!note.Metadata.Date.HasValue || note.Metadata.Date < dateFrom))
             {
                 return false;
             }
 
-            if (dateTo.HasValue && note.Metadata.Date.HasValue && note.Metadata.Date > dateTo)
+            if (dateTo.HasValue && (!note.Metadata.Date.HasValue || note.Metadata.Date > dateTo))
             {
                 return false;
             }
@@ -282,17 +350,59 @@ public sealed class VaultIndexService : IDisposable
         });
     }
 
-    /// <summary>Returns notes linking to the note with the given name.</summary>
-    public IEnumerable<Note> GetBacklinks(string noteName)
+    /// <summary>Returns notes linking to the uniquely resolved note with the given name or path.</summary>
+    public IReadOnlyList<Note> GetBacklinks(string noteNameOrPath)
     {
-        if (!_backlinkIndex.TryGetValue(noteName.ToLowerInvariant(), out var paths))
+        var target = ResolveNote(noteNameOrPath);
+        if (target is not null)
         {
-            return [];
+            return GetBacklinks(target);
         }
 
-        return paths
-            .Where(p => _notesByPath.ContainsKey(p))
-            .Select(p => _notesByPath[p]);
+        var normalizedPath = NormalizeVaultPath(noteNameOrPath);
+        var basenameCount = GetNotesByName(Path.GetFileNameWithoutExtension(normalizedPath)).Count;
+        return normalizedPath.Contains('/') || basenameCount == 0
+            ? MaterializeBacklinks([normalizedPath])
+            : [];
+    }
+
+    /// <summary>Returns notes linking to a specific note, without basename ambiguity.</summary>
+    public IReadOnlyList<Note> GetBacklinks(Note target)
+    {
+        var targetPath = NormalizeVaultPath(target.VaultRelativePath);
+        var targetNameIsUnique = GetNotesByName(target.Name).Count == 1;
+        var matchingKeys = _backlinkIndex.Keys
+            .Where(key => NormalizeVaultPath(key).Equals(targetPath, StringComparison.OrdinalIgnoreCase) ||
+                          (targetNameIsUnique && key.Equals(target.Name, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        return MaterializeBacklinks(matchingKeys);
+    }
+
+    private IReadOnlyList<Note> MaterializeBacklinks(IEnumerable<string> matchingKeys)
+    {
+        var sourcePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in matchingKeys)
+        {
+            if (!_backlinkIndex.TryGetValue(key, out var paths))
+            {
+                continue;
+            }
+
+            string[] snapshot;
+            lock (paths)
+            {
+                snapshot = [.. paths];
+            }
+
+            sourcePaths.UnionWith(snapshot);
+        }
+
+        return sourcePaths
+            .Select(path => _notesByPath.TryGetValue(path, out var note) ? note : null)
+            .Where(note => note is not null)
+            .Cast<Note>()
+            .ToList();
     }
 
     /// <summary>Forces a full re-indexing of the vault.</summary>
@@ -305,7 +415,7 @@ public sealed class VaultIndexService : IDisposable
         _tagIndex.Clear();
         _backlinkIndex.Clear();
         _indexedCount = 0;
-        _isReady = false;
+        SetReady(false);
 
         await IndexVaultAsync(cancellationToken);
         if (_embedding is not null)
@@ -313,7 +423,7 @@ public sealed class VaultIndexService : IDisposable
             await _embedding.SaveAsync();
         }
 
-        _isReady = true;
+        SetReady(true);
         _logger.Info("Full re-indexing complete. {Count} notes.", _indexedCount);
     }
 
@@ -321,8 +431,8 @@ public sealed class VaultIndexService : IDisposable
 
     private async Task IndexVaultAsync(CancellationToken cancellationToken)
     {
-        var mdFiles = Directory.EnumerateFiles(_vaultPath, "*.md", SearchOption.AllDirectories)
-            .Where(p => !IsExcludedPath(p));
+        var mdFiles = _paths.EnumerateVaultFiles("*.md", recursive: true)
+            .Where(path => !IsExcludedPath(path));
         var tasks = mdFiles.Select(path => IndexFileAsync(path, cancellationToken));
         await Task.WhenAll(tasks);
         _lastIndexed = DateTimeOffset.UtcNow;
@@ -332,6 +442,12 @@ public sealed class VaultIndexService : IDisposable
     {
         try
         {
+            filePath = _paths.ResolveVaultReadPath(filePath);
+            if (!File.Exists(filePath))
+            {
+                return;
+            }
+
             var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
             var note = BuildNote(filePath, content);
 
@@ -364,9 +480,9 @@ public sealed class VaultIndexService : IDisposable
 
             Interlocked.Increment(ref _indexedCount);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex)
         {
-            _logger.Warn("Could not index {File}: {Error}", filePath, ex.Message);
+            _logger.Error(ex, "Could not index {File}", filePath);
         }
     }
 
@@ -377,7 +493,7 @@ public sealed class VaultIndexService : IDisposable
         var plainText = MarkdownTextExtractor.Extract(content, bodyStart);
         var outgoingLinks = MarkdownTextExtractor.ExtractWikilinks(content);
         var name = Path.GetFileNameWithoutExtension(filePath);
-        var relativePath = Path.GetRelativePath(_vaultPath, filePath);
+        var relativePath = Path.GetRelativePath(_vaultPath, filePath).Replace('\\', '/');
 
         return new Note
         {
@@ -507,7 +623,8 @@ public sealed class VaultIndexService : IDisposable
         // Remove from backlinks
         foreach (var link in note.OutgoingLinks)
         {
-            if (_backlinkIndex.TryGetValue(link, out var backlinkPaths))
+            var normalizedLink = NormalizeVaultPath(link).ToLowerInvariant();
+            if (_backlinkIndex.TryGetValue(normalizedLink, out var backlinkPaths))
             {
                 lock (backlinkPaths)
                 {
@@ -530,11 +647,24 @@ public sealed class VaultIndexService : IDisposable
     /// Removes the old path and re-indexes the new path.
     /// Use this from tools that move/rename files to avoid race conditions with FileSystemWatcher.
     /// </summary>
+    /// <summary>
+    /// Synchronously updates the index after a file rename or move.
+    /// Removes the old path and re-indexes the new path.
+    /// Never throws — same contract as <see cref="SynchronizeFileReindexAsync"/>.
+    /// </summary>
     public async Task SynchronizeFileMoveAsync(string oldPath, string newPath)
     {
-        _embedding?.Move(oldPath, newPath);
-        RemoveFromIndex(oldPath, removeEmbedding: false);
-        await IndexFileAsync(newPath);
+        try
+        {
+            var move = _paths.ResolveVaultMove(oldPath, newPath);
+            _embedding?.Move(move.Source, move.Destination);
+            RemoveFromIndex(move.Source, removeEmbedding: false);
+            await IndexFileAsync(move.Destination);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "SynchronizeFileMoveAsync failed for {OldPath} -> {NewPath}. Index may be stale.", oldPath, newPath);
+        }
     }
 
     /// <summary>
@@ -543,17 +673,29 @@ public sealed class VaultIndexService : IDisposable
     /// </summary>
     public void SynchronizeFileDelete(string filePath)
     {
-        RemoveFromIndex(filePath);
+        if (_paths.IsInsideVault(filePath))
+        {
+            RemoveFromIndex(filePath);
+        }
     }
 
     /// <summary>
     /// Synchronously re-indexes a file (removes old entry, re-reads from disk).
     /// Use after reverting a file via git to refresh the in-memory index.
+    /// Never throws — callers (MCP tools that already wrote the file) must not crash
+    /// from a re-index failure. The index self-heals via FileSystemWatcher debouncing.
     /// </summary>
     public async Task SynchronizeFileReindexAsync(string filePath)
     {
-        RemoveFromIndex(filePath);
-        await IndexFileAsync(filePath);
+        try
+        {
+            RemoveFromIndex(filePath);
+            await IndexFileAsync(filePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "SynchronizeFileReindexAsync failed for {File}. Index may be stale until the next FileSystemWatcher debounce.", filePath);
+        }
     }
 
     // Indexes
@@ -587,7 +729,8 @@ public sealed class VaultIndexService : IDisposable
 
     private void AddToBacklinkIndex(string sourceFilePath, string targetNoteName)
     {
-        var paths = _backlinkIndex.GetOrAdd(targetNoteName.ToLowerInvariant(), _ => []);
+        var normalizedTarget = NormalizeVaultPath(targetNoteName).ToLowerInvariant();
+        var paths = _backlinkIndex.GetOrAdd(normalizedTarget, _ => []);
         lock (paths)
         {
             paths.Add(sourceFilePath);
@@ -596,11 +739,27 @@ public sealed class VaultIndexService : IDisposable
 
     // Helpers
 
-    private string ResolveAbsolutePath(string path)
+    private static bool IsPathWithin(string directory, string candidate)
     {
-        return Path.IsPathRooted(path)
-            ? path
-            : Path.Combine(_vaultPath, path);
+        var relative = Path.GetRelativePath(directory, candidate);
+        return relative == "." ||
+            (!Path.IsPathRooted(relative) &&
+             relative != ".." &&
+             !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) &&
+             !relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal));
+    }
+
+    private static string NormalizeVaultPath(string path)
+    {
+        var normalized = path.Trim().Replace('\\', '/').TrimStart('/');
+        while (normalized.StartsWith("./", StringComparison.Ordinal))
+        {
+            normalized = normalized[2..];
+        }
+
+        return normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+            ? normalized[..^3]
+            : normalized;
     }
 
     private static IReadOnlyList<string> TokenizeQuery(string query) =>
@@ -647,6 +806,11 @@ public sealed class VaultIndexService : IDisposable
 
     private bool IsExcludedPath(string filePath)
     {
+        if (!_paths.IsInsideVault(filePath))
+        {
+            return true;
+        }
+
         var relative = Path.GetRelativePath(_vaultPath, filePath);
 
         // Exclude hidden paths (starting with .)

@@ -37,12 +37,19 @@ public class VaultConfigServiceTests : IDisposable
     }
 
     [Fact]
-    public void IsGroupEnabled_DefaultsToTrue()
+    public void IsGroupEnabled_DefaultsToCoreGroupsOnly()
     {
         var service = CreateService("");
 
-        Assert.True(service.IsGroupEnabled("git"));
-        Assert.True(service.IsGroupEnabled("css"));
+        Assert.True(service.IsGroupEnabled("tasks"));
+        Assert.True(service.IsGroupEnabled("engineering"));
+        Assert.False(service.IsGroupEnabled("css"));
+        Assert.False(service.IsGroupEnabled("research"));
+        Assert.False(service.IsGroupEnabled("coordination"));
+        Assert.False(service.IsGroupEnabled("git"));
+        Assert.False(service.IsGroupEnabled("restore"));
+        Assert.False(service.IsGroupEnabled("zettelkasten"));
+        Assert.False(service.IsGroupEnabled("graph-analysis"));
     }
 
     [Fact]
@@ -52,7 +59,28 @@ public class VaultConfigServiceTests : IDisposable
 
         Assert.False(service.IsGroupEnabled("git"));
         Assert.False(service.IsGroupEnabled("css"));
+        Assert.True(service.IsGroupEnabled("tasks"));
+    }
+
+    [Fact]
+    public void IsGroupEnabled_PartialCapabilitiesBlock_KeepsDefaultOffGroupsOff()
+    {
+        var service = CreateService("capabilities:\n  disabled:\n    - tasks");
+
+        Assert.False(service.IsGroupEnabled("tasks"));
+        Assert.False(service.IsGroupEnabled("research"));
+        Assert.False(service.IsGroupEnabled("bridge"));
+        Assert.True(service.IsGroupEnabled("engineering"));
+    }
+
+    [Fact]
+    public void IsGroupEnabled_EnabledList_OptsInDefaultOffGroupWithoutRequireExplicit()
+    {
+        var service = CreateService("capabilities:\n  enabled:\n    - research");
+
         Assert.True(service.IsGroupEnabled("research"));
+        Assert.False(service.IsGroupEnabled("bridge"));
+        Assert.True(service.IsGroupEnabled("tasks"));
     }
 
     [Fact]
@@ -67,9 +95,36 @@ public class VaultConfigServiceTests : IDisposable
     [Fact]
     public void IsGroupEnabled_RequireExplicit_OnlyEnabledGroupsAreTrue()
     {
-        var service = CreateService("capabilities:\n  require_explicit: true\n  enabled:\n    - git");
+        var service = CreateService("capabilities:\n  require_explicit: true\n  enabled:\n    - tasks");
 
-        Assert.True(service.IsGroupEnabled("git"));
+        Assert.True(service.IsGroupEnabled("tasks"));
         Assert.False(service.IsGroupEnabled("css"));
+    }
+
+    [Fact]
+    public void MutationOptions_DefaultToCompatibilityMode()
+    {
+        var service = CreateService("");
+
+        Assert.False(service.MaintainUpdated);
+        Assert.False(service.RefreshGeneratedIndexes);
+    }
+
+    [Fact]
+    public void MutationOptions_ReadExplicitOptIns()
+    {
+        var service = CreateService(
+            "frontmatter:\n  maintain_updated: true\ngenerated_indexes:\n  refresh: on_mutation");
+
+        Assert.True(service.MaintainUpdated);
+        Assert.True(service.RefreshGeneratedIndexes);
+    }
+
+    [Fact]
+    public void GeneratedIndexRefresh_RejectsUnknownModes()
+    {
+        var service = CreateService("generated_indexes:\n  refresh: always");
+
+        Assert.False(service.RefreshGeneratedIndexes);
     }
 }

@@ -194,7 +194,7 @@ public class EmbeddingServiceTests : IAsyncLifetime
         await service.InitializeAsync([]);
 
         var notes = Enumerable.Range(0, 6).Select(i => MakeNote($"Concurrent{i}.md", $"hash-{i}")).ToArray();
-        await Task.WhenAll(notes.Select(service.IndexNoteAsync));
+        await Task.WhenAll(notes.Select(note => service.IndexNoteAsync(note)));
 
         Assert.True(maxObserved <= 2, $"Observed {maxObserved} concurrent Ollama requests — expected at most 2.");
         Assert.Equal(6, service.CachedEmbeddingCount);

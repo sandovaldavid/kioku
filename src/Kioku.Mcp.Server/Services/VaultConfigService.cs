@@ -6,6 +6,18 @@ namespace Kioku.Mcp.Server.Services;
 
 public sealed class VaultConfigService
 {
+    private static readonly HashSet<string> DefaultDisabledGroups =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "research", "generation", "css", "assets", "bridge", "plugin", "coordination",
+        };
+
+    private static readonly HashSet<string> RemovedGroups =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "git", "restore", "zettelkasten", "graph-analysis",
+        };
+
     private readonly VaultConfigData _data;
     private readonly string _vaultPath;
 
@@ -72,6 +84,31 @@ public sealed class VaultConfigService
         _data.Exclude is not null ? [.. _data.Exclude] : [];
 
     public string VaultName => _data.Vault?.Name ?? string.Empty;
+
+    /// <summary>Whether Kioku should maintain an <c>updated</c>/<c>modified</c> field on writes.</summary>
+    public bool MaintainUpdated => _data.Frontmatter?.MaintainUpdated == true;
+
+    /// <summary>Whether generated MOCs and folder notes may refresh after mutations.</summary>
+    public bool RefreshGeneratedIndexes =>
+        string.Equals(_data.GeneratedIndexes?.Refresh, "on_mutation", StringComparison.OrdinalIgnoreCase);
+
+    public string? ConfiguredInbox => GetFolder("inbox");
+
+    public IReadOnlyList<string> EnabledCapabilityGroups => KnownGroups
+        .Where(IsGroupEnabled)
+        .ToArray();
+
+    public IReadOnlyList<string> DisabledCapabilityGroups => KnownGroups
+        .Where(group => !IsGroupEnabled(group) && !RemovedGroups.Contains(group))
+        .ToArray();
+
+    public IReadOnlyList<string> RemovedCapabilityGroups => RemovedGroups.OrderBy(x => x).ToArray();
+
+    public static IReadOnlyList<string> KnownGroups { get; } =
+    [
+        "tasks", "organization", "sessions", "workflows", "graph", "research", "generation",
+        "css", "assets", "bridge", "plugin", "engineering", "coordination"
+    ];
 
     /// <summary>
     /// Returns inherited tags for a folder path via longest-prefix match.
@@ -159,10 +196,15 @@ public sealed class VaultConfigService
     /// </summary>
     public bool IsGroupEnabled(string groupName)
     {
+        if (RemovedGroups.Contains(groupName))
+        {
+            return false;
+        }
+
         var caps = _data.Capabilities;
         if (caps is null)
         {
-            return true;
+            return !DefaultDisabledGroups.Contains(groupName);
         }
 
         var disabled = caps.Disabled ?? [];
@@ -172,13 +214,20 @@ public sealed class VaultConfigService
             return false;
         }
 
+        var enabled = caps.Enabled ?? [];
         if (caps.RequireExplicit)
         {
-            var enabled = caps.Enabled ?? [];
             return enabled.Contains(groupName, StringComparer.OrdinalIgnoreCase);
         }
 
-        return true;
+        // A partial capabilities block must not silently re-enable the default-off
+        // groups: they stay off unless explicitly listed in 'enabled'.
+        if (enabled.Contains(groupName, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !DefaultDisabledGroups.Contains(groupName);
     }
 }
 
@@ -196,6 +245,18 @@ public sealed class VaultConfigData
 
     public CapabilitiesConfig? Capabilities { get; init; }
     public EngineeringConfig? Engineering { get; init; }
+    public FrontmatterConfig? Frontmatter { get; init; }
+    public GeneratedIndexesConfig? GeneratedIndexes { get; init; }
+}
+
+public sealed class FrontmatterConfig
+{
+    public bool MaintainUpdated { get; init; }
+}
+
+public sealed class GeneratedIndexesConfig
+{
+    public string? Refresh { get; init; }
 }
 
 public sealed class EngineeringConfig
@@ -208,8 +269,8 @@ public sealed class CapabilitiesConfig
 {
     /// <summary>
     /// Tool groups that should be disabled. Use '*' to disable all optional groups.
-    /// Known groups: git, css, assets, research, graph, graph-analysis, zettelkasten, workflows,
-    /// organization, sessions, bridge, plugin, restore, tasks, generation, engineering.
+    /// Known groups: css, assets, research, graph, workflows, organization, sessions, bridge,
+    /// plugin, tasks, generation, engineering, coordination.
     /// </summary>
     public List<string>? Disabled { get; init; }
 

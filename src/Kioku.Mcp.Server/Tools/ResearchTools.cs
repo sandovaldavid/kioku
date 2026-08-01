@@ -3,31 +3,25 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
-using Markdig;
 using ModelContextProtocol.Server;
 
 namespace Kioku.Mcp.Server.Tools;
 
 /// <summary>
-/// MCP tools for academic research workflows: citation export and literature gap analysis.
-/// All operations are read-only and require no external dependencies.
+/// MCP tools for academic research workflows: BibTeX import, citation export, and literature audits.
 /// </summary>
 [McpServerToolType]
 public sealed partial class ResearchTools(
     VaultIndexService vault,
     KiokuConfiguration config,
-    IHttpClientFactory httpClientFactory,
-    VaultConfigService vaultConfig)
+    VaultConfigService vaultConfig,
+    IVaultMutationService? mutations = null)
 {
-    // -------------------------------------------------------------------------
-    // import_bibtex
-    // -------------------------------------------------------------------------
-
     [McpServerTool, Description(
         "Imports a BibTeX (.bib) file or raw BibTeX content as literature notes, one per entry. " +
         "Parses tolerantly: malformed entries are reported individually rather than aborting the " +
         "whole import. Deduplicates by 'citekey' — re-importing the same file never creates " +
-        "duplicates. All BibTeX fields are stored in frontmatter, so export_bibtex can reconstruct " +
+        "duplicates. All BibTeX fields are stored in frontmatter, so export_citations(format='bibtex') can reconstruct " +
         "the original entries losslessly. Use dry_run=true to preview before writing.")]
     public async Task<string> import_bibtex(
         [Description("Path to a .bib file (absolute, vault-relative, or CWD-relative), or raw BibTeX content.")] string source,
@@ -63,7 +57,6 @@ public sealed partial class ResearchTools(
 
         var existingByCitekey = BuildCitekeyIndex();
         var usedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         var created = new List<string>();
         var updatedEntries = new List<string>();
         var skipped = new List<string>();
@@ -101,49 +94,6 @@ public sealed partial class ResearchTools(
         return FormatImportReport(dry_run, created, updatedEntries, skipped, parsed.Errors);
     }
 
-    // -------------------------------------------------------------------------
-    // export_bibtex
-    // -------------------------------------------------------------------------
-
-    [McpServerTool, Description(
-        "Reconstructs a BibTeX (.bib) document from literature notes that carry a 'citekey' in " +
-        "frontmatter, including notes originally created by import_bibtex. Complements " +
-        "export_citations (which exports Markdown/BibTeX stubs) with a full round-trip-capable export.")]
-    public string export_bibtex(
-        [Description("Folder to scan (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        var notes = string.IsNullOrWhiteSpace(folder)
-            ? vault.GetAllNotes()
-            : vault.GetNotesInFolder(folder);
-
-        var withCitekey = notes
-            .Where(n => n.Metadata.ExtraFields.ContainsKey("citekey"))
-            .OrderBy(n => n.Metadata.ExtraFields["citekey"], StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (withCitekey.Count == 0)
-        {
-            return "[ok] No notes with 'citekey' found in the vault. Import a .bib file with import_bibtex first.";
-        }
-
-        var sb = new StringBuilder();
-        foreach (var note in withCitekey)
-        {
-            AppendBibtexEntry(sb, note.Metadata.ExtraFields);
-        }
-
-        return $"[ok] Exported {withCitekey.Count} BibTeX entries:\n\n{sb}";
-    }
-
-    // -------------------------------------------------------------------------
-    // BibTeX helpers
-    // -------------------------------------------------------------------------
-
     private string? ResolveSourcePath(string source)
     {
         if (string.IsNullOrWhiteSpace(source))
@@ -175,9 +125,8 @@ public sealed partial class ResearchTools(
         var index = new Dictionary<string, Note>(StringComparer.OrdinalIgnoreCase);
         foreach (var note in vault.GetAllNotes())
         {
-            if (note.Metadata.ExtraFields.TryGetValue("citekey", out var citekey) &&
-                !string.IsNullOrWhiteSpace(citekey) &&
-                !index.ContainsKey(citekey))
+            var citekey = GetCitekey(note);
+            if (!string.IsNullOrWhiteSpace(citekey) && !index.ContainsKey(citekey))
             {
                 index[citekey] = note;
             }
@@ -194,12 +143,9 @@ public sealed partial class ResearchTools(
         var baseName = $"{year ?? "n.d."}-{NoteHelpers.SanitizeFileName(title ?? entry.CiteKey)}";
         var withCitekeySuffix = $"{baseName}-{NoteHelpers.SanitizeFileName(entry.CiteKey)}";
 
-        if (usedInBatch.Contains(baseName) || File.Exists(BuildFilePath(folder, baseName)))
-        {
-            return withCitekeySuffix;
-        }
-
-        return baseName;
+        return usedInBatch.Contains(baseName) || File.Exists(BuildFilePath(folder, baseName))
+            ? withCitekeySuffix
+            : baseName;
     }
 
     private string BuildFilePath(string folder, string fileName) =>
@@ -208,54 +154,65 @@ public sealed partial class ResearchTools(
     private async Task CreateLiteratureNoteFromBibtexAsync(BibtexEntry entry, string folder, string fileName)
     {
         var filePath = BuildFilePath(folder, fileName);
-        var extraFields = BuildExtraFields(entry);
-        var body = BuildBibtexNoteBody(entry);
-
         var frontmatter = NoteHelpers.BuildFrontmatter(
-            ["literature"], "literature", "draft",
-            DateOnly.FromDateTime(DateTime.Today), extraFields: extraFields);
+            ["literature"],
+            "literature",
+            "draft",
+            DateOnly.FromDateTime(DateTime.Today),
+            extraFields: BuildExtraFields(entry),
+            updated: vaultConfig.MaintainUpdated ? DateOnly.FromDateTime(DateTime.Today) : null);
 
-        var dir = Path.GetDirectoryName(filePath)!;
-        Directory.CreateDirectory(dir);
-        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + body, Encoding.UTF8);
+        var content = frontmatter + "\n" + BuildBibtexNoteBody(entry);
+        if (mutations is null)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            await File.WriteAllTextAsync(filePath, content, NoteHelpers.Utf8NoBom);
+        }
+        else
+        {
+            await mutations.CreateTextAsync(filePath, content);
+        }
     }
 
     private async Task UpdateLiteratureNoteFrontmatterAsync(Note existingNote, BibtexEntry entry)
     {
         var rawContent = await File.ReadAllTextAsync(existingNote.FilePath, Encoding.UTF8);
-        var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
-        var body = rawContent[bodyStart..];
+        var document = FrontmatterDocument.Parse(rawContent);
 
-        var existingMeta = existingNote.Metadata;
-        var extraFields = BuildExtraFields(entry);
+        foreach (var (name, value) in BuildExtraFields(entry))
+        {
+            document.SetString(name, value);
+        }
 
-        var frontmatter = NoteHelpers.BuildFrontmatter(
-            existingMeta.Tags, existingMeta.NoteType, existingMeta.Status,
-            existingMeta.Date, domain: existingMeta.Domain, extraFields: extraFields);
+        if (vaultConfig.MaintainUpdated)
+        {
+            document.SetDate("updated", DateOnly.FromDateTime(DateTime.Today), "modified");
+        }
 
-        await File.WriteAllTextAsync(existingNote.FilePath, frontmatter + body, Encoding.UTF8);
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(existingNote.FilePath, document.Serialize(), NoteHelpers.Utf8NoBom);
+        }
+        else
+        {
+            await mutations.WriteTextAsync(existingNote.FilePath, document.Serialize());
+        }
     }
 
     private static Dictionary<string, string> BuildExtraFields(BibtexEntry entry)
     {
         var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["citekey"] = FormatFrontmatterValue(entry.CiteKey),
-            ["bibtex-type"] = FormatFrontmatterValue(entry.Type),
+            ["citekey"] = entry.CiteKey,
+            ["bibtex-type"] = entry.Type,
         };
 
         foreach (var (name, value) in entry.Fields)
         {
-            fields[name] = FormatFrontmatterValue(value);
+            fields[name] = value;
         }
 
         return fields;
-    }
-
-    private static string FormatFrontmatterValue(string value)
-    {
-        var singleLine = value.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Trim();
-        return $"\"{singleLine}\"";
     }
 
     private static string BuildBibtexNoteBody(BibtexEntry entry)
@@ -299,7 +256,6 @@ public sealed partial class ResearchTools(
         sb.AppendLine("> ");
         sb.AppendLine("\n## My Notes\n");
         sb.AppendLine("*Add your personal reflections here.*");
-
         return sb.ToString();
     }
 
@@ -307,7 +263,6 @@ public sealed partial class ResearchTools(
     {
         var citekey = extraFields.GetValueOrDefault("citekey", "unknown");
         var type = extraFields.GetValueOrDefault("bibtex-type", "misc");
-
         sb.AppendLine($"@{type}{{{citekey},");
 
         foreach (var (name, value) in extraFields)
@@ -323,6 +278,18 @@ public sealed partial class ResearchTools(
 
         sb.AppendLine("}");
         sb.AppendLine();
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildBibtexFields(Note note, string citekey)
+    {
+        var fields = new Dictionary<string, string>(note.Metadata.ExtraFields, StringComparer.OrdinalIgnoreCase)
+        {
+            ["citekey"] = citekey,
+        };
+
+        fields.Remove("citation-key");
+        fields.Remove("key");
+        return fields;
     }
 
     private static string FormatImportReport(
@@ -345,7 +312,6 @@ public sealed partial class ResearchTools(
             {
                 sb.AppendLine($"- {line}");
             }
-
             sb.AppendLine();
         }
 
@@ -356,7 +322,6 @@ public sealed partial class ResearchTools(
             {
                 sb.AppendLine($"- {line}");
             }
-
             sb.AppendLine();
         }
 
@@ -367,7 +332,6 @@ public sealed partial class ResearchTools(
             {
                 sb.AppendLine($"- {line}");
             }
-
             sb.AppendLine();
         }
 
@@ -383,18 +347,20 @@ public sealed partial class ResearchTools(
         return sb.ToString();
     }
 
-    // -------------------------------------------------------------------------
-    // export_citations
-    // -------------------------------------------------------------------------
-
     [McpServerTool, Description(
-        "Exports citation keys found in note frontmatter ('citekey' field) as a BibTeX stub list or Markdown table. " +
-        "Useful for building a bibliography from your literature notes. " +
-        "Each note with a 'citekey' in its extra frontmatter fields is included.")]
+        "Exports citation keys found in note frontmatter as a full-fidelity BibTeX document or Markdown table. " +
+        "The BibTeX format preserves fields imported by import_bibtex for round-trip export. " +
+        "Accepted formats are exactly 'bibtex' and 'markdown'.")]
     public string export_citations(
-        [Description("Export format: 'bib' for BibTeX stubs, 'markdown' for a Markdown table (default: markdown).")] string format = "markdown",
+        [Description("Export format: 'bibtex' for a round-trip BibTeX document or 'markdown' for a Markdown table (default: markdown).")] string format = "markdown",
         [Description("Folder to scan (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
     {
+        if (!string.Equals(format, "bibtex", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(format, "markdown", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"[error] Invalid export format '{format}'. Supported formats are 'bibtex' and 'markdown'.";
+        }
+
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
@@ -404,24 +370,21 @@ public sealed partial class ResearchTools(
             ? vault.GetAllNotes()
             : vault.GetNotesInFolder(folder);
 
-        // Gather notes that have a citekey in ExtraFields or in NoteType heuristic
         var withCitekey = notes
-            .Select(n =>
+            .Select(note =>
             {
-                var citekey = GetCitekey(n) ?? string.Empty;
-
-                var author = n.Metadata.ExtraFields.TryGetValue("author", out var a) ? a
-                    : n.Metadata.ExtraFields.TryGetValue("authors", out var a2) ? a2 : "Unknown";
-
-                var year = n.Metadata.ExtraFields.TryGetValue("year", out var y) ? y
-                    : n.Metadata.Date?.Year.ToString() ?? "n.d.";
-
-                var title = n.Metadata.ExtraFields.TryGetValue("title", out var t) ? t : n.Name;
-
-                return (note: n, citekey, author, year, title);
+                var citekey = GetCitekey(note) ?? string.Empty;
+                var author = note.Metadata.ExtraFields.TryGetValue("author", out var a)
+                    ? a
+                    : note.Metadata.ExtraFields.TryGetValue("authors", out var authors) ? authors : "Unknown";
+                var year = note.Metadata.ExtraFields.TryGetValue("year", out var y)
+                    ? y
+                    : note.Metadata.Date?.Year.ToString() ?? "n.d.";
+                var title = note.Metadata.ExtraFields.TryGetValue("title", out var t) ? t : note.Name;
+                return (note, citekey, author, year, title);
             })
-            .Where(x => !string.IsNullOrWhiteSpace(x.citekey))
-            .OrderBy(x => x.citekey)
+            .Where(item => !string.IsNullOrWhiteSpace(item.citekey))
+            .OrderBy(item => item.citekey, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         if (withCitekey.Count == 0)
@@ -431,21 +394,13 @@ public sealed partial class ResearchTools(
         }
 
         var sb = new StringBuilder();
-
-        if (format.Equals("bib", StringComparison.OrdinalIgnoreCase))
+        if (format.Equals("bibtex", StringComparison.OrdinalIgnoreCase))
         {
             sb.AppendLine($"[ok] Exported {withCitekey.Count} BibTeX entries:");
             sb.AppendLine();
-
-            foreach (var (note, citekey, author, year, title) in withCitekey)
+            foreach (var (note, citekey, _, _, _) in withCitekey)
             {
-                sb.AppendLine($"@misc{{{citekey},");
-                sb.AppendLine($"  author = {{{author}}},");
-                sb.AppendLine($"  year   = {{{year}}},");
-                sb.AppendLine($"  title  = {{{title}}},");
-                sb.AppendLine($"  note   = {{Kioku: {note.VaultRelativePath}}}");
-                sb.AppendLine("}");
-                sb.AppendLine();
+                AppendBibtexEntry(sb, BuildBibtexFields(note, citekey));
             }
         }
         else
@@ -466,16 +421,7 @@ public sealed partial class ResearchTools(
         return sb.ToString();
     }
 
-    // -------------------------------------------------------------------------
-    // get_literature_gap
-    // -------------------------------------------------------------------------
-
-    [McpServerTool, Description(
-        "Identifies citekeys referenced inline in notes (as [@citekey] or @citekey) that do not have " +
-        "a corresponding literature note in the vault. " +
-        "Helps find gaps in your literature review — citations you have referenced but not yet synthesized.")]
-    public string get_literature_gap(
-        [Description("Folder to scan for literature notes (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
+    private string BuildLiteratureGapReport(string folder)
     {
         if (!vault.IsReady)
         {
@@ -485,37 +431,30 @@ public sealed partial class ResearchTools(
         var allNotes = string.IsNullOrWhiteSpace(folder)
             ? vault.GetAllNotes().ToList()
             : vault.GetNotesInFolder(folder).ToList();
-
-        // Build set of known citekeys from frontmatter
         var knownCitekeys = allNotes
             .Select(GetCitekey)
-            .Where(k => !string.IsNullOrWhiteSpace(k))
-            .Select(k => k!)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Select(key => key!)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Find inline citekey references: [@citekey] or @citekey patterns
-        var inlineCiteRegex = InlineCitePattern();
-
         var referencedCitekeys = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-
         foreach (var note in allNotes)
         {
-            var matches = inlineCiteRegex.Matches(note.RawContent);
-            foreach (Match match in matches)
+            foreach (Match match in InlineCitePattern().Matches(note.RawContent))
             {
                 var citekey = match.Groups["key"].Value;
-                if (!referencedCitekeys.ContainsKey(citekey))
+                if (!referencedCitekeys.TryGetValue(citekey, out var references))
                 {
-                    referencedCitekeys[citekey] = [];
+                    references = [];
+                    referencedCitekeys[citekey] = references;
                 }
-
-                referencedCitekeys[citekey].Add(note.Name);
+                references.Add(note.Name);
             }
         }
 
         var gaps = referencedCitekeys
-            .Where(kv => !knownCitekeys.Contains(kv.Key))
-            .OrderBy(kv => kv.Key)
+            .Where(pair => !knownCitekeys.Contains(pair.Key))
+            .OrderBy(pair => pair.Key)
             .ToList();
 
         if (gaps.Count == 0)
@@ -531,32 +470,21 @@ public sealed partial class ResearchTools(
 
         foreach (var (citekey, sources) in gaps)
         {
-            var sourceList = string.Join(", ", sources.Distinct().Take(5));
-            if (sources.Distinct().Count() > 5)
+            var distinct = sources.Distinct().ToList();
+            var sourceList = string.Join(", ", distinct.Take(5));
+            if (distinct.Count > 5)
             {
-                sourceList += $" (+{sources.Distinct().Count() - 5} more)";
+                sourceList += $" (+{distinct.Count - 5} more)";
             }
-
             sb.AppendLine($"| `@{citekey}` | {sourceList} |");
         }
 
         sb.AppendLine();
         sb.AppendLine($"**{knownCitekeys.Count}** notes with citekey found · **{referencedCitekeys.Count}** total referenced · **{gaps.Count}** missing");
-
         return sb.ToString();
     }
 
-    // -------------------------------------------------------------------------
-    // get_citation_graph
-    // -------------------------------------------------------------------------
-
-    [McpServerTool, Description(
-        "Builds a citation graph from literature notes with a 'citekey' in frontmatter: the most-cited " +
-        "sources and orphan sources that were imported but never cited anywhere in the vault. A citation " +
-        "is counted from either a [[wikilink]] to the source note or an inline [@citekey]/@citekey mention. " +
-        "Complements get_literature_gap, which looks at citations from the opposite direction.")]
-    public string get_citation_graph(
-        [Description("Folder to scan for source (literature) notes. Leave empty to scan the entire vault. Citing notes may live anywhere regardless of this filter.")] string folder = "")
+    private string BuildCitationGraphReport(string folder)
     {
         if (!vault.IsReady)
         {
@@ -566,10 +494,9 @@ public sealed partial class ResearchTools(
         var candidateSources = string.IsNullOrWhiteSpace(folder)
             ? vault.GetAllNotes().ToList()
             : vault.GetNotesInFolder(folder).ToList();
-
         var sources = candidateSources
-            .Select(n => (Note: n, Citekey: GetCitekey(n)))
-            .Where(x => !string.IsNullOrWhiteSpace(x.Citekey))
+            .Select(note => (Note: note, Citekey: GetCitekey(note)))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Citekey))
             .ToList();
 
         if (sources.Count == 0)
@@ -578,7 +505,6 @@ public sealed partial class ResearchTools(
                    "Import a .bib file with import_bibtex, or add 'citekey' to a literature note's frontmatter.";
         }
 
-        // citekey -> set of citing note names, deduplicated across the wikilink + inline signals
         var citersByKey = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (sourceNote, citekey) in sources)
         {
@@ -587,14 +513,12 @@ public sealed partial class ResearchTools(
             {
                 citers.Add(backlink.Name);
             }
-
             citersByKey[citekey!] = citers;
         }
 
-        var inlineCiteRegex = InlineCitePattern();
         foreach (var note in vault.GetAllNotes())
         {
-            foreach (Match match in inlineCiteRegex.Matches(note.RawContent))
+            foreach (Match match in InlineCitePattern().Matches(note.RawContent))
             {
                 if (citersByKey.TryGetValue(match.Groups["key"].Value, out var citers))
                 {
@@ -604,13 +528,12 @@ public sealed partial class ResearchTools(
         }
 
         var ranked = sources
-            .Select(x => (x.Note, Citekey: x.Citekey!, Citers: citersByKey[x.Citekey!]))
-            .OrderByDescending(x => x.Citers.Count)
-            .ThenBy(x => x.Citekey, StringComparer.OrdinalIgnoreCase)
+            .Select(item => (item.Note, Citekey: item.Citekey!, Citers: citersByKey[item.Citekey!]))
+            .OrderByDescending(item => item.Citers.Count)
+            .ThenBy(item => item.Citekey, StringComparer.OrdinalIgnoreCase)
             .ToList();
-
-        var cited = ranked.Where(x => x.Citers.Count > 0).ToList();
-        var orphans = ranked.Where(x => x.Citers.Count == 0).ToList();
+        var cited = ranked.Where(item => item.Citers.Count > 0).ToList();
+        var orphans = ranked.Where(item => item.Citers.Count == 0).ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine($"[ok] Citation graph — {sources.Count} source(s), {cited.Count} cited, {orphans.Count} orphan(s):");
@@ -622,19 +545,16 @@ public sealed partial class ResearchTools(
             sb.AppendLine();
             sb.AppendLine("| Citekey | Source | Citations | Cited By |");
             sb.AppendLine("|---------|--------|-----------|----------|");
-
             foreach (var (note, citekey, citers) in cited)
             {
-                var orderedCiters = citers.OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList();
-                var citerList = string.Join(", ", orderedCiters.Take(5));
-                if (orderedCiters.Count > 5)
+                var ordered = citers.OrderBy(citer => citer, StringComparer.OrdinalIgnoreCase).ToList();
+                var citerList = string.Join(", ", ordered.Take(5));
+                if (ordered.Count > 5)
                 {
-                    citerList += $" (+{orderedCiters.Count - 5} more)";
+                    citerList += $" (+{ordered.Count - 5} more)";
                 }
-
                 sb.AppendLine($"| `{citekey}` | {note.Name} | {citers.Count} | {citerList} |");
             }
-
             sb.AppendLine();
         }
 
@@ -654,182 +574,32 @@ public sealed partial class ResearchTools(
         return sb.ToString();
     }
 
-    // -------------------------------------------------------------------------
-    // export_note (HTML)
-    // -------------------------------------------------------------------------
-
     [McpServerTool, Description(
-        "Exports a note as HTML (rendered from Markdown using Markdig). " +
-        "Returns a self-contained HTML document with inline styles. " +
-        "Useful for sharing notes without requiring Obsidian.")]
-    public async Task<string> export_note(
-        [Description("Name or path of the note to export.")] string note,
-        [Description("Output format: only 'html' is supported.")] string format = "html")
+        "Audits citations in one combined report: citation graph and orphan sources, inline citation gaps, " +
+        "and required metadata on research/literature notes. The folder scopes source and audit notes; " +
+        "citation graph citers are still searched across the entire vault.")]
+    public string audit_citations(
+        [Description("Folder to scope source notes, inline-gap notes, and metadata validation (vault-relative). Leave empty for the entire vault.")] string folder = "")
     {
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
         }
 
-        if (!format.Equals("html", StringComparison.OrdinalIgnoreCase))
-        {
-            return "[error] Only 'html' format is currently supported. PDF export requires Obsidian to be open.";
-        }
-
-        var resolved = ResolveNote(note);
-        if (resolved is null)
-        {
-            return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
-        }
-
-        // Re-read from disk for freshest content
-        var rawContent = await File.ReadAllTextAsync(resolved.FilePath);
-
-        // Strip YAML frontmatter before converting
-        var bodyContent = StripFrontmatter(rawContent);
-
-        // Convert Markdown to HTML using Markdig (full pipeline)
-        var pipeline = new MarkdownPipelineBuilder()
-            .UseAdvancedExtensions()
-            .Build();
-
-        var htmlBody = Markdown.ToHtml(bodyContent, pipeline);
-
-        var html = $$"""
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>{{EscapeHtml(resolved.Name)}}</title>
-              <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                       max-width: 800px; margin: 40px auto; padding: 0 20px;
-                       line-height: 1.6; color: #333; background: #fff; }
-                h1, h2, h3 { border-bottom: 1px solid #eee; padding-bottom: .3em; }
-                code { background: #f6f8fa; padding: .2em .4em; border-radius: 3px; font-size: 85%; }
-                pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow: auto; }
-                pre code { background: none; padding: 0; font-size: 100%; }
-                blockquote { border-left: 4px solid #dfe2e5; padding: 0 1em; color: #6a737d; margin: 0; }
-                table { border-collapse: collapse; width: 100%; }
-                th, td { border: 1px solid #dfe2e5; padding: 6px 13px; }
-                tr:nth-child(even) { background: #f6f8fa; }
-                a { color: #0366d6; }
-                .meta { color: #6a737d; font-size: 0.85em; margin-bottom: 2em;
-                        padding-bottom: 1em; border-bottom: 1px solid #eee; }
-              </style>
-            </head>
-            <body>
-              <h1>{{EscapeHtml(resolved.Name)}}</h1>
-              <div class="meta">
-                <span>Path: {{EscapeHtml(resolved.VaultRelativePath)}}</span>
-                {{(resolved.Metadata.Date.HasValue ? $" · <span>Date: {resolved.Metadata.Date:yyyy-MM-dd}</span>" : "")}}
-                {{(resolved.Metadata.Tags.Any() ? $" · <span>Tags: {string.Join(", ", resolved.Metadata.Tags)}</span>" : "")}}
-              </div>
-              {{htmlBody}}
-              <hr>
-              <footer style="color:#6a737d;font-size:.75em;margin-top:2em">
-                Exported by Kioku MCP Server · {{DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm}} UTC
-              </footer>
-            </body>
-            </html>
-            """;
-
-        return $"[ok] Exported '{resolved.Name}' as HTML ({html.Length} chars):\n\n{html}";
+        var scope = string.IsNullOrWhiteSpace(folder) ? "entire vault" : $"folder '{folder}'";
+        var sb = new StringBuilder();
+        sb.AppendLine($"[ok] Citation audit ({scope}):");
+        sb.AppendLine();
+        sb.AppendLine("## Citation graph");
+        sb.AppendLine(BuildCitationGraphReport(folder));
+        sb.AppendLine("## Literature gaps");
+        sb.AppendLine(BuildLiteratureGapReport(folder));
+        sb.AppendLine("## Metadata validation");
+        sb.AppendLine(BuildResearchValidationReport(folder));
+        return sb.ToString();
     }
 
-    // -------------------------------------------------------------------------
-    // share_as_gist
-    // -------------------------------------------------------------------------
-
-    [McpServerTool, Description(
-        "Publishes a note as a GitHub Gist and returns the URL. " +
-        "Requires the KIOKU_GITHUB_TOKEN environment variable to be set with a GitHub personal access token " +
-        "that has the 'gist' scope. " +
-        "Gists are public by default; set 'public' to false for a secret Gist.")]
-    public async Task<string> share_as_gist(
-        [Description("Name or path of the note to share.")] string note,
-        [Description("Gist description shown on GitHub.")] string description = "",
-        [Description("Whether the Gist should be public (default: true).")] bool @public = true)
-    {
-        if (!vault.IsReady)
-        {
-            return "[loading] The index is still loading. Wait a moment and try again.";
-        }
-
-        var token = config.GitHubToken;
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return "[error] KIOKU_GITHUB_TOKEN is not set. " +
-                   "Create a GitHub personal access token with 'gist' scope and set it as an environment variable.";
-        }
-
-        var resolved = ResolveNote(note);
-        if (resolved is null)
-        {
-            return $"[error] Note not found: '{note}'. Use list_notes to see available notes.";
-        }
-
-        var rawContent = await File.ReadAllTextAsync(resolved.FilePath);
-        var gistDesc = string.IsNullOrWhiteSpace(description)
-            ? $"Kioku export: {resolved.Name}"
-            : description;
-
-        var filename = resolved.Name.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-            ? resolved.Name
-            : resolved.Name + ".md";
-
-        var payload = new
-        {
-            description = gistDesc,
-            @public,
-            files = new Dictionary<string, object>
-            {
-                [filename] = new { content = rawContent }
-            }
-        };
-
-        using var http = httpClientFactory.CreateClient("web");
-        http.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
-        http.DefaultRequestHeaders.Add("User-Agent", "Kioku-MCP-Server/1.0");
-        http.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
-
-        var json = System.Text.Json.JsonSerializer.Serialize(payload);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        HttpResponseMessage response;
-        try
-        {
-            response = await http.PostAsync("https://api.github.com/gists", content);
-        }
-        catch (HttpRequestException ex)
-        {
-            return $"[error] GitHub API request failed: {ex.Message}";
-        }
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            return $"[error] GitHub API returned {(int)response.StatusCode}: {errorBody}";
-        }
-
-        var responseJson = await response.Content.ReadAsStringAsync();
-        using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
-
-        var htmlUrl = doc.RootElement.GetProperty("html_url").GetString() ?? "(no URL)";
-        var gistId = doc.RootElement.GetProperty("id").GetString() ?? "(no ID)";
-        var visibility = @public ? "public" : "secret";
-
-        return $"[ok] Note '{resolved.Name}' shared as {visibility} Gist:\n" +
-               $"URL: {htmlUrl}\n" +
-               $"ID:  {gistId}";
-    }
-
-    [McpServerTool, Description(
-        "Validates that research and literature notes have required metadata fields (citekey, year, authors, status, updated). " +
-        "Returns a report of notes with missing fields for quality assurance.")]
-    public string validate_research_notes(
-        [Description("Folder to scan for research notes (vault-relative). Leave empty for entire vault.")] string folder = "")
+    private string BuildResearchValidationReport(string folder)
     {
         if (!vault.IsReady)
         {
@@ -839,29 +609,41 @@ public sealed partial class ResearchTools(
         var allNotes = string.IsNullOrWhiteSpace(folder)
             ? vault.GetAllNotes().ToList()
             : vault.GetNotesInFolder(folder).ToList();
-
-        var requiredFields = new[] { "citekey", "year", "authors", "status", "updated" };
         var researchNotes = new List<(Note Note, List<string> MissingFields)>();
 
         foreach (var note in allNotes)
         {
-            var noteType = note.Metadata.ExtraFields.TryGetValue("type", out var t) ? t : null;
+            var noteType = note.Metadata.NoteType ??
+                           (note.Metadata.ExtraFields.TryGetValue("type", out var type) ? type : null);
             var isResearch = noteType is not null &&
                              (noteType.Equals("literature", StringComparison.OrdinalIgnoreCase) ||
                               noteType.Equals("research", StringComparison.OrdinalIgnoreCase));
-
             if (!isResearch)
             {
                 continue;
             }
 
             var missing = new List<string>();
-            foreach (var field in requiredFields)
+            if (string.IsNullOrWhiteSpace(GetCitekey(note)))
             {
-                if (!note.Metadata.ExtraFields.ContainsKey(field))
-                {
-                    missing.Add(field);
-                }
+                missing.Add("citekey");
+            }
+            if (!note.Metadata.ExtraFields.ContainsKey("year"))
+            {
+                missing.Add("year");
+            }
+            if (!note.Metadata.ExtraFields.ContainsKey("authors") &&
+                !note.Metadata.ExtraFields.ContainsKey("author"))
+            {
+                missing.Add("authors");
+            }
+            if (string.IsNullOrWhiteSpace(note.Metadata.Status))
+            {
+                missing.Add("status");
+            }
+            if (!note.Metadata.Updated.HasValue)
+            {
+                missing.Add("updated");
             }
 
             researchNotes.Add((note, missing));
@@ -872,8 +654,7 @@ public sealed partial class ResearchTools(
             return "[info] No research or literature notes found in the vault.";
         }
 
-        var problematic = researchNotes.Where(x => x.MissingFields.Count > 0).ToList();
-
+        var problematic = researchNotes.Where(item => item.MissingFields.Count > 0).ToList();
         if (problematic.Count == 0)
         {
             return $"[ok] All {researchNotes.Count} research/literature note(s) are complete.";
@@ -884,53 +665,28 @@ public sealed partial class ResearchTools(
         sb.AppendLine();
         sb.AppendLine("| Note | Missing Fields |");
         sb.AppendLine("|------|---|");
-
-        foreach (var (note, missing) in problematic.OrderBy(x => x.Note.Name))
+        foreach (var (note, missing) in problematic.OrderBy(item => item.Note.Name))
         {
-            var missingStr = string.Join(", ", missing);
-            sb.AppendLine($"| {note.Name} | {missingStr} |");
+            sb.AppendLine($"| {note.Name} | {string.Join(", ", missing)} |");
         }
-
         sb.AppendLine();
         sb.AppendLine($"**Summary:** {researchNotes.Count} total · {researchNotes.Count - problematic.Count} complete · {problematic.Count} incomplete");
-
         return sb.ToString();
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private Note? ResolveNote(string input) => NoteHelpers.ResolveNote(input, vault);
-
-    private static string? GetCitekey(Note note) =>
-        note.Metadata.ExtraFields.TryGetValue("citekey", out var ck) ? ck
-            : note.Metadata.ExtraFields.TryGetValue("citation-key", out var ck2) ? ck2
-            : note.Metadata.ExtraFields.TryGetValue("key", out var ck3) ? ck3
-            : null;
-
-    private static string StripFrontmatter(string content)
+    private static string? GetCitekey(Note note)
     {
-        if (!content.StartsWith("---", StringComparison.Ordinal))
+        foreach (var field in new[] { "citekey", "citation-key", "key" })
         {
-            return content;
+            if (note.Metadata.ExtraFields.TryGetValue(field, out var citekey) &&
+                !string.IsNullOrWhiteSpace(citekey))
+            {
+                return citekey;
+            }
         }
 
-        var end = content.IndexOf("\n---", 3, StringComparison.Ordinal);
-        if (end < 0)
-        {
-            return content;
-        }
-
-        var afterFm = content[(end + 4)..];
-        return afterFm.TrimStart('\n', '\r');
+        return null;
     }
-
-    private static string EscapeHtml(string text) =>
-        text.Replace("&", "&amp;")
-            .Replace("<", "&lt;")
-            .Replace(">", "&gt;")
-            .Replace("\"", "&quot;");
 
     [GeneratedRegex(@"\[@?(?<key>[A-Za-z][A-Za-z0-9_:./-]+)\]|\B@(?<key>[A-Za-z][A-Za-z0-9_:./-]+)", RegexOptions.Compiled)]
     private static partial Regex InlineCitePattern();

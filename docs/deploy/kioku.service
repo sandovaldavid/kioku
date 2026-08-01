@@ -1,5 +1,5 @@
 [Unit]
-Description=Kioku MCP Server (HTTP-SSE)
+Description=Kioku MCP Server (Streamable HTTP)
 Documentation=https://github.com/sandovaldavid/kioku
 After=network.target ollama.service
 Wants=ollama.service
@@ -16,14 +16,16 @@ ExecStart=/opt/kioku/Kioku.Mcp.Server --http
 # Required environment variables
 Environment=KIOKU_VAULT_PATH=/vault/cortex
 Environment=KIOKU_TRANSPORT=http
+Environment=KIOKU_HTTP_HOST=127.0.0.1
 Environment=KIOKU_HTTP_PORT=5173
+Environment=KIOKU_HTTP_TRUSTED_PROXIES=127.0.0.1,::1
 
 # Optional — comment out if running without Ollama
 Environment=KIOKU_OLLAMA_URL=http://localhost:11434
 Environment=KIOKU_EMBEDDING_MODEL=nomic-embed-text
 
-# Security — generate with: openssl rand -hex 32
-# Environment=KIOKU_API_KEY=<token-from-openssl>
+# Security — create this root-owned file with mode 0600 and KIOKU_API_KEY=<token>
+EnvironmentFile=/etc/kioku/kioku.env
 
 # Limits
 LimitNOFILE=65536

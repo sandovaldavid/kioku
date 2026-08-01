@@ -1,0 +1,144 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kioku.dev/schemas/coordination/work-item-projection-v1.json",
+  "title": "Kioku durable coordination work-item projection",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "run_id",
+    "work_item_id",
+    "project",
+    "state",
+    "state_version",
+    "revision",
+    "attempt_id",
+    "session_id",
+    "parent_session_id",
+    "resource_scope",
+    "active_claims",
+    "blockers",
+    "conflicts",
+    "last_event_id",
+    "last_event_sequence",
+    "created_at",
+    "updated_at",
+    "outcome",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "work_item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "project": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "state": {
+      "type": "string",
+      "enum": ["pending", "claimed", "running", "blocked", "partial", "failed", "stale", "completed", "canceled"]
+    },
+    "state_version": { "type": "integer", "minimum": 0 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "attempt_id": { "type": ["string", "null"], "maxLength": 128 },
+    "session_id": { "type": ["string", "null"], "maxLength": 128 },
+    "parent_session_id": { "type": ["string", "null"], "maxLength": 128 },
+    "resource_scope": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+    },
+    "active_claims": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/definitions/claim" }
+    },
+    "blockers": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/definitions/blocker" }
+    },
+    "conflicts": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/definitions/conflict_reference" }
+    },
+    "last_event_id": { "type": ["string", "null"], "maxLength": 128 },
+    "last_event_sequence": { "type": "integer", "minimum": 0 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "outcome": { "$ref": "#/definitions/outcome" },
+    "content_hash": { "type": "string", "pattern": "^[0-9A-F]{64}$" }
+  },
+  "definitions": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schema_version",
+        "claim_id",
+        "run_id",
+        "work_item_id",
+        "attempt_id",
+        "resource_key",
+        "fence_generation",
+        "status",
+        "acquired_at",
+        "lease_expires_at",
+        "released_at",
+        "release_reason",
+        "session_id",
+        "agent",
+        "client_name",
+        "content_hash"
+      ],
+      "properties": {
+        "schema_version": { "type": "integer", "enum": [1] },
+        "claim_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "work_item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "attempt_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "resource_key": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "fence_generation": { "type": "integer", "minimum": 1 },
+        "status": { "type": "string", "enum": ["active", "released", "expired", "fenced"] },
+        "acquired_at": { "type": "string", "format": "date-time" },
+        "lease_expires_at": { "type": "string", "format": "date-time" },
+        "released_at": { "type": ["string", "null"], "format": "date-time" },
+        "release_reason": { "type": ["string", "null"], "maxLength": 2000 },
+        "session_id": { "type": ["string", "null"], "maxLength": 128 },
+        "agent": { "type": ["string", "null"], "maxLength": 128 },
+        "client_name": { "type": ["string", "null"], "maxLength": 128 },
+        "content_hash": { "type": "string", "pattern": "^[0-9A-F]{64}$" }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["code", "reason", "resolution_reference"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "resolution_reference": { "type": ["string", "null"], "maxLength": 512 }
+      }
+    },
+    "conflict_reference": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["conflict_id", "resource_key", "status"],
+      "properties": {
+        "conflict_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "resource_key": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "status": { "type": "string", "enum": ["open", "resolved", "ignored"] }
+      }
+    },
+    "outcome": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "required": ["status", "summary", "result_reference", "error_code"],
+      "properties": {
+        "status": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "summary": { "type": ["string", "null"], "maxLength": 2000 },
+        "result_reference": { "type": ["string", "null"], "maxLength": 512 },
+        "error_code": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    }
+  }
+}

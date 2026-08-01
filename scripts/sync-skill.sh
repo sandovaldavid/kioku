@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Syncs the canonical kioku-vault skill (Claude Code plugin) into the Antigravity
-# plugin bundle. The Antigravity copy is generated — never hand-edit it.
+# Syncs the canonical Kioku skills (Claude Code plugin) into the Antigravity
+# plugin bundle. The Antigravity copies are generated — never hand-edit them.
 #
 # Usage:
 #   scripts/sync-skill.sh          # copy canonical -> antigravity, overwriting the target
@@ -8,33 +8,43 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="${ROOT_DIR}/integrations/claude-code-plugin/skills/kioku-vault/SKILL.md"
-DEST="${ROOT_DIR}/integrations/antigravity-plugin/skills/kioku-vault/SKILL.md"
-
-if [ ! -f "$SRC" ]; then
-    echo "Canonical skill not found: $SRC" >&2
-    exit 1
-fi
+SKILLS=(kioku-vault kioku-project-workflow)
 
 mode="${1:-}"
 
 if [ "$mode" = "--check" ]; then
-    if [ ! -f "$DEST" ]; then
-        echo "Antigravity skill copy is missing: $DEST" >&2
-        echo "Run scripts/sync-skill.sh to generate it." >&2
-        exit 1
-    fi
-    if ! diff -q "$SRC" "$DEST" >/dev/null 2>&1; then
-        echo "Antigravity skill copy has drifted from the canonical source." >&2
-        echo "  canonical: $SRC" >&2
-        echo "  copy:      $DEST" >&2
-        echo "Run scripts/sync-skill.sh to re-sync." >&2
-        exit 1
-    fi
-    echo "kioku-vault skill copy is in sync."
+    for skill in "${SKILLS[@]}"; do
+        src="${ROOT_DIR}/integrations/claude-code-plugin/skills/${skill}/SKILL.md"
+        dest="${ROOT_DIR}/integrations/antigravity-plugin/skills/${skill}/SKILL.md"
+        if [ ! -f "$src" ]; then
+            echo "Canonical skill not found: $src" >&2
+            exit 1
+        fi
+        if [ ! -f "$dest" ]; then
+            echo "Antigravity skill copy is missing: $dest" >&2
+            echo "Run scripts/sync-skill.sh to generate it." >&2
+            exit 1
+        fi
+        if ! diff -q "$src" "$dest" >/dev/null 2>&1; then
+            echo "Antigravity skill copy has drifted from the canonical source: $skill" >&2
+            echo "  canonical: $src" >&2
+            echo "  copy:      $dest" >&2
+            echo "Run scripts/sync-skill.sh to re-sync." >&2
+            exit 1
+        fi
+    done
+    echo "Kioku skill copies are in sync."
     exit 0
 fi
 
-mkdir -p "$(dirname "$DEST")"
-cp "$SRC" "$DEST"
-echo "Synced kioku-vault skill: $SRC -> $DEST"
+for skill in "${SKILLS[@]}"; do
+    src="${ROOT_DIR}/integrations/claude-code-plugin/skills/${skill}/SKILL.md"
+    dest="${ROOT_DIR}/integrations/antigravity-plugin/skills/${skill}/SKILL.md"
+    if [ ! -f "$src" ]; then
+        echo "Canonical skill not found: $src" >&2
+        exit 1
+    fi
+    mkdir -p "$(dirname "$dest")"
+    cp "$src" "$dest"
+    echo "Synced ${skill} skill: $src -> $dest"
+done

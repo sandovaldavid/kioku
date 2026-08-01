@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://kioku.dev/schemas/coordination/coordination-conflict-v1.json",
+  "title": "Kioku durable coordination conflict",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "conflict_id",
+    "run_id",
+    "work_item_id",
+    "attempt_id",
+    "resource_key",
+    "kind",
+    "status",
+    "detected_at",
+    "expected_revision",
+    "actual_revision",
+    "expected_hash",
+    "actual_hash",
+    "description",
+    "resolution",
+    "resolved_at",
+    "resolved_by",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "conflict_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "work_item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "attempt_id": { "type": ["string", "null"], "maxLength": 128 },
+    "resource_key": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "kind": {
+      "type": "string",
+      "enum": ["claim-conflict", "corrupt-history", "duplicate-transition", "manual-edit", "revision-mismatch"]
+    },
+    "status": { "type": "string", "enum": ["open", "resolved", "ignored"] },
+    "detected_at": { "type": "string", "format": "date-time" },
+    "expected_revision": { "type": ["integer", "null"], "minimum": 0 },
+    "actual_revision": { "type": ["integer", "null"], "minimum": 0 },
+    "expected_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" },
+    "actual_hash": { "type": ["string", "null"], "pattern": "^[0-9A-F]{64}$" },
+    "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "resolution": { "type": ["string", "null"], "maxLength": 2000 },
+    "resolved_at": { "type": ["string", "null"], "format": "date-time" },
+    "resolved_by": { "$ref": "#/definitions/actor" },
+    "content_hash": { "type": "string", "pattern": "^[0-9A-F]{64}$" }
+  },
+  "definitions": {
+    "actor": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "required": ["agent", "client_name", "session_id"],
+      "properties": {
+        "agent": { "type": ["string", "null"], "maxLength": 128 },
+        "client_name": { "type": ["string", "null"], "maxLength": 128 },
+        "session_id": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    }
+  }
+}

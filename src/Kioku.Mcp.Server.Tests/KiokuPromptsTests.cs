@@ -11,8 +11,8 @@ public class KiokuPromptsTests
         var result = KiokuPrompts.research_digest();
 
         Assert.Contains("the whole vault", result);
-        Assert.Contains("get_recent_activity", result);
-        Assert.Contains("search_notes_semantic", result);
+        Assert.Contains("get_work_context", result);
+        Assert.Contains("mode='semantic'", result);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class KiokuPromptsTests
         Assert.Contains("process_inbox", result);
         Assert.Contains("apply=false", result);
         Assert.Contains("apply=true", result);
-        Assert.Contains("revert_all_uncommitted", result);
+        Assert.Contains("git diff", result);
     }
 
     [Fact]
@@ -47,10 +47,9 @@ public class KiokuPromptsTests
     {
         var result = KiokuPrompts.weekly_review();
 
-        Assert.Contains("generate_digest", result);
-        Assert.Contains("period='week'", result);
-        Assert.Contains("list_overdue_tasks", result);
-        Assert.Contains("find_unlinked_notes", result);
+        Assert.Contains("get_work_context", result);
+        Assert.Contains("overdue_only=true", result);
+        Assert.Contains("audit_vault", result);
         Assert.Contains("suggest_links", result);
     }
 
@@ -60,8 +59,8 @@ public class KiokuPromptsTests
         var result = KiokuPrompts.literature_review("distributed consensus");
 
         Assert.Contains("distributed consensus", result);
-        Assert.Contains("search_notes_hybrid", result);
-        Assert.Contains("get_literature_gap", result);
+        Assert.Contains("mode='hybrid'", result);
+        Assert.Contains("audit_citations", result);
         Assert.Contains("[[wikilink]]", result);
         Assert.Contains("export_citations", result);
     }
@@ -78,13 +77,40 @@ public class KiokuPromptsTests
     }
 
     [Fact]
+    public void ProjectTask_OrchestratesContextExecutionAndHandoff()
+    {
+        var result = KiokuPrompts.project_task("kioku", "implement semantic search");
+
+        Assert.Contains("implement semantic search", result);
+        Assert.Contains("get_project_context", result);
+        Assert.Contains("start_work_session", result);
+        Assert.Contains("create_project_doc", result);
+        Assert.Contains("list_tasks", result);
+        Assert.Contains("end_work_session", result);
+        Assert.Contains("do not execute", result);
+    }
+
+    [Fact]
+    public void CoordinateWork_UsesClaimsVersionsAndHandoffTools()
+    {
+        var result = KiokuPrompts.coordinate_work("run-01", "work-01");
+
+        Assert.Contains("run_id='run-01'", result);
+        Assert.Contains("get_coordination_work_item", result);
+        Assert.Contains("acquire_coordination_claim", result);
+        Assert.Contains("expected_state_version", result);
+        Assert.Contains("get_coordination_handoff", result);
+        Assert.Contains("coordination", result);
+    }
+
+    [Fact]
     public void RecordDecision_ChecksPriorAdrsAndHandlesSupersede()
     {
         var result = KiokuPrompts.record_decision("kioku", "database choice");
 
         Assert.Contains("database choice", result);
         Assert.Contains("types='adr'", result);
-        Assert.Contains("record_adr", result);
+        Assert.Contains("create_project_doc", result);
         Assert.Contains("update_frontmatter", result);
         Assert.Contains("superseded", result);
         Assert.Contains("suggest_links", result);
@@ -95,10 +121,10 @@ public class KiokuPromptsTests
     {
         var result = KiokuPrompts.log_bugfix("kioku");
 
-        Assert.Contains("log_bug", result);
+        Assert.Contains("create_project_doc", result);
         Assert.Contains("project='kioku'", result);
         Assert.Contains("root", result);
-        Assert.Contains("link_related_notes", result);
+        Assert.Contains("suggest_links", result);
     }
 
     [Fact]
@@ -108,9 +134,9 @@ public class KiokuPromptsTests
 
         Assert.Contains("semantic search", result);
         Assert.Contains("get_project_context", result);
-        Assert.Contains("search_notes_hybrid", result);
-        Assert.Contains("create_plan", result);
-        Assert.Contains("- [ ]", result);
+        Assert.Contains("mode='hybrid'", result);
+        Assert.Contains("create_project_doc", result);
+        Assert.Contains("checkbox", result);
         Assert.Contains("suggest_links", result);
     }
 
@@ -121,7 +147,7 @@ public class KiokuPromptsTests
 
         Assert.Contains("add-export", result);
         Assert.Contains("read_note", result);
-        Assert.Contains("create_plan", result);
+        Assert.Contains("create_project_doc", result);
         Assert.Contains("ticket='add-export'", result);
         Assert.Contains("update_frontmatter", result);
     }
@@ -133,11 +159,8 @@ public class KiokuPromptsTests
 
         Assert.Contains("get_project_context", result);
         Assert.Contains("types='daily,session'", result);
-        Assert.Contains("create_note_from_template", result);
-        Assert.Contains("project_link=", result);
-        // update_frontmatter only supports tags/status/type — must not claim project= is settable.
-        Assert.DoesNotContain("project='{project}'", result);
-        Assert.Contains("it cannot add a", result);
-        Assert.Contains("`project:`", result);
+        Assert.Contains("create_note", result);
+        Assert.Contains("project link", result);
+        Assert.Contains("create_note", result);
     }
 }

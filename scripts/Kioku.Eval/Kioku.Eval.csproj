@@ -2,15 +2,15 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
-    <SelfContained>true</SelfContained>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kioku.Mcp.Server\Kioku.Mcp.Server.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared with Kioku.Benchmarks, which owns the canonical copy. -->
+    <Compile Include="..\Kioku.Benchmarks\Suite\SimpleHttpClientFactory.cs" Link="SimpleHttpClientFactory.cs" />
   </ItemGroup>
 
 </Project>

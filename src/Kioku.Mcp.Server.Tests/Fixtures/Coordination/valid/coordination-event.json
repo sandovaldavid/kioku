@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "event_id": "event-01",
+  "run_id": "run-01",
+  "work_item_id": "work-01",
+  "attempt_id": null,
+  "session_id": "session-01",
+  "claim_id": null,
+  "sequence_number": 1,
+  "event_type": "work-item.created",
+  "transition_id": "transition-01",
+  "occurred_at": "2026-07-31T05:00:00Z",
+  "recorded_at": "2026-07-31T05:00:00Z",
+  "actor": {
+    "agent": "agent-a",
+    "client_name": "client-a",
+    "session_id": "session-01"
+  },
+  "payload": {
+    "previous_state": null,
+    "next_state": "pending",
+    "expected_state_version": null,
+    "state_version": 0,
+    "reason": "Created by the coordination service.",
+    "outcome": null,
+    "error_code": null,
+    "retryable": null,
+    "result_reference": null,
+    "progress_reference": null,
+    "lease_expires_at": null,
+    "expected_hash": null,
+    "actual_hash": null
+  },
+  "previous_hash": null,
+  "content_hash": "58F3F629A8D387EFA91B0483FBFE7CF9F97D146F65B6BB3FA6F454DF18164458"
+}

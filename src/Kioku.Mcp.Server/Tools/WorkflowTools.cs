@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
@@ -10,17 +9,16 @@ using ModelContextProtocol.Server;
 namespace Kioku.Mcp.Server.Tools;
 
 /// <summary>
-/// MCP tools for high-level workflow operations: template-based note creation
-/// and action item extraction from note content.
+/// MCP tools for high-level workflow operations, including template management
+/// and template-based note creation.
 /// </summary>
 [McpServerToolType]
 public sealed partial class WorkflowTools(
     VaultIndexService vault,
     KiokuConfiguration config,
-    TaskService tasks,
     VaultConfigService vaultConfig,
-    GenerationService generation,
-    ObsidianBridgeService bridge)
+    ObsidianBridgeService bridge,
+    IVaultMutationService? mutations = null)
 {
     private static readonly string[] TemplateFolderCandidates =
         ["Templates", "99_System/Templates", "_templates", "System/Templates"];
@@ -29,77 +27,80 @@ public sealed partial class WorkflowTools(
     [GeneratedRegex(@"\{\{\s*(?<var>[a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")]
     private static partial Regex TemplateVarRegex();
 
-    // Matches Markdown task checkboxes: "- [ ] text" or "- [x] text"
-    [GeneratedRegex(@"^(?<indent>\s*)- \[(?<state>[ xX])\] (?<text>.+)$", RegexOptions.Multiline)]
-    private static partial Regex CheckboxRegex();
-
-    // list_templates
+    // manage_templates
 
     [McpServerTool, Description(
-        "Lists all available note templates in the vault's templates folder. " +
-        "Returns template names and the variables they accept ({{ variable }} syntax).")]
-    public Task<string> list_templates(
-        [Description("Templates folder relative to vault root. Leave empty to auto-detect.")] string templates_folder = "")
+        "Manages note templates. scope='vault' handles templates in the vault's configured " +
+        "templates folder; scope='engineering' handles the engineering document templates and " +
+        "their vault overrides. action is list, get, or set. Vault set never overwrites " +
+        "an existing file.")]
+    public async Task<string> manage_templates(
+        [Description("Template scope: 'vault' or 'engineering'.")] string scope = "vault",
+        [Description("Action: 'list', 'get', or 'set'.")] string action = "list",
+        [Description("Vault template name without .md. Required for vault get/set.")] string name = "",
+        [Description("Engineering template type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc. Required for engineering get/set.")] string type_key = "",
+        [Description("Template body. Required for engineering set unless reset_to_default=true; optional for vault set.")] string content = "",
+        [Description("Vault templates folder relative to the vault. Leave empty to auto-detect.")] string templates_folder = "",
+        [Description("For engineering set, delete the vault override and use the embedded default.")] bool reset_to_default = false,
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
-        var folder = ResolveTemplatesFolder(templates_folder);
-        if (folder is null)
+        var normalizedScope = scope.Trim().ToLowerInvariant();
+        if (normalizedScope is not ("vault" or "engineering"))
         {
-            return Task.FromResult(
-                "[info] No templates folder found. Create a 'Templates' folder in your vault to get started. " +
-                "Checked: " + string.Join(", ", TemplateFolderCandidates));
+            return $"[error] Invalid template scope '{scope}'. Valid scopes: vault, engineering.";
         }
 
-        var templateFiles = Directory.EnumerateFiles(folder, "*.md", SearchOption.TopDirectoryOnly).ToList();
-        if (templateFiles.Count == 0)
+        var normalizedAction = action.Trim().ToLowerInvariant();
+        if (normalizedAction is not ("list" or "get" or "set"))
         {
-            var relFolder = Path.GetRelativePath(config.VaultPath, folder);
-            return Task.FromResult($"[info] No templates found in '{relFolder}'. Add .md files to use as templates.");
+            return $"[error] Invalid template action '{action}'. Valid actions: list, get, set.";
         }
 
-        var sb = new StringBuilder($"[ok] Found {templateFiles.Count} template(s):\n\n");
-        var relFolderName = Path.GetRelativePath(config.VaultPath, folder);
-
-        foreach (var file in templateFiles.OrderBy(f => f))
+        var preconditions = VaultMutationPreconditions.FromToolArguments(
+            expected_revision,
+            expected_hash,
+            claim_id,
+            fence_generation,
+            resource_key,
+            mutation_id);
+        try
         {
-            var name = Path.GetFileNameWithoutExtension(file);
-            var content = File.ReadAllText(file);
-            var vars = TemplateVarRegex()
-                .Matches(content)
-                .Select(m => m.Groups["var"].Value)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(v => v)
-                .ToList();
-
-            sb.Append($"  **{name}** ({relFolderName}/{name}.md)");
-            if (vars.Count > 0)
-            {
-                sb.Append($" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
-            }
-            else
-            {
-                sb.Append(" — no variables");
-            }
-
-            sb.AppendLine();
+            return normalizedScope == "vault"
+                ? await ManageVaultTemplatesAsync(normalizedAction, name, content, templates_folder, preconditions)
+                : await ManageEngineeringTemplatesAsync(
+                    normalizedAction, type_key, content, reset_to_default, preconditions);
         }
-
-        return Task.FromResult(sb.ToString());
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
     }
 
     // create_note_from_template
 
-    [McpServerTool, Description(
+    [Description(
         "Creates a new note by applying a template with variable substitution. " +
         "Replaces {{ variable }} placeholders with the provided values. " +
         "Built-in variables: {{date}} (today), {{time}} (now), {{title}} (note name).")]
     public async Task<string> create_note_from_template(
-        [Description("Name of the template (without .md extension). Use list_templates to see available templates.")] string template_name,
+        [Description("Name of the template (without .md extension). Use manage_templates with scope='vault' and action='list' to see available templates.")] string template_name,
         [Description("Path for the new note (without .md extension). Can include subfolders: 'Projects/My Note'.")] string target_path,
         [Description(
             "Variables to inject into the template as key-value pairs. " +
             "Example: {\"title\": \"My Note\", \"status\": \"draft\", \"author\": \"David\"}. " +
             "Built-in variables (date, time, title) are auto-populated if not provided.")] Dictionary<string, string>? variables = null,
-        [Description("Templates folder relative to vault root. Leave empty to auto-detect.")] string templates_folder = "")
+        [Description("Templates folder relative to vault root. Leave empty to auto-detect.")] string templates_folder = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
     {
         // Resolve template file
         var folder = ResolveTemplatesFolder(templates_folder);
@@ -111,14 +112,14 @@ public sealed partial class WorkflowTools(
         var templatePath = Path.Combine(folder, template_name + ".md");
         if (!File.Exists(templatePath))
         {
-            return $"[error] Template not found: '{template_name}'. Use list_templates to see available templates.";
+            return $"[error] Template not found: '{template_name}'. Use manage_templates(scope='vault', action='list') to see available templates.";
         }
 
         // Resolve target file path
         var targetFilePath = BuildFilePath(target_path);
         if (File.Exists(targetFilePath))
         {
-            return $"[error] Note already exists: '{target_path}'. Use update_note_content to modify it.";
+            return $"[error] Note already exists: '{target_path}'. Use edit_note to modify it.";
         }
 
         // Use provided variables or start fresh
@@ -148,8 +149,30 @@ public sealed partial class WorkflowTools(
 
         // Create target directory and write note
         var targetDir = Path.GetDirectoryName(targetFilePath)!;
-        Directory.CreateDirectory(targetDir);
-        await File.WriteAllTextAsync(targetFilePath, rendered, Encoding.UTF8);
+        try
+        {
+            var preconditions = VaultMutationPreconditions.FromToolArguments(
+                expected_revision,
+                expected_hash,
+                claim_id,
+                fence_generation,
+                resource_key,
+                mutation_id);
+            if (mutations is null)
+            {
+                Directory.CreateDirectory(targetDir);
+                await File.WriteAllTextAsync(targetFilePath, rendered, NoteHelpers.Utf8NoBom);
+                await vault.SynchronizeFileReindexAsync(targetFilePath);
+            }
+            else
+            {
+                await mutations.CreateTextAsync(targetFilePath, rendered, preconditions);
+            }
+        }
+        catch (VaultMutationException exception)
+        {
+            return exception.ToToolError();
+        }
         // Reindex immediately (matches every other creation tool) instead of relying solely on
         // the FileSystemWatcher's 500ms debounce — a caller following the documented pattern of
         // an immediate follow-up update_frontmatter call would otherwise race the watcher and
@@ -182,293 +205,214 @@ public sealed partial class WorkflowTools(
         return result.ToString();
     }
 
-    // create_template
+    // Private helpers
 
-    [McpServerTool, Description(
-        "Creates a new template file in the vault's templates folder. " +
-        "Use {{ variable }} syntax for placeholders that will be filled when the template is used.")]
-    public async Task<string> create_template(
-        [Description("Template name (without .md extension).")] string name,
-        [Description("Template content in Markdown. Use {{ variable }} for placeholders.")] string content,
-        [Description("Templates folder relative to vault root. Leave empty to auto-detect (defaults to 'Templates').")] string templates_folder = "")
+    private async Task<string> ManageVaultTemplatesAsync(
+        string action,
+        string name,
+        string content,
+        string templatesFolder,
+        VaultMutationPreconditions preconditions)
     {
+        if (action == "list")
+        {
+            return ListVaultTemplates(templatesFolder);
+        }
+
         if (string.IsNullOrWhiteSpace(name))
         {
             return "[error] Template name cannot be empty.";
         }
 
-        var folder = ResolveTemplatesFolder(templates_folder) ??
-                     NoteHelpers.EnsureInsideVault(
-                         config.VaultPath,
-                         Path.Combine(config.VaultPath, TemplateFolderCandidates[0]));
+        var folder = ResolveTemplatesFolder(templatesFolder);
+        if (folder is null && action == "get")
+        {
+            return "[error] No templates folder found. Create a 'Templates' folder in your vault first.";
+        }
 
+        folder ??= NoteHelpers.EnsureInsideVault(
+            config.VaultPath,
+            Path.Combine(config.VaultPath, TemplateFolderCandidates[0]));
         Directory.CreateDirectory(folder);
 
-        var filePath = Path.Combine(folder, name + ".md");
+        var filePath = NoteHelpers.EnsureInsideVault(config.VaultPath, Path.Combine(folder, name + ".md"));
+        if (action == "get")
+        {
+            if (!File.Exists(filePath))
+            {
+                return $"[error] Template not found: '{name}'. Use manage_templates(scope='vault', action='list') to see available templates.";
+            }
+
+            var templateContent = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+            var vars = TemplateVarRegex()
+                .Matches(templateContent)
+                .Select(m => m.Groups["var"].Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(v => v)
+                .ToList();
+            var templateRelativePath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
+            var result = new StringBuilder($"[ok] Template '{name}' ({templateRelativePath}):\n\n");
+            result.AppendLine($"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+            result.AppendLine();
+            result.AppendLine("```markdown");
+            result.AppendLine(templateContent);
+            result.Append("```");
+            return result.ToString();
+        }
+
         if (File.Exists(filePath))
         {
             return $"[error] Template '{name}' already exists. Delete it first or use a different name.";
         }
 
-        await File.WriteAllTextAsync(filePath, content, Encoding.UTF8);
-
-        var vars = TemplateVarRegex()
+        if (mutations is null)
+        {
+            await File.WriteAllTextAsync(filePath, content, NoteHelpers.Utf8NoBom);
+        }
+        else
+        {
+            await mutations.CreateTextAsync(filePath, content, preconditions);
+        }
+        var variables = TemplateVarRegex()
             .Matches(content)
             .Select(m => m.Groups["var"].Value)
             .Distinct()
             .ToList();
-
-        var relPath = Path.GetRelativePath(config.VaultPath, filePath);
-        var result = $"[ok] Template created: {relPath}";
-        if (vars.Count > 0)
-        {
-            result += $"\n   Variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}";
-        }
-
-        return result;
+        var relPath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
+        var setResult = $"[ok] Template created: {relPath}";
+        return variables.Count == 0
+            ? setResult
+            : $"{setResult}\n   Variables: {string.Join(", ", variables.Select(v => "{{" + v + "}}"))}";
     }
 
-    // extract_action_items
-
-    [McpServerTool, Description(
-        "Extracts all unchecked task checkboxes from a note and optionally consolidates them " +
-        "into a new action items note. Returns the found tasks even in dry-run mode.")]
-    public async Task<string> extract_action_items(
-        [Description("Name or path of the note to scan for action items.")] string note,
-        [Description("If provided, creates a new note at this path containing the extracted action items.")] string output_note = "",
-        [Description("If true, only reports found action items without creating the output note.")] bool dry_run = false)
+    private string ListVaultTemplates(string templatesFolder)
     {
-        var found = NoteHelpers.ResolveNote(note, vault);
-        if (found is null)
+        var folder = ResolveTemplatesFolder(templatesFolder);
+        if (folder is null)
         {
-            return $"[error] Note not found: '{note}'";
+            return "[info] No templates folder found. Create a 'Templates' folder in your vault to get started. " +
+                   "Checked: " + string.Join(", ", TemplateFolderCandidates);
         }
 
-        var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
-        var openTasks = CheckboxRegex()
-            .Matches(rawContent)
-            .Where(m => m.Groups["state"].Value == " ")
-            .Select(m => m.Groups["text"].Value.Trim())
-            .ToList();
-
-        if (openTasks.Count == 0)
+        var templateFiles = Directory.EnumerateFiles(folder, "*.md", SearchOption.TopDirectoryOnly).ToList();
+        if (templateFiles.Count == 0)
         {
-            return $"[info] No open action items found in '{found.Name}'.";
+            var relFolder = Path.GetRelativePath(config.VaultPath, folder);
+            return $"[info] No templates found in '{relFolder}'. Add .md files to use as templates.";
         }
 
-        var sb = new StringBuilder($"[ok] Found {openTasks.Count} open action item(s) in '{found.Name}':\n\n");
-        foreach (var task in openTasks)
+        var sb = new StringBuilder($"[ok] Found {templateFiles.Count} template(s):\n\n");
+        var relFolderName = Path.GetRelativePath(config.VaultPath, folder);
+        foreach (var file in templateFiles.OrderBy(f => f))
         {
-            sb.AppendLine($"  - [ ] {task}");
+            var templateName = Path.GetFileNameWithoutExtension(file);
+            var content = File.ReadAllText(file);
+            var vars = TemplateVarRegex()
+                .Matches(content)
+                .Select(m => m.Groups["var"].Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(v => v)
+                .ToList();
+
+            sb.Append($"  **{templateName}** ({relFolderName}/{templateName}.md)");
+            sb.Append(vars.Count > 0
+                ? $" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}"
+                : " — no variables");
+            sb.AppendLine();
         }
 
-        if (dry_run || string.IsNullOrWhiteSpace(output_note))
+        return sb.ToString();
+    }
+
+    private async Task<string> ManageEngineeringTemplatesAsync(
+        string action,
+        string typeKey,
+        string content,
+        bool resetToDefault,
+        VaultMutationPreconditions preconditions)
+    {
+        if (action != "list" && !ProjectWorkspaceService.TemplateKeys.Contains(typeKey, StringComparer.OrdinalIgnoreCase))
         {
+            return $"[error] Unknown template type '{typeKey}'. Valid types: {string.Join(", ", ProjectWorkspaceService.TemplateKeys)}.";
+        }
+
+        var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge, mutations);
+        var overridePath = workspace.GetVaultTemplatePath(typeKey);
+        var isOverride = overridePath is not null && File.Exists(overridePath);
+
+        if (action == "list")
+        {
+            var sb = new StringBuilder($"[ok] {ProjectWorkspaceService.TemplateKeys.Length} engineering template(s):\n\n");
+            foreach (var key in ProjectWorkspaceService.TemplateKeys)
+            {
+                var path = workspace.GetVaultTemplatePath(key);
+                var hasOverride = path is not null && File.Exists(path);
+                var vars = ProjectWorkspaceService.SupportedVariablesFor(key);
+                sb.Append($"  **{key}** — ");
+                sb.Append(hasOverride ? $"override at {workspace.ToVaultRelative(path!)}" : "using embedded default");
+                sb.AppendLine($" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+            }
+
             return sb.ToString();
         }
 
-        // Build output note content
-        var noteSb = new StringBuilder();
-        noteSb.AppendLine("---");
-        noteSb.AppendLine("tags:");
-        noteSb.AppendLine("  - action-items");
-        noteSb.AppendLine("  - tasks");
-        noteSb.AppendLine($"type: note");
-        noteSb.AppendLine($"status: draft");
-        noteSb.AppendLine($"date: {DateTime.Now:yyyy-MM-dd}");
-        noteSb.AppendLine("---");
-        noteSb.AppendLine();
-        noteSb.AppendLine($"# Action Items — {found.Name}");
-        noteSb.AppendLine();
-        noteSb.AppendLine($"> Extracted from [[{found.Name}]] on {DateTime.Now:yyyy-MM-dd HH:mm}");
-        noteSb.AppendLine();
-
-        foreach (var task in openTasks)
+        if (action == "get")
         {
-            noteSb.AppendLine($"- [ ] {task}");
+            var effectiveContent = await workspace.ResolveTemplateAsync(typeKey);
+            var vars = ProjectWorkspaceService.SupportedVariablesFor(typeKey);
+            var result = new StringBuilder($"[ok] Template '{typeKey}' ({(isOverride ? $"override: {workspace.ToVaultRelative(overridePath!)}" : "embedded default")}):\n\n");
+            result.AppendLine($"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+            result.AppendLine();
+            result.AppendLine("```markdown");
+            result.AppendLine(effectiveContent);
+            result.AppendLine("```");
+            return result.ToString();
         }
 
-        var outputFilePath = BuildFilePath(output_note);
-        if (File.Exists(outputFilePath))
+        if (resetToDefault)
         {
-            return $"[error] Output note already exists: '{output_note}'. Use a different path or delete it first.";
+            if (isOverride)
+            {
+                if (mutations is null)
+                {
+                    File.Delete(overridePath!);
+                }
+                else
+                {
+                    await mutations.DeleteAsync(overridePath!, preconditions);
+                }
+                return $"[ok] Reverted '{typeKey}' to the embedded default (removed {workspace.ToVaultRelative(overridePath!)}).";
+            }
+
+            return $"[ok] '{typeKey}' already uses the embedded default (no override to remove).";
         }
 
-        var outputDir = Path.GetDirectoryName(outputFilePath)!;
-        Directory.CreateDirectory(outputDir);
-        await File.WriteAllTextAsync(outputFilePath, noteSb.ToString(), Encoding.UTF8);
-
-        var relPath = Path.GetRelativePath(config.VaultPath, outputFilePath);
-        sb.AppendLine();
-        sb.Append($"[ok] Action items saved to: {relPath}");
-
-        return sb.ToString();
-    }
-
-    // generate_digest
-
-    [McpServerTool, Description(
-        "Generates a digest note summarizing recent vault activity: notes created or modified, " +
-        "overdue and upcoming tasks, newly orphaned notes, and draft/inbox notes awaiting review. " +
-        "period='day' (default, since local midnight) or 'week' (last 7 days). Written as " +
-        "'Digest {yyyy-MM-dd}.md' in the daily folder; re-running the same day regenerates it. " +
-        "Adds an AI Summary section when KIOKU_GEN_MODEL is available. Set dry_run=true to " +
-        "preview without writing.")]
-    public async Task<string> generate_digest(
-        [Description("Digest period: 'day' (default, since local midnight) or 'week' (last 7 days).")] string period = "day",
-        [Description("Destination folder (relative to vault root) used only if folders.daily isn't configured. Leave empty for the vault root.")] string target_folder = "",
-        [Description("If true, returns the digest markdown without writing any file.")] bool dry_run = false)
-    {
-        if (!vault.IsReady)
+        if (string.IsNullOrWhiteSpace(content))
         {
-            return "[loading] The index is still loading. Wait a moment and try again.";
+            return "[error] The 'content' parameter cannot be empty unless reset_to_default=true.";
         }
 
-        var isWeek = period.Trim().Equals("week", StringComparison.OrdinalIgnoreCase);
-        var periodDays = isWeek ? 7 : 1;
-
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        var periodStart = DateTime.Now.Date.AddDays(-(periodDays - 1));
-
-        var recentNotes = vault.GetAllNotes()
-            .Where(n => n.LastModified.LocalDateTime >= periodStart)
-            .OrderByDescending(n => n.LastModified)
-            .ToList();
-
-        var allTasks = await tasks.GetAllTasksAsync();
-        var overdueTasks = allTasks.Where(t => t.IsOverdue).OrderBy(t => t.DueDate).ToList();
-        var dueSoonTasks = allTasks
-            .Where(t => !t.IsCompleted && t.DueDate.HasValue &&
-                        t.DueDate.Value >= today && t.DueDate.Value <= today.AddDays(periodDays))
-            .OrderBy(t => t.DueDate)
-            .ToList();
-
-        var orphanNotes = recentNotes
-            .Where(n => !n.OutgoingLinks.Any() && !vault.GetBacklinks(n.Name).Any())
-            .ToList();
-
-        var reviewNotes = recentNotes
-            .Where(n => n.Metadata.Status is not null &&
-                        (n.Metadata.Status.Equals("draft", StringComparison.OrdinalIgnoreCase) ||
-                         n.Metadata.Status.Equals("inbox", StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
-        var aiSummary = await GenerateDigestSummaryAsync(recentNotes);
-
-        var markdown = BuildDigestMarkdown(
-            isWeek, periodStart, today, recentNotes, overdueTasks, dueSoonTasks, orphanNotes, reviewNotes, aiSummary);
-
-        if (dry_run)
+        var targetDir = Path.Combine(workspace.ResolveTemplatesFolderOrDefault(), "kioku");
+        Directory.CreateDirectory(targetDir);
+        var targetPath = Path.Combine(targetDir, $"{typeKey}.md");
+        if (mutations is null)
         {
-            return $"[info] Dry run — digest not written.\n\n{markdown}";
-        }
-
-        var folder = vaultConfig.GetFolder("daily")
-            ?? (string.IsNullOrWhiteSpace(target_folder) ? null : target_folder);
-        var folderPath = string.IsNullOrWhiteSpace(folder)
-            ? config.VaultPath
-            : NoteHelpers.EnsureInsideVault(config.VaultPath, Path.Combine(config.VaultPath, folder));
-        Directory.CreateDirectory(folderPath);
-
-        var fileName = $"Digest {today:yyyy-MM-dd}.md";
-        var filePath = Path.Combine(folderPath, fileName);
-        var replaced = File.Exists(filePath);
-
-        var frontmatter = NoteHelpers.BuildFrontmatter(tags: ["digest"], type: "log", status: null, date: today);
-        await File.WriteAllTextAsync(filePath, frontmatter + "\n" + markdown, Encoding.UTF8);
-
-        var relPath = Path.GetRelativePath(config.VaultPath, filePath);
-        return $"[ok] Digest {(replaced ? "regenerated" : "generated")}: {relPath}";
-    }
-
-    // Private helpers
-
-    private async Task<string?> GenerateDigestSummaryAsync(IReadOnlyList<Note> recentNotes)
-    {
-        if (!generation.IsAvailable || recentNotes.Count == 0)
-        {
-            return null;
-        }
-
-        var snippets = recentNotes
-            .Take(15)
-            .Select(n => $"- {n.Name}: {Truncate(n.PlainText, 200)}");
-
-        var prompt = "Summarize the recent vault activity below in 3-4 short lines, highlighting " +
-                     "themes and notable items. Plain prose, no headings or bullet points.\n\n" +
-                     string.Join("\n", snippets);
-
-        return await generation.GenerateAsync(prompt);
-    }
-
-    private static string Truncate(string text, int maxLength) =>
-        text.Length <= maxLength ? text : text[..maxLength] + "...";
-
-    private static string BuildDigestMarkdown(
-        bool isWeek,
-        DateTime periodStart,
-        DateOnly today,
-        IReadOnlyList<Note> recentNotes,
-        IReadOnlyList<TaskItem> overdueTasks,
-        IReadOnlyList<TaskItem> dueSoonTasks,
-        IReadOnlyList<Note> orphanNotes,
-        IReadOnlyList<Note> reviewNotes,
-        string? aiSummary)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine($"# {(isWeek ? "Weekly" : "Daily")} Digest — {today:yyyy-MM-dd}");
-        sb.AppendLine();
-        sb.AppendLine(isWeek
-            ? $"> Covers the last 7 days ({DateOnly.FromDateTime(periodStart):yyyy-MM-dd} to {today:yyyy-MM-dd})."
-            : $"> Covers today, since local midnight ({periodStart:yyyy-MM-dd HH:mm}).");
-        sb.AppendLine();
-
-        if (aiSummary is not null)
-        {
-            sb.AppendLine("## Summary");
-            sb.AppendLine();
-            sb.AppendLine(aiSummary.Trim());
-            sb.AppendLine();
-        }
-
-        AppendSection(sb, "Activity", 2, recentNotes
-            .Select(n => $"- [[{n.Name}]] (modified: {n.LastModified.LocalDateTime:yyyy-MM-dd HH:mm})"));
-
-        sb.AppendLine("## Tasks");
-        sb.AppendLine();
-        AppendSection(sb, "Overdue", 3, overdueTasks
-            .Select(t => $"- [ ] {t.Text} (due: {t.DueDate:yyyy-MM-dd}) — [[{t.NoteName}]]"));
-        AppendSection(sb, "Due soon", 3, dueSoonTasks
-            .Select(t => $"- [ ] {t.Text} (due: {t.DueDate:yyyy-MM-dd}) — [[{t.NoteName}]]"));
-
-        AppendSection(sb, "New orphaned notes", 2, orphanNotes
-            .Select(n => $"- [[{n.Name}]]"));
-
-        AppendSection(sb, "To review", 2, reviewNotes
-            .Select(n => $"- [[{n.Name}]] (status: {n.Metadata.Status})"));
-
-        return sb.ToString();
-    }
-
-    private static void AppendSection(StringBuilder sb, string heading, int level, IEnumerable<string> lines)
-    {
-        sb.AppendLine($"{new string('#', level)} {heading}");
-        sb.AppendLine();
-
-        var items = lines.ToList();
-        if (items.Count == 0)
-        {
-            sb.AppendLine("_Nothing to report._");
+            await File.WriteAllTextAsync(targetPath, content, NoteHelpers.Utf8NoBom);
         }
         else
         {
-            foreach (var line in items)
-            {
-                sb.AppendLine(line);
-            }
+            await mutations.WriteTextAsync(targetPath, content, preconditions);
         }
 
-        sb.AppendLine();
+        var recognized = new HashSet<string>(ProjectWorkspaceService.SupportedVariablesFor(typeKey), StringComparer.OrdinalIgnoreCase);
+        var unknownVars = ProjectWorkspaceService.ExtractTemplateVariableNames(content)
+            .Where(v => !recognized.Contains(v))
+            .ToList();
+        var resultText = $"[ok] Template '{typeKey}' saved: {workspace.ToVaultRelative(targetPath)}";
+        return unknownVars.Count == 0
+            ? resultText
+            : $"{resultText}\n   [warning] not a recognized variable for '{typeKey}' and will be left literal: " +
+              string.Join(", ", unknownVars.Select(v => "{{" + v + "}}"));
     }
 
     private string? ResolveTemplatesFolder(string? overrideFolder)

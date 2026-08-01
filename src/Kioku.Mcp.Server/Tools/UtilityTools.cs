@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Text.Json;
+using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using ModelContextProtocol.Server;
 
@@ -12,42 +14,48 @@ public sealed class UtilityTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     EmbeddingService? embedding = null,
-    MetricsService? metrics = null)
+    MetricsService? metrics = null,
+    VaultConfigService? vaultConfig = null,
+    VaultIndexingPipeline? indexing = null)
 {
-    [McpServerTool, Description("Verifies that the Kioku MCP server is active and responding.")]
-    public string ping()
+    [McpServerTool, Description(
+        "Returns the current Kioku server health and status: vault path, indexed note count, " +
+        "cached embeddings, Ollama availability, last update time, index readiness, and — if " +
+        "a re-embedding backlog is being processed in the background — its progress (backlog, " +
+        "rate, ETA).")]
+    public string get_server_status()
     {
-        var result = $"[online] Kioku MCP Server\n" +
-                     $"Vault: {config.VaultPath}\n" +
-                     $"Indexed notes: {vault.IndexedCount}\n" +
-                     $"Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
-                     $"Ollama: {(embedding?.IsAvailable == true ? "available" : "unavailable")}\n" +
-                     $"Index ready: {(vault.IsReady ? "Yes" : "No (loading...)")}";
-
-        if (metrics?.Enabled == true)
+        var indexReady = indexing?.IsReady ?? vault.IsReady;
+        var indexedCount = indexing?.GetNotesSnapshot().Count ?? vault.IndexedCount;
+        DateTimeOffset? lastIndexed = indexing?.LastScanUtc;
+        if (lastIndexed is null && vault.LastIndexed != default)
         {
-            result += $"\nMetrics: enabled, total tool calls: {metrics.TotalCalls}";
+            lastIndexed = vault.LastIndexed;
         }
 
-        result += $"\nUTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
-        return result;
-    }
-
-    [McpServerTool, Description(
-        "Returns the current status of the in-memory index: " +
-        "number of notes, embeddings cached, Ollama availability, " +
-        "last update time, whether the index is ready, and — if a re-embedding backlog " +
-        "is being processed in the background — its progress (backlog, rate, ETA).")]
-    public string get_index_status()
-    {
-        var result = $"Kioku Index Status\n" +
-                     $"   Indexed notes: {vault.IndexedCount}\n" +
+        var result = $"[online] Kioku MCP Server\n" +
+                     $"Health: healthy\n" +
+                     $"   Vault: {config.VaultPath}\n" +
+                     $"   Indexed notes: {indexedCount}\n" +
                      $"   Cached embeddings: {embedding?.CachedEmbeddingCount ?? 0}\n" +
                      $"   Ollama: {(embedding?.IsAvailable == true ? "[ok] Available" : "[info] Unavailable")}\n" +
                      $"   Embedding model: {config.EmbeddingModel}\n" +
-                     $"   Last indexed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n" +
-                     $"   Status: {(vault.IsReady ? "[ok] Ready" : "[loading] Loading...")}\n" +
-                     $"   Vault: {config.VaultPath}";
+                     $"   Last indexed: {FormatLastIndexed(lastIndexed)}\n" +
+                     $"   Status: {(indexReady ? "[ok] Ready" : "[loading] Loading/rebuilding...")}\n" +
+                     $"   Index ready: {(indexReady ? "Yes" : "No (loading or rebuilding)")}";
+
+        if (indexing is not null)
+        {
+            var indexMetrics = indexing.Metrics;
+            result += $"\n   Indexing pipeline:" +
+                      $"\n      Queue depth: {indexMetrics.QueueDepth}" +
+                      $"\n      Processed changes: {indexMetrics.ProcessedChanges}" +
+                      $"\n      Failed changes: {indexMetrics.FailedChanges}" +
+                      $"\n      Coalesced changes: {indexMetrics.CoalescedChanges}" +
+                      $"\n      Reconciliations: {indexMetrics.ReconciliationCount}" +
+                      $"\n      Last scan: {indexMetrics.LastScanDuration.TotalMilliseconds:F0} ms" +
+                      $"\n      Max concurrency observed: {indexMetrics.MaximumObservedConcurrency}";
+        }
 
         if (embedding?.IsAvailable == true)
         {
@@ -62,8 +70,78 @@ public sealed class UtilityTools(
             result += $"\n   Metrics: enabled, total tool calls: {metrics.TotalCalls}";
         }
 
+        if (vaultConfig is not null)
+        {
+            result += "\n   Capabilities:" +
+                      $"\n      Enabled: {string.Join(", ", vaultConfig.EnabledCapabilityGroups)}" +
+                      $"\n      Disabled: {string.Join(", ", vaultConfig.DisabledCapabilityGroups)}" +
+                      $"\n      Removed: {string.Join(", ", vaultConfig.RemovedCapabilityGroups)}" +
+                      "\n      Changes require server restart";
+            result += $"\n   Coordination profile: {KiokuCapabilityCatalog.CoordinationProfileId}/v" +
+                      $"{KiokuCapabilityCatalog.CoordinationProfileVersion}" +
+                      $" ({(vaultConfig.IsGroupEnabled("coordination") ? "enabled" : "gated")})";
+        }
+
+        result += $"\nUTC: {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}";
         return result;
     }
+
+    [McpServerTool, Description(
+        "Returns the stable Kioku capability and coordination profile contract. Clients can use " +
+        "this read-only document to detect enabled coordination features, schema versions, " +
+        "transport support, observability state, and rollout gating without parsing prose.")]
+    public string get_server_capabilities()
+    {
+        var coordinationEnabled = vaultConfig?.IsGroupEnabled("coordination") == true;
+        var features = KiokuCapabilityCatalog.CoordinationFeatures.ToDictionary(
+            feature => feature,
+            feature => new
+            {
+                version = KiokuCapabilityCatalog.CoordinationProfileVersion,
+                enabled = coordinationEnabled,
+            },
+            StringComparer.Ordinal);
+        var serverVersion = typeof(UtilityTools).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+        var document = new
+        {
+            schema_version = KiokuCapabilityCatalog.CoordinationSchemaVersion,
+            profile_id = KiokuCapabilityCatalog.CoordinationProfileId,
+            profile_version = KiokuCapabilityCatalog.CoordinationProfileVersion,
+            server_version = serverVersion,
+            transport = config.Transport,
+            supported_transports = new[] { "stdio", "http" },
+            capability_group = new
+            {
+                id = "coordination",
+                enabled = coordinationEnabled,
+            },
+            capabilities = features,
+            compatibility = new
+            {
+                additive_fields = true,
+                breaking_changes_require_profile_version = true,
+                unknown_capabilities = "ignore",
+                unsupported_profile_version = "disable",
+                downgrade = "read-only-unavailable",
+            },
+            observability = new
+            {
+                metrics_enabled = metrics?.Enabled == true,
+                tracing_enabled = metrics?.TracingEnabled == true,
+                exporters = "host-configured",
+            },
+            rollout = new
+            {
+                status = "gated",
+                default_enabled = false,
+                requirement = "reliability-and-distribution-gates",
+            },
+        };
+        return JsonSerializer.Serialize(document);
+    }
+
+    private static string FormatLastIndexed(DateTimeOffset? value) =>
+        value is null ? "not completed" : $"{value.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
 
     private static string FormatEstimatedRemaining(TimeSpan? remaining)
     {
@@ -78,7 +156,11 @@ public sealed class UtilityTools(
             return "0s (backlog clear)";
         }
 
-        return ts.TotalHours >= 1 ? $"{ts.TotalHours:F1}h" : ts.TotalMinutes >= 1 ? $"{ts.TotalMinutes:F1}m" : $"{ts.TotalSeconds:F0}s";
+        return ts.TotalHours >= 1
+            ? $"{ts.TotalHours:F1}h"
+            : ts.TotalMinutes >= 1
+                ? $"{ts.TotalMinutes:F1}m"
+                : $"{ts.TotalSeconds:F0}s";
     }
 
     [McpServerTool, Description(
@@ -86,6 +168,13 @@ public sealed class UtilityTools(
         "Useful if the index got out of sync or massive changes were made outside of Obsidian.")]
     public async Task<string> rebuild_index()
     {
+        if (indexing is not null)
+        {
+            await indexing.ReconcileAsync("mcp_tool");
+            return $"[ok] Re-indexing completed. {indexing.GetNotesSnapshot().Count} notes indexed.\n" +
+                   $"Completed: {FormatLastIndexed(indexing.LastScanUtc)}";
+        }
+
         await vault.RebuildIndexAsync();
         return $"[ok] Re-indexing completed. {vault.IndexedCount} notes indexed.\n" +
                $"Completed: {vault.LastIndexed.ToLocalTime():yyyy-MM-dd HH:mm:ss}";

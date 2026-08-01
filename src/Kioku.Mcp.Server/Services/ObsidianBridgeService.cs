@@ -20,6 +20,8 @@ public sealed partial class ObsidianBridgeService : IDisposable
     private CancellationTokenSource? _loopCts;
     private Task? _receiveLoopTask;
     private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
+    private int _negotiatedProtocolVersion = BridgeProtocol.Version;
+    private IReadOnlySet<string> _capabilities = new HashSet<string>(StringComparer.Ordinal);
 
     public ObsidianBridgeService(ILogger<ObsidianBridgeService> logger, KiokuConfiguration config)
     {
@@ -27,6 +29,8 @@ public sealed partial class ObsidianBridgeService : IDisposable
         _port = config.ObsidianBridgePort;
         _bridgeToken = config.BridgeToken;
     }
+
+    public IReadOnlySet<string> Capabilities => _capabilities;
 
     public async Task<BridgeResponse> SendRequestAsync(string command, JsonNode? payload = null, CancellationToken cancellationToken = default)
     {
@@ -37,7 +41,8 @@ public sealed partial class ObsidianBridgeService : IDisposable
         catch (Exception ex)
         {
             _logger.Warn("Could not establish connection to Obsidian: {Message}", ex.Message);
-            var error = ex.Message.Contains("[UNAUTHORIZED]", StringComparison.Ordinal)
+            var error = ex.Message.Contains("[UNAUTHORIZED]", StringComparison.Ordinal) ||
+                        ex.Message.Contains("[UNSUPPORTED_PROTOCOL]", StringComparison.Ordinal)
                 ? ex.Message
                 : $"Could not connect to Obsidian. Make sure Obsidian is open and the Kioku MCP plugin is activated on port {_port}. Details: {ex.Message}";
             return new BridgeResponse { Success = false, Error = error };
@@ -46,16 +51,9 @@ public sealed partial class ObsidianBridgeService : IDisposable
         return await SendOverExistingConnectionAsync(command, payload, cancellationToken);
     }
 
-    // Matches Templater's <% %> and <%* %> syntax, including multi-line blocks.
     [GeneratedRegex(@"<%[\s\S]*?%>")]
     private static partial Regex TemplaterSyntaxRegex();
 
-    /// <summary>
-    /// If <paramref name="renderedContent"/> contains Templater syntax, asks the real Templater
-    /// plugin (via the Obsidian bridge) to evaluate the already-written file in place. Best-effort:
-    /// never throws. When no Templater syntax is present, returns immediately without any RPC
-    /// (fully headless, no behavior change for users who don't use Templater).
-    /// </summary>
     public async Task<TemplaterEvaluationResult> EvaluateTemplaterInPlaceAsync(
         string renderedContent, string vaultRelativePath, CancellationToken cancellationToken = default)
     {
@@ -85,7 +83,7 @@ public sealed partial class ObsidianBridgeService : IDisposable
             Command = command,
             Payload = payload,
             RequestId = requestId,
-            ProtocolVersion = BridgeProtocol.Version
+            ProtocolVersion = _negotiatedProtocolVersion
         };
 
         try
@@ -107,7 +105,6 @@ public sealed partial class ObsidianBridgeService : IDisposable
             return new BridgeResponse { Success = false, Error = $"Communication error: {ex.Message}" };
         }
 
-        // Wait for the response with a 10-second timeout
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
@@ -123,7 +120,12 @@ public sealed partial class ObsidianBridgeService : IDisposable
             _pendingRequests.TryRemove(requestId, out _);
             if (timeoutCts.IsCancellationRequested)
             {
-                return new BridgeResponse { Success = false, Error = "Timeout: The request to Obsidian timed out." };
+                return new BridgeResponse
+                {
+                    Success = false,
+                    ErrorCode = "REQUEST_TIMEOUT",
+                    Error = "Timeout: The request to Obsidian timed out."
+                };
             }
             throw;
         }
@@ -147,7 +149,6 @@ public sealed partial class ObsidianBridgeService : IDisposable
             await CloseAndResetAsync();
 
             _webSocket = new ClientWebSocket();
-            // Keep the keep-alive interval short
             _webSocket.Options.KeepAliveInterval = TimeSpan.FromSeconds(5);
 
             var uri = new Uri($"ws://127.0.0.1:{_port}/");
@@ -162,7 +163,7 @@ public sealed partial class ObsidianBridgeService : IDisposable
             _loopCts = new CancellationTokenSource();
             _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(_loopCts.Token));
 
-            await AuthenticateAsync(cancellationToken);
+            await NegotiateAsync(cancellationToken);
         }
         finally
         {
@@ -171,13 +172,30 @@ public sealed partial class ObsidianBridgeService : IDisposable
     }
 
     /// <summary>
-    /// Sends the "auth" handshake as the first message on a freshly established connection.
-    /// Required on every (re)connection — the plugin tracks authentication per WebSocket
-    /// connection, not per token. A no-op on the plugin side when no token is configured there.
+    /// Sends the authenticated protocol and capability handshake as the first message on every
+    /// connection. The command remains "auth" for wire continuity, while protocol v3 requires
+    /// version-range negotiation before any runtime command is accepted.
     /// </summary>
-    private async Task AuthenticateAsync(CancellationToken cancellationToken)
+    private async Task NegotiateAsync(CancellationToken cancellationToken)
     {
-        var payload = new JsonObject();
+        var requestedCapabilities = new JsonArray
+        {
+            "read",
+            "ui-navigation",
+            "editor-mutation",
+            "third-party-dataview",
+            "third-party-templater",
+            "third-party-linter",
+            "vault-wide",
+            "unsafe-command"
+        };
+        var payload = new JsonObject
+        {
+            ["minProtocolVersion"] = BridgeProtocol.MinVersion,
+            ["maxProtocolVersion"] = BridgeProtocol.MaxVersion,
+            ["clientName"] = "kioku-mcp-server",
+            ["requestedCapabilities"] = requestedCapabilities
+        };
         if (!string.IsNullOrEmpty(_bridgeToken))
         {
             payload["token"] = _bridgeToken;
@@ -188,7 +206,31 @@ public sealed partial class ObsidianBridgeService : IDisposable
         {
             await CloseAndResetAsync();
             throw new InvalidOperationException(
-                response.Error ?? "[error] [UNAUTHORIZED] Obsidian bridge authentication failed.");
+                response.Error ?? "[error] [UNAUTHORIZED] Obsidian bridge handshake failed.");
+        }
+
+        var negotiatedNode = response.Data?["negotiatedProtocolVersion"];
+        var negotiatedVersion = negotiatedNode is null
+            ? response.ProtocolVersion ?? BridgeProtocol.Version
+            : negotiatedNode.GetValue<int>();
+        if (negotiatedVersion < BridgeProtocol.MinVersion || negotiatedVersion > BridgeProtocol.MaxVersion)
+        {
+            await CloseAndResetAsync();
+            throw new InvalidOperationException(
+                $"[error] [UNSUPPORTED_PROTOCOL] Plugin negotiated unsupported bridge protocol v{negotiatedVersion}.");
+        }
+
+        _negotiatedProtocolVersion = negotiatedVersion;
+        if (response.Data?["capabilities"] is JsonArray capabilityArray)
+        {
+            _capabilities = capabilityArray
+                .Where(node => node is not null)
+                .Select(node => node!.ToString())
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        else
+        {
+            _capabilities = new HashSet<string>(StringComparer.Ordinal);
         }
     }
 
@@ -215,7 +257,6 @@ public sealed partial class ObsidianBridgeService : IDisposable
 
                     var chunk = Encoding.UTF8.GetString(buffer, 0, result.Count);
                     messageBuilder.Append(chunk);
-
                 } while (!result.EndOfMessage);
 
                 var responseJson = messageBuilder.ToString();
@@ -229,7 +270,7 @@ public sealed partial class ObsidianBridgeService : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.Warn("Error deserializing bridge response: {Error}. Raw: {Raw}", ex.Message, responseJson);
+                    _logger.Warn("Error deserializing bridge response: {Error}", ex.Message);
                 }
             }
         }
@@ -251,14 +292,6 @@ public sealed partial class ObsidianBridgeService : IDisposable
         }
     }
 
-    /// <summary>
-    /// Tears down the current connection. Safe to call concurrently/reentrantly — it's invoked
-    /// both explicitly (e.g. after a failed auth handshake) and from ReceiveLoopAsync's own
-    /// teardown, which runs as an independent background task and isn't serialized by
-    /// _connectionSemaphore. Each field is atomically claimed via Interlocked.Exchange so only
-    /// one concurrent caller ever disposes it — otherwise a second caller could hit an
-    /// ObjectDisposedException disposing an already-disposed CancellationTokenSource/WebSocket.
-    /// </summary>
     private async Task CloseAndResetAsync()
     {
         var loopCts = Interlocked.Exchange(ref _loopCts, null);
@@ -281,7 +314,7 @@ public sealed partial class ObsidianBridgeService : IDisposable
             }
             catch
             {
-                // Ignore closing errors
+                // Ignore closing errors.
             }
             finally
             {
@@ -289,7 +322,9 @@ public sealed partial class ObsidianBridgeService : IDisposable
             }
         }
 
-        // Cancel and clean up pending requests
+        _negotiatedProtocolVersion = BridgeProtocol.Version;
+        _capabilities = new HashSet<string>(StringComparer.Ordinal);
+
         var pending = _pendingRequests.Values.ToList();
         _pendingRequests.Clear();
         foreach (var tcs in pending)
@@ -310,11 +345,11 @@ public sealed partial class ObsidianBridgeService : IDisposable
     }
 }
 
-// Bridge Protocol Types (AOT Safe)
-
 public static class BridgeProtocol
 {
-    public const int Version = 2;
+    public const int MinVersion = 3;
+    public const int MaxVersion = 3;
+    public const int Version = MaxVersion;
 }
 
 public sealed class BridgeMessage
@@ -346,21 +381,17 @@ public sealed class BridgeResponse
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
     [JsonPropertyName("protocolVersion")]
     public int? ProtocolVersion { get; set; }
 
-    /// <summary>
-    /// True when this failed response represents an authentication failure (invalid/missing
-    /// bridge token, or auth required but never sent). Lets tool code surface a distinct
-    /// [UNAUTHORIZED] error instead of a generic "Obsidian plugin error".
-    /// </summary>
-    public bool IsUnauthorized() => Error?.Contains("[UNAUTHORIZED]", StringComparison.Ordinal) == true;
+    public bool IsUnauthorized() =>
+        ErrorCode?.Equals("UNAUTHORIZED", StringComparison.Ordinal) == true ||
+        Error?.Contains("[UNAUTHORIZED]", StringComparison.Ordinal) == true;
 }
 
-/// <summary>
-/// Result of a best-effort attempt to have Templater evaluate an already-written note in place.
-/// <see cref="NotNeeded"/> means the content had no Templater syntax, so no bridge call was made.
-/// </summary>
 public readonly record struct TemplaterEvaluationResult(bool Applied, string? Warning)
 {
     public static readonly TemplaterEvaluationResult NotNeeded = new(false, null);

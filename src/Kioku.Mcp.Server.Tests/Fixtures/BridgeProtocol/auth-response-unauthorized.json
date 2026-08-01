@@ -1,0 +1,10 @@
+{
+  "description": "Handshake rejection: the configured bridge token did not match.",
+  "message": {
+    "requestId": "auth-1",
+    "success": false,
+    "error": "[error] [UNAUTHORIZED] Obsidian bridge handshake failed.",
+    "errorCode": "UNAUTHORIZED",
+    "protocolVersion": 3
+  }
+}
