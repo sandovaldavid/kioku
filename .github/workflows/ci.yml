@@ -226,7 +226,7 @@ jobs:
         run: dotnet build scripts/Kioku.Ci/Kioku.Ci.csproj --configuration Release --no-restore
 
       - name: Pack local .NET tool
-        run: dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore --output ./artifacts/packages
+        run: dotnet pack src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --output ./artifacts/packages
 
       - name: Install tool from isolated local feed
         shell: bash
