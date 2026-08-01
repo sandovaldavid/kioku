@@ -128,6 +128,20 @@ internal static class Program
         await client.PingAsync(cancellationToken: cancellationToken);
         var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
         var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
+        Console.Error.WriteLine($"[DIAG] {toolNames.Count} tools: {string.Join(", ", toolNames.OrderBy(n => n, StringComparer.Ordinal))}");
+        try
+        {
+            var capsResult = await client.CallToolAsync(
+                "get_server_capabilities",
+                new Dictionary<string, object?>(),
+                cancellationToken: cancellationToken);
+            Console.Error.WriteLine($"[DIAG] get_server_capabilities: {ExtractResultText(capsResult)}");
+        }
+        catch (Exception diagEx)
+        {
+            Console.Error.WriteLine($"[DIAG] get_server_capabilities call failed: {diagEx}");
+        }
+
         RequireTool(toolNames, "list_work_sessions");
         if (options.Coordination)
         {
