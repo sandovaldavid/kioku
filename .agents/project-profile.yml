@@ -1,0 +1,53 @@
+version: 1
+
+project:
+  id: kioku
+  repository: sandovaldavid/kioku
+  base_branch: develop
+  contract: AGENTS.md
+  archetype: dotnet-mcp-server
+
+primary_agent: project-maintainer
+
+specialists:
+  - architecture-reviewer
+  - quality-gate-runner
+  - security-privacy-reviewer
+  - docs-memory-synchronizer
+  - skill-distribution-auditor
+
+required_global_skills:
+  - kioku-project-workflow
+  - kioku-vault
+
+project_skills:
+  - csharp-async
+  - csharp-doc
+  - csharp-xunit
+  - context-map
+  - conventional-commits
+  - security-review
+
+mcp_profiles:
+  - dotnet
+  - github
+  - knowledge
+
+companions:
+  - repository: sandovaldavid/kioku-obsidian
+    branch: main
+    concerns: [bridge-contracts, plugin-compatibility, release-coordination]
+  - repository: sandovaldavid/dotfiles
+    branch: develop
+    concerns: [skill-distribution, client-adapters, global-installation]
+
+validation:
+  source: AGENTS.md
+  rule: Regenerate public contracts when metadata or the MCP surface changes, then run the complete relevant local gate.
+
+safety:
+  direct_push: deny
+  merge: deny
+  destructive_git: deny
+  permanent_vault_delete: deny
+  publish_private_context: deny
