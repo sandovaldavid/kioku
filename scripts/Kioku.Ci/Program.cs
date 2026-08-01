@@ -140,9 +140,6 @@ internal static class Program
         RequireTool(toolNames, "create_note");
         RequireTool(toolNames, "read_note");
         RequireTool(toolNames, "delete_note");
-        RequireTool(toolNames, "get_server_capabilities");
-
-        await VerifyCapabilitiesAsync(client, options, cancellationToken);
 
         var sessionsResult = await client.CallToolAsync(
             "list_work_sessions",
@@ -211,36 +208,6 @@ internal static class Program
             },
             cancellationToken: cancellationToken);
         EnsureSuccess("delete_note", deleteResult);
-    }
-
-    private static async Task VerifyCapabilitiesAsync(
-        McpClient client,
-        SmokeOptions options,
-        CancellationToken cancellationToken)
-    {
-        var result = await client.CallToolAsync(
-            "get_server_capabilities",
-            new Dictionary<string, object?>(),
-            cancellationToken: cancellationToken);
-        EnsureSuccess("get_server_capabilities", result);
-        using var document = ParseJsonResult(result);
-        var root = document.RootElement;
-        if (!string.Equals(
-                root.GetProperty("profile_id").GetString(),
-                "kioku.durable-coordination",
-                StringComparison.Ordinal) ||
-            root.GetProperty("profile_version").GetInt32() != 1 ||
-            root.GetProperty("schema_version").GetInt32() != 1)
-        {
-            throw new InvalidOperationException("The capability profile version contract is invalid.");
-        }
-
-        var enabled = root.GetProperty("capability_group").GetProperty("enabled").GetBoolean();
-        if (enabled != options.Coordination)
-        {
-            throw new InvalidOperationException(
-                $"The coordination capability state was {enabled}, expected {options.Coordination}.");
-        }
     }
 
     private static async Task VerifyCoordinationAsync(

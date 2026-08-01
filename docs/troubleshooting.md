@@ -29,10 +29,7 @@ Node.js and pnpm are required for repository documentation tooling, not for runn
 
 The Obsidian plugin is **not required** for stdio or Streamable HTTP. It is required only for tools in the optional `bridge` and `plugin` capability groups.
 
-After connection, call `get_server_status` through the MCP client to inspect
-vault, index, Ollama, bridge, and capability state. Call
-`get_server_capabilities` to inspect the stable profile, schema versions,
-transport, observability state, and rollout gate.
+After connection, call `get_server_status` through the MCP client to inspect vault, index, Ollama, bridge, and capability state.
 
 ## Streamable HTTP does not start
 
@@ -101,35 +98,6 @@ Generation tools are optional and disabled unless both conditions are met:
 2. `KIOKU_GEN_MODEL` names an available Ollama model.
 
 Restart Kioku after changing capability configuration.
-
-## Coordination tools are unavailable
-
-The coordination capability group is disabled by default. Confirm the
-capability state before changing a vault configuration:
-
-1. Call `get_server_capabilities` and check `capability_group.enabled`.
-2. Check the vault's `.kioku/config.yml` and confirm `coordination` is in the
-   enabled capability list only for an explicitly reviewed deployment.
-3. Restart Kioku after changing capability configuration.
-4. Confirm that the profile reports `kioku.durable-coordination`, profile
-   version `1`, schema version `1`, and rollout status `gated`.
-
-If the profile is enabled but a claim or mutation fails, inspect the stable
-coordination error code and use the read-only history or conflict tools. Do not
-retry with a different claim or fence value until the current projection and
-history have been reloaded.
-
-Coordination supports shared processes only on the documented local filesystem
-boundary. Cloud-sync folders, network replicas, and independent Git checkouts
-are not supported shared-coordination deployments.
-
-## Coordination observability is missing
-
-Metrics are in-memory and disabled unless `KIOKU_ENABLE_METRICS=true`. W3C
-activities require both `KIOKU_ENABLE_TRACING=true` and a host-configured
-activity listener; Kioku does not configure an exporter. `KIOKU_SENTRY_DSN`
-enables a separate, opt-in crash sink. Review [coordination observability](coordination-observability.md)
-before forwarding logs or adding an exporter.
 
 ## Obsidian bridge tools are unavailable
 

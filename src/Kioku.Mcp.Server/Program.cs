@@ -182,35 +182,13 @@ static void ConfigureSentry(KiokuConfiguration config)
 
     SentrySdk.Init(options =>
     {
-        ConfigureSentryOptions(options, config);
-    });
-}
-
-static void ConfigureSentryOptions(SentryOptions options, KiokuConfiguration config)
-{
-    options.Dsn = config.SentryDsn;
-    options.Release = typeof(Program).Assembly.GetName().Version?.ToString();
-    options.TracesSampleRate = 0.0;
-    options.ProfilesSampleRate = 0.0;
-    options.AutoSessionTracking = false;
-    options.SendDefaultPii = false;
-    options.MaxBreadcrumbs = 50;
-    options.SetBeforeSend((sentryEvent, _) =>
-    {
-        // The Sentry integration is opt-in, but an opt-in exporter still must not receive raw
-        // exception payloads from the coordination boundary. SendDefaultPii remains disabled so
-        // request, user, and breadcrumb data are not added by the SDK.
-        sentryEvent.ServerName = null;
-        if (sentryEvent.SentryExceptions is { } exceptions)
-        {
-            foreach (var exception in exceptions)
-            {
-                exception.Value = "redacted";
-                exception.Stacktrace = null;
-            }
-        }
-
-        return sentryEvent;
+        options.Dsn = config.SentryDsn;
+        options.Release = typeof(Program).Assembly.GetName().Version?.ToString();
+        options.TracesSampleRate = 0.0;
+        options.ProfilesSampleRate = 0.0;
+        options.AutoSessionTracking = false;
+        options.SendDefaultPii = false;
+        options.MaxBreadcrumbs = 50;
     });
 }
 
@@ -227,7 +205,13 @@ static async Task<int> RunHttpAsync(
     {
         builder.WebHost.UseSentry(options =>
         {
-            ConfigureSentryOptions(options, config);
+            options.Dsn = config.SentryDsn;
+            options.Release = typeof(Program).Assembly.GetName().Version?.ToString();
+            options.TracesSampleRate = 0.0;
+            options.ProfilesSampleRate = 0.0;
+            options.AutoSessionTracking = false;
+            options.SendDefaultPii = false;
+            options.MaxBreadcrumbs = 50;
         });
     }
 

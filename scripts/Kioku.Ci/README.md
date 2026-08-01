@@ -11,6 +11,4 @@ The harness uses a temporary vault and bounded retries for filesystem-watcher in
 
 Pass `--coordination` with an explicitly enabled vault capability to smoke-test
 the durable coordination tools and replay history through the selected
-distribution. Every smoke run also requires `get_server_capabilities` and
-verifies profile version `1`, schema version `1`, and the expected gated or
-enabled coordination state.
+distribution.

@@ -1,7 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
-using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -102,40 +100,5 @@ public class UtilityToolsTests : IClassFixture<VaultFixture>
         Assert.Matches(@"Embedding backlog: [1-9]\d*", result);
 
         await WaitForBacklogToClearAsync(embedding);
-    }
-
-    [Fact]
-    public void GetServerCapabilities_DefaultProfileIsStableAndGated()
-    {
-        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        var tools = new UtilityTools(_fixture.Index, config);
-
-        using var document = JsonDocument.Parse(tools.get_server_capabilities());
-        Assert.Equal(
-            KiokuCapabilityCatalog.CoordinationProfileId,
-            document.RootElement.GetProperty("profile_id").GetString());
-        Assert.Equal(
-            KiokuCapabilityCatalog.CoordinationProfileVersion,
-            document.RootElement.GetProperty("profile_version").GetInt32());
-        Assert.False(document.RootElement.GetProperty("capability_group").GetProperty("enabled").GetBoolean());
-        Assert.Equal("gated", document.RootElement.GetProperty("rollout").GetProperty("status").GetString());
-        Assert.False(document.RootElement.GetProperty("capabilities").GetProperty("coordination.cas").GetProperty("enabled").GetBoolean());
-    }
-
-    [Fact]
-    public void GetServerCapabilities_ReportsExplicitlyEnabledCoordinationFeatures()
-    {
-        Directory.CreateDirectory(Path.Combine(_fixture.VaultPath, ".kioku"));
-        File.WriteAllText(
-            Path.Combine(_fixture.VaultPath, ".kioku", "config.yml"),
-            "capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n");
-        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
-        var tools = new UtilityTools(_fixture.Index, config, vaultConfig: vaultConfig);
-
-        using var document = JsonDocument.Parse(tools.get_server_capabilities());
-        Assert.True(document.RootElement.GetProperty("capability_group").GetProperty("enabled").GetBoolean());
-        Assert.True(document.RootElement.GetProperty("capabilities").GetProperty("coordination.claims").GetProperty("enabled").GetBoolean());
-        Assert.Equal("gated", document.RootElement.GetProperty("rollout").GetProperty("status").GetString());
     }
 }

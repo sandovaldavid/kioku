@@ -67,7 +67,6 @@ The `Kioku` configuration section is canonical. `KIOKU_*` environment variables 
 | Environment variable | Configuration path | Required | Sensitive | Default | Description |
 |---|---|---:|---:|---|---|
 | `KIOKU_ENABLE_METRICS` | `Kioku:EnableMetrics` | no | no | `false` | Enables in-memory tool-call counters; note contents are never recorded. |
-| `KIOKU_ENABLE_TRACING` | `Kioku:EnableTracing` | no | no | `false` | Enables W3C-compatible coordination activities; Kioku configures no trace exporter. |
 | `KIOKU_SENTRY_DSN` | `Kioku:SentryDsn` | no | yes | — | Opt-in Sentry DSN for crash reporting. |
 
 ## Transport terminology
