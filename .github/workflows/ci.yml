@@ -34,7 +34,7 @@ jobs:
 
       - name: Upload failed build diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-build-diagnostics
           path: dotnet-build.log
@@ -61,7 +61,7 @@ jobs:
 
       - name: Upload failed format diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-format-diagnostics
           path: dotnet-format.log
@@ -78,7 +78,7 @@ jobs:
           dotnet list Kioku.slnx package --include-transitive --format json > artifacts/inventory/dotnet-packages.json
 
       - name: Upload package inventory
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-package-inventory
           path: artifacts/inventory/dotnet-packages.json
@@ -137,7 +137,7 @@ jobs:
 
       - name: Upload failed test diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: server-test-results-${{ runner.os }}
           path: |
@@ -194,7 +194,7 @@ jobs:
 
       - name: Upload failed filesystem diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: filesystem-test-results-${{ runner.os }}
           path: |
@@ -343,7 +343,7 @@ jobs:
 
       - name: Upload package smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: package-smoke-${{ runner.os }}-${{ runner.arch }}
           path: |
