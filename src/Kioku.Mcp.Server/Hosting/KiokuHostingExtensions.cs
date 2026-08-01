@@ -43,9 +43,9 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<MetricsService>();
         services.AddSingleton<ProjectWorkspaceService>();
         services.AddSingleton<VaultConfigService>();
-        services.AddSingleton<IWorkSessionFileSystem, WorkSessionFileSystem>();
+        services.AddWorkSessionInfrastructure();
         services.AddSingleton<IWorkSessionService, WorkSessionService>();
-        services.AddSingleton<IProjectDocumentFileSystem, ProjectDocumentFileSystem>();
+        services.AddProjectDocumentInfrastructure();
         services.AddSingleton<IProjectDocumentService, ProjectDocumentService>();
         services.AddSingleton<INoteQueryService, NoteQueryService>();
         services.AddTransient<ZettelkastenTools>();
@@ -131,8 +131,7 @@ internal sealed class KiokuLifecycleService(
     IKiokuRuntime runtime,
     HttpReadinessState readiness,
     TimeProvider timeProvider,
-    ILogger<KiokuLifecycleService> logger,
-    ICoordinationFaultInjector? faultInjector = null) : IHostedService
+    ILogger<KiokuLifecycleService> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -149,13 +148,6 @@ internal sealed class KiokuLifecycleService(
                 "Kioku runtime initialized in {ElapsedMs:F0} ms.",
                 timeProvider.GetElapsedTime(startedAt).TotalMilliseconds);
         }
-        catch (OperationCanceledException)
-        {
-            await InjectAsync(CoordinationFaultPoint.ProcessCancellation, CancellationToken.None)
-                .ConfigureAwait(false);
-            readiness.MarkIndexFailed();
-            throw;
-        }
         catch
         {
             readiness.MarkIndexFailed();
@@ -165,15 +157,8 @@ internal sealed class KiokuLifecycleService(
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        await InjectAsync(CoordinationFaultPoint.ProcessShutdown, cancellationToken)
-            .ConfigureAwait(false);
         logger.LogInformation("Shutting down: flushing embedding cache asynchronously...");
         await runtime.ShutdownAsync(cancellationToken);
         logger.LogInformation("Embedding cache flushed.");
     }
-
-    private Task InjectAsync(
-        CoordinationFaultPoint point,
-        CancellationToken cancellationToken) =>
-        (faultInjector ?? NoOpCoordinationFaultInjector.Instance).InjectAsync(point, cancellationToken);
 }

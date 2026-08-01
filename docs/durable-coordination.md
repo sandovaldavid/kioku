@@ -6,19 +6,13 @@ coordination profile. It is the review artifact for issue
 deterministic projection replay are implemented by issue
 [#305](https://github.com/sandovaldavid/kioku/issues/305), and claims, leases,
 and fencing are implemented by issue
-[#306](https://github.com/sandovaldavid/kioku/issues/306). Crash/restart and
-filesystem-boundary coverage are implemented by issue
-[#310](https://github.com/sandovaldavid/kioku/issues/310). The bounded
-observability and rollout controls for issue
-[#311](https://github.com/sandovaldavid/kioku/issues/311) are implemented on
-this branch.
+[#306](https://github.com/sandovaldavid/kioku/issues/306). Later coordination
+capabilities remain incomplete.
 
-**Decision status:** The coordination architecture, event persistence, claims,
-leases, fencing, guarded vault-mutation boundary, work-session compatibility,
-crash/restart coverage, bounded observability, and capability negotiation are
-implemented on this branch. Interoperability remains a documented mapping only,
-and the profile stays gated until the release evidence in
-[coordination-rollout.md](coordination-rollout.md) is complete.
+**Decision status:** Architecture boundary in progress; event persistence,
+claims, leases, fencing, the guarded vault-mutation boundary, and work-session
+compatibility are implemented. Crash/restart coverage, observability, and
+rollout controls remain in later issues.
 
 The profile coordinates independent Kioku processes that share one vault on a
 supported local filesystem. It is not a distributed lock service, an
@@ -549,19 +543,33 @@ Each identifier is intended to become one or more deterministic test cases.
 - **I-18 Manual-edit safety:** An unexpected note version or path change
   prevents a preconditioned overwrite and exposes a conflict for resolution.
 
-## Implementation status
+## Implementation gates
 
-The implementation preserves the dependency order from the architecture
-design. Issues #304 through #309 provide the contracts, event store, claims,
-guarded mutations, MCP surface, and session compatibility. Issue #310 provides
-the reliability coverage. Issue #311 adds bounded observability, capability
-negotiation, interoperability analysis, and rollout controls without sending
-note content to a network sink.
+This document is the architecture gate for the remaining coordination work.
+Later issues must implement the contract in dependency order and must not
+silently narrow its semantics.
 
-The current public contract is summarized in
-[coordination-rollout.md](coordination-rollout.md). New changes must preserve
-the event-log source of truth, the filesystem support boundary, and the
-fail-closed behavior for unsupported or corrupt coordination data.
+The planned sequence is:
+
+1. [#304](https://github.com/sandovaldavid/kioku/issues/304) defines shared
+   contracts and serialization shapes from this document.
+2. [#305](https://github.com/sandovaldavid/kioku/issues/305) implements event
+   persistence, replay, snapshots, corruption handling, and migration checks.
+3. [#306](https://github.com/sandovaldavid/kioku/issues/306) implements claims,
+   leases, expiry observation, and fencing.
+4. [#307](https://github.com/sandovaldavid/kioku/issues/307) implements
+   compare-and-swap vault mutation and manual-edit conflict handling.
+5. [#308](https://github.com/sandovaldavid/kioku/issues/308) adds the gated MCP
+   surface without making caller metadata authoritative.
+6. [#309](https://github.com/sandovaldavid/kioku/issues/309) adds and documents
+   additive work-session compatibility, lazy linking, and guarded legacy
+   resume/close behavior. This gate is implemented on the current branch.
+7. [#310](https://github.com/sandovaldavid/kioku/issues/310) derives crash,
+   restart, concurrency, restore, and filesystem-boundary tests from the
+   invariants.
+8. [#311](https://github.com/sandovaldavid/kioku/issues/311) adds bounded
+   observability and rollout controls without sending note content to a
+   network sink.
 
 No issue in this sequence may treat a successful in-process semaphore as proof
 of cross-process durability. The filesystem support boundary and the

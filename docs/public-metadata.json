@@ -21,15 +21,7 @@
   ],
   "capabilities": {
     "enabledByDefault": ["tasks", "organization", "sessions", "workflows", "graph", "engineering"],
-    "disabledByDefault": ["research", "generation", "css", "assets", "bridge", "plugin", "coordination"],
-    "coordinationProfile": {
-      "id": "kioku.durable-coordination",
-      "version": 1,
-      "schemaVersion": 1,
-      "defaultEnabled": false,
-      "rolloutStatus": "gated",
-      "features": ["coordination.core", "coordination.history", "coordination.claims", "coordination.fencing", "coordination.cas", "coordination.conflicts"]
-    }
+    "disabledByDefault": ["research", "generation", "css", "assets", "bridge", "plugin", "coordination"]
   },
   "environmentVariables": [
     {"name":"KIOKU_VAULT_PATH","configurationPath":"Kioku:VaultPath","required":true,"sensitive":false,"default":null,"category":"Core","description":"Absolute path to the Obsidian vault root."},
@@ -54,7 +46,6 @@
     {"name":"KIOKU_EXTERNAL_READ_ROOTS","configurationPath":"Kioku:ExternalReadRoots","required":false,"sensitive":false,"default":null,"category":"Filesystem security","description":"Platform-path-separator-delimited roots allowed for external read-only imports."},
     {"name":"KIOKU_ALLOW_PERMANENT_DELETE","configurationPath":"Kioku:AllowPermanentDelete","required":false,"sensitive":false,"default":"false","category":"Filesystem security","description":"Enables irreversible deletion; soft delete remains available when false."},
     {"name":"KIOKU_ENABLE_METRICS","configurationPath":"Kioku:EnableMetrics","required":false,"sensitive":false,"default":"false","category":"Observability","description":"Enables in-memory tool-call counters; note contents are never recorded."},
-    {"name":"KIOKU_ENABLE_TRACING","configurationPath":"Kioku:EnableTracing","required":false,"sensitive":false,"default":"false","category":"Observability","description":"Enables W3C-compatible coordination activities; Kioku configures no trace exporter."},
     {"name":"KIOKU_SENTRY_DSN","configurationPath":"Kioku:SentryDsn","required":false,"sensitive":true,"default":null,"category":"Observability","description":"Opt-in Sentry DSN for crash reporting."}
   ],
   "versioning": {

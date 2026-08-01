@@ -15,10 +15,9 @@ internal static class Program
 
     public static async Task<int> Main(string[] args)
     {
-        SmokeOptions? options = null;
         try
         {
-            options = SmokeOptions.Parse(args);
+            var options = SmokeOptions.Parse(args);
             Directory.CreateDirectory(options.VaultPath);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
             if (options.Transport.Equals("stdio", StringComparison.OrdinalIgnoreCase))
@@ -35,8 +34,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            var details = options is null ? ex.ToString() : Redact(ex.ToString(), options);
-            Console.Error.WriteLine($"[error] MCP smoke test failed: {details}");
+            Console.Error.WriteLine($"[error] MCP smoke test failed: {ex}");
             return 1;
         }
     }
@@ -66,7 +64,7 @@ internal static class Program
             InheritEnvironmentVariables = false,
             EnvironmentVariables = environment,
         });
-        await VerifyProtocolAsync(transport, options, cancellationToken);
+        await VerifyProtocolAsync(transport, options.VaultPath, cancellationToken);
     }
 
     private static async Task RunHttpAsync(SmokeOptions options, CancellationToken cancellationToken)
@@ -96,7 +94,7 @@ internal static class Program
                 TransportMode = HttpTransportMode.StreamableHttp,
                 AdditionalHeaders = headers,
             });
-            await VerifyProtocolAsync(transport, options, cancellationToken);
+            await VerifyProtocolAsync(transport, options.VaultPath, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -112,37 +110,23 @@ internal static class Program
         if (failure is not null)
         {
             throw new InvalidOperationException(
-                $"{Redact(failure.Message, options)}{Environment.NewLine}--- server stdout ---{Environment.NewLine}" +
-                $"{Redact(stdout, options)}{Environment.NewLine}--- server stderr ---{Environment.NewLine}" +
-                Redact(stderr, options),
+                $"{failure.Message}{Environment.NewLine}--- server stdout ---{Environment.NewLine}{stdout}" +
+                $"{Environment.NewLine}--- server stderr ---{Environment.NewLine}{stderr}",
                 failure);
         }
     }
 
-    private static async Task VerifyProtocolAsync(
-        IClientTransport transport,
-        SmokeOptions options,
-        CancellationToken cancellationToken)
+    private static async Task VerifyProtocolAsync(IClientTransport transport, string vaultPath, CancellationToken cancellationToken)
     {
         await using var client = await McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
         await client.PingAsync(cancellationToken: cancellationToken);
         var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
         var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
         RequireTool(toolNames, "list_work_sessions");
-        if (options.Coordination)
-        {
-            RequireTool(toolNames, "create_coordination_work_item");
-        }
-        else
-        {
-            EnsureToolAbsent(toolNames, "create_coordination_work_item");
-        }
+        EnsureToolAbsent(toolNames, "create_coordination_work_item");
         RequireTool(toolNames, "create_note");
         RequireTool(toolNames, "read_note");
         RequireTool(toolNames, "delete_note");
-        RequireTool(toolNames, "get_server_capabilities");
-
-        await VerifyCapabilitiesAsync(client, options, cancellationToken);
 
         var sessionsResult = await client.CallToolAsync(
             "list_work_sessions",
@@ -177,13 +161,8 @@ internal static class Program
             throw new InvalidOperationException("read_note did not return the pre-profile session content.");
         }
 
-        if (options.Coordination)
-        {
-            await VerifyCoordinationAsync(client, cancellationToken);
-        }
-
         var noteName = $"ci-smoke-{Guid.NewGuid():N}";
-        var expectedPath = Path.Combine(options.VaultPath, $"{noteName}.md");
+        var expectedPath = Path.Combine(vaultPath, $"{noteName}.md");
         var createResult = await client.CallToolAsync(
             "create_note",
             new Dictionary<string, object?>
@@ -211,84 +190,6 @@ internal static class Program
             },
             cancellationToken: cancellationToken);
         EnsureSuccess("delete_note", deleteResult);
-    }
-
-    private static async Task VerifyCapabilitiesAsync(
-        McpClient client,
-        SmokeOptions options,
-        CancellationToken cancellationToken)
-    {
-        var result = await client.CallToolAsync(
-            "get_server_capabilities",
-            new Dictionary<string, object?>(),
-            cancellationToken: cancellationToken);
-        EnsureSuccess("get_server_capabilities", result);
-        using var document = ParseJsonResult(result);
-        var root = document.RootElement;
-        if (!string.Equals(
-                root.GetProperty("profile_id").GetString(),
-                "kioku.durable-coordination",
-                StringComparison.Ordinal) ||
-            root.GetProperty("profile_version").GetInt32() != 1 ||
-            root.GetProperty("schema_version").GetInt32() != 1)
-        {
-            throw new InvalidOperationException("The capability profile version contract is invalid.");
-        }
-
-        var enabled = root.GetProperty("capability_group").GetProperty("enabled").GetBoolean();
-        if (enabled != options.Coordination)
-        {
-            throw new InvalidOperationException(
-                $"The coordination capability state was {enabled}, expected {options.Coordination}.");
-        }
-    }
-
-    private static async Task VerifyCoordinationAsync(
-        McpClient client,
-        CancellationToken cancellationToken)
-    {
-        var suffix = Guid.NewGuid().ToString("N");
-        var runId = $"ci-run-{suffix}";
-        var workItemId = $"ci-work-{suffix}";
-        var createResult = await client.CallToolAsync(
-            "create_coordination_work_item",
-            new Dictionary<string, object?>
-            {
-                ["project"] = "package-smoke",
-                ["run_id"] = runId,
-                ["work_item_id"] = workItemId,
-                ["attempt_id"] = $"ci-attempt-{suffix}",
-                ["session_id"] = $"ci-session-{suffix}",
-                ["agent"] = "package-smoke",
-                ["resource_scope"] = "logical:package-smoke",
-                ["summary"] = "Synthetic package coordination smoke fixture.",
-                ["transition_id"] = $"ci-create-{suffix}",
-            },
-            cancellationToken: cancellationToken);
-        EnsureSuccess("create_coordination_work_item", createResult);
-        using var createJson = ParseJsonResult(createResult);
-        if (!string.Equals(
-                createJson.RootElement.GetProperty("projection").GetProperty("state").GetString(),
-                "pending",
-                StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("The coordination package smoke item was not pending.");
-        }
-
-        var historyResult = await client.CallToolAsync(
-            "list_coordination_history",
-            new Dictionary<string, object?>
-            {
-                ["run_id"] = runId,
-                ["work_item_id"] = workItemId,
-            },
-            cancellationToken: cancellationToken);
-        EnsureSuccess("list_coordination_history", historyResult);
-        using var historyJson = ParseJsonResult(historyResult);
-        if (historyJson.RootElement.GetProperty("items").GetArrayLength() != 1)
-        {
-            throw new InvalidOperationException("The coordination package smoke history was not replayable.");
-        }
     }
 
     private static async Task WaitForReadContentAsync(McpClient client, string noteName, CancellationToken cancellationToken)
@@ -333,36 +234,6 @@ internal static class Program
         }
 
         return string.Join(Environment.NewLine, parts);
-    }
-
-    private static JsonDocument ParseJsonResult(CallToolResult result)
-    {
-        var text = result.Content
-            .OfType<TextContentBlock>()
-            .Select(block => block.Text)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        if (text is not null)
-        {
-            return JsonDocument.Parse(text);
-        }
-
-        if (result.StructuredContent is { ValueKind: JsonValueKind.Object } structured)
-        {
-            return JsonDocument.Parse(structured.GetRawText());
-        }
-
-        return JsonDocument.Parse(ExtractResultText(result));
-    }
-
-    private static string Redact(string value, SmokeOptions options)
-    {
-        var redacted = value.Replace(options.VaultPath, "<vault>", StringComparison.OrdinalIgnoreCase);
-        if (!string.IsNullOrWhiteSpace(options.ApiKey))
-        {
-            redacted = redacted.Replace(options.ApiKey, "<api-key>", StringComparison.Ordinal);
-        }
-
-        return redacted;
     }
 
     private static Process StartHttpServer(SmokeOptions options)
@@ -525,8 +396,7 @@ internal static class Program
         string VaultPath,
         Uri? Endpoint,
         string? ApiKey,
-        int TimeoutSeconds,
-        bool Coordination)
+        int TimeoutSeconds)
     {
         internal static SmokeOptions Parse(string[] args)
         {
@@ -536,7 +406,6 @@ internal static class Program
             Uri? endpoint = null;
             string? apiKey = null;
             var timeoutSeconds = 60;
-            var coordination = false;
             var commandArguments = new List<string>();
             for (var index = 0; index < args.Length; index++)
             {
@@ -563,9 +432,6 @@ internal static class Program
                         break;
                     case "--timeout-seconds":
                         timeoutSeconds = int.Parse(RequireValue(args, ref index, argument), CultureInfo.InvariantCulture);
-                        break;
-                    case "--coordination":
-                        coordination = true;
                         break;
                     default:
                         throw new ArgumentException($"Unknown argument '{argument}'.");
@@ -605,8 +471,7 @@ internal static class Program
                 Path.GetFullPath(vaultPath),
                 endpoint,
                 apiKey,
-                timeoutSeconds,
-                coordination);
+                timeoutSeconds);
         }
 
         private static string RequireValue(string[] args, ref int index, string argument)

@@ -7,8 +7,6 @@ internal static class CoordinationInfrastructureExtensions
     internal static IServiceCollection AddCoordinationInfrastructure(this IServiceCollection services)
     {
         services.AddSingleton<ICoordinationFileSystem, CoordinationFileSystem>();
-        services.AddSingleton<ICoordinationFaultInjector>(
-            _ => EnvironmentCoordinationFaultInjector.CreateFromEnvironment());
         return services;
     }
 }
