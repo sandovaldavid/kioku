@@ -65,6 +65,7 @@ internal static class Program
             Arguments = arguments,
             InheritEnvironmentVariables = false,
             EnvironmentVariables = environment,
+            StandardErrorLines = line => Console.Error.WriteLine($"[SERVER] {line}"),
         });
         await VerifyProtocolAsync(transport, options, cancellationToken);
     }
