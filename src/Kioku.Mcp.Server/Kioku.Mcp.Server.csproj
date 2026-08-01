@@ -21,7 +21,7 @@
     <PackageType>McpServer</PackageType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>kioku-mcp-server</PackageId>
-    <PackageVersion>2.3.0</PackageVersion>
+    <PackageVersion>2.4.0</PackageVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageTags>AI; MCP; obsidian; notes; server; stdio; streamable-http</PackageTags>
     <Description>Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read and write notes via the Model Context Protocol.</Description>
@@ -33,14 +33,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources/Templates/AgentWorkflow/*.md" />
-    <EmbeddedResource Include="Resources/Coordination/Schemas/*.json" />
+    <EmbeddedResource Include="Resources/Templates/AgentWorkflow/*.md"/>
+    <EmbeddedResource Include="Resources/Coordination/Schemas/*.json"/>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
-    <None Include="README.md" Pack="true" PackagePath="/" />
-    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/"/>
+    <None Include="README.md" Pack="true" PackagePath="/"/>
+    <None Include="../../LICENSE" Pack="true" PackagePath="/"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -50,12 +50,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Markdig" />
-    <PackageReference Include="ModelContextProtocol" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" />
-    <PackageReference Include="NJsonSchema" />
-    <PackageReference Include="Sentry.AspNetCore" />
-    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="Markdig"/>
+    <PackageReference Include="ModelContextProtocol"/>
+    <PackageReference Include="ModelContextProtocol.AspNetCore"/>
+    <PackageReference Include="NJsonSchema"/>
+    <PackageReference Include="Sentry.AspNetCore"/>
+    <PackageReference Include="YamlDotNet"/>
   </ItemGroup>
 
 </Project>

@@ -6,6 +6,42 @@
 
 * **server:** add privacy-preserving coordination observability, capability negotiation, interoperability mappings, and gated rollout controls ([#311](https://github.com/sandovaldavid/kioku/issues/311))
 
+## [2.4.0](https://github.com/sandovaldavid/kioku/compare/v2.3.0...v2.4.0) (2026-08-01)
+
+
+### Features
+
+* **ai:** add Kioku project agent profile ([#330](https://github.com/sandovaldavid/kioku/issues/330)) ([eca0d22](https://github.com/sandovaldavid/kioku/commit/eca0d222380ce44ad482c09c54f01882bbd15639))
+* **server:** add CAS vault mutations ([#316](https://github.com/sandovaldavid/kioku/issues/316)) ([7dd0562](https://github.com/sandovaldavid/kioku/commit/7dd0562d0f70f638d241037a97797337484eb4e5))
+* **server:** add coordination MCP surface ([#317](https://github.com/sandovaldavid/kioku/issues/317)) ([23d3bd3](https://github.com/sandovaldavid/kioku/commit/23d3bd3c660f43f57891295d6c4c610318940ff9)), closes [#308](https://github.com/sandovaldavid/kioku/issues/308)
+* **server:** add coordination observability ([#320](https://github.com/sandovaldavid/kioku/issues/320)) ([c6d6c93](https://github.com/sandovaldavid/kioku/commit/c6d6c9331b40da2ba06fd998e6f3f7286cc1f2eb))
+* **server:** add durable claims and fencing ([#315](https://github.com/sandovaldavid/kioku/issues/315)) ([271ba90](https://github.com/sandovaldavid/kioku/commit/271ba90a43dbf49e82ed9278f6467ee69f8eb21c))
+* **server:** add MCP tool annotations and contract tests ([#273](https://github.com/sandovaldavid/kioku/issues/273)) ([1a64272](https://github.com/sandovaldavid/kioku/commit/1a642724a20dce9903e4ba6e0bdde7b95ea9a924))
+* **server:** add reproducible multi-agent handoff demo ([#295](https://github.com/sandovaldavid/kioku/issues/295)) ([3ef871c](https://github.com/sandovaldavid/kioku/commit/3ef871c407984f5ecfe0b918d36b1798c1471028))
+* **server:** define coordination contracts ([#313](https://github.com/sandovaldavid/kioku/issues/313)) ([64ce6ab](https://github.com/sandovaldavid/kioku/commit/64ce6ab1d2d1c4c3a17d86adbc642371df83988d))
+* **server:** extend Kioku.Benchmarks into a real performance/quality suite ([#296](https://github.com/sandovaldavid/kioku/issues/296)) ([244fd76](https://github.com/sandovaldavid/kioku/commit/244fd769555f52b278b9f2ceec3343bb94a001bf))
+* **server:** integrate work sessions with coordination ([#318](https://github.com/sandovaldavid/kioku/issues/318)) ([0314631](https://github.com/sandovaldavid/kioku/commit/0314631ca9970a636e7e191e3a33ab1828a762ad)), closes [#309](https://github.com/sandovaldavid/kioku/issues/309)
+* **server:** persist event history ([#314](https://github.com/sandovaldavid/kioku/issues/314)) ([794f9e1](https://github.com/sandovaldavid/kioku/commit/794f9e1b6898fcd1bab83231fcfddfae4c829b98))
+* **server:** return typed MCP result envelopes ([#272](https://github.com/sandovaldavid/kioku/issues/272)) ([2faa07d](https://github.com/sandovaldavid/kioku/commit/2faa07de6b56cb83d92db0267cbe528a39efaa13))
+
+
+### Bug Fixes
+
+* **server:** align index and MCP results ([#301](https://github.com/sandovaldavid/kioku/issues/301)) ([e8e6bba](https://github.com/sandovaldavid/kioku/commit/e8e6bba0d5bbe76089628ec4d0804579c7efdeb5))
+* **server:** harden Streamable HTTP transport ([#271](https://github.com/sandovaldavid/kioku/issues/271)) ([8781937](https://github.com/sandovaldavid/kioku/commit/87819374bf8b026875ca318059643eb5932e9b2b))
+* **server:** make indexing queue depth race-free ([#289](https://github.com/sandovaldavid/kioku/issues/289)) ([4d77f02](https://github.com/sandovaldavid/kioku/commit/4d77f02655fbd43f298118010ca26582294e76ff))
+* **server:** make trash name allocation atomic under concurrent delete_note ([#241](https://github.com/sandovaldavid/kioku/issues/241)) ([fdbf93c](https://github.com/sandovaldavid/kioku/commit/fdbf93c8cf87d10f58fe37683e1448301cfb277e))
+* **server:** make work sessions concurrency-safe ([#267](https://github.com/sandovaldavid/kioku/issues/267)) ([a715e05](https://github.com/sandovaldavid/kioku/commit/a715e058ee9ea34b29b13f947d5f94bd226e6c90))
+* **server:** normalize typographic dashes in sanitized filenames ([#242](https://github.com/sandovaldavid/kioku/issues/242)) ([e124438](https://github.com/sandovaldavid/kioku/commit/e1244381d01f49209a9076905c39460450a628ad))
+* **server:** preserve typed YAML frontmatter ([#266](https://github.com/sandovaldavid/kioku/issues/266)) ([6d91200](https://github.com/sandovaldavid/kioku/commit/6d91200966ffcebee6940a53bd9aff95893f7303))
+* **server:** prevent unhandled exceptions from reindex crashing tools ([#243](https://github.com/sandovaldavid/kioku/issues/243)) ([1c7faaf](https://github.com/sandovaldavid/kioku/commit/1c7faafbac698202617d48bf8ce7d1f86fd6759a))
+* **server:** resolve vault integration bugs ([#240](https://github.com/sandovaldavid/kioku/issues/240)) ([d0de25c](https://github.com/sandovaldavid/kioku/commit/d0de25c79797c3ab91121b97a03ef75bcf5b4699))
+
+
+### Performance Improvements
+
+* **server:** add resilient bounded vault indexing pipeline ([#276](https://github.com/sandovaldavid/kioku/issues/276)) ([cb81590](https://github.com/sandovaldavid/kioku/commit/cb81590aa779fb30b1afc1290a862faa4f892c8d))
+
 ## [2.3.0](https://github.com/sandovaldavid/kioku/compare/v2.2.1...v2.3.0) (2026-07-15)
 
 
