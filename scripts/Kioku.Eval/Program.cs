@@ -1,3 +1,4 @@
+using Kioku.Benchmarks.Suite;
 using Kioku.Mcp.Server;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
@@ -48,7 +49,7 @@ var config = new KiokuConfiguration
     MaxSearchResults = Math.Max(options.Ks.Max(), 20),
 };
 
-using var embedding = new EmbeddingService(config, NullLogger<EmbeddingService>.Instance, new EvalHttpClientFactory());
+using var embedding = new EmbeddingService(config, NullLogger<EmbeddingService>.Instance, new SimpleHttpClientFactory());
 using var vault = new VaultIndexService(NullLogger<VaultIndexService>.Instance, config, embedding);
 var hybrid = new HybridSearchService(vault, embedding);
 
@@ -252,12 +253,4 @@ internal sealed record EvalOptions(
 
         return new EvalOptions(vault, goldenPath, modes, ks, minScore, label);
     }
-}
-
-internal sealed class EvalHttpClientFactory : IHttpClientFactory
-{
-    private static readonly SocketsHttpHandler Handler = new();
-
-    public HttpClient CreateClient(string name) =>
-        new(Handler, disposeHandler: false) { Timeout = TimeSpan.FromSeconds(30) };
 }
