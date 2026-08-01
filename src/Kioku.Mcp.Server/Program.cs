@@ -170,7 +170,7 @@ static void ConfigureLogging(ILoggingBuilder logging)
 {
     logging.ClearProviders();
     logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
-    logging.SetMinimumLevel(LogLevel.Information);
+    logging.SetMinimumLevel(LogLevel.Trace);
 }
 
 static void ConfigureSentry(KiokuConfiguration config)
