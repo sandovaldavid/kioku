@@ -282,6 +282,11 @@ static async Task<int> RunStdioAsync(
     logger.Info("Kioku MCP Server starting in stdio mode...");
     logger.Info("Vault: {VaultPath}", config.VaultPath);
 
+    var allTools = host.Services.GetServices<McpServerTool>().ToList();
+    var names = allTools.Select(t => t.ProtocolTool.Name).ToList();
+    var dupes = names.GroupBy(n => n).Where(g => g.Count() > 1).Select(g => $"{g.Key}x{g.Count()}");
+    Console.Error.WriteLine($"[DIAG] GetServices<McpServerTool>() returned {allTools.Count} instances, {names.Distinct().Count()} distinct names. Duplicates: {string.Join(", ", dupes)}");
+
     await host.RunAsync();
     return 0;
 }
