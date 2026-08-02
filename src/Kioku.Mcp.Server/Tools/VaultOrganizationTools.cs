@@ -218,14 +218,14 @@ public sealed class VaultOrganizationTools(
 
         if (duplicates.Count == 0)
         {
-            return Task.FromResult($"[ok] No duplicate notes found (threshold: {threshold:P0}).\\n" +
+            return Task.FromResult($"[ok] No duplicate notes found (threshold: {(int)MathF.Round(threshold * 100)}%).\\n" +
                                    $"Analyzed {notes.Count} notes.");
         }
 
-        var sb = new StringBuilder($"[ok] Found {duplicates.Count} potential duplicate pair(s) (threshold: {threshold:P0}):\n\n");
+        var sb = new StringBuilder($"[ok] Found {duplicates.Count} potential duplicate pair(s) (threshold: {(int)MathF.Round(threshold * 100)}%):\n\n");
         foreach (var (a, b, sim, reason) in duplicates)
         {
-            sb.AppendLine($"  [{sim:P0} — {reason}]");
+            sb.AppendLine($"  [{(int)MathF.Round(sim * 100)}% — {reason}]");
             sb.AppendLine($"    A: {a.VaultRelativePath}");
             sb.AppendLine($"    B: {b.VaultRelativePath}");
             sb.AppendLine();
