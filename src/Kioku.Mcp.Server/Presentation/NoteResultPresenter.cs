@@ -267,7 +267,7 @@ internal static class NoteResultPresenter
             return ToJson(new { query, mode = "semantic", results = Array.Empty<object>() });
         }
 
-        var threshold = minScore > 0f ? $" above {minScore:P0} similarity" : "";
+        var threshold = minScore > 0f ? $" above {(int)MathF.Round(minScore * 100)}% similarity" : "";
         return $"No semantically similar notes found for: '{query}'{threshold}";
     }
 
@@ -278,7 +278,7 @@ internal static class NoteResultPresenter
             return ToJson(new { query, mode = "hybrid", results = Array.Empty<object>() });
         }
 
-        var threshold = minScore > 0f ? $" above {minScore:P0} score" : "";
+        var threshold = minScore > 0f ? $" above {(int)MathF.Round(minScore * 100)}% score" : "";
         return $"No hybrid results found for: '{query}'{threshold}";
     }
 
@@ -394,7 +394,7 @@ internal static class NoteResultPresenter
     // find_similar_notes
 
     internal static string RenderNoSimilarNotes(string sourceName, float minScore) =>
-        $"No notes similar to '{sourceName}' found above {minScore:P0} similarity.";
+        $"No notes similar to '{sourceName}' found above {(int)MathF.Round(minScore * 100)}% similarity.";
 
     internal static string RenderSimilarNotes(string sourceName, IEnumerable<NoteSearchRow> rows)
     {

@@ -184,7 +184,7 @@ public sealed class GraphAnalysisTools(
         var i = 1;
         foreach (var s in suggestions)
         {
-            sb.AppendLine($"{i}. [[{DisplayNote(s.Source)}]] → [[{DisplayNote(s.Target)}]]  (score: {s.Score:P0}, {s.Reason})");
+            sb.AppendLine($"{i}. [[{DisplayNote(s.Source)}]] → [[{DisplayNote(s.Target)}]]  (score: {(int)MathF.Round(s.Score * 100)}%, {s.Reason})");
             if (!string.IsNullOrWhiteSpace(s.Snippet))
             {
                 sb.AppendLine($"   \"{s.Snippet}\"");
@@ -325,7 +325,7 @@ public sealed class GraphAnalysisTools(
                 currentContent,
                 existingLinks,
                 section,
-                newSuggestions.Select(s => (LinkText(s.Target), (string?)$"{s.Score:P0} similar")));
+                newSuggestions.Select(s => (LinkText(s.Target), (string?)$"{(int)MathF.Round(s.Score * 100)}% similar")));
             if (updatedContent is null)
             {
                 continue;
@@ -353,7 +353,7 @@ public sealed class GraphAnalysisTools(
             sb.AppendLine($"[ok] Added {sourceSuggestions.Count} related link(s) to '{DisplayNote(source)}':");
             foreach (var suggestion in sourceSuggestions)
             {
-                sb.AppendLine($"  - [[{LinkText(suggestion.Target)}]] ({suggestion.Score:P0})");
+                sb.AppendLine($"  - [[{LinkText(suggestion.Target)}]] ({(int)MathF.Round(suggestion.Score * 100)}%)");
             }
         }
 
