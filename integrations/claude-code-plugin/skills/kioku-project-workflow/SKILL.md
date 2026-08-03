@@ -1,110 +1,137 @@
 ---
 name: kioku-project-workflow
-description: Use when a user asks to start, resume, plan, implement, review, debug, or document work for a project managed through the Kioku MCP server.
+description: Use when a user asks to start, resume, plan, implement, review, debug, or document substantial work for a project managed through the Kioku MCP server.
 ---
 
 # Kioku project workflow
 
-Use this skill to turn a project task into a deliberate agent workflow. It orchestrates Kioku's
-atomic tools; it does not replace them and it does not execute tools automatically.
+Use this skill to turn a project request into a deliberate repository-and-vault workflow. Kioku provides project memory, guarded Markdown writes, sessions, and optional coordination. The client remains responsible for repository inspection, code changes, tests, Git operations, and external services.
 
 ## Inputs
 
-Extract these from the user request:
+Extract:
 
-- `project`: the Kioku project identifier, such as `product-api` or `atena/api.core`.
-- `task`: the requested outcome, including constraints and acceptance criteria.
+- `project`: the exact Kioku project identifier returned by `list_projects` or stored in the project MOC `project:` field.
+- `task`: the requested outcome, constraints, acceptance criteria, repository, and target branch when known.
 
-If the project is missing or ambiguous, call `list_projects` and ask one focused clarification
-before creating project documents. Do not guess a project from a similarly named folder.
+Do not derive a vault path from `owner/repository`, a similarly named folder, or prior convention. When the identifier is missing or ambiguous, call `list_projects`, inspect the relevant MOC, and resolve the project before writing.
 
 ## Workflow
 
-### 1. Load context
+### 1. Discover capabilities and load context
 
-For a project task, call `get_project_context` before editing project notes or code. Read only the
-relevant documents, normally in this order:
+For project work:
 
-1. Project MOC and the latest session summary.
-2. Active plans and open bugs.
-3. Relevant ADRs, tickets, backlog items, and knowledge notes.
+1. Confirm the active repository and target branch with the client's repository tools.
+2. Call `get_server_capabilities` when optional groups or coordination may be needed.
+3. Call `get_project_context(project=...)` before editing code or project notes.
+4. Read only relevant context, normally in this order:
+   - project MOC and latest session handoff;
+   - active plans and open bugs;
+   - relevant ADRs, tickets, backlog items, and knowledge notes.
+5. Inspect the source repository's current code, tests, contracts, configuration, documentation, issues, and pull requests. Vault context is not a substitute for source evidence.
 
-Use `read_note` for full content and `search_notes` for prior art across the vault. The project
-workspace is context, not a substitute for inspecting the source repository with native shell,
-editor, or code-navigation tools.
+Respect `.kioku/config.yml` folder roles, exclusions, templates, and capability policy. Do not invent local paths, credentials, or unavailable capability groups.
 
 ### 2. Classify the request
 
-Choose the smallest workflow that can produce the requested result:
+Choose the smallest workflow that preserves useful context:
 
 | Request | Default action |
 |---|---|
-| Explanation, lookup, or status | Read/search only; do not start a session |
-| Multi-step implementation | Start a session; create or update a plan when useful |
-| Bug investigation or fix | Start a session; create a bug note if the finding is reusable |
-| Architecture choice | Read existing ADRs; create a proposed ADR before acceptance |
-| Reusable lesson or setup knowledge | Create a knowledge note after verification |
-| Deferred improvement | Add a backlog item instead of expanding the current scope |
-| Daily/status update | Use the daily workflow and link the session or project |
+| Explanation, lookup, or status | Read/search only; no session or vault write |
+| Multi-step implementation | Start a session; create/update a plan when it helps execution |
+| Bug investigation or fix | Start a session; record a bug only when root cause and evidence are reusable |
+| Architecture choice | Read existing ADRs; record a proposed ADR before treating the decision as accepted |
+| Reusable verified lesson | Save project knowledge after validation |
+| Deferred improvement | Add a backlog item rather than expanding scope |
+| Documentation synchronization | Separate current public repository truth from private reasoning and handoff context |
 
-Do not create an ADR, bug, plan, or knowledge note merely because the tool exists. Create an
-artifact when it captures a decision, reusable finding, implementation boundary, or handoff that
-another agent will need.
+Do not create every artifact type. Create only what another agent or maintainer will need.
 
-### 3. Start the session when justified
+### 3. Start or resume a session when justified
 
-For substantial implementation, investigation, review, or documentation work:
+For substantial implementation, investigation, review, migration, or documentation work:
 
-1. Call `start_work_session` with the project and a concise goal.
-2. Keep the session summary and modified-note tracking in mind throughout the work.
-3. Do not start a second session if an active session already covers the same work.
+1. Check current sessions and reuse the matching active session when appropriate.
+2. Otherwise call `start_work_session` with the exact project and a concise goal.
+3. Save the returned `session_id`; use it for resume and close operations.
+4. Use `parent_session_id` only for explicit handoff provenance.
 
-For a read-only answer or a one-line edit, skip the session lifecycle.
+Skip the session lifecycle for read-only answers and trivial isolated edits.
 
-### 4. Perform the task
+### 4. Use focused engineering tools
 
-Use the client's native code, shell, test, and Git tools for repository work. Use Kioku for vault
-context and documentation:
+Prefer the narrow current contracts:
 
-- `create_project_doc` for ADRs, bugs, plans, backlog items, and knowledge.
-- `edit_note` for body changes and checkbox updates.
-- `set_task_state` only after `list_tasks` provides the current line number.
+- `create_implementation_plan` for executable multi-step plans.
+- `record_bug` for verified symptoms, root cause, fix, and affected files.
+- `record_adr` for architecture decisions, alternatives, and consequences.
+- `add_backlog_item` for intentionally deferred work.
+- `save_project_knowledge` for durable verified lessons.
+- `edit_note` for incremental body updates.
 - `update_frontmatter` for supported status, type, and tag changes.
-- `suggest_links` in preview mode before applying links.
-- `get_project_context` again after major documentation changes when the handoff needs validation.
+- `list_tasks` before `set_task_state`; never rely on a stale line number.
 
-Keep writes incremental and narrow. Preserve human-written requirements and existing note content.
-Never use permanent deletion, bulk tag changes, or inbox application without explicit approval in
-the current turn, even when the task sounds like cleanup.
+`create_project_doc` is a compatibility wrapper. Do not use it for new workflows when the focused tool exists.
 
-### 5. Verify and document
+Keep repository changes and vault changes distinct. Do not modify vault content to conceal a product defect, failing contract, missing test, or repository documentation problem.
 
-Before closing the task:
+### 5. Guard every write
 
-1. Run the relevant tests, build, lint, or review commands.
-2. Check the actual changed files and statuses.
-3. Update plan checkboxes only for work that is verified complete.
-4. Set a plan to `done` explicitly with `update_frontmatter` when all its work is complete.
-5. Record a bug, ADR, knowledge note, or backlog item only when its content is complete enough for
-   a future agent to act on it.
+Before a mutation:
 
-Do not claim a tool or optional capability was used if it was not exposed by the current MCP
-connection. Report unavailable capability groups explicitly.
+1. Read the current resource and capture revision/hash metadata when available.
+2. Pass `expected_revision` or `expected_hash` to detect concurrent changes.
+3. Use one stable `mutation_id` for retries of the same logical write.
+4. If durable coordination is enabled, acquire the correct claim and pass `claim_id`, canonical `resource_key`, and `fence_generation`.
+5. Re-read and reconcile on stale revision, invalid/expired claim, or fencing conflicts; do not silently drop preconditions.
 
-### 6. Close the handoff
+Empty preconditions preserve legacy behavior but provide no conflict protection. Direct filesystem and Git edits are outside Kioku's coordination guarantee.
 
-If a session was started, call `end_work_session` with a summary containing:
+### 6. Coordinate only when the profile is active
 
-- What changed.
-- What was verified and the exact command/result when useful.
-- Remaining risks, blockers, or open decisions.
-- The next action for the next agent.
+Coordination is disabled by default. Before using it, verify the `kioku.durable-coordination` capability profile and rollout state.
 
-The final response to the user should distinguish code changes, vault changes, verification, and
-items that were intentionally not changed.
+For coordinated work:
 
-## MCP entry point
+1. Create/read the work item and current state version.
+2. Acquire the server-scoped claim.
+3. Transition to the executing state.
+4. Renew leases during long-running work.
+5. Perform guarded Kioku mutations with current claim/fence/preconditions.
+6. Transition to `completed`, `partial`, `blocked`, or `failed` with bounded evidence references.
+7. Release claims when required.
 
-When the client supports MCP prompts, use `project_task(project, task)` as the reusable entry
-point. It supplies the same lifecycle but still requires the agent to call each tool, perform the
-work, and obtain confirmation before destructive operations.
+Do not treat `agent`, `client_name`, session IDs, run IDs, or trace IDs as authentication or ownership.
+
+### 7. Verify and document
+
+Before declaring completion:
+
+1. Run the relevant build, tests, lint, formatting, generated-contract, security, or packaging checks.
+2. Inspect changed files, diffs, statuses, PR checks, and review comments.
+3. Classify every control as `Passed`, `Failed`, `Not run`, `Blocked`, or `Not applicable`.
+4. Update plan tasks and status only for work actually verified.
+5. Record bugs, ADRs, knowledge, or backlog entries only when complete enough for a future agent to act on.
+6. Report unavailable tools or optional groups explicitly; absence of CI is not success.
+
+### 8. Close the handoff
+
+If a session was started, call `end_work_session(session_id=...)` with:
+
+- objective and context;
+- root cause or decision;
+- contracts and files affected;
+- code/repository changes;
+- vault changes;
+- exact verification results;
+- data-loss, privacy, compatibility, and rollout risks;
+- pull requests and remaining review state;
+- the exact next action.
+
+For Git-backed vault work, inspect the vault diff and use a separate reviewable branch/PR when the user requests persistence. Exclude generated embeddings, `.obsidian/`, attachments, credentials, private local paths, and unrelated synchronization noise.
+
+## MCP prompt entry point
+
+When prompts are supported, `project_task(project, task)` supplies the same lifecycle guidance. It does not call tools, inspect code, mutate files, run tests, or close the session automatically.

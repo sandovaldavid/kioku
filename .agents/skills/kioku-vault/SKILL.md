@@ -1,107 +1,125 @@
 ---
 name: kioku-vault
-description: Use when working with an Obsidian vault via the Kioku MCP server. Covers the implemented 44-tool default surface, 77-tool all-capabilities surface, workflows, capability gating, and safety notes.
+description: Use when working with an Obsidian vault through the Kioku MCP server. Covers the current 44-tool default profile, 77-tool all-capabilities profile, focused workflows, capability gating, guarded writes, sessions, and durable coordination.
 ---
 
 # Kioku vault skill
 
-Kioku reads, searches, and writes an Obsidian vault directly on disk. It works with Obsidian
-closed. The optional WebSocket bridge only matters for UI actions and plugin integrations.
+Kioku reads, searches, and writes an Obsidian vault directly on disk. It works with Obsidian closed. The optional bridge matters only for Obsidian UI actions and plugin integrations.
 
-This skill summarizes what exists and when to use it. For exact parameters, read the tool's MCP
-description or `docs/commands-reference.md`; do not guess parameter names.
+Treat live MCP discovery as the runtime contract. For exact parameters, inspect the tool description or `docs/commands-reference.md`; do not infer schemas from examples or from the installed SDK version.
 
-## Tool categories
+## Discover the active contract first
+
+- Use MCP `tools/list`, prompts/resources discovery, or `get_server_capabilities` instead of assuming every optional group is exposed.
+- The generated `develop` contract contains 44 default tools and 77 tools with every capability group enabled.
+- Enabled by default: `tasks`, `organization`, `sessions`, `workflows`, `graph`, and `engineering`.
+- Disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
+- An absent `capabilities` block preserves those defaults; it does not enable every optional group.
+- With `capabilities.require_explicit: true`, only explicitly enabled optional groups are registered.
+- A capability mismatch is normally configuration or connection scope, not evidence that note content is corrupt.
+
+## Tool groups
 
 - **Query**: `find_similar_notes`, `get_links`, `list_notes`, `read_note`, `search_notes`.
-- **Write**: `create_note`, `delete_note`, `edit_note`, `manage_trash`, `move_note`, `update_frontmatter`.
+- **Focused note creation**: `create_regular_note`, `create_zettel`, `create_literature_note`, `create_moc`, `create_folder_readme`.
+- **Mutation**: `delete_note`, `edit_note`, `manage_trash`, `move_note`, `update_frontmatter`.
 - **Tasks**: `list_tasks`, `set_task_state`.
 - **Organization**: `audit_vault`, `find_duplicate_notes`, `manage_tags`, `process_inbox`, `suggest_folder`, `suggest_tags`.
 - **Sessions**: `end_work_session`, `get_work_context`, `list_work_sessions`, `start_work_session`.
-- **Engineering**: `create_project_doc`, `get_project_context`, `list_projects`, `setup_agent_workflow`.
-- **Templates**: `manage_templates`.
-- **Knowledge graph**: `get_concept_map`, `get_vault_snapshot`, `suggest_links`.
-- **Coordination**: `create_coordination_work_item`, `get_coordination_work_item`, `list_coordination_work_items`, `list_coordination_runs`, `transition_coordination_work_item`, `acquire_coordination_claim`, `renew_coordination_claim`, `release_coordination_claim`, `expire_coordination_claim`, `list_coordination_claims`, `list_coordination_history`, `get_coordination_handoff`, `list_coordination_blockers`, `list_stale_coordination_work`, `list_failed_coordination_attempts`, `list_coordination_conflicts`, `resolve_coordination_conflict`.
-- **Research**: `audit_citations`, `export_citations`, `import_bibtex`.
-- **Local generation**: `generate_flashcards`, `summarize_note`.
-- **CSS**: `manage_css_snippets`.
-- **Assets**: `find_orphan_assets`, `tidy_attachments`.
-- **Plugin bridge**: `apply_template`, `get_installed_plugins`, `lint`, `query_dataview`.
-- **Obsidian UI**: `edit_in_obsidian`, `get_obsidian_state`, `open_note_in_obsidian`, `trigger_obsidian_command`.
+- **Engineering**: `add_backlog_item`, `create_implementation_plan`, `get_project_context`, `list_projects`, `record_adr`, `record_bug`, `save_project_knowledge`, `setup_agent_workflow`.
+- **Templates and graph**: `manage_templates`, `get_concept_map`, `get_vault_snapshot`, `suggest_links`.
+- **Coordination**: work items, transitions, claims, leases, history, handoffs, blockers, stale work, failed attempts, and conflicts.
+- **Optional integrations**: research, local generation, CSS, assets, plugin bridge, and Obsidian UI tools.
 - **Utilities**: `get_server_capabilities`, `get_server_status`, `rebuild_index`.
 
-The core groups are always available. `research`, `generation`, `css`, `assets`, `bridge`,
-`plugin`, and `coordination` are disabled by default. `git`, `restore`, and `zettelkasten` are removed groups. Check
-`.kioku/config.yml` when a capability is unavailable instead of assuming an unknown-tool error is
-a code defect.
-
-Call `get_server_capabilities` before using coordination tools. Check the
-`kioku.durable-coordination` profile ID, profile and schema versions, enabled
-feature flags, transport, observability state, and rollout status. The profile
-is gated and disabled by default; domain IDs and trace IDs are diagnostic data,
-not authorization or ownership evidence.
+`create_note` and `create_project_doc` remain compatibility wrappers. Prefer the focused creation and engineering tools for new workflows because their contracts are narrower and easier to validate.
 
 ## Search and reading
 
-- Use `search_notes` with `mode='keyword'` for exact terms, tags, or filenames.
-- Use `search_notes` with `mode='semantic'` when the concept is likely phrased differently; it requires Ollama.
-- Use `search_notes` with `mode='hybrid'` as the default; it falls back to keyword search without Ollama.
-- Use `list_notes` for folder and frontmatter filters, and `read_note` with `metadata_only=true` for metadata only.
-- Use `get_links` with `direction='in'` for backlinks, `'out'` for outgoing links, or `'both'` for both.
+- Use `search_notes` with `mode='keyword'` for exact terms, tags, identifiers, or filenames.
+- Use `mode='semantic'` only when embeddings are available and differently phrased concepts matter.
+- Use `mode='hybrid'` as the normal discovery mode; it can fall back to keyword search.
+- Use `list_notes` for folder and frontmatter filters.
+- Use `read_note(metadata_only=true)` when the body is unnecessary.
+- Use `get_links(direction='in'|'out'|'both')` for graph navigation.
+- For project work, call `list_projects` or `get_project_context` and use the returned project identifier. Do not synthesize a project path from a repository owner/name.
 
-## Notes and organization
+## Focused creation and project documents
 
-- Use `create_note` for normal notes and structured `kind` values `zettel`, `literature`, `moc`, or `folder-readme`.
-- Use `edit_note` with `mode='replace'`, `'append'`, or `'prepend'`; frontmatter is preserved.
-- Use `update_frontmatter` for status, type, and incremental tag changes.
-- Use `move_note` for moving or renaming; it can update inbound wikilinks.
-- Use `process_inbox`, `manage_tags`, and `suggest_links` in preview mode before applying changes.
-- Use `manage_trash` to list or restore Kioku soft-deleted notes.
+Use the narrowest tool that represents the intended artifact:
 
-## Tasks and engineering
+| Intent | Preferred tool |
+|---|---|
+| Normal note | `create_regular_note` |
+| Atomic permanent note | `create_zettel` |
+| Literature note | `create_literature_note` |
+| Map of content | `create_moc` |
+| Managed folder index | `create_folder_readme` |
+| Implementation plan | `create_implementation_plan` |
+| Architecture decision | `record_adr` |
+| Reusable bug record | `record_bug` |
+| Deferred work | `add_backlog_item` |
+| Durable project knowledge | `save_project_knowledge` |
 
-Tasks are native Markdown checkboxes. Call `list_tasks` first, then `set_task_state` with the
-returned note and line number.
+Use `edit_note` for body changes and `update_frontmatter` for supported status, type, and tag changes. Preserve existing human-authored text and unknown frontmatter fields.
 
-For project work, call `get_project_context` before resuming. Use `create_project_doc` with
-`doc_type` `adr`, `bug`, `plan`, `backlog`, or `knowledge`, then use `edit_note` and
-`update_frontmatter` for follow-up changes. Use `start_work_session` and `end_work_session` for
-handoffs. Use `manage_templates` for vault or engineering template overrides.
+Tasks are native Markdown checkboxes. Call `list_tasks` first, then use the returned note and line number with `set_task_state`; do not reuse stale line numbers after editing the note.
 
-For a user request that involves substantial work on a named project, use the focused
-`kioku-project-workflow` skill when available, or follow the `project_task` MCP prompt. That
-workflow decides whether the task needs a session, plan, bug, ADR, knowledge note, or no document
-at all. Do not create every document type by default.
+## Guarded writes and concurrency
 
-MCP prompts return instructions for the agent; they do not execute the referenced tools by
-themselves. The agent remains responsible for reviewing context, asking for confirmation before
-destructive changes, performing code work with the client's native tools, and closing the session.
+Kioku can protect writes with compare-and-swap and durable coordination metadata. Use the strongest contract exposed by the current connection:
 
-## Native Git guidance
+1. Read the current note, project document, or work-item projection before mutating it.
+2. Pass `expected_revision` or `expected_hash` when the tool exposes those fields and the prior read returned them.
+3. Use a stable `mutation_id` for retries of the same logical write; use a new value for a different write.
+4. When coordination is enabled and the resource is claimed, pass the current `claim_id`, canonical `resource_key`, and `fence_generation` to the mutation.
+5. Treat stale revision, invalid claim, expired lease, or lower fence errors as conflicts to re-read and reconcile. Do not blindly retry with empty preconditions.
 
-Kioku does not provide Git tools. For a Git-backed vault, use the client's shell commands:
+Empty preconditions preserve legacy write behavior, but they do not provide conflict detection. Direct filesystem edits, Git operations, and edits made outside Kioku do not participate in coordination guarantees.
 
-```bash
-git status
-git diff -- path/to/note.md
-git add path/to/note.md
-git commit -m "Review vault changes"
-git restore -- path/to/note.md
-git log -- path/to/note.md
-```
+## Work sessions
 
-Inspect `git diff` before a bulk operation and suggest a commit when the user wants a rollback
-point. `git restore` discards working-tree changes, so require explicit confirmation before using
-it. If the vault is not a Git repository, do not imply that Git recovery is available.
+For substantial project work, use the focused `kioku-project-workflow` skill or the `project_task` prompt.
 
-## Safety
+- Save the `session_id` returned by `start_work_session`; it is the durable identity for resume and close operations.
+- Resume with `start_work_session(session_id='...')` after a client or server restart.
+- Close with `end_work_session(session_id='...', summary='...')` whenever the ID is available.
+- Use `parent_session_id` only for explicit handoff provenance; it does not transfer claims or authority.
+- Do not start a second session when an active session already covers the same goal.
+- When `AMBIGUOUS_SESSION` is returned, select one candidate `session_id` instead of retrying without a selector.
+- Do not infer lifecycle timestamps from filenames or modification times; Kioku persists UTC timestamps.
 
-Any tool with a `dry_run` parameter should be called with `dry_run=true` first and shown to the
-user before applying, unless the user explicitly asked to skip confirmation in the current turn.
-This is especially important for permanent `delete_note`, vault-wide `manage_tags`, and inbox
-`process_inbox` changes.
+MCP prompts return instructions. They do not execute the referenced tools, inspect a repository, or complete a handoff automatically.
 
-## Finding the full tool list
+## Durable coordination
 
-The complete 44-tool default inventory, 77-tool all-capabilities inventory, and exact schemas are in `docs/commands-reference.md`, or can be
-queried through MCP `tools/list`.
+Call `get_server_capabilities` before coordination tools. Confirm the `kioku.durable-coordination` profile, schema/profile versions, feature flags, transport, observability state, and rollout status.
+
+A safe coordinated mutation normally follows this order:
+
+1. Create or read the work item and its current state version.
+2. Acquire the claim for the server-derived resource scope.
+3. Transition the work item to the appropriate executing state.
+4. Renew the lease during long-running work.
+5. Write through Kioku with the current claim, fence, expected content version/hash, and idempotency key.
+6. Record completion, partial progress, blocked state, or failure with evidence/reference data.
+7. Release the claim when the transition does not already release it.
+
+`agent`, `client_name`, IDs, and trace fields are diagnostic metadata, not authentication or ownership evidence. Coordination is for supported local filesystem sharing; it is not a distributed lock service and does not make cloud-synced folders safe for concurrent writers.
+
+## Destructive and bulk operations
+
+- Use `dry_run=true` or preview/apply separation whenever available.
+- Preview permanent deletion, bulk tag changes, attachment cleanup, link application, MOC/folder-index regeneration, and inbox processing.
+- Require explicit approval in the current turn before permanent deletion or broad irreversible changes.
+- Check `.kioku/config.yml` for exclusions, folder roles, templates, and capability policy before broad vault operations.
+- Do not write secrets, private host paths, credentials, or generated embeddings into project documentation.
+
+## Native Git boundary
+
+Kioku does not provide Git tools. For a Git-backed vault, use the client's Git integration separately and inspect the diff before committing. Git does not replace Kioku's path policy, mutation preconditions, or coordination claims. `git restore` is destructive and requires explicit confirmation.
+
+## Full reference
+
+The generated `docs/commands-reference.md` and live MCP discovery are authoritative for names, input/output schemas, annotations, prompts, resources, and current profile counts.
