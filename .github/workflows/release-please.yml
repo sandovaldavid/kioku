@@ -117,30 +117,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "${{ needs.release-please.outputs.tag_name }}" \
-            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe \
-            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.sig \
-            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.pem \
-            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.spdx.json \
-            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.spdx.json.sig \
-            artifacts/kioku-server-win-x64.exe/kioku-server-win-x64.exe.spdx.json.pem \
-            artifacts/kioku-server-linux-x64/kioku-server-linux-x64 \
-            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.sig \
-            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.pem \
-            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.spdx.json \
-            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.spdx.json.sig \
-            artifacts/kioku-server-linux-x64/kioku-server-linux-x64.spdx.json.pem \
-            artifacts/kioku-server-osx-x64/kioku-server-osx-x64 \
-            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.sig \
-            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.pem \
-            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.spdx.json \
-            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.spdx.json.sig \
-            artifacts/kioku-server-osx-x64/kioku-server-osx-x64.spdx.json.pem \
-            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64 \
-            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.sig \
-            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.pem \
-            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.spdx.json \
-            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.spdx.json.sig \
-            artifacts/kioku-server-osx-arm64/kioku-server-osx-arm64.spdx.json.pem
+            artifacts/*/*
 
   publish-nuget:
     needs: [release-please, attach-artifacts]

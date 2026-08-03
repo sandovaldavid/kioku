@@ -10,12 +10,6 @@ It combines typed MCP contracts, a strict vault filesystem boundary, concurrent 
 
 The `develop` branch can contain verified but unreleased changes beyond the latest tag. Use generated contracts from the branch you are running.
 
-## The handoff, proven
-
-Kioku's core claim is that one agent's work survives its process exiting, and a second, unrelated agent can pick it up cold. [`scripts/Kioku.HandoffDemo`](scripts/Kioku.HandoffDemo) drives the real MCP stdio protocol end to end. Agent 1 opens a work session, records a plan, an ADR, and a bug, then closes the session. Agent 2 starts in another process and connection, calls `get_project_context`, retrieves the persisted work, and continues without accessing Agent 1's session. A third connection verifies both sessions afterward.
-
-See [`docs/multi-agent-handoff-demo.md`](docs/multi-agent-handoff-demo.md) for the reproducible procedure and captured transcript.
-
 ## Why Kioku
 
 - **Deterministic handoff** — agents can record project context, decisions, plans, bugs, daily notes, and session handoffs.
@@ -92,7 +86,6 @@ Start with the [documentation index](docs/README.md). The main maintained refere
 - [Vault configuration](docs/vault-config.md) — folders, defaults, exclusions, capabilities, frontmatter, and generated indexes.
 - [Focused-tool migration](docs/focused-tool-migration.md) — current replacements for deprecated generic creation wrappers.
 - [Versioning policy](docs/versioning.md) — server, plugin, workspace, and bridge compatibility semantics.
-- [Performance benchmarks](docs/benchmarks.md) — cold-start, indexing, search latency, and retrieval quality with environment and dataset caveats.
 - [Threat and privacy model](docs/threat-and-privacy-model.md) — implemented mitigations, known gaps, and external data flows.
 
 Regenerate and verify public metadata with:
@@ -121,9 +114,7 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
-corepack enable
-pnpm install --frozen-lockfile
-pnpm docs:check
+node scripts/generate-public-docs.mjs --check
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) for repository conventions.

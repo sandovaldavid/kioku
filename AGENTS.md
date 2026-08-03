@@ -10,7 +10,7 @@ This repository owns:
 
 - the MCP server, contracts, prompts, resources, and integrations;
 - vault indexing, retrieval, filesystem policy, work sessions, and engineering workflows;
-- server packaging, Docker deployment, CI, releases, benchmarks, and public documentation.
+- server packaging, Docker deployment, CI, releases, retrieval evaluation, and public documentation.
 
 This repository does not own the Obsidian plugin source or its release workflow.
 
@@ -70,8 +70,6 @@ Do not copy the complete tool or environment-variable inventory into this file.
 ├── scripts/
 │   ├── Kioku.Ci/
 │   ├── Kioku.Eval/
-│   ├── Kioku.Benchmarks/
-│   ├── Kioku.HandoffDemo/
 │   └── generate-public-docs.mjs
 └── src/
     ├── Kioku.Mcp.Server/
@@ -138,9 +136,7 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
-corepack enable
-pnpm install --frozen-lockfile
-pnpm docs:check
+node scripts/generate-public-docs.mjs --check
 ```
 
 Change-specific checks:

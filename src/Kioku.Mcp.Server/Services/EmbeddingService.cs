@@ -6,7 +6,6 @@ using System.Numerics;
 using System.Text.Json.Serialization;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Hosting;
-using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -61,16 +60,11 @@ public sealed class EmbeddingService : IDisposable
 
     public IReadOnlyCollection<string> FailedPaths => _failedPaths.Keys.ToArray();
 
-    public string EmbeddingModel => config.EmbeddingModel;
-
     public int EmbeddingBacklog => Volatile.Read(ref _backlogCount);
 
     public int EmbeddedThisSession => Volatile.Read(ref _embeddedThisSession);
 
     public int MaximumConcurrency => _embeddingConcurrency;
-
-    public bool IsInitialBacklogComplete =>
-        Volatile.Read(ref _initialBacklogTask).IsCompleted;
 
     public async Task<bool> WaitForInitialBacklogAsync(
         TimeSpan timeout,

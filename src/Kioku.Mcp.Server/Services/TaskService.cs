@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
-using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;

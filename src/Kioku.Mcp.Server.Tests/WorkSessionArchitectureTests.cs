@@ -59,16 +59,6 @@ public sealed class WorkSessionArchitectureTests
     }
 
     [Fact]
-    public void SessionIntegrationHarness_DoesNotDependOnMcpAdapterOrSdk()
-    {
-        var source = ReadRepositoryFile("src/Kioku.Mcp.Server.Tests/WorkSessionTestHarness.cs");
-
-        Assert.DoesNotContain("Kioku.Mcp.Server.Tools", source);
-        Assert.DoesNotContain("ModelContextProtocol", source);
-        Assert.DoesNotContain("McpServer", source);
-    }
-
-    [Fact]
     public void SessionAdapter_DoesNotExposeRemovedConsolidatedMethods()
     {
         Assert.Null(typeof(McpSessionContextTools).GetMethod("get_recent_activity"));

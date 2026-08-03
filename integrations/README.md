@@ -47,9 +47,6 @@ substitutes the configured vault path into `mcp_config.json`.
 - **`skills/*/SKILL.md` files are generated.** Update the canonical Claude Code copies and run
   `scripts/sync-skill.sh`; CI checks drift with `sync-skill.sh --check`.
 - **`rules/kioku.md`** contains hard behavioral constraints, separate from usage guidance.
-- **`hooks/` is experimental and disabled by default.** Install the audit hook only with
-  `scripts/add-to-client.sh antigravity --with-hooks`.
-
 ## Prerequisites
 
 Both bundles assume the `kioku` binary is on `PATH` (`dotnet tool install -g

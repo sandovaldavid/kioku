@@ -375,33 +375,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
                 continue;
             }
 
-            var component = new List<Note>();
-            var queue = new Queue<Note>();
-            queue.Enqueue(note);
-            visited.Add(note.FilePath);
-
-            while (queue.Count > 0)
-            {
-                var current = queue.Dequeue();
-                component.Add(current);
-
-                foreach (var link in current.OutgoingLinks)
-                {
-                    var linkedNote = vault.ResolveLink(current, link);
-                    if (linkedNote is not null && visited.Add(linkedNote.FilePath))
-                    {
-                        queue.Enqueue(linkedNote);
-                    }
-                }
-
-                foreach (var backlink in vault.GetBacklinks(current))
-                {
-                    if (visited.Add(backlink.FilePath))
-                    {
-                        queue.Enqueue(backlink);
-                    }
-                }
-            }
+            var component = vault.FindConnectedComponent(note, visited);
 
             if (component.Count <= threshold)
             {

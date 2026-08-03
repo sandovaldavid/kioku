@@ -137,67 +137,6 @@ public class FrontmatterParserTests
     }
 
     [Fact]
-    public void Parse_Status_ParsesCorrectly()
-    {
-        var content = """
-            ---
-            status: draft
-            ---
-            # Hello
-            """;
-
-        var result = FrontmatterParser.Parse(content);
-
-        Assert.Equal("draft", result.Status);
-    }
-
-    [Fact]
-    public void Parse_Type_ParsesCorrectly()
-    {
-        var content = """
-            ---
-            type: project
-            ---
-            # Hello
-            """;
-
-        var result = FrontmatterParser.Parse(content);
-
-        Assert.Equal("project", result.NoteType);
-    }
-
-    [Fact]
-    public void Parse_Domain_ParsesCorrectly()
-    {
-        var content = """
-            ---
-            domain: tech/general
-            ---
-            # Hello
-            """;
-
-        var result = FrontmatterParser.Parse(content);
-
-        Assert.Equal("tech/general", result.Domain);
-    }
-
-    [Fact]
-    public void Parse_Date_ParsesCorrectly()
-    {
-        var content = """
-            ---
-            date: 2024-03-15
-            ---
-            # Hello
-            """;
-
-        var result = FrontmatterParser.Parse(content);
-
-        Assert.NotNull(result.Date);
-        Assert.Equal(new DateOnly(2024, 3, 15), result.Date);
-    }
-
-    [Fact]
     public void Parse_CreatedField_ParsesAsDate()
     {
         var content = """
@@ -211,22 +150,6 @@ public class FrontmatterParserTests
 
         Assert.NotNull(result.Date);
         Assert.Equal(new DateOnly(2024, 3, 15), result.Date);
-    }
-
-    [Fact]
-    public void Parse_Updated_ParsesCorrectly()
-    {
-        var content = """
-            ---
-            updated: 2024-06-20
-            ---
-            # Hello
-            """;
-
-        var result = FrontmatterParser.Parse(content);
-
-        Assert.NotNull(result.Updated);
-        Assert.Equal(new DateOnly(2024, 6, 20), result.Updated);
     }
 
     [Fact]

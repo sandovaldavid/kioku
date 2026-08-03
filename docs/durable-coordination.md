@@ -1,23 +1,12 @@
 # Durable coordination profile
 
 This document defines the architecture contract for Kioku's durable
-coordination profile. It is the review artifact for issue
-[#303](https://github.com/sandovaldavid/kioku/issues/303); event persistence and
-deterministic projection replay are implemented by issue
-[#305](https://github.com/sandovaldavid/kioku/issues/305), and claims, leases,
-and fencing are implemented by issue
-[#306](https://github.com/sandovaldavid/kioku/issues/306). Crash/restart and
-filesystem-boundary coverage are implemented by issue
-[#310](https://github.com/sandovaldavid/kioku/issues/310). The bounded
-observability and rollout controls for issue
-[#311](https://github.com/sandovaldavid/kioku/issues/311) are implemented on
-this branch.
+coordination profile.
 
 **Decision status:** The coordination architecture, event persistence, claims,
 leases, fencing, guarded vault-mutation boundary, work-session compatibility,
 crash/restart coverage, bounded observability, and capability negotiation are
-implemented on this branch. Interoperability remains a documented mapping only,
-and the profile stays gated until the release evidence in
+implemented on this branch. The profile stays gated until the release evidence in
 [coordination-rollout.md](coordination-rollout.md) is complete.
 
 The profile coordinates independent Kioku processes that share one vault on a
@@ -57,7 +46,9 @@ The following are explicit non-goals for this profile:
 - making direct filesystem edits participate in Kioku's coordination locks;
 - providing multi-tenant authorization;
 - synchronizing independent Git checkouts;
-- making cloud-sync folders safe for concurrent writers.
+- making cloud-sync folders safe for concurrent writers;
+- replacing the local coordination model with MCP Tasks, A2A, CloudEvents, or
+  another external protocol.
 
 ## Domain model
 
@@ -303,8 +294,8 @@ machine records from becoming ordinary notes or search results.
 
 The following layout is the normative control-plane layout. Event files,
 manifest validation, projections, runtime locks, and lease projections are
-implemented in issues `#305` and `#306`; quarantine remains reserved for later
-recovery work. The names are vault-relative and remain subject to
+implemented; quarantine remains reserved for later recovery work. The names are
+vault-relative and remain subject to
 `VaultPathPolicy`.
 
 ```text
@@ -446,69 +437,24 @@ identities.
 ## Compatibility with work sessions
 
 Existing work sessions remain valid and do not require a bulk migration. The
-coordination profile links to a session when useful, but it does not replace
-the session lifecycle.
-
-The compatibility rules are:
-
-- Existing session notes retain their current `session_id`, `agent`,
-  `client_name`, `status`, timestamps, and `parent_session_id` fields.
-- `run_id`, `work_item_id`, and `attempt_id` are additive frontmatter fields;
-  they are written only when a caller explicitly opts into coordination.
-- Existing `active` and `done` session statuses are not translated into the
-  coordination work-item state machine.
-- A session can be the execution context for multiple work items. Closing a
-  session does not implicitly complete, fail, or cancel those work items.
-- A work item can continue to exist after its session ends. A later session can
-  resume the work through an explicit relationship, not by filename guessing.
-- The legacy `session_note` selector remains supported during the documented
-  compatibility window.
-- Legacy session notes without `session_id` remain readable as legacy records.
-  New coordination operations must use durable IDs and must not infer identity
-  from filenames or modification times.
-- `parent_session_id` remains provenance only. It never reopens or closes the
-  parent session and never grants the child session its claim.
-- A new linked session creates one idempotent pending work item. Linking an
-  existing session requires an expected content revision or hash, but no claim,
-  because the link operation does not grant ownership.
-- Resume and close operations for a linked session require an expected content
-  revision or hash together with the current `claim_id` and
-  `fence_generation`. A legacy selector cannot bypass those checks after the
-  link is persisted.
-- Closing a session does not implicitly transition its work item. The work item
-  can continue after the session ends and a later session can reference it
-  explicitly.
-- Coordination writes must preserve unknown frontmatter fields and must not
-  rewrite session Markdown unless an explicit session operation requests it.
+session lifecycle and its coordination compatibility rules are canonical in
+[work-sessions.md](work-sessions.md). The coordination profile links sessions
+without replacing their lifecycle; claims, fences, and work-item transitions
+remain explicit.
 
 ## Threat-model update
 
-The profile adds durable machine metadata and improves concurrency handling,
-but it does not expand Kioku's authentication boundary. Event persistence,
-claims, leases, and fencing are implemented in issues `#305` and `#306`.
-The guarded vault-mutation boundary and precondition arguments on core
-single-resource write tools are implemented in issue `#307`. Batch tools still
-apply per-file mutations without one expected revision covering the batch.
-
-| Threat | Control | Residual risk |
-|---|---|---|
-| A crashed or abandoned owner keeps a claim | Server-time lease expiry, persisted `stale` state, and a new fence generation for the next attempt. | A process that edits files directly can bypass the claim. |
-| Two local Kioku processes race for one resource | Canonical resource keys, exclusive claim acquisition, state-version checks, and fencing. | The guarantee applies only inside the supported filesystem and server boundary. |
-| Obsidian manually edits or moves a protected note | A supplied expected revision or hash rejects an unexpected version instead of silently overwriting it. | Direct edits are not transactionally merged, and callers that omit preconditions retain legacy unconditional-write behavior. |
-| A caller supplies a convincing owner or authority label | Server-derived capability scope and server-issued claim data; `agent`, `client_name`, and caller claims remain untrusted. | Same-user processes and configured server operators retain the authority of the existing local trust model. |
-| Control-plane data exposes private vault content | Event records contain identifiers, paths, labels, bounded reasons, and result references, not note bodies by default. The directory remains hidden from indexing. | The same operating-system account can read the vault and backups. Resource paths and labels can still be sensitive. |
-| A cloud replica replays old claims | The support boundary rejects concurrent replicated folders and restore establishes a new coordination epoch. | An operator can still misuse an unsupported replica and lose coordination guarantees. |
-
-The threat model retains these existing assumptions:
-
-- the operating system and account running Kioku are trusted;
-- a malicious same-user process can bypass Kioku and write the vault;
-- the MCP client can expose note content outside Kioku;
-- Kioku is not a multi-tenant authorization service.
+The profile adds local machine metadata and concurrency controls without
+expanding Kioku's authentication boundary. The complete trust assumptions,
+data-flow analysis, filesystem controls, and residual risks are maintained in
+[threat-and-privacy-model.md](threat-and-privacy-model.md). Coordination
+telemetry restrictions are maintained in
+[coordination-observability.md](coordination-observability.md). Direct edits by
+the same operating-system user remain outside the coordination guarantee.
 
 ## Executable invariants
 
-The following invariants are the minimum contract for tests in later issues.
+The following invariants are the minimum contract for tests.
 Each identifier is intended to become one or more deterministic test cases.
 
 - **I-01 Identity uniqueness:** The server never creates two durable objects
@@ -551,19 +497,15 @@ Each identifier is intended to become one or more deterministic test cases.
 
 ## Implementation status
 
-The implementation preserves the dependency order from the architecture
-design. Issues #304 through #309 provide the contracts, event store, claims,
-guarded mutations, MCP surface, and session compatibility. Issue #310 provides
-the reliability coverage. Issue #311 adds bounded observability, capability
-negotiation, interoperability analysis, and rollout controls without sending
-note content to a network sink.
+The current implementation includes the versioned contracts, event persistence,
+claims, guarded mutations, MCP surface, session compatibility, reliability
+coverage, bounded observability, and capability negotiation.
 
 The current public contract is summarized in
 [coordination-rollout.md](coordination-rollout.md). New changes must preserve
 the event-log source of truth, the filesystem support boundary, and the
 fail-closed behavior for unsupported or corrupt coordination data.
 
-No issue in this sequence may treat a successful in-process semaphore as proof
-of cross-process durability. The filesystem support boundary and the
-event-log source of truth must remain visible in tests and public
-documentation.
+A successful in-process semaphore is not proof of cross-process durability. The
+filesystem support boundary and event-log source of truth remain visible in
+tests and public documentation.

@@ -39,9 +39,6 @@ public sealed class MetricsService(KiokuConfiguration config)
         Interlocked.Increment(ref _toolCallCount);
     }
 
-    /// <summary>Returns a snapshot of all recorded counters.</summary>
-    public IReadOnlyDictionary<string, long> GetSnapshot() => new Dictionary<string, long>(_counters);
-
     /// <summary>Total number of recorded tool calls.</summary>
     public long TotalCalls => Interlocked.Read(ref _toolCallCount);
 

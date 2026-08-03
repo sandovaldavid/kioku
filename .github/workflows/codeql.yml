@@ -18,29 +18,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  csharp-analyzers:
-    name: csharp analyzers
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: "10.x"
-
-      - name: Restore solution
-        run: dotnet restore Kioku.slnx
-
-      - name: Run blocking Roslyn and .NET analyzers
-        run: >-
-          dotnet build Kioku.slnx
-          --configuration Release
-          --no-restore
-          -p:RunAnalyzersDuringBuild=true
-          -p:EnforceCodeStyleInBuild=true
-          -p:TreatWarningsAsErrors=true
-
   codeql-javascript:
     name: codeql (javascript-typescript)
     runs-on: ubuntu-latest

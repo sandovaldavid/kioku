@@ -1,4 +1,3 @@
-using Kioku.Benchmarks.Suite;
 using Kioku.Mcp.Server;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;

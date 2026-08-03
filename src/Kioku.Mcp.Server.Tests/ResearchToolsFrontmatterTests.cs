@@ -72,6 +72,6 @@ public sealed class ResearchToolsFrontmatterTests : IAsyncLifetime
     private ResearchTools CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        return new ResearchTools(_fixture.Index, config, _vaultConfig);
+        return new ResearchTools(_fixture.Index, config, _vaultConfig, new VaultPathPolicy(config));
     }
 }
