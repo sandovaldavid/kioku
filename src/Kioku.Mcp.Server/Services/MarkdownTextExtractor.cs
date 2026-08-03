@@ -26,6 +26,10 @@ public static partial class MarkdownTextExtractor
         }
 
         var body = rawContent[bodyStart..];
+        body = ObsidianFencedCodePattern().Replace(body, string.Empty);
+        body = ObsidianCommentPattern().Replace(body, string.Empty);
+        body = ObsidianCalloutMarkerPattern().Replace(body, string.Empty);
+        body = ObsidianBlockIdPattern().Replace(body, string.Empty);
         var plainText = Markdown.ToPlainText(body, Pipeline, null);
         return ObsidianWikilinkPattern().Replace(plainText, match =>
             match.Groups["alias"].Success
@@ -116,6 +120,18 @@ public static partial class MarkdownTextExtractor
         }
     }
 
-    [GeneratedRegex(@"\[\[(?<target>[^\]|]+)(?:\|(?<alias>[^\]]+))?\]\]")]
+    [GeneratedRegex(@"(?<!\w)!?\[\[(?<target>[^\]|]+)(?:\|(?<alias>[^\]]+))?\]\]")]
     private static partial Regex ObsidianWikilinkPattern();
+
+    [GeneratedRegex(@"(?ms)^[ \t]{0,3}(?<fence>`{3,}|~{3,})[^\r\n]*(?:\r\n|\r|\n).*?^[ \t]{0,3}\k<fence>[ \t]*$")]
+    private static partial Regex ObsidianFencedCodePattern();
+
+    [GeneratedRegex(@"(?s)%%.*?%%")]
+    private static partial Regex ObsidianCommentPattern();
+
+    [GeneratedRegex(@"(?im)^[ \t]{0,3}>[ \t]*\[![A-Za-z0-9_-]+\][ \t]*")]
+    private static partial Regex ObsidianCalloutMarkerPattern();
+
+    [GeneratedRegex(@"(?m)(?:^|[ \t])\^[A-Za-z0-9_-]+[ \t]*(?=\r?$)")]
+    private static partial Regex ObsidianBlockIdPattern();
 }

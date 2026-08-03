@@ -27,6 +27,7 @@ public sealed class EmbeddingService : IDisposable
     private readonly int _embeddingConcurrency;
     private readonly ConcurrentDictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _failedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _pathLocks = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _embedSemaphore;
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private readonly Stopwatch _sessionStopwatch = new();
@@ -187,23 +188,38 @@ public sealed class EmbeddingService : IDisposable
             return;
         }
 
-        Interlocked.Increment(ref _backlogCount);
+        var pathLock = _pathLocks.GetOrAdd(relativePath, static _ => new SemaphoreSlim(1, 1));
+        await pathLock.WaitAsync(cancellationToken);
         try
         {
-            await _embedSemaphore.WaitAsync(cancellationToken);
+            if (_store.TryGetValue(relativePath, out existing) &&
+                existing.Hash == note.ContentHash)
+            {
+                return;
+            }
+
+            Interlocked.Increment(ref _backlogCount);
             try
             {
-                await EmbedAndStoreAsync(note, cancellationToken);
-                Interlocked.Increment(ref _embeddedThisSession);
+                await _embedSemaphore.WaitAsync(cancellationToken);
+                try
+                {
+                    await EmbedAndStoreAsync(note, cancellationToken);
+                    Interlocked.Increment(ref _embeddedThisSession);
+                }
+                finally
+                {
+                    _embedSemaphore.Release();
+                }
             }
             finally
             {
-                _embedSemaphore.Release();
+                Interlocked.Decrement(ref _backlogCount);
             }
         }
         finally
         {
-            Interlocked.Decrement(ref _backlogCount);
+            pathLock.Release();
         }
 
         if (Interlocked.Increment(ref _pendingFlushes) % FlushEvery == 0)
@@ -517,6 +533,10 @@ public sealed class EmbeddingService : IDisposable
     {
         _embedSemaphore.Dispose();
         _saveLock.Dispose();
+        foreach (var pathLock in _pathLocks.Values)
+        {
+            pathLock.Dispose();
+        }
     }
 }
 

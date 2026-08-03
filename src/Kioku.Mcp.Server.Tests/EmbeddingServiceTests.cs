@@ -225,6 +225,41 @@ public class EmbeddingServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task IndexNoteAsyncConcurrentSameHashEmbedsOnlyOnce()
+    {
+        var embedCalls = 0;
+        var firstRequestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var service = CreateService(async (req, ct) =>
+        {
+            if (req.Method == HttpMethod.Get)
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }
+
+            Interlocked.Increment(ref embedCalls);
+            firstRequestStarted.TrySetResult();
+            await releaseFirstRequest.Task.WaitAsync(ct);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new { embedding = new[] { 0.1f, 0.2f } }),
+            };
+        });
+
+        await service.InitializeAsync([]);
+
+        var note = MakeNote("A.md", "same-hash");
+        var first = service.IndexNoteAsync(note);
+        await firstRequestStarted.Task;
+        var second = service.IndexNoteAsync(note);
+        releaseFirstRequest.TrySetResult();
+
+        await Task.WhenAll(first, second);
+
+        Assert.Equal(1, embedCalls);
+    }
+
+    [Fact]
     public async Task IndexNoteAsync_LongMultiChunkNote_CachedEmbeddingCountStaysNoteLevel()
     {
         var embedCalls = 0;
@@ -313,7 +348,7 @@ public class EmbeddingServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SynchronizeFileMoveAsync_UnchangedContent_ReusesVectorWithoutReEmbedding()
+    public async Task SynchronizeFileMoveAsyncUnchangedContentReusesVectorWithoutReEmbedding()
     {
         var embedCalls = 0;
         var service = CreateService(DeterministicEmbedding.Responder(_ => Interlocked.Increment(ref embedCalls)));
