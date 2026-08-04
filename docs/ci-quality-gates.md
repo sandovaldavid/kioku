@@ -31,7 +31,13 @@ The `validate-integrations` job builds the server and runs `node scripts/generat
 
 The same job validates JSON manifests, skill frontmatter, generated skill copies, ShellCheck, and dry-run client installation for `claude-code`, `codex`, `opencode`, and `antigravity`.
 
-The separate `docs-links` workflow runs `node scripts/validate-markdown-links.mjs` on pushes and pull requests targeting `main` or `develop`. It verifies repository-relative file links in maintained Markdown entry points. It intentionally does not make network requests or claim that external URLs, hosted documentation, anchors, redirects, or third-party services are available.
+The separate `docs-links` workflow runs three documentation contracts on pushes and pull requests targeting `main` or `develop`:
+
+- `node scripts/validate-markdown-links.mjs` verifies repository-relative file links in maintained Markdown entry points;
+- `node scripts/validate-docs-navigation.mjs` verifies that every sidebar destination exists and has effective Jekyll layout, title, and sidebar metadata;
+- `node scripts/validate-release-documentation.mjs` verifies that the package, MCP manifest, Release Please manifest, root README, NuGet README, AGENTS snapshot, versioning page, and site badge use the same server version and remain covered by release automation.
+
+These checks intentionally do not make network requests or claim that external URLs, hosted documentation, anchors, redirects, or third-party services are available.
 
 ## Coverage policy
 
@@ -61,6 +67,8 @@ dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 node scripts/generate-public-docs.mjs --check
 node scripts/validate-markdown-links.mjs
+node scripts/validate-docs-navigation.mjs
+node scripts/validate-release-documentation.mjs
 ```
 
 The installed-tool and native-binary smoke tests are defined in `.github/workflows/ci.yml` because they require clean per-OS tool paths and native RIDs.

@@ -32,8 +32,8 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 
 - Target framework: `net10.0`, configured in `Directory.Build.props`.
 - Solution: `Kioku.slnx`.
-- Server package version on `develop`: `2.3.0`; the branch can contain unreleased changes.
-- MCP C# SDK packages on `develop`: `ModelContextProtocol` and `ModelContextProtocol.AspNetCore` `1.4.1`. The 2.0 migration remains planned and blocked by tracked compatibility work.
+- Latest published server package: `3.0.0`. <!-- x-release-please-version --> The integration branch can contain unreleased changes beyond that release.
+- MCP C# SDK packages: `ModelContextProtocol` and `ModelContextProtocol.AspNetCore` `1.4.1`. The 2.0 migration remains planned and blocked by tracked compatibility work.
 - Default MCP profile: 44 tools.
 - All-capabilities profile: 77 tools.
 - Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
@@ -49,6 +49,7 @@ Do not copy the complete tool or environment-variable inventory into this file.
 - Start ordinary work from `origin/develop`.
 - Target ordinary pull requests to `develop`.
 - `main` is the release branch; promotion follows the repository release workflow.
+- After every release, synchronize `main` back into `develop` before starting the next release cycle.
 - Keep one focused concern per pull request.
 - Link an issue only when the pull request fully resolves it.
 - Do not claim hosted branch rules, secrets, environments, or external publishing configuration are active unless they were directly verified.
@@ -74,7 +75,8 @@ Do not copy the complete tool or environment-variable inventory into this file.
 ├── scripts/
 │   ├── Kioku.Ci/
 │   ├── Kioku.Eval/
-│   └── generate-public-docs.mjs
+│   ├── generate-public-docs.mjs
+│   └── validate-release-documentation.mjs
 └── src/
     ├── Kioku.Mcp.Server/
     └── Kioku.Mcp.Server.Tests/
@@ -119,10 +121,12 @@ node scripts/generate-public-docs.mjs --write
 node scripts/generate-public-docs.mjs --check
 ```
 
-Validate maintained repository-relative Markdown links separately:
+Validate maintained repository-relative Markdown links and release-facing version metadata separately:
 
 ```bash
 node scripts/validate-markdown-links.mjs
+node scripts/validate-docs-navigation.mjs
+node scripts/validate-release-documentation.mjs
 ```
 
 ## Implementation rules
@@ -149,6 +153,8 @@ dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 node scripts/generate-public-docs.mjs --check
 node scripts/validate-markdown-links.mjs
+node scripts/validate-docs-navigation.mjs
+node scripts/validate-release-documentation.mjs
 ```
 
 Change-specific checks:

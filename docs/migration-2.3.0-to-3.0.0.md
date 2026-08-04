@@ -1,8 +1,8 @@
 # Migrate from Kioku 2.3.0 to 3.0.0
 
-Kioku 3 changes the public MCP tool contract. This guide lists the breaking
-changes from the published `v2.3.0` contract and the steps required to update
-an MCP client, prompt, skill, or integration.
+Kioku 3.0.0 is published. This guide lists the breaking changes from the
+published `v2.3.0` contract and the steps required to update an MCP client,
+prompt, skill, or integration before installing Kioku 3.
 
 ## Who needs to migrate
 
@@ -117,8 +117,8 @@ Complete these steps before switching a production client to Kioku 3.
    mutation ID when retrying the same logical mutation.
 6. If you use CSS, bridge, plugin, research, generation, assets, or
    coordination tools, enable the corresponding capability group explicitly.
-7. Install `3.0.0` after publication and run your `tools/list`, stdio, or
-   Streamable HTTP smoke checks against the installed package.
+7. Install `3.0.0` or later and run your `tools/list`, stdio, or Streamable HTTP
+   smoke checks against the installed package.
 
 No bulk rewrite of existing Markdown notes is required by the Kioku 3 tool
 contract. Back up the vault before changing capability configuration or
