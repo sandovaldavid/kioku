@@ -14,6 +14,31 @@ public static class NoteHelpers
     /// </summary>
     public static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
+    public static async Task<string> ReadAllTextAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    bufferSize: 4096,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
+                using var reader = new StreamReader(stream, Utf8NoBom, detectEncodingFromByteOrderMarks: true);
+                return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (IOException) when (attempt < 7)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     /// <summary>
     /// Ensures that a candidate path remains inside the vault root after canonicalization and
     /// symbolic-link resolution. The legacy facade preserves its exact InvalidOperationException

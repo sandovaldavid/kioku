@@ -230,7 +230,7 @@ public sealed partial class NoteCommandTools(
                 return KiokuError.NotFound($"Template not found: '{template}'");
             }
 
-            var rawTemplate = await File.ReadAllTextAsync(templatePath, Encoding.UTF8);
+            var rawTemplate = await NoteHelpers.ReadAllTextAsync(templatePath);
             body = NoteHelpers.ExpandTemplateVariables(
                 rawTemplate,
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -301,7 +301,7 @@ public sealed partial class NoteCommandTools(
         {
             case "replace":
                 {
-                    var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+                    var rawContent = await NoteHelpers.ReadAllTextAsync(found.FilePath);
                     var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
                     var frontmatter = rawContent[..bodyStart];
                     var updatedContent = NoteHelpers.TouchUpdated(
@@ -320,7 +320,7 @@ public sealed partial class NoteCommandTools(
 
             case "prepend":
                 {
-                    var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+                    var rawContent = await NoteHelpers.ReadAllTextAsync(found.FilePath);
                     var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
                     var frontmatter = rawContent[..bodyStart];
                     var body = rawContent[bodyStart..];
@@ -348,7 +348,7 @@ public sealed partial class NoteCommandTools(
                     }
 
                     toAppend.AppendLine(content.Replace("\\n", "\n"));
-                    var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+                    var rawContent = await NoteHelpers.ReadAllTextAsync(found.FilePath);
                     var updatedContent = NoteHelpers.TouchUpdated(
                         rawContent + toAppend.ToString(), DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
                     try
@@ -398,7 +398,7 @@ public sealed partial class NoteCommandTools(
             return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
-        var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+        var rawContent = await NoteHelpers.ReadAllTextAsync(found.FilePath);
         var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
         var body = rawContent[bodyStart..];
 
@@ -539,7 +539,7 @@ public sealed partial class NoteCommandTools(
         string? replacementContent = null;
         if (vaultConfig.MaintainUpdated)
         {
-            var movedContent = await File.ReadAllTextAsync(oldPath, Encoding.UTF8);
+            var movedContent = await NoteHelpers.ReadAllTextAsync(oldPath);
             replacementContent = NoteHelpers.TouchUpdated(
                 movedContent, DateOnly.FromDateTime(DateTime.Today), true);
         }
@@ -1013,7 +1013,7 @@ public sealed partial class NoteCommandTools(
 
         foreach (var source in candidates.Values.OrderBy(n => n.VaultRelativePath, StringComparer.OrdinalIgnoreCase))
         {
-            var raw = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
+            var raw = await NoteHelpers.ReadAllTextAsync(source.FilePath);
             var bodyStart = FrontmatterParser.GetBodyStart(raw);
             var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
 

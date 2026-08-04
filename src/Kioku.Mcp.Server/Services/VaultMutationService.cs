@@ -339,7 +339,17 @@ internal sealed class VaultMutationService(
         {
             RecordMutationFailure("WRITE_CONFLICT");
             throw new VaultMutationException(
-                "INTERNAL", "The vault mutation could not be committed.");
+                VaultMutationErrorCodes.WriteConflict,
+                "The vault mutation could not be committed.",
+                new VaultMutationConflict(
+                    VaultMutationErrorCodes.WriteConflict,
+                    resourceKey,
+                    normalized.ExpectedRevision,
+                    null,
+                    normalized.ExpectedHash,
+                    null,
+                    null,
+                    "Retry after checking the target resource."));
         }
     }
 
