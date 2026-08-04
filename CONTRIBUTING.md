@@ -2,6 +2,8 @@
 
 Kioku is a .NET 10 MCP server. Ordinary changes branch from `origin/develop`, pull requests target `develop`, and release promotion to `main` follows the repository release workflow. The companion Obsidian plugin lives in its own repository, [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian), with its own contribution and release workflow.
 
+The server reads and writes the vault filesystem directly. Core server development and tests must not require Obsidian to be open. A running Obsidian application and plugin are required only when validating the optional `bridge` or `plugin` capability groups.
+
 ## Development setup
 
 ```bash
@@ -35,6 +37,7 @@ Keep the header under 100 characters and do not add a trailing period.
 - Keep stdout reserved for MCP protocol traffic under `stdio`; diagnostics belong on stderr.
 - Do not add decorative separator comments or emojis to logs and protocol messages.
 - Preserve unknown YAML frontmatter fields and the vault filesystem boundary.
+- Preserve headless operation for core tools, indexing, sessions, and coordination. Obsidian-dependent behavior must remain behind the optional bridge or plugin boundary.
 
 ## Documentation policy
 
@@ -59,7 +62,7 @@ When editing documentation:
 - link to generated references instead of copying tool and environment-variable inventories;
 - mark compatibility-only behavior as `Deprecated`;
 - remove or relocate historical execution documents rather than leaving them beside active guidance;
-- check relative links and generated public metadata.
+- check repository-relative links and generated public metadata.
 
 ## MCP contracts and public metadata
 
@@ -78,7 +81,7 @@ Do not hand-edit these generated files:
 - `docs/versioning.md`
 - `src/Kioku.Mcp.Server/.mcp/server.json`
 
-Update `docs/public-metadata.json` when adding or changing a public environment variable, capability profile, transport, manifest identity, or versioning rule. The check command compares that metadata with live MCP discovery, `KiokuOptions`, package manifests, and version files.
+Update `docs/public-metadata.json` when adding or changing a public environment variable, capability profile, transport, manifest identity, or versioning rule. The check command compares that metadata with live MCP discovery, `KiokuOptions`, package manifests, and version files. It also rejects legacy transport terminology and broken repository-relative links in maintained Markdown entry points.
 
 ## Verification before a pull request
 
@@ -94,7 +97,15 @@ node scripts/generate-public-docs.mjs --check
 Run change-specific checks when applicable:
 
 ```bash
+# Client installer changes
+for client in claude-code codex opencode antigravity; do
+  ./scripts/add-to-client.sh "$client" --vault /absolute/path/to/test-vault --dry-run --yes
+done
+
+# Dev Container changes
 bash .devcontainer/scripts/validate-devcontainer.sh
+
+# Compose changes
 docker compose config
 ```
 
