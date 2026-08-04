@@ -1,0 +1,98 @@
+:root {
+  color-scheme: dark;
+
+  /* Color primitives */
+  --kioku-neutral-0: #f7f8ff;
+  --kioku-neutral-100: #c9d2ea;
+  --kioku-neutral-300: #8e9ab8;
+  --kioku-neutral-500: #65708d;
+  --kioku-neutral-600: #3b4d72;
+  --kioku-neutral-700: #293754;
+  --kioku-neutral-800: #1c2947;
+  --kioku-neutral-850: #162039;
+  --kioku-neutral-900: #101729;
+  --kioku-neutral-925: #0c1220;
+  --kioku-neutral-950: #090d18;
+  --kioku-neutral-975: #080c15;
+  --kioku-violet-400: #a093ff;
+  --kioku-violet-500: #8b7cff;
+  --kioku-violet-600: #6d5ae8;
+  --kioku-violet-700: #5141b8;
+  --kioku-violet-900: #2a245a;
+  --kioku-cyan-400: #57d4ff;
+  --kioku-blue-400: #65a7ff;
+  --kioku-green-400: #5ed6a0;
+  --kioku-amber-400: #f6c76a;
+  --kioku-red-400: #ff7a90;
+
+  /* Semantic colors */
+  --surface-canvas: var(--kioku-neutral-950);
+  --surface-base: var(--kioku-neutral-900);
+  --surface-raised: var(--kioku-neutral-850);
+  --surface-elevated: var(--kioku-neutral-800);
+  --surface-code: var(--kioku-neutral-975);
+  --surface-navigation: var(--kioku-neutral-925);
+  --text-heading: var(--kioku-neutral-0);
+  --text-body: var(--kioku-neutral-100);
+  --text-muted: var(--kioku-neutral-300);
+  --text-subtle: var(--kioku-neutral-300);
+  --text-disabled: var(--kioku-neutral-500);
+  --text-link: var(--kioku-blue-400);
+  --text-on-accent: var(--kioku-neutral-950);
+  --border-default: var(--kioku-neutral-700);
+  --border-strong: var(--kioku-neutral-600);
+  --border-focus: var(--kioku-cyan-400);
+  --action-primary: var(--kioku-violet-500);
+  --action-primary-hover: var(--kioku-violet-400);
+  --action-primary-subtle: var(--kioku-violet-900);
+  --status-info: var(--kioku-cyan-400);
+  --status-success: var(--kioku-green-400);
+  --status-warning: var(--kioku-amber-400);
+  --status-danger: var(--kioku-red-400);
+
+  /* Type */
+  --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  --type-display-xl: clamp(3rem, 6vw, 4rem);
+  --type-display-lg: clamp(2.75rem, 5vw, 3rem);
+  --type-h1: clamp(2.25rem, 4vw, 2.5rem);
+  --type-h2: clamp(1.75rem, 3vw, 2rem);
+  --type-h3: 1.5rem;
+  --type-h4: 1.25rem;
+  --type-body-lg: 1.125rem;
+  --type-body-md: 1rem;
+  --type-body-sm: 0.875rem;
+  --type-label-sm: 0.75rem;
+
+  /* Spacing */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+
+  /* Shape and layout */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 999px;
+  --header-height: 4rem;
+  --sidebar-width: 16rem;
+  --toc-width: 14rem;
+  --content-width: 51.25rem;
+  --wide-content-width: 70rem;
+  --page-width: 90rem;
+  --shadow-1: 0 0.25rem 1rem color-mix(in srgb, var(--surface-canvas) 70%, transparent);
+  --shadow-2: 0 0.75rem 2rem color-mix(in srgb, var(--surface-canvas) 78%, transparent);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--border-focus) 42%, transparent);
+  --transition-fast: 160ms ease;
+}
