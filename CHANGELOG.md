@@ -6,6 +6,14 @@
 
 * **server:** add privacy-preserving coordination observability, capability negotiation, interoperability mappings, and gated rollout controls ([#311](https://github.com/sandovaldavid/kioku/issues/311))
 
+## [3.0.1](https://github.com/sandovaldavid/kioku/compare/v3.0.0...v3.0.1) (2026-08-04)
+
+
+### Bug Fixes
+
+* **release:** refresh generated v3 version docs ([6a74446](https://github.com/sandovaldavid/kioku/commit/6a74446acbafac9e2eaf8b9373caf9489ac07f99))
+* **release:** repair v3 release gates ([c102810](https://github.com/sandovaldavid/kioku/commit/c1028109be93cbd2d78f0aec907892deb461c1e2))
+
 ## [3.0.0](https://github.com/sandovaldavid/kioku/compare/v2.3.0...v3.0.0) (2026-08-04)
 
 
