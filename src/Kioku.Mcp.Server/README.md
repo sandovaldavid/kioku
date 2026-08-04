@@ -1,50 +1,94 @@
 # Kioku MCP Server
 
-> Server package version: **2.3.0** · NuGet package: `kioku-mcp-server`
+> Current package version: **3.0.0** <!-- x-release-please-version --> · [Documentation](https://sandovaldavid.github.io/kioku/) · [Release notes](https://github.com/sandovaldavid/kioku/releases) · [Source](https://github.com/sandovaldavid/kioku)
 
-The server is a .NET 10 MCP host for safe, structured access to an Obsidian vault. It supports local `stdio` and authenticated **Streamable HTTP** transports, a bounded indexing pipeline, typed tool results, prompts, resources, and an optional Obsidian WebSocket bridge.
+Kioku is a local-first Model Context Protocol server that gives AI agents persistent, structured memory in an Obsidian vault. It lets MCP clients read, search, write, and organize ordinary Markdown and YAML-frontmatter files while keeping the vault under the user's control.
 
-Kioku accesses the configured vault directory directly. The Obsidian application does not need to be open for core note, search, project, session, indexing, or coordination operations. A running Obsidian application and companion plugin are required only for optional UI and supported-plugin bridge operations.
+The server works headlessly: Obsidian does not need to be open for core note, search, project, indexing, work-session, or coordination operations. The separately released [Kioku Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian) is optional and is required only for UI-aware commands and supported-plugin bridge operations.
 
-## Public surface
+## Install or update
 
-Do not maintain tool or environment-variable inventories in this package README. The authoritative generated references are:
-
-- [MCP contract reference](../../docs/commands-reference.md)
-- [Server configuration reference](../../docs/configuration-reference.md)
-- [Vault configuration](../../docs/vault-config.md)
-- [Versioning policy](../../docs/versioning.md)
-
-## Architecture
-
-```text
-Transport and MCP adapters
-        │
-        ▼
-Application workflows and typed contracts
-        │
-        ▼
-Vault, indexing, retrieval, bridge, and persistence infrastructure
-```
-
-Capability groups are configured in `{vault}/.kioku/config.yml`. Core tools are always available; optional groups can be enabled or disabled without changing the server package. The `bridge` and `plugin` groups are the only groups that require the separate Obsidian runtime integration.
-
-## Development
+Install Kioku as a global .NET tool:
 
 ```bash
-dotnet restore Kioku.slnx
-dotnet build Kioku.slnx --configuration Release --no-restore
-dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
-dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
-dotnet format Kioku.slnx style --verify-no-changes --no-restore
-node scripts/generate-public-docs.mjs --check
+dotnet tool install --global kioku-mcp-server
 ```
 
-Run locally:
+Update an existing installation:
 
 ```bash
-KIOKU_VAULT_PATH=/absolute/path/to/vault dotnet run --project src/Kioku.Mcp.Server
-KIOKU_VAULT_PATH=/absolute/path/to/vault dotnet run --project src/Kioku.Mcp.Server -- --http
+dotnet tool update --global kioku-mcp-server
 ```
 
-Logs are written to stderr because stdout is reserved for the MCP protocol.
+Verify the installed command:
+
+```bash
+kioku --help
+```
+
+Kioku requires the path to an Obsidian vault. For a direct local launch:
+
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+kioku
+```
+
+`stdio` is the default transport and is intended for desktop and CLI MCP clients. Kioku also supports authenticated Streamable HTTP for long-running or shared deployments.
+
+## Register an MCP client
+
+A minimal client configuration starts `kioku` and supplies the vault path:
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "kioku",
+      "env": {
+        "KIOKU_VAULT_PATH": "/absolute/path/to/your/vault"
+      }
+    }
+  }
+}
+```
+
+The repository also provides supported installers for Claude Code, Codex, OpenCode, and Antigravity. See the [installation guide](https://sandovaldavid.github.io/kioku/install.html) for client-specific configuration, Docker, source builds, and troubleshooting.
+
+## What Kioku provides
+
+- durable project context, decisions, plans, bugs, knowledge, and session handoffs;
+- bounded vault reads and guarded writes with structured error results;
+- full-text retrieval plus optional local Ollama embeddings and generation;
+- focused engineering and organization tools backed by readable Markdown;
+- capability-gated optional groups, including CSS, assets, bridge, plugin, and coordination;
+- local `stdio` and authenticated Streamable HTTP transports;
+- an optional Obsidian bridge without coupling server and plugin SemVer.
+
+The default discovery profile contains the safe core surface. Optional capability groups must be enabled explicitly when an integration needs them. Treat `tools/list` as authoritative rather than assuming every possible tool is registered.
+
+## Kioku 3 migration
+
+Kioku 3 changed public tool names, discovery profiles, structured results, and guarded mutation behavior. Integrations upgrading from `2.3.0` should follow the [2.3.0 to 3.0.0 migration guide](https://sandovaldavid.github.io/kioku/migration-2.3.0-to-3.0.0.html) before switching production clients.
+
+The authoritative generated references are:
+
+- [MCP contract reference](https://sandovaldavid.github.io/kioku/commands-reference.html)
+- [Server configuration reference](https://sandovaldavid.github.io/kioku/configuration-reference.html)
+- [Vault configuration](https://sandovaldavid.github.io/kioku/vault-config.html)
+- [Versioning and bridge compatibility](https://sandovaldavid.github.io/kioku/versioning.html)
+
+## Security defaults
+
+- writes are constrained to the configured vault;
+- external reads and permanent deletion are disabled by default;
+- Streamable HTTP binds to loopback by default;
+- non-loopback HTTP requires an API key unless an explicit unsafe override is enabled;
+- browser origins and trusted proxies use exact allowlists;
+- bridge authentication uses a separate shared token;
+- optional local AI calls use the configured Ollama service.
+
+Review the [threat and privacy model](https://sandovaldavid.github.io/kioku/threat-and-privacy-model.html) and [Streamable HTTP security guide](https://sandovaldavid.github.io/kioku/deploy/auth-options.html) before exposing Kioku outside a trusted local environment.
+
+## License
+
+Kioku is released under the [MIT License](https://github.com/sandovaldavid/kioku/blob/main/LICENSE).
