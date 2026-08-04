@@ -8,6 +8,25 @@ github_repo: sandovaldavid/kioku
 github_edit_branch: develop
 plugin_repo: sandovaldavid/kioku-obsidian
 version_label: "v3.0.0"
+social_image: "/assets/images/og-image.png"
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      head_extra: |
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="Kioku">
+        <meta property="og:title" content="Kioku — Persistent memory for AI agents">
+        <meta property="og:description" content="Fast, private, reliable, and structured access to knowledge in your own Obsidian vault.">
+        <meta property="og:image" content="https://sandovaldavid.github.io/kioku/assets/images/og-image.png">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:image:alt" content="Kioku — Persistent memory for AI agents">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="Kioku — Persistent memory for AI agents">
+        <meta name="twitter:description" content="Fast, private, reliable, and structured access to knowledge in your own Obsidian vault.">
+        <meta name="twitter:image" content="https://sandovaldavid.github.io/kioku/assets/images/og-image.png">
 
 markdown: kramdown
 theme: null
