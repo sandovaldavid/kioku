@@ -130,7 +130,12 @@ function shouldIgnore(target) {
 }
 
 function stripNonLinkContent(markdown) {
-  const withoutComments = markdown.replace(/<!--[\s\S]*?-->/gu, "");
+  let withoutComments = markdown;
+  let previous;
+  do {
+    previous = withoutComments;
+    withoutComments = withoutComments.replace(/<!--[\s\S]*?-->/gu, "");
+  } while (withoutComments !== previous);
   const lines = withoutComments.split("\n");
   let fenceCharacter = null;
   let fenceLength = 0;
