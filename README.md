@@ -99,6 +99,7 @@ Start with the [documentation index](docs/README.md). The main maintained refere
 - [Server configuration reference](docs/configuration-reference.md) — every public `KIOKU_*` variable and canonical `Kioku:*` path.
 - [Vault configuration](docs/vault-config.md) — folders, defaults, exclusions, capabilities, frontmatter, and generated indexes.
 - [Focused-tool migration](docs/focused-tool-migration.md) — current replacements for deprecated generic creation wrappers.
+- [2.3.0 to 3.0.0 migration](docs/migration-2.3.0-to-3.0.0.md) — breaking tool, discovery-profile, result, and mutation changes.
 - [Versioning policy](docs/versioning.md) — server, plugin, workspace, and bridge compatibility semantics.
 - [Threat and privacy model](docs/threat-and-privacy-model.md) — implemented mitigations, known gaps, and external data flows.
 

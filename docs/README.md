@@ -36,6 +36,7 @@ Kioku's core MCP server works directly against the configured vault directory. O
 | [Durable coordination profile](durable-coordination.md) | Implemented with gated rollout | Coordination domain, state machine, storage boundary, event persistence, claims, leases, fencing, guarded vault mutations, and the gated MCP surface. |
 | [Troubleshooting](troubleshooting.md) | Implemented | Diagnose server, HTTP, indexing, Ollama, bridge, and Docker problems. |
 | [Focused-tool migration](focused-tool-migration.md) | Implemented / Deprecated | Preferred focused tools and the generic wrappers retained only for compatibility. |
+| [2.3.0 to 3.0.0 migration](migration-2.3.0-to-3.0.0.md) | In progress | Breaking tool, discovery-profile, result, and mutation changes for the Kioku 3 release. |
 
 ## Runtime contracts
 
