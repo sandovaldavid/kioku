@@ -31,3 +31,6 @@ jobs:
 
       - name: Validate documentation sidebar contract
         run: node scripts/validate-docs-navigation.mjs
+
+      - name: Validate release-facing documentation
+        run: node scripts/validate-release-documentation.mjs
