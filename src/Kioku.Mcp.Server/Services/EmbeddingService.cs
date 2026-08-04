@@ -68,6 +68,8 @@ public sealed class EmbeddingService : IDisposable
 
     public int MaximumConcurrency => _embeddingConcurrency;
 
+    internal Func<Task>? IndexNoteBeforePathLockAsync { get; set; }
+
     public async Task<bool> WaitForInitialBacklogAsync(
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
@@ -194,14 +196,14 @@ public sealed class EmbeddingService : IDisposable
             return;
         }
 
+        if (IndexNoteBeforePathLockAsync is { } beforePathLock)
+        {
+            await beforePathLock().ConfigureAwait(false);
+        }
+
         using var pathLock = await AcquirePathLockAsync(relativePath, cancellationToken);
         if (_store.TryGetValue(relativePath, out existing) &&
             existing.Hash == note.ContentHash)
-        {
-            return;
-        }
-
-        if (TryReuseMissingEntry(relativePath, note.ContentHash))
         {
             return;
         }

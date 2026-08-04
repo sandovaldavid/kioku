@@ -260,6 +260,35 @@ public class EmbeddingServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task IndexNoteAsync_MissingEntryAppearsBeforePathLock_DoesNotReenterDestinationLock()
+    {
+        var embedCalls = 0;
+        using var service = CreateService(
+            DeterministicEmbedding.Responder(_ => Interlocked.Increment(ref embedCalls)));
+        await service.InitializeAsync([]);
+
+        var addMissingEntry = 1;
+        service.IndexNoteBeforePathLockAsync = () =>
+            Interlocked.Exchange(ref addMissingEntry, 0) == 1
+                ? service.IndexNoteAsync(MakeNote("Old.md", "same-hash"))
+                : Task.CompletedTask;
+
+        try
+        {
+            await service.IndexNoteAsync(MakeNote("New.md", "same-hash"))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            service.IndexNoteBeforePathLockAsync = null;
+        }
+
+        Assert.Equal(2, embedCalls);
+        Assert.NotNull(service.GetVector("Old.md"));
+        Assert.NotNull(service.GetVector("New.md"));
+    }
+
+    [Fact]
     public async Task IndexNoteAsync_LongMultiChunkNote_CachedEmbeddingCountStaysNoteLevel()
     {
         var embedCalls = 0;

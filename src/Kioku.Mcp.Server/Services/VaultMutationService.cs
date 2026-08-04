@@ -106,19 +106,26 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (IsSharingViolation(exception))
         {
             RecordMutationFailure("WRITE_CONFLICT");
-            throw new VaultMutationException(VaultMutationErrorCodes.WriteConflict, "The vault mutation could not be committed.",
-                new VaultMutationConflict(
-                    VaultMutationErrorCodes.WriteConflict,
-                    resourceKey,
-                    normalized.ExpectedRevision,
-                    null,
-                    normalized.ExpectedHash,
-                    null,
-                    null,
-                    "Retry after checking the target resource."));
+            throw Conflict(
+                VaultMutationErrorCodes.WriteConflict,
+                resourceKey,
+                normalized,
+                currentContent: null,
+                currentClaim: null,
+                "Retry after checking the target resource.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            RecordMutationFailure("ACCESS_DENIED");
+            throw AccessDenied();
+        }
+        catch (IOException)
+        {
+            RecordMutationFailure("INTERNAL");
+            throw new VaultMutationException("INTERNAL", "The vault deletion could not be committed.");
         }
     }
 
@@ -234,11 +241,26 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (IsSharingViolation(exception))
         {
             RecordMutationFailure("WRITE_CONFLICT");
-            throw new VaultMutationException(
-                VaultMutationErrorCodes.WriteConflict, "The vault move could not be committed.");
+            throw Conflict(
+                VaultMutationErrorCodes.WriteConflict,
+                sourceResource,
+                normalized,
+                currentContent: null,
+                currentClaim: null,
+                "Retry after checking the source and destination resources.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            RecordMutationFailure("ACCESS_DENIED");
+            throw AccessDenied();
+        }
+        catch (IOException)
+        {
+            RecordMutationFailure("INTERNAL");
+            throw new VaultMutationException("INTERNAL", "The vault move could not be committed.");
         }
     }
 
@@ -335,21 +357,26 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (IsSharingViolation(exception))
         {
             RecordMutationFailure("WRITE_CONFLICT");
-            throw new VaultMutationException(
+            throw Conflict(
                 VaultMutationErrorCodes.WriteConflict,
-                "The vault mutation could not be committed.",
-                new VaultMutationConflict(
-                    VaultMutationErrorCodes.WriteConflict,
-                    resourceKey,
-                    normalized.ExpectedRevision,
-                    null,
-                    normalized.ExpectedHash,
-                    null,
-                    null,
-                    "Retry after checking the target resource."));
+                resourceKey,
+                normalized,
+                currentContent: null,
+                currentClaim: null,
+                "Retry after checking the target resource.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            RecordMutationFailure("ACCESS_DENIED");
+            throw AccessDenied();
+        }
+        catch (IOException)
+        {
+            RecordMutationFailure("INTERNAL");
+            throw new VaultMutationException("INTERNAL", "The vault mutation could not be committed.");
         }
     }
 
@@ -706,7 +733,18 @@ internal sealed class VaultMutationService(
                 recoveryAction));
 
     private static VaultMutationException AccessDenied() =>
-        new("ACCESS_DENIED", "The requested filesystem operation is outside Kioku's configured security boundary.");
+        new("ACCESS_DENIED", "The filesystem denied access to the requested resource.");
+
+    internal static bool IsSharingViolation(Exception exception)
+    {
+        if (exception is not (IOException or UnauthorizedAccessException))
+        {
+            return false;
+        }
+
+        var errorCode = exception.HResult & 0xFFFF;
+        return errorCode is 32 or 33;
+    }
 
     private void RecordMutationFailure(string code)
     {

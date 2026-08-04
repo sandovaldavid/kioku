@@ -72,6 +72,17 @@ public sealed class VaultMutationServiceTests : IDisposable
         Assert.Equal("Obsidian edit", await File.ReadAllTextAsync(path));
     }
 
+    [Theory]
+    [InlineData(-2147024864, true)]
+    [InlineData(-2147024863, true)]
+    [InlineData(-2147024891, false)]
+    public void SharingViolationClassifier_DistinguishesWindowsFilesystemErrors(
+        int hResult,
+        bool expected)
+    {
+        Assert.Equal(expected, VaultMutationService.IsSharingViolation(new TestIOException(hResult)));
+    }
+
     [Fact]
     public async Task FencingPreconditionWithoutCurrentClaimFailsBeforeWriting()
     {
@@ -168,6 +179,14 @@ public sealed class VaultMutationServiceTests : IDisposable
 
         public void Delete(string filePath)
         {
+        }
+    }
+
+    private sealed class TestIOException : IOException
+    {
+        public TestIOException(int hResult)
+        {
+            HResult = hResult;
         }
     }
 }

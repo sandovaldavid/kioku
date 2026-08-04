@@ -481,7 +481,7 @@ public sealed class VaultIndexService : IDisposable
                 return;
             }
 
-            var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
+            var content = await NoteHelpers.ReadAllTextAsync(filePath, cancellationToken);
             var note = BuildNote(filePath, content);
 
             // Purge stale postings first, so an edited note doesn't keep matching words it
