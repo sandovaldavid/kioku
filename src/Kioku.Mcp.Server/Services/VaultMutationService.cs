@@ -106,7 +106,7 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             RecordMutationFailure("WRITE_CONFLICT");
             throw new VaultMutationException(VaultMutationErrorCodes.WriteConflict, "The vault mutation could not be committed.",
@@ -234,7 +234,7 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             RecordMutationFailure("WRITE_CONFLICT");
             throw new VaultMutationException(
@@ -335,7 +335,7 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             RecordMutationFailure("WRITE_CONFLICT");
             throw new VaultMutationException(
