@@ -701,7 +701,7 @@ internal sealed class VaultMutationService(
     private void RecordMutationFailure(string code)
     {
         metrics?.RecordCoordinationMutation(code);
-        logger?.LogWarning("Vault mutation rejected. Code={Code}.", code);
+        logger?.Warn("Vault mutation rejected. Code={Code}.", code);
     }
 
     private Task InjectAsync(

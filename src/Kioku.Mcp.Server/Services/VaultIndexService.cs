@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Kioku.Mcp.Server.Domain;
-using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
@@ -300,13 +299,11 @@ public sealed class VaultIndexService : IDisposable
             .Select(kv =>
             {
                 var note = _notesByPath[kv.Key];
-                return new SearchResult
-                {
-                    Note = note,
-                    Score = maxScore > 0f ? kv.Value.score / maxScore : 0f,
-                    MatchType = kv.Value.matchType,
-                    Snippet = BuildSnippet(note.PlainText, queryWords),
-                };
+                return new SearchResult(
+                    note,
+                    maxScore > 0f ? kv.Value.score / maxScore : 0f,
+                    kv.Value.matchType,
+                    BuildSnippet(note.PlainText, queryWords));
             })
             .ToList();
     }
@@ -377,6 +374,39 @@ public sealed class VaultIndexService : IDisposable
             .ToList();
 
         return MaterializeBacklinks(matchingKeys);
+    }
+
+    internal List<Note> FindConnectedComponent(Note startNote, HashSet<string> visited)
+    {
+        var component = new List<Note>();
+        var queue = new Queue<Note>();
+        queue.Enqueue(startNote);
+        visited.Add(startNote.FilePath);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            component.Add(current);
+
+            foreach (var link in current.OutgoingLinks)
+            {
+                var linkedNote = ResolveLink(current, link);
+                if (linkedNote is not null && visited.Add(linkedNote.FilePath))
+                {
+                    queue.Enqueue(linkedNote);
+                }
+            }
+
+            foreach (var backlink in GetBacklinks(current))
+            {
+                if (visited.Add(backlink.FilePath))
+                {
+                    queue.Enqueue(backlink);
+                }
+            }
+        }
+
+        return component;
     }
 
     private IReadOnlyList<Note> MaterializeBacklinks(IEnumerable<string> matchingKeys)

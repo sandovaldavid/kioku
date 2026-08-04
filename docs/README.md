@@ -46,7 +46,6 @@ Active repository documentation should normally describe **Implemented** behavio
 | [Work sessions](work-sessions.md) | Implemented | Session identity, ownership, lifecycle, and handoff behavior. |
 | [Coordination contracts](coordination-contracts.md) | Implemented with gated rollout | Versioned coordination contracts, append-only event persistence, replay, leases, fencing, conflicts, and the gated MCP surface. |
 | [Coordination observability](coordination-observability.md) | Implemented with opt-in exporters | Privacy-preserving logs, bounded metrics, optional W3C activities, and Sentry filtering. |
-| [Coordination interoperability](coordination-interoperability.md) | Implemented analysis | Lossy MCP Tasks and future A2A mappings, plus optional CloudEvents guidance. |
 | [Coordination rollout](coordination-rollout.md) | Implemented with gated rollout | Capability negotiation, compatibility rules, release gates, and local-filesystem support boundaries. |
 | [Indexing pipeline](indexing-pipeline.md) | Implemented | Bounded indexing, synchronization, recovery, and metrics. |
 
@@ -66,9 +65,7 @@ Active repository documentation should normally describe **Implemented** behavio
 |---|---|---|
 | [CI quality gates](ci-quality-gates.md) | Implemented | Versioned workflows, local equivalents, and evidence expectations. |
 | [Dev Container](dev-container.md) | Implemented | Reproducible development environment and validation. |
-| [Performance benchmarks](benchmarks.md) | Implemented evidence | Reproducible benchmark methodology and captured results with caveats. |
 | [Retrieval evaluation](retrieval-eval.md) | Implemented evidence | Retrieval harness, metrics, fixtures, and interpretation. |
-| [Multi-agent handoff demo](multi-agent-handoff-demo.md) | Implemented evidence | Reproducible end-to-end handoff procedure and transcript. |
 
 ## Generated files
 

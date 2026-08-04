@@ -442,7 +442,7 @@ public sealed class GraphAnalysisTools(
                 continue;
             }
 
-            var component = BfsComponent(note, visited);
+            var component = vault.FindConnectedComponent(note, visited);
             if (component.Count <= threshold)
             {
                 islands.Add(component);
@@ -450,41 +450,6 @@ public sealed class GraphAnalysisTools(
         }
 
         return islands;
-    }
-
-    // BFS to find connected component of a note
-    private List<Note> BfsComponent(Note startNote, HashSet<string> visited)
-    {
-        var component = new List<Note>();
-        var queue = new Queue<Note>();
-        queue.Enqueue(startNote);
-        visited.Add(startNote.FilePath);
-
-        while (queue.Count > 0)
-        {
-            var current = queue.Dequeue();
-            component.Add(current);
-
-            foreach (var link in current.OutgoingLinks)
-            {
-                var linkedNote = vault.ResolveLink(current, link);
-                if (linkedNote is not null && visited.Add(linkedNote.FilePath))
-                {
-                    queue.Enqueue(linkedNote);
-                }
-            }
-
-            var backlinks = vault.GetBacklinks(current);
-            foreach (var backlink in backlinks)
-            {
-                if (visited.Add(backlink.FilePath))
-                {
-                    queue.Enqueue(backlink);
-                }
-            }
-        }
-
-        return component;
     }
 
     private bool IsLinked(Note source, Note target) =>

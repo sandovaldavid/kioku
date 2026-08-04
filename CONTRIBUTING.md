@@ -8,8 +8,6 @@ Kioku is a .NET 10 MCP server. Ordinary changes branch from `origin/develop`, pu
 dotnet restore Kioku.slnx
 dotnet build Kioku.slnx --configuration Release --no-restore
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
-corepack enable
-pnpm install --frozen-lockfile
 ```
 
 See the [documentation index](docs/README.md), [installation guide](docs/install.md), and [Dev Container guide](docs/dev-container.md) for supported setup paths.
@@ -26,7 +24,7 @@ Use Conventional Commits with a required scope:
 type(scope): imperative description
 ```
 
-The enforced scopes are `server`, `plugin`, `docs`, `ci`, `config`, `deps`, `release`, and `integrations`. The `plugin` scope remains accepted by commitlint for compatibility and cross-repository contract changes; plugin implementation belongs in `sandovaldavid/kioku-obsidian`.
+Use one of the scopes `server`, `plugin`, `docs`, `ci`, `config`, `deps`, `release`, or `integrations`. The `plugin` scope is reserved for compatibility and cross-repository contract changes; plugin implementation belongs in `sandovaldavid/kioku-obsidian`.
 
 Keep the header under 100 characters and do not add a trailing period.
 
@@ -90,9 +88,7 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
-corepack enable
-pnpm install --frozen-lockfile
-pnpm docs:check
+node scripts/generate-public-docs.mjs --check
 ```
 
 Run change-specific checks when applicable:

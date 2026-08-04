@@ -15,34 +15,69 @@ public sealed partial class ResearchTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
+    VaultPathPolicy paths,
     IVaultMutationService? mutations = null)
 {
     [McpServerTool, Description(
-        "Imports a BibTeX (.bib) file or raw BibTeX content as literature notes, one per entry. " +
-        "Parses tolerantly: malformed entries are reported individually rather than aborting the " +
-        "whole import. Deduplicates by 'citekey' — re-importing the same file never creates " +
-        "duplicates. All BibTeX fields are stored in frontmatter, so export_citations(format='bibtex') can reconstruct " +
-        "the original entries losslessly. Use dry_run=true to preview before writing.")]
+        "Imports a vault-local BibTeX (.bib) file, an explicitly allowlisted external .bib file, " +
+        "or raw BibTeX content as literature notes. External file reads are denied by default. " +
+        "Use dry_run=true to preview before writing.")]
     public async Task<string> import_bibtex(
-        [Description("Path to a .bib file (absolute, vault-relative, or CWD-relative), or raw BibTeX content.")] string source,
+        [Description("Vault-relative .bib path, allowlisted absolute .bib path, or raw BibTeX content. Relative paths never use the server CWD.")] string source,
         [Description("Folder to create literature notes in. Default: the configured 'literature' folder, or 'Literature'.")] string folder = "",
-        [Description("If a note with the same citekey already exists, refresh its frontmatter fields (body is left untouched). Default: skip existing entries.")] bool update_existing = false,
-        [Description("Preview what would be created/updated/skipped without writing any files.")] bool dry_run = false)
+        [Description("If a note with the same citekey already exists, refresh its frontmatter fields while preserving its body.")] bool update_existing = false,
+        [Description("Preview what would be created, updated, or skipped without writing files.")] bool dry_run = false)
     {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return KiokuError.InvalidArgument("The BibTeX source cannot be empty.");
+        }
+
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
         }
 
         string content;
-        var sourcePath = ResolveSourcePath(source);
-        if (sourcePath is not null)
+        if (LooksLikeInlineBibtex(source) || !LooksLikeFileSource(source))
         {
-            content = await File.ReadAllTextAsync(sourcePath, Encoding.UTF8);
+            content = source;
         }
         else
         {
-            content = source;
+            string sourcePath;
+            try
+            {
+                sourcePath = paths.ResolveExternalReadPath(source);
+            }
+            catch (VaultAccessDeniedException)
+            {
+                return KiokuError.AccessDenied(
+                    "BibTeX file access is limited to the vault and explicitly allowlisted external roots.");
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                return KiokuError.AccessDenied("The BibTeX source could not be resolved within the configured security boundary.");
+            }
+
+            if (!Path.GetExtension(sourcePath).Equals(".bib", StringComparison.OrdinalIgnoreCase))
+            {
+                return KiokuError.InvalidArgument("File-based BibTeX imports require a .bib file.");
+            }
+
+            if (!File.Exists(sourcePath))
+            {
+                return KiokuError.NotFound("The requested BibTeX source file was not found.");
+            }
+
+            try
+            {
+                content = await File.ReadAllTextAsync(sourcePath, Encoding.UTF8);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                return KiokuError.AccessDenied("The requested BibTeX source file could not be read.");
+            }
         }
 
         var parsed = BibtexParser.Parse(content);
@@ -94,31 +129,14 @@ public sealed partial class ResearchTools(
         return FormatImportReport(dry_run, created, updatedEntries, skipped, parsed.Errors);
     }
 
-    private string? ResolveSourcePath(string source)
-    {
-        if (string.IsNullOrWhiteSpace(source))
-        {
-            return null;
-        }
+    private static bool LooksLikeInlineBibtex(string source) =>
+        source.TrimStart().StartsWith('@');
 
-        if (Path.IsPathRooted(source) && File.Exists(source))
-        {
-            return source;
-        }
-
-        var vaultRelative = Path.Combine(config.VaultPath, source);
-        if (File.Exists(vaultRelative))
-        {
-            return vaultRelative;
-        }
-
-        if (File.Exists(source))
-        {
-            return Path.GetFullPath(source);
-        }
-
-        return null;
-    }
+    private static bool LooksLikeFileSource(string source) =>
+        Path.IsPathRooted(source) ||
+        source.EndsWith(".bib", StringComparison.OrdinalIgnoreCase) ||
+        source.Contains('/') ||
+        source.Contains('\\');
 
     private Dictionary<string, Note> BuildCitekeyIndex()
     {
@@ -349,10 +367,9 @@ public sealed partial class ResearchTools(
 
     [McpServerTool, Description(
         "Exports citation keys found in note frontmatter as a full-fidelity BibTeX document or Markdown table. " +
-        "The BibTeX format preserves fields imported by import_bibtex for round-trip export. " +
         "Accepted formats are exactly 'bibtex' and 'markdown'.")]
     public string export_citations(
-        [Description("Export format: 'bibtex' for a round-trip BibTeX document or 'markdown' for a Markdown table (default: markdown).")] string format = "markdown",
+        [Description("Export format: 'bibtex' or 'markdown'.")] string format = "markdown",
         [Description("Folder to scan (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
     {
         if (!string.Equals(format, "bibtex", StringComparison.OrdinalIgnoreCase) &&
@@ -576,8 +593,7 @@ public sealed partial class ResearchTools(
 
     [McpServerTool, Description(
         "Audits citations in one combined report: citation graph and orphan sources, inline citation gaps, " +
-        "and required metadata on research/literature notes. The folder scopes source and audit notes; " +
-        "citation graph citers are still searched across the entire vault.")]
+        "and required metadata on research/literature notes.")]
     public string audit_citations(
         [Description("Folder to scope source notes, inline-gap notes, and metadata validation (vault-relative). Leave empty for the entire vault.")] string folder = "")
     {

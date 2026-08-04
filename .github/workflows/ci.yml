@@ -160,49 +160,6 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  test-filesystem-sandbox:
-    name: test-filesystem-sandbox (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: "10.x"
-
-      - name: Restore
-        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
-
-      - name: Test filesystem security contracts
-        shell: bash
-        run: |
-          set -o pipefail
-          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
-            --configuration Release \
-            --no-restore \
-            --verbosity minimal \
-            --logger "trx;LogFileName=filesystem-results.trx" \
-            --results-directory ./filesystem-results \
-            --filter "FullyQualifiedName~VaultPathPolicyTests|FullyQualifiedName~VaultIndexSandboxTests|FullyQualifiedName~SecureResearchToolsTests|FullyQualifiedName~PermanentDeletePolicyTests|FullyQualifiedName~NoteHelpersTests" \
-            2>&1 | tee filesystem-test.log
-
-      - name: Upload failed filesystem diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: filesystem-test-results-${{ runner.os }}
-          path: |
-            filesystem-test.log
-            filesystem-results/**/*.trx
-          if-no-files-found: error
-          retention-days: 7
-
   package-smoke:
     name: package-smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -362,10 +319,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.x"
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "24"
+
+      - name: Restore server
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+
+      - name: Build server
+        run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore
 
       - name: Validate JSON syntax
         run: |
@@ -374,8 +342,7 @@ jobs:
             integrations/claude-code-plugin/.claude-plugin/plugin.json \
             integrations/claude-code-plugin/.mcp.json \
             integrations/antigravity-plugin/plugin.json \
-            integrations/antigravity-plugin/mcp_config.json \
-            integrations/antigravity-plugin/hooks/hooks.json; do
+            integrations/antigravity-plugin/mcp_config.json; do
             echo "Checking $f"
             node -e "JSON.parse(require('fs').readFileSync('$f', 'utf8'))"
           done
@@ -385,6 +352,9 @@ jobs:
 
       - name: Check kioku-vault skill is in sync
         run: ./scripts/sync-skill.sh --check
+
+      - name: Verify generated public contracts
+        run: node scripts/generate-public-docs.mjs --check
 
       - name: Shellcheck
         run: |

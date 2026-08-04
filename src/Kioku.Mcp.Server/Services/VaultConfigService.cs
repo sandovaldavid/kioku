@@ -39,7 +39,7 @@ public sealed class VaultConfigService
             }
             catch (Exception ex)
             {
-                logger.LogWarning(
+                logger.Warn(
                     ex,
                     "Malformed vault config at '{ConfigPath}'. Using empty defaults. Fix the YAML and restart.",
                     configPath);

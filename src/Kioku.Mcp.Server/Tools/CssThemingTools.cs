@@ -100,7 +100,7 @@ public sealed class CssThemingTools(
 
         await WriteTextAsync(filePath, cssContent);
 
-        var enableResult = enable ? await EnableSnippetInAppJson(safeName) : string.Empty;
+        var enableResult = enable ? await UpdateEnabledSnippetInAppJson(safeName, enable: true) : string.Empty;
         var operation = isNew ? "created" : "updated";
         var result = $"[ok] CSS snippet '{safeName}' {operation}: .obsidian/snippets/{safeName}.css";
 
@@ -181,7 +181,7 @@ public sealed class CssThemingTools(
                 await mutations.DeleteAsync(filePath);
             }
 
-            var removalResult = await RemoveSnippetFromAppJson(safeName);
+            var removalResult = await UpdateEnabledSnippetInAppJson(safeName, enable: false);
 
             var result = $"[ok] CSS snippet '{safeName}' deleted: .obsidian/snippets/{safeName}.css";
             if (!string.IsNullOrEmpty(removalResult))
@@ -199,103 +199,63 @@ public sealed class CssThemingTools(
 
     // Private helpers
 
-    private async Task<string> RemoveSnippetFromAppJson(string snippetName)
-    {
-        try
-        {
-            if (!File.Exists(AppJsonPath))
-            {
-                return string.Empty;
-            }
-
-            var jsonContent = await File.ReadAllTextAsync(AppJsonPath, Encoding.UTF8);
-            var appJson = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(jsonContent);
-
-            if (appJson is null)
-            {
-                return string.Empty;
-            }
-
-            List<string> enabledSnippets = [];
-
-            if (appJson.TryGetValue("enabledCssSnippets", out var snippetsElement) &&
-                snippetsElement.ValueKind == JsonValueKind.Array)
-            {
-                enabledSnippets = snippetsElement
-                    .EnumerateArray()
-                    .Select(e => e.GetString() ?? string.Empty)
-                    .Where(s => !string.IsNullOrEmpty(s))
-                    .ToList();
-            }
-
-            if (enabledSnippets.RemoveAll(s => s.Equals(snippetName, StringComparison.OrdinalIgnoreCase)) > 0)
-            {
-                var dict = appJson.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
-                dict["enabledCssSnippets"] = enabledSnippets;
-
-                var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
-                await WriteTextAsync(AppJsonPath, updatedJson);
-
-                return $"   Snippet removed from enabledCssSnippets in app.json.";
-            }
-
-            return string.Empty;
-        }
-        catch (Exception ex)
-        {
-            return $"   Warning: could not update app.json — {ex.Message}";
-        }
-    }
-
-    private async Task<string> EnableSnippetInAppJson(string snippetName)
+    private async Task<string> UpdateEnabledSnippetInAppJson(string snippetName, bool enable)
     {
         try
         {
             Dictionary<string, JsonElement>? appJson = null;
-            List<string> enabledSnippets;
-
             if (File.Exists(AppJsonPath))
             {
                 var jsonContent = await File.ReadAllTextAsync(AppJsonPath, Encoding.UTF8);
                 appJson = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(jsonContent);
+            }
 
-                if (appJson is not null &&
-                    appJson.TryGetValue("enabledCssSnippets", out var snippetsElement) &&
-                    snippetsElement.ValueKind == JsonValueKind.Array)
+            if (appJson is null && !enable)
+            {
+                return string.Empty;
+            }
+
+            var enabledSnippets = appJson is not null &&
+                                  appJson.TryGetValue("enabledCssSnippets", out var snippetsElement) &&
+                                  snippetsElement.ValueKind == JsonValueKind.Array
+                ? snippetsElement
+                    .EnumerateArray()
+                    .Select(e => e.GetString() ?? string.Empty)
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .ToList()
+                : [];
+
+            List<string> updatedSnippets;
+            if (enable)
+            {
+                if (enabledSnippets.Contains(snippetName, StringComparer.OrdinalIgnoreCase))
                 {
-                    enabledSnippets = snippetsElement
-                        .EnumerateArray()
-                        .Select(e => e.GetString() ?? string.Empty)
-                        .Where(s => !string.IsNullOrEmpty(s))
-                        .ToList();
+                    return string.Empty;
                 }
-                else
-                {
-                    enabledSnippets = [];
-                }
+
+                updatedSnippets = [.. enabledSnippets, snippetName];
             }
             else
             {
-                enabledSnippets = [];
+                if (enabledSnippets.RemoveAll(s => s.Equals(snippetName, StringComparison.OrdinalIgnoreCase)) == 0)
+                {
+                    return string.Empty;
+                }
+
+                updatedSnippets = enabledSnippets;
             }
 
-            if (!enabledSnippets.Contains(snippetName, StringComparer.OrdinalIgnoreCase))
-            {
-                enabledSnippets.Add(snippetName);
+            var dict = appJson is null
+                ? new Dictionary<string, object>()
+                : appJson.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+            dict["enabledCssSnippets"] = updatedSnippets;
 
-                var dict = appJson is null
-                    ? new Dictionary<string, object>()
-                    : appJson.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
+            var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
+            await WriteTextAsync(AppJsonPath, updatedJson);
 
-                dict["enabledCssSnippets"] = enabledSnippets;
-
-                var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
-                await WriteTextAsync(AppJsonPath, updatedJson);
-
-                return $"   Snippet added to enabledCssSnippets in app.json.";
-            }
-
-            return string.Empty;
+            return enable
+                ? "   Snippet added to enabledCssSnippets in app.json."
+                : "   Snippet removed from enabledCssSnippets in app.json.";
         }
         catch (Exception ex)
         {

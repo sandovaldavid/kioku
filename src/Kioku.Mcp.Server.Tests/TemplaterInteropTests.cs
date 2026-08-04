@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -77,7 +78,14 @@ public class TemplaterInteropTests : IAsyncLifetime
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
         var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge);
-        return (new EngineeringWorkflowTools(_fixture.Index, config, vaultConfig, workspace, bridge), workspace);
+        var documents = new ProjectDocumentService(
+            _fixture.Index,
+            config,
+            vaultConfig,
+            workspace,
+            bridge,
+            new ProjectDocumentFileSystem());
+        return (new EngineeringWorkflowTools(documents), workspace);
     }
 
     [Fact]

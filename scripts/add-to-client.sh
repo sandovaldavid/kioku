@@ -9,10 +9,9 @@
 #
 # Options:
 #   --vault <path>     Absolute path to your Obsidian vault (required)
-#   --scope <scope>    claude-code/opencode: "user" (default) or "project"
+#   --scope <scope>    claude-code only: "user" (default) or "project"
 #   --simple           claude-code only: use `claude mcp add` instead of the plugin/marketplace
 #   --workspace        antigravity only: install to ./.agents/plugins/ instead of the global dir
-#   --with-hooks       antigravity only: also install the experimental audit-log hook (off by default)
 #   --dry-run          print what would happen without changing anything
 #   --yes              don't prompt before running `dotnet tool install -g kioku-mcp-server`
 set -euo pipefail
@@ -35,7 +34,6 @@ CLIENT="${1:-}"
 VAULT=""
 SCOPE=""
 WORKSPACE=false
-WITH_HOOKS=false
 DRY_RUN=false
 YES=false
 SIMPLE=false
@@ -52,10 +50,6 @@ while [[ $# -gt 0 ]]; do
         ;;
     --workspace)
         WORKSPACE=true
-        shift
-        ;;
-    --with-hooks)
-        WITH_HOOKS=true
         shift
         ;;
     --dry-run)
@@ -196,23 +190,16 @@ EOF
 
 opencode)
     if [[ "${SCOPE:-}" == "project" ]]; then
-        target="$(pwd)/opencode.json"
-        skill_dest="$(pwd)/.claude/skills/kioku-vault"
-    else
-        target="$HOME/.config/opencode/opencode.json"
-        skill_dest="$HOME/.claude/skills/kioku-vault"
+        echo "Error: native 'opencode mcp add' only supports user configuration." >&2
+        exit 1
     fi
 
+    skill_dest="$HOME/.claude/skills/kioku-vault"
+
+    run_cmd opencode mcp add kioku --env "KIOKU_VAULT_PATH=${VAULT}" -- kioku
     if [[ "$DRY_RUN" == true ]]; then
-        echo "[dry-run] would merge kioku MCP entry into: $target"
         echo "[dry-run] would copy skill to: $skill_dest/SKILL.md"
     else
-        if command -v node >/dev/null 2>&1; then
-            node "$ROOT_DIR/scripts/lib/opencode-merge.mjs" "$target" "$VAULT" || true
-        else
-            echo "'node' not found on PATH — add this to $target manually under \"mcp\":" >&2
-            echo "  \"kioku\": {\"type\": \"local\", \"command\": [\"kioku\"], \"environment\": {\"KIOKU_VAULT_PATH\": \"$VAULT\"}, \"enabled\": true}" >&2
-        fi
         mkdir -p "$skill_dest"
         cp "$ROOT_DIR/integrations/claude-code-plugin/skills/kioku-vault/SKILL.md" "$skill_dest/SKILL.md"
         echo "Copied kioku-vault skill to $skill_dest (also picked up by Claude Code if installed)."
@@ -233,21 +220,9 @@ antigravity)
     if [[ "$DRY_RUN" == true ]]; then
         echo "[dry-run] would copy $ROOT_DIR/integrations/antigravity-plugin -> $dest"
         echo "[dry-run] would set KIOKU_VAULT_PATH=$VAULT in $dest/mcp_config.json"
-        if [[ "$WITH_HOOKS" == true ]]; then
-            echo "[dry-run] would also install the experimental audit-log hook"
-        fi
     else
         mkdir -p "$dest"
         cp -R "$ROOT_DIR/integrations/antigravity-plugin/." "$dest/"
-
-        if [[ "$WITH_HOOKS" == true ]]; then
-            chmod +x "$dest/hooks/audit-log.sh"
-            script_path_escaped="$(sed_escape_repl "$dest/hooks/audit-log.sh")"
-            sed -i.bak "s#__KIOKU_HOOK_SCRIPT_PATH__#${script_path_escaped}#" "$dest/hooks/hooks.json"
-            rm -f "$dest/hooks/hooks.json.bak"
-        else
-            rm -rf "$dest/hooks"
-        fi
 
         vault_escaped="$(sed_escape_repl "$VAULT")"
         sed -i.bak "s#__KIOKU_VAULT_PATH__#${vault_escaped}#" "$dest/mcp_config.json"

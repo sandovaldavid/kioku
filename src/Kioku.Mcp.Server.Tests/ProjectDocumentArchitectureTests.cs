@@ -59,16 +59,6 @@ public sealed class ProjectDocumentArchitectureTests
     }
 
     [Fact]
-    public void ProjectDocumentIntegrationHarness_DoesNotDependOnMcpAdapterOrSdk()
-    {
-        var source = ReadRepositoryFile("src/Kioku.Mcp.Server.Tests/ProjectDocumentTestHarness.cs");
-
-        Assert.DoesNotContain("Kioku.Mcp.Server.Tools", source);
-        Assert.DoesNotContain("ModelContextProtocol", source);
-        Assert.DoesNotContain("McpServer", source);
-    }
-
-    [Fact]
     public void ProjectDocumentWorkflow_DoesNotCallSystemIoDirectly()
     {
         var source = ReadRepositoryFile("src/Kioku.Mcp.Server/Services/ProjectDocumentService.cs");

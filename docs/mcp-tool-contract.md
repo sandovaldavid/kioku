@@ -26,21 +26,7 @@ Any pull request that adds or renames a tool must:
 
 Unknown tools receive conservative defaults: not read-only, not destructive, not idempotent, and closed-world. This prevents a newly introduced tool from being accidentally advertised as safe before review.
 
-## Reviewed examples
+## Generated reference
 
-| Tool | Read only | Destructive | Idempotent | Open world |
-|---|---:|---:|---:|---:|
-| `read_note` | yes | no | yes | no |
-| `search_notes` | yes | no | yes | no for keyword/hybrid vault access; semantic dependency is represented by warnings and dependency errors |
-| `get_project_context` | yes | no | yes | no |
-| `create_note` | no | no | no | no |
-| `edit_note` | no | yes | no | no |
-| `delete_note` | no | yes | no | no |
-| `summarize_note` | yes | no | yes | yes |
-| `query_dataview` | yes | no | no | yes |
-| `trigger_obsidian_command` | no | yes | no | yes |
-| `get_coordination_work_item` | yes | no | yes | no |
-| `list_coordination_history` | yes | no | yes | no |
-| `acquire_coordination_claim` | no | no | yes | no |
-| `transition_coordination_work_item` | no | no | no | no |
-| `resolve_coordination_conflict` | no | no | yes | no |
+See the generated [MCP commands reference](commands-reference.md) for the
+current tool inventory, schemas, and annotation values.

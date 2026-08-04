@@ -17,7 +17,7 @@ dotnet restore Kioku.slnx
 dotnet build Kioku.slnx --configuration Release --no-restore
 ```
 
-Node.js and pnpm are required for repository documentation tooling, not for running the installed .NET tool.
+Node.js is required for repository documentation tooling, not for running the installed .NET tool.
 
 ## MCP client cannot connect over stdio
 
@@ -174,8 +174,6 @@ See [docker.md](docker.md).
 ## Generated documentation is out of sync
 
 ```bash
-corepack enable
-pnpm install --frozen-lockfile
 dotnet build Kioku.slnx --configuration Release --no-restore
 node scripts/generate-public-docs.mjs --write
 node scripts/generate-public-docs.mjs --check

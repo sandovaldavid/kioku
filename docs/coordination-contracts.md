@@ -1,15 +1,9 @@
 # Coordination contracts
 
-This document describes the versioned JSON contracts implemented for issue
-[#304](https://github.com/sandovaldavid/kioku/issues/304) and the event
-persistence and replay boundary implemented for issue
-[#305](https://github.com/sandovaldavid/kioku/issues/305), plus the durable
-claims, leases, and fencing boundary implemented for issue
-[#306](https://github.com/sandovaldavid/kioku/issues/306), the guarded vault
-mutation boundary implemented for issue
-[#307](https://github.com/sandovaldavid/kioku/issues/307), and the gated MCP
-surface implemented for issue
-[#308](https://github.com/sandovaldavid/kioku/issues/308).
+This document describes Kioku's versioned JSON contracts, validation rules, and
+their use by the coordination stores and gated MCP surface. The architecture,
+storage, filesystem, and work-session boundaries are canonical in the [durable
+coordination profile](durable-coordination.md).
 
 ## Contract documents
 
@@ -112,64 +106,17 @@ The event store applies these idempotency rules:
 
 ## Claims and leases
 
-The claim store protects one canonical resource key at a time. It stores the
-current lease projection at
-`.kioku/coordination/leases/<sha256-resource-key>.json` and uses a separate
-hashed runtime lock for cross-process acquisition. The lease projection carries
-the server-issued claim ID, work and attempt identity, owner session, revision,
-fence generation, status, timestamps, and the last operation ID.
-
-Acquire, renew, release, expiry observation, takeover, completion, and
-cancellation all record state transitions through the event store. Exact
-retries of one operation ID return the previous result. A different owner
-cannot renew or release the current claim. An expired claim is first persisted
-as `stale` in work-item history, then marked `expired`; a takeover reopens the
-work item, creates a new claim, and increments the resource fence generation.
-
-Lease durations use server time and are bounded from one second through one
-hour, with a default of thirty seconds. Caller timestamps and authority scopes
-are not accepted as claim authority. Note resource keys are canonicalized
-through `VaultPathPolicy`; logical resources use a restricted namespace.
-
-When a lease projection and event history disagree, the claim store fails closed
-instead of choosing a most-recent file. A missing or corrupt projection cannot
-silently grant ownership. A restarted server reads the persisted lease and
-continues using the injected server clock.
+Claim, lease, expiry, fencing, resource-key, and fail-closed behavior are
+defined in the [durable coordination profile](durable-coordination.md). The
+`coordination-claim.schema.json` contract covers the serialized claim
+projection; this document does not duplicate the coordination state rules.
 
 ## Event persistence and replay
 
-The event store keeps coordination records inside the configured vault while
-keeping them outside the normal Markdown knowledge tree. It creates this
-layout on first use:
-
-```text
-.kioku/coordination/
-  manifest.json
-  events/YYYY/MM/<event_id>.json
-  snapshots/work-items/<work_item_id>.json
-  leases/<sha256-resource-key>.json
-  conflicts/<conflict_id>.json
-  runtime/locks/<work_item_hash>.lock
-```
-
-Each accepted event is written as a separate immutable JSON file with exclusive
-creation. The manifest records the coordination format version and epoch. A
-projection is derived data: it is written atomically after the pure reducer
-accepts the candidate history and can be deleted and rebuilt from the events.
-
-The store serializes writes for one work item with an operating-system file
-lock. It validates the event schema and content hash, rejects sequence gaps,
-hash-chain violations, conflicting duplicate IDs, and conflicting transition
-IDs, and returns an exact duplicate as a stable no-op. If a process stops after
-the event file is accepted but before the projection refresh completes, the
-next replay rebuilds the projection without emitting domain side effects.
-
-Replay orders events by their sequence number and fails closed for malformed,
-truncated, out-of-order, unsupported, or hash-invalid history. A corrupt
-projection is never silently trusted; callers can rebuild it from the event
-history. Filesystem paths are resolved through `VaultPathPolicy`, and the
-`.kioku` control plane does not create Markdown notes or enter ordinary note
-indexing.
+The [durable coordination profile](durable-coordination.md) owns the local
+storage layout, immutable event persistence, projection rebuild, replay
+ordering, and filesystem boundary. The contract documents and fixtures listed
+above define the JSON representation validated at that boundary.
 
 ## Validation
 
@@ -189,9 +136,8 @@ contracts rather than introducing a second serializer or schema catalog.
 
 ## Scope boundary
 
-This slice persists and replays events, implements durable claims, leases,
-expiry, fencing, guarded vault mutations, and exposes the opt-in coordination
-MCP surface. It does not adopt CloudEvents or A2A as mandatory internal
-formats. Session compatibility and crash/restart coverage are implemented, and
-the capability and rollout policy is documented in
-[coordination-rollout.md](coordination-rollout.md).
+This document owns JSON schemas, canonicalization, hashes, compatibility, and
+validation. The gated capability and release policy is documented in
+[coordination-rollout.md](coordination-rollout.md); the coordination profile's
+storage, filesystem, session, and external-protocol boundaries are documented
+in [durable-coordination.md](durable-coordination.md).

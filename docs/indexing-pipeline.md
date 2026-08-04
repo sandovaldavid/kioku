@@ -72,4 +72,4 @@ For machine-specific throughput and memory evidence, run the suite under the pla
 2. peak working set during the 1,000-note cancellation scenario or an expanded 10,000-note fixture;
 3. p95 end-to-end update latency from watcher event creation until queue depth and active operations return to zero.
 
-Fixed benchmark numbers are intentionally not committed because runner hardware varies. Release evidence should record the commit SHA, OS, CPU, .NET SDK, vault size, configured concurrency, throughput, peak memory, and p95 latency together.
+Fixed performance numbers are intentionally not committed because runner hardware varies. Release evidence should record the commit SHA, OS, CPU, .NET SDK, vault size, configured concurrency, throughput, peak memory, and p95 latency together.

@@ -88,21 +88,10 @@ profile does not remove compatibility behavior.
 
 ## Local-first support boundary
 
-Kioku supports coordination between processes that share one supported local
-filesystem and one vault boundary. The event log and coordination projections
-must be restored together, and recovery establishes a new coordination epoch
-when required.
-
-The following are not shared-coordination implementations:
-
-- Dropbox, iCloud, Syncthing, or similar concurrent replica folders;
-- independent Git checkouts of the same vault;
-- a hosted lock service or cloud coordinator;
-- MCP Tasks, A2A, or CloudEvents as a replacement for the local event log.
-
-Use [coordination interoperability](coordination-interoperability.md) for
-optional, lossy external mappings and [the durable coordination profile](durable-coordination.md)
-for the filesystem and recovery contract.
+Kioku supports coordination only between processes that share one supported
+local filesystem and one vault boundary. The canonical filesystem support
+matrix, recovery rules, and path boundary are documented in the [durable
+coordination profile](durable-coordination.md).
 
 ## Release checklist
 

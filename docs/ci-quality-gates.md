@@ -12,10 +12,9 @@ The complete `Kioku.Mcp.Server.Tests` suite runs on:
 - Windows
 - macOS
 
-A separate filesystem-security matrix remains in place for the vault sandbox, external-read
-boundaries, symlink or reparse-point behavior, note helpers, and permanent-delete policy. Keeping
-that focused matrix makes filesystem regressions easier to diagnose even though those tests also
-run as part of the complete native suite.
+Filesystem-security tests cover the vault sandbox, external-read boundaries, symlink or
+reparse-point behavior, note helpers, and permanent-delete policy as part of the complete native
+suite.
 
 ## Distribution smoke tests
 
@@ -58,7 +57,7 @@ gate still blocks protected branches.
   CodeQL on pushes, pull requests, and a weekly schedule. The Obsidian plugin has its own CodeQL
   and dependency-audit coverage in its own repository.
 - C# is analyzed through the repository-wide Roslyn and .NET analyzer baseline with code style and
-  warnings-as-errors enforced in a dedicated blocking security job.
+  warnings-as-errors enforced by the main build.
 - CI uploads complete .NET package inventories for 30 days. These inventories are the current
   reproducible dependency evidence; a signed SPDX or CycloneDX SBOM can replace them when release
   signing and provenance are introduced.
@@ -73,7 +72,7 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
-pnpm install --frozen-lockfile
+node scripts/generate-public-docs.mjs --check
 ```
 
 The installed-tool and native-binary smoke tests are defined in `.github/workflows/ci.yml` because

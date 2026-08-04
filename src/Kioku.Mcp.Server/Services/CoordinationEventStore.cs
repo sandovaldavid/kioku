@@ -235,7 +235,7 @@ internal sealed class CoordinationEventStore(
             allEvents.Select(eventItem => new StoredEvent(eventItem, CoordinationContractSerializer.Serialize(eventItem))).ToArray(),
             cancellationToken).ConfigureAwait(false);
         metrics?.RecordCoordinationTransition(coordinationEvent.EventType);
-        logger?.LogInformation(
+        logger?.Info(
             "Coordination event accepted. RunId={RunId} WorkItemId={WorkItemId} EventType={EventType} SequenceNumber={SequenceNumber}.",
             coordinationEvent.RunId,
             coordinationEvent.WorkItemId,
@@ -277,7 +277,7 @@ internal sealed class CoordinationEventStore(
         catch (CoordinationStoreException exception)
         {
             metrics?.RecordCoordinationReplay(exception.Code);
-            logger?.LogWarning(
+            logger?.Warn(
                 "Coordination replay failed. RunId={RunId} WorkItemId={WorkItemId} Code={Code}.",
                 runId,
                 workItemId,

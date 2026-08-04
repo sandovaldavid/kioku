@@ -412,8 +412,6 @@ public sealed class ZettelkastenTools(
 
     // Private helpers
 
-    private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
-
     private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
 
     private static List<string> ParseTags(string tags) => NoteHelpers.ParseTags(tags);

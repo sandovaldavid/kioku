@@ -454,7 +454,7 @@ internal sealed class CoordinationService(
         {
             var result = await claims.AcquireAsync(request, cancellationToken).ConfigureAwait(false);
             metrics?.RecordCoordinationClaim(result.Disposition.ToString());
-            logger?.LogInformation(
+            logger?.Info(
                 "Coordination claim operation completed. RunId={RunId} WorkItemId={WorkItemId} AttemptId={AttemptId} Disposition={Disposition} FenceGeneration={FenceGeneration}.",
                 request.RunId,
                 request.WorkItemId,
@@ -466,7 +466,7 @@ internal sealed class CoordinationService(
         catch (CoordinationClaimException exception)
         {
             metrics?.RecordCoordinationClaim(exception.Code);
-            logger?.LogWarning(
+            logger?.Warn(
                 "Coordination claim operation rejected. RunId={RunId} WorkItemId={WorkItemId} AttemptId={AttemptId} Code={Code}.",
                 request.RunId,
                 request.WorkItemId,

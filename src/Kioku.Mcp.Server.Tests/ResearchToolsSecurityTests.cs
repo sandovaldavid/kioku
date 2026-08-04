@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Kioku.Mcp.Server.Tests;
 
-public sealed class SecureResearchToolsTests : IAsyncLifetime
+public sealed class ResearchToolsSecurityTests : IAsyncLifetime
 {
     private const string OneEntry = """
         @article{sandbox2026,
@@ -116,7 +116,7 @@ public sealed class SecureResearchToolsTests : IAsyncLifetime
         Assert.DoesNotContain("ACCESS_DENIED", result);
     }
 
-    private SecureResearchTools CreateTools(
+    private ResearchTools CreateTools(
         bool allowExternalReads = false,
         IReadOnlyList<string>? externalRoots = null)
     {
@@ -127,7 +127,7 @@ public sealed class SecureResearchToolsTests : IAsyncLifetime
             ExternalReadRoots = externalRoots ?? [],
         };
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
-        return new SecureResearchTools(
+        return new ResearchTools(
             _fixture.Index,
             config,
             vaultConfig,

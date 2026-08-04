@@ -10,10 +10,6 @@ publish/
 .idea/
 *.user
 
-# Node.js (root tooling: commitlint, husky)
-node_modules/
-dist/
-
 # Kioku runtime
 kioku.db
 kioku.db-shm
@@ -22,7 +18,6 @@ kioku.db-wal
 
 # Logs
 *.log
-BenchmarkDotNet.Artifacts/
 
 # Env local (puede contener KIOKU_VAULT_PATH)
 .env
@@ -34,5 +29,3 @@ BenchmarkDotNet.Artifacts/
 Thumbs.db
 
 /graphify-out
-
-.pnpm-store/
