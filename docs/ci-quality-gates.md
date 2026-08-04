@@ -27,12 +27,11 @@ The `validate-integrations` job builds the server and runs `node scripts/generat
 
 - generated MCP commands, configuration, versioning, and manifest outputs;
 - public environment-variable metadata against runtime mappings;
-- current Streamable HTTP terminology;
-- repository-relative links in maintained Markdown entry points.
-
-The link check validates file existence for local links. It intentionally does not make network requests or claim that external URLs, hosted documentation, anchors, redirects, or third-party services are available.
+- current Streamable HTTP terminology.
 
 The same job validates JSON manifests, skill frontmatter, generated skill copies, ShellCheck, and dry-run client installation for `claude-code`, `codex`, `opencode`, and `antigravity`.
+
+The separate `docs-links` workflow runs `node scripts/validate-markdown-links.mjs` on pushes and pull requests targeting `main` or `develop`. It verifies repository-relative file links in maintained Markdown entry points. It intentionally does not make network requests or claim that external URLs, hosted documentation, anchors, redirects, or third-party services are available.
 
 ## Coverage policy
 
@@ -61,6 +60,7 @@ dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configura
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 node scripts/generate-public-docs.mjs --check
+node scripts/validate-markdown-links.mjs
 ```
 
 The installed-tool and native-binary smoke tests are defined in `.github/workflows/ci.yml` because they require clean per-OS tool paths and native RIDs.
