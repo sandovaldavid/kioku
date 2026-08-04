@@ -20,6 +20,10 @@
           "path": "src/Kioku.Mcp.Server/README.md"
         },
         {
+          "type": "generic",
+          "path": "docs/versioning.md"
+        },
+        {
           "type": "json",
           "path": "src/Kioku.Mcp.Server/.mcp/server.json",
           "jsonpath": "$.version"
