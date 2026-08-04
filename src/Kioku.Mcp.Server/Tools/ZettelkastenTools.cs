@@ -613,7 +613,7 @@ public sealed class ZettelkastenTools(
         }
         else
         {
-            await mutations.WriteTextAsync(path, content, preconditions);
+            await mutations.UpsertTextAsync(path, content, preconditions);
         }
     }
 

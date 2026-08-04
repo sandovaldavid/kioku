@@ -72,6 +72,33 @@ public sealed class VaultMutationServiceTests : IDisposable
         Assert.Equal("Obsidian edit", await File.ReadAllTextAsync(path));
     }
 
+    [Fact]
+    public async Task UpsertTextAsync_CreatesMissingTargetAndUpdatesWithCas()
+    {
+        var path = Path.Combine(_vaultPath, "Notes", "Generated.md");
+
+        var created = await _mutations.UpsertTextAsync(path, "initial");
+        var updated = await _mutations.UpsertTextAsync(
+            path,
+            "updated",
+            new VaultMutationPreconditions { ExpectedRevision = created.Revision });
+
+        Assert.Equal(VaultRevision.Compute("updated"), updated.Revision);
+        Assert.Equal("updated", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
+    public async Task WriteTextAsync_StillRequiresAnExistingTarget()
+    {
+        var path = Path.Combine(_vaultPath, "Notes", "Missing.md");
+
+        var exception = await Assert.ThrowsAsync<VaultMutationException>(() =>
+            _mutations.WriteTextAsync(path, "must not create"));
+
+        Assert.Equal("NOT_FOUND", exception.Code);
+        Assert.False(File.Exists(path));
+    }
+
     [Theory]
     [InlineData(-2147024864, true)]
     [InlineData(-2147024863, true)]
