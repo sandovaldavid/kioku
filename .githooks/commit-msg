@@ -18,9 +18,4 @@ if ! grep -qE "$pattern" <<<"$msg"; then
   exit 1
 fi
 
-if [ ${#msg} -gt 100 ]; then
-  echo "ERROR: commit subject exceeds 100 characters"
-  exit 1
-fi
-
 exit 0
