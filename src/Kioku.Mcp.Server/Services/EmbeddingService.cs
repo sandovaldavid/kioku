@@ -27,7 +27,8 @@ public sealed class EmbeddingService : IDisposable
     private readonly int _embeddingConcurrency;
     private readonly ConcurrentDictionary<string, EmbeddingEntry> _store = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _failedPaths = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _pathLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, PathLock> _pathLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _pathLocksGate = new();
     private readonly SemaphoreSlim _embedSemaphore;
     private readonly SemaphoreSlim _saveLock = new(1, 1);
     private readonly Stopwatch _sessionStopwatch = new();
@@ -188,38 +189,30 @@ public sealed class EmbeddingService : IDisposable
             return;
         }
 
-        var pathLock = _pathLocks.GetOrAdd(relativePath, static _ => new SemaphoreSlim(1, 1));
-        await pathLock.WaitAsync(cancellationToken);
+        using var pathLock = await AcquirePathLockAsync(relativePath, cancellationToken);
+        if (_store.TryGetValue(relativePath, out existing) &&
+            existing.Hash == note.ContentHash)
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref _backlogCount);
         try
         {
-            if (_store.TryGetValue(relativePath, out existing) &&
-                existing.Hash == note.ContentHash)
-            {
-                return;
-            }
-
-            Interlocked.Increment(ref _backlogCount);
+            await _embedSemaphore.WaitAsync(cancellationToken);
             try
             {
-                await _embedSemaphore.WaitAsync(cancellationToken);
-                try
-                {
-                    await EmbedAndStoreAsync(note, cancellationToken);
-                    Interlocked.Increment(ref _embeddedThisSession);
-                }
-                finally
-                {
-                    _embedSemaphore.Release();
-                }
+                await EmbedAndStoreAsync(note, cancellationToken);
+                Interlocked.Increment(ref _embeddedThisSession);
             }
             finally
             {
-                Interlocked.Decrement(ref _backlogCount);
+                _embedSemaphore.Release();
             }
         }
         finally
         {
-            pathLock.Release();
+            Interlocked.Decrement(ref _backlogCount);
         }
 
         if (Interlocked.Increment(ref _pendingFlushes) % FlushEvery == 0)
@@ -237,6 +230,7 @@ public sealed class EmbeddingService : IDisposable
 
         var relativePath = NormalizeVaultRelativePath(
             Path.GetRelativePath(config.VaultPath, filePath));
+        using var pathLock = AcquirePathLock(relativePath);
         _store.TryRemove(relativePath, out _);
         _failedPaths.TryRemove(relativePath, out _);
     }
@@ -255,6 +249,18 @@ public sealed class EmbeddingService : IDisposable
             Path.GetRelativePath(config.VaultPath, oldFilePath));
         var newRelativePath = NormalizeVaultRelativePath(
             Path.GetRelativePath(config.VaultPath, newFilePath));
+        if (oldRelativePath.Equals(newRelativePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var oldPathFirst = string.Compare(oldRelativePath, newRelativePath, StringComparison.OrdinalIgnoreCase) < 0;
+        var firstPath = oldPathFirst
+            ? oldRelativePath
+            : newRelativePath;
+        var secondPath = oldPathFirst ? newRelativePath : oldRelativePath;
+        using var firstLock = AcquirePathLock(firstPath);
+        using var secondLock = AcquirePathLock(secondPath);
         if (_store.TryRemove(oldRelativePath, out var entry))
         {
             _store[newRelativePath] = entry with { VaultRelativePath = newRelativePath };
@@ -533,9 +539,108 @@ public sealed class EmbeddingService : IDisposable
     {
         _embedSemaphore.Dispose();
         _saveLock.Dispose();
-        foreach (var pathLock in _pathLocks.Values)
+        PathLock[] pathLocks;
+        lock (_pathLocksGate)
+        {
+            pathLocks = _pathLocks.Values.ToArray();
+            _pathLocks.Clear();
+        }
+
+        foreach (var pathLock in pathLocks)
         {
             pathLock.Dispose();
+        }
+    }
+
+    private async Task<PathLockLease> AcquirePathLockAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var pathLock = RentPathLock(path);
+        try
+        {
+            await pathLock.Semaphore.WaitAsync(cancellationToken);
+            return new PathLockLease(this, path, pathLock);
+        }
+        catch
+        {
+            ReturnPathLock(path, pathLock);
+            throw;
+        }
+    }
+
+    private PathLockLease AcquirePathLock(string path)
+    {
+        var pathLock = RentPathLock(path);
+        try
+        {
+            pathLock.Semaphore.Wait();
+            return new PathLockLease(this, path, pathLock);
+        }
+        catch
+        {
+            ReturnPathLock(path, pathLock);
+            throw;
+        }
+    }
+
+    private PathLock RentPathLock(string path)
+    {
+        lock (_pathLocksGate)
+        {
+            if (!_pathLocks.TryGetValue(path, out var pathLock))
+            {
+                pathLock = new PathLock();
+                _pathLocks[path] = pathLock;
+            }
+
+            pathLock.Users++;
+            return pathLock;
+        }
+    }
+
+    private void ReturnPathLock(string path, PathLock pathLock)
+    {
+        PathLock? disposable = null;
+        lock (_pathLocksGate)
+        {
+            pathLock.Users--;
+            if (pathLock.Users == 0 &&
+                _pathLocks.TryGetValue(path, out var current) &&
+                ReferenceEquals(current, pathLock))
+            {
+                _pathLocks.Remove(path);
+                disposable = pathLock;
+            }
+        }
+
+        disposable?.Dispose();
+    }
+
+    private sealed class PathLock : IDisposable
+    {
+        internal readonly SemaphoreSlim Semaphore = new(1, 1);
+        internal int Users;
+
+        public void Dispose() => Semaphore.Dispose();
+    }
+
+    private sealed class PathLockLease(
+        EmbeddingService owner,
+        string path,
+        PathLock pathLock) : IDisposable
+    {
+        private int disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref disposed, 1) != 0)
+            {
+                return;
+            }
+
+            pathLock.Semaphore.Release();
+            owner.ReturnPathLock(path, pathLock);
         }
     }
 }

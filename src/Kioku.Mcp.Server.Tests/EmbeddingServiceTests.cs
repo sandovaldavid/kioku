@@ -376,6 +376,36 @@ public class EmbeddingServiceTests : IAsyncLifetime
         Assert.Null(service.GetVector("Old.md"));
     }
 
+    [Fact]
+    public async Task WatcherDeleteBeforeExplicitMoveReusesVector()
+    {
+        var embedCalls = 0;
+        var service = CreateService(DeterministicEmbedding.Responder(_ => Interlocked.Increment(ref embedCalls)));
+        var config = new KiokuConfiguration { VaultPath = _vaultPath, EmbeddingModel = "nomic-embed-text" };
+        using var vault = new VaultIndexService(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<VaultIndexService>.Instance, config, service);
+
+        var oldPath = Path.Combine(_vaultPath, "Old.md");
+        await File.WriteAllTextAsync(oldPath, "---\ntags: [prueba]\n---\ncontenido estable de la nota");
+        await vault.InitializeAsync();
+        await WaitForBacklogToClearAsync(service);
+
+        var callsAfterIndexing = embedCalls;
+        var newPath = Path.Combine(_vaultPath, "Sub", "New.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
+        File.Copy(oldPath, newPath);
+        File.Delete(oldPath);
+
+        await WaitForConditionAsync(() => vault.GetNote(oldPath) is null);
+        await vault.SynchronizeFileMoveAsync(oldPath, newPath);
+        await WaitForBacklogToClearAsync(service);
+        await Task.Delay(750);
+
+        Assert.Equal(callsAfterIndexing, embedCalls);
+        Assert.NotNull(service.GetVector(Path.Combine("Sub", "New.md")));
+        Assert.Null(service.GetVector("Old.md"));
+    }
+
     private static void InterlockedMax(ref int target, int value)
     {
         int initial, computed;
@@ -384,5 +414,18 @@ public class EmbeddingServiceTests : IAsyncLifetime
             initial = target;
             computed = Math.Max(initial, value);
         } while (Interlocked.CompareExchange(ref target, computed, initial) != initial);
+    }
+
+    private static async Task WaitForConditionAsync(
+        Func<bool> condition,
+        TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.True(condition(), "The expected watcher state was not observed before the timeout.");
     }
 }

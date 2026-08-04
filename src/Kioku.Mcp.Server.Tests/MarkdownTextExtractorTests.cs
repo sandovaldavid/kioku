@@ -182,6 +182,26 @@ public class MarkdownTextExtractorTests
         Assert.DoesNotContain("block-id", result);
     }
 
+    [Fact]
+    public void ExtractWikilinksAdjacentToTextPreservesTargets()
+    {
+        var result = MarkdownTextExtractor.Extract("texto[[Nota]] texto![[Embed]]");
+
+        Assert.Contains("Nota", result);
+        Assert.Contains("Embed", result);
+        Assert.DoesNotContain("![[", result);
+    }
+
+    [Fact]
+    public void ExtractLongerClosingFenceDoesNotEnterIndex()
+    {
+        var result = MarkdownTextExtractor.Extract("Visible\n\n```csharp\nvar hidden = true;\n````\n\nAfter");
+
+        Assert.Contains("Visible", result);
+        Assert.Contains("After", result);
+        Assert.DoesNotContain("hidden", result);
+    }
+
     // ExtractWikilinks tests
 
     [Fact]

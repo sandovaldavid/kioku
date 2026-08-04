@@ -120,10 +120,10 @@ public static partial class MarkdownTextExtractor
         }
     }
 
-    [GeneratedRegex(@"(?<!\w)!?\[\[(?<target>[^\]|]+)(?:\|(?<alias>[^\]]+))?\]\]")]
+    [GeneratedRegex(@"!?\[\[(?<target>[^\]|]+)(?:\|(?<alias>[^\]]+))?\]\]")]
     private static partial Regex ObsidianWikilinkPattern();
 
-    [GeneratedRegex(@"(?ms)^[ \t]{0,3}(?<fence>`{3,}|~{3,})[^\r\n]*(?:\r\n|\r|\n).*?^[ \t]{0,3}\k<fence>[ \t]*$")]
+    [GeneratedRegex(@"(?ms)^[ \t]{0,3}(?<fence>`{3,}|~{3,})[^\r\n]*(?:\r\n|\r|\n).*?^[ \t]{0,3}\k<fence>[`~]*[ \t]*$")]
     private static partial Regex ObsidianFencedCodePattern();
 
     [GeneratedRegex(@"(?s)%%.*?%%")]
