@@ -23,11 +23,15 @@ This index describes the documentation that is authoritative for the current tar
 
 Active repository documentation should normally describe **Implemented** behavior and clearly identified **Deprecated** compatibility paths. Plans, rationale, alternatives, completed execution records, and session handoffs belong in Cortex-L7. Open issues and pull requests are not implementation evidence.
 
+## Runtime dependency boundary
+
+Kioku's core MCP server works directly against the configured vault directory. Obsidian does not need to be open for note, search, project, session, indexing, or coordination operations. The Obsidian application and companion plugin are required only for optional UI and supported-plugin bridge operations registered through the `bridge` or `plugin` capability groups.
+
 ## Start here
 
 | Document | Status | Purpose |
 |---|---|---|
-| [Installation](install.md) | Implemented | Install the server, register clients, build from source, and verify a deployment. |
+| [Installation](install.md) | Implemented | Install the headless-capable server, register clients, build from source, and verify optional Obsidian integration separately. |
 | [Architecture](architecture.md) | Implemented | Current component responsibilities and dependency direction. |
 | [Durable coordination profile](durable-coordination.md) | Implemented with gated rollout | Coordination domain, state machine, storage boundary, event persistence, claims, leases, fencing, guarded vault mutations, and the gated MCP surface. |
 | [Troubleshooting](troubleshooting.md) | Implemented | Diagnose server, HTTP, indexing, Ollama, bridge, and Docker problems. |
@@ -63,7 +67,7 @@ Active repository documentation should normally describe **Implemented** behavio
 
 | Document | Status | Purpose |
 |---|---|---|
-| [CI quality gates](ci-quality-gates.md) | Implemented | Versioned workflows, local equivalents, and evidence expectations. |
+| [CI quality gates](ci-quality-gates.md) | Implemented | Versioned workflows, local equivalents, documentation-link validation, and evidence expectations. |
 | [Dev Container](dev-container.md) | Implemented | Reproducible development environment and validation. |
 | [Retrieval evaluation](retrieval-eval.md) | Implemented evidence | Retrieval harness, metrics, fixtures, and interpretation. |
 
@@ -83,6 +87,8 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 node scripts/generate-public-docs.mjs --write
 node scripts/generate-public-docs.mjs --check
 ```
+
+The check validates generated contracts and metadata, current transport terminology, and repository-relative links in maintained Markdown entry points.
 
 ## Documentation boundary
 
