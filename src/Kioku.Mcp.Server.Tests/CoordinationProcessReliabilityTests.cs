@@ -242,7 +242,7 @@ public sealed class CoordinationProcessReliabilityTests : IAsyncLifetime
             "coordination-cas-owner-b");
         Assert.NotEqual(first.ProcessId, second.ProcessId);
         var responses = await Task.WhenAll(
-            first.CallToolAsync(
+            first.CallToolResultAsync(
                 "edit_note",
                 new Dictionary<string, object?>
                 {
@@ -250,7 +250,7 @@ public sealed class CoordinationProcessReliabilityTests : IAsyncLifetime
                     ["content"] = "process A commit",
                     ["expected_revision"] = revision,
                 }),
-            second.CallToolAsync(
+            second.CallToolResultAsync(
                 "edit_note",
                 new Dictionary<string, object?>
                 {
@@ -259,8 +259,23 @@ public sealed class CoordinationProcessReliabilityTests : IAsyncLifetime
                     ["expected_revision"] = revision,
                 }));
 
-        Assert.Single(responses, response => response.StartsWith("[ok]", StringComparison.Ordinal));
-        Assert.Single(responses, response => response.StartsWith("[error:WRITE_CONFLICT]", StringComparison.Ordinal));
+        var successful = responses.Count(response => response.Text.StartsWith("[ok]", StringComparison.Ordinal));
+        var conflicts = responses.Where(response =>
+                response.Text.StartsWith("[error:WRITE_CONFLICT]", StringComparison.Ordinal) &&
+                response.IsError &&
+                response.StructuredContent is { ValueKind: JsonValueKind.Object })
+            .ToArray();
+        if (successful != 1 || conflicts.Length != 1)
+        {
+            var diagnostics = await Task.WhenAll(
+                first.CaptureStandardErrorAsync(),
+                second.CaptureStandardErrorAsync());
+            throw new Xunit.Sdk.XunitException(
+                "CAS race did not preserve exactly one success and one structured WRITE_CONFLICT." +
+                $"{Environment.NewLine}{string.Join(Environment.NewLine, responses.Select(response => response.Describe()))}" +
+                $"{Environment.NewLine}Process A stderr: {diagnostics[0]}" +
+                $"{Environment.NewLine}Process B stderr: {diagnostics[1]}");
+        }
         var finalContent = await File.ReadAllTextAsync(vault.NotePath(note));
         Assert.True(
             finalContent.Contains("process A commit", StringComparison.Ordinal) ^

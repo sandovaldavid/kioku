@@ -189,9 +189,19 @@ public sealed class EmbeddingService : IDisposable
             return;
         }
 
+        if (TryReuseMissingEntry(relativePath, note.ContentHash))
+        {
+            return;
+        }
+
         using var pathLock = await AcquirePathLockAsync(relativePath, cancellationToken);
         if (_store.TryGetValue(relativePath, out existing) &&
             existing.Hash == note.ContentHash)
+        {
+            return;
+        }
+
+        if (TryReuseMissingEntry(relativePath, note.ContentHash))
         {
             return;
         }
@@ -249,8 +259,19 @@ public sealed class EmbeddingService : IDisposable
             Path.GetRelativePath(config.VaultPath, oldFilePath));
         var newRelativePath = NormalizeVaultRelativePath(
             Path.GetRelativePath(config.VaultPath, newFilePath));
+        if (oldRelativePath.Equals(newRelativePath, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         if (oldRelativePath.Equals(newRelativePath, StringComparison.OrdinalIgnoreCase))
         {
+            using var caseOnlyLock = AcquirePathLock(oldRelativePath);
+            if (_store.TryRemove(oldRelativePath, out var caseOnlyEntry))
+            {
+                _store[newRelativePath] = caseOnlyEntry with { VaultRelativePath = newRelativePath };
+            }
+
             return;
         }
 
@@ -270,6 +291,44 @@ public sealed class EmbeddingService : IDisposable
         {
             _failedPaths[newRelativePath] = failure;
         }
+    }
+
+    private bool TryReuseMissingEntry(string targetRelativePath, string hash)
+    {
+        var candidate = _store.Values.FirstOrDefault(entry =>
+            entry.Hash == hash &&
+            !entry.VaultRelativePath.Equals(targetRelativePath, StringComparison.OrdinalIgnoreCase) &&
+            !File.Exists(ResolveVaultAbsolutePath(entry.VaultRelativePath)));
+        if (candidate is null)
+        {
+            return false;
+        }
+
+        var sourceRelativePath = candidate.VaultRelativePath;
+        var sourceFirst = string.Compare(sourceRelativePath, targetRelativePath, StringComparison.OrdinalIgnoreCase) < 0;
+        var firstPath = sourceFirst ? sourceRelativePath : targetRelativePath;
+        var secondPath = sourceFirst ? targetRelativePath : sourceRelativePath;
+        using var firstLock = AcquirePathLock(firstPath);
+        using var secondLock = AcquirePathLock(secondPath);
+
+        if (_store.TryGetValue(targetRelativePath, out var existing))
+        {
+            return existing.Hash == hash;
+        }
+
+        if (!_store.TryRemove(sourceRelativePath, out var entry) || entry.Hash != hash)
+        {
+            return false;
+        }
+
+        if (File.Exists(ResolveVaultAbsolutePath(sourceRelativePath)))
+        {
+            _store[sourceRelativePath] = entry;
+            return false;
+        }
+
+        _store[targetRelativePath] = entry with { VaultRelativePath = targetRelativePath };
+        return true;
     }
 
     public IEnumerable<SemanticResult> SearchByVector(

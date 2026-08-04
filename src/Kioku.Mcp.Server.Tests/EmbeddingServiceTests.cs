@@ -377,6 +377,24 @@ public class EmbeddingServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MoveCaseOnlyRenameUpdatesCachedVectorPath()
+    {
+        var service = CreateService(DeterministicEmbedding.Responder());
+        await service.InitializeAsync([]);
+        await service.IndexNoteAsync(MakeNote("Notes/Design.md", "stable-hash"));
+        await WaitForBacklogToClearAsync(service);
+
+        var oldPath = Path.Combine(_vaultPath, "Notes", "Design.md");
+        var newPath = Path.Combine(_vaultPath, "Notes", "design.md");
+        service.Move(oldPath, newPath);
+        await service.SaveAsync();
+
+        var cache = await EmbeddingPersistence.LoadAsync(Path.Combine(_vaultPath, ".kioku", "embeddings.bin"));
+        Assert.DoesNotContain(cache.Entries.Keys, key => key.Equals("Notes/Design.md", StringComparison.Ordinal));
+        Assert.Contains(cache.Entries.Keys, key => key.Equals("Notes/design.md", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task WatcherDeleteBeforeExplicitMoveReusesVector()
     {
         var embedCalls = 0;
@@ -384,10 +402,26 @@ public class EmbeddingServiceTests : IAsyncLifetime
         var config = new KiokuConfiguration { VaultPath = _vaultPath, EmbeddingModel = "nomic-embed-text" };
         using var vault = new VaultIndexService(
             Microsoft.Extensions.Logging.Abstractions.NullLogger<VaultIndexService>.Instance, config, service);
+        var watcherDeleteReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowWatcherDelete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var watcherDeleteFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vault.WatcherDeleteBeforeEmbeddingRemoveAsync = async _ =>
+        {
+            watcherDeleteReached.TrySetResult();
+            try
+            {
+                await allowWatcherDelete.Task;
+            }
+            finally
+            {
+                watcherDeleteFinished.TrySetResult();
+            }
+        };
 
         var oldPath = Path.Combine(_vaultPath, "Old.md");
         await File.WriteAllTextAsync(oldPath, "---\ntags: [prueba]\n---\ncontenido estable de la nota");
         await vault.InitializeAsync();
+        Assert.True(await service.WaitForInitialBacklogAsync(TimeSpan.FromSeconds(5)));
         await WaitForBacklogToClearAsync(service);
 
         var callsAfterIndexing = embedCalls;
@@ -397,9 +431,12 @@ public class EmbeddingServiceTests : IAsyncLifetime
         File.Delete(oldPath);
 
         await WaitForConditionAsync(() => vault.GetNote(oldPath) is null);
+        await watcherDeleteReached.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await vault.SynchronizeFileMoveAsync(oldPath, newPath);
+        allowWatcherDelete.TrySetResult();
+        await watcherDeleteFinished.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await WaitForBacklogToClearAsync(service);
-        await Task.Delay(750);
+        vault.WatcherDeleteBeforeEmbeddingRemoveAsync = null;
 
         Assert.Equal(callsAfterIndexing, embedCalls);
         Assert.NotNull(service.GetVector(Path.Combine("Sub", "New.md")));

@@ -35,8 +35,10 @@ public sealed class VaultIndexService : IDisposable
     // FileSystemWatcher and debouncing
     private FileSystemWatcher? _watcher;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _debouncers = new();
-    private readonly ConcurrentDictionary<string, CancellationTokenSource> _pendingWatcherDeletes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, PendingWatcherDelete> _pendingWatcherDeletes = new(StringComparer.OrdinalIgnoreCase);
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(500);
+
+    internal Func<string, Task>? WatcherDeleteBeforeEmbeddingRemoveAsync { get; set; }
 
     // Index state
     private int _indexedCount;
@@ -632,42 +634,59 @@ public sealed class VaultIndexService : IDisposable
         RemoveFromIndex(filePath, removeEmbedding: false);
         if (_pendingWatcherDeletes.TryRemove(filePath, out var previous))
         {
-            previous.Cancel();
+            CancelPendingWatcherDelete(previous);
         }
 
-        var cancellation = new CancellationTokenSource();
-        _pendingWatcherDeletes[filePath] = cancellation;
+        var pending = new PendingWatcherDelete();
+        _pendingWatcherDeletes[filePath] = pending;
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(DebounceDelay, cancellation.Token);
-                if (!File.Exists(filePath))
+                await Task.Delay(DebounceDelay, pending.Cancellation.Token);
+                if (WatcherDeleteBeforeEmbeddingRemoveAsync is { } beforeRemove)
                 {
-                    _embedding?.Remove(filePath);
+                    await beforeRemove(filePath);
+                }
+
+                lock (pending.Gate)
+                {
+                    pending.Cancellation.Token.ThrowIfCancellationRequested();
+                    if (!File.Exists(filePath))
+                    {
+                        _embedding?.Remove(filePath);
+                    }
                 }
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
             {
             }
             finally
             {
                 if (_pendingWatcherDeletes.TryGetValue(filePath, out var current) &&
-                    ReferenceEquals(current, cancellation))
+                    ReferenceEquals(current, pending))
                 {
                     _pendingWatcherDeletes.TryRemove(filePath, out _);
                 }
 
-                cancellation.Dispose();
+                pending.Dispose();
             }
         });
     }
 
     private void CancelPendingWatcherDelete(string filePath)
     {
-        if (_pendingWatcherDeletes.TryRemove(filePath, out var cancellation))
+        if (_pendingWatcherDeletes.TryRemove(filePath, out var pending))
         {
-            cancellation.Cancel();
+            CancelPendingWatcherDelete(pending);
+        }
+    }
+
+    private static void CancelPendingWatcherDelete(PendingWatcherDelete pending)
+    {
+        lock (pending.Gate)
+        {
+            pending.Cancellation.Cancel();
         }
     }
 
@@ -929,11 +948,19 @@ public sealed class VaultIndexService : IDisposable
             cts.Cancel();
         }
 
-        foreach (var cts in _pendingWatcherDeletes.Values)
+        foreach (var pending in _pendingWatcherDeletes.Values)
         {
-            cts.Cancel();
+            CancelPendingWatcherDelete(pending);
         }
 
         _watcher?.Dispose();
+    }
+
+    private sealed class PendingWatcherDelete : IDisposable
+    {
+        internal readonly CancellationTokenSource Cancellation = new();
+        internal readonly object Gate = new();
+
+        public void Dispose() => Cancellation.Dispose();
     }
 }

@@ -109,7 +109,7 @@ internal sealed class VaultMutationService(
         catch (IOException)
         {
             RecordMutationFailure("WRITE_CONFLICT");
-            throw new VaultMutationException("INTERNAL", "The vault mutation could not be committed.",
+            throw new VaultMutationException(VaultMutationErrorCodes.WriteConflict, "The vault mutation could not be committed.",
                 new VaultMutationConflict(
                     VaultMutationErrorCodes.WriteConflict,
                     resourceKey,
@@ -238,7 +238,7 @@ internal sealed class VaultMutationService(
         {
             RecordMutationFailure("WRITE_CONFLICT");
             throw new VaultMutationException(
-                "INTERNAL", "The vault move could not be committed.");
+                VaultMutationErrorCodes.WriteConflict, "The vault move could not be committed.");
         }
     }
 
