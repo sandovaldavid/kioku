@@ -36,7 +36,7 @@ Kioku's core MCP server works directly against the configured vault directory. O
 | [Durable coordination profile](durable-coordination.md) | Implemented with gated rollout | Coordination domain, state machine, storage boundary, event persistence, claims, leases, fencing, guarded vault mutations, and the gated MCP surface. |
 | [Troubleshooting](troubleshooting.md) | Implemented | Diagnose server, HTTP, indexing, Ollama, bridge, and Docker problems. |
 | [Focused-tool migration](focused-tool-migration.md) | Implemented / Deprecated | Preferred focused tools and the generic wrappers retained only for compatibility. |
-| [2.3.0 to 3.0.0 migration](migration-2.3.0-to-3.0.0.md) | In progress | Breaking tool, discovery-profile, result, and mutation changes for the Kioku 3 release. |
+| [2.3.0 to 3.0.0 migration](migration-2.3.0-to-3.0.0.md) | Implemented / published upgrade path | Breaking tool, discovery-profile, result, and mutation changes required when upgrading a 2.3.0 integration to Kioku 3. |
 
 ## Runtime contracts
 
@@ -89,10 +89,12 @@ node scripts/generate-public-docs.mjs --write
 node scripts/generate-public-docs.mjs --check
 ```
 
-Validate maintained repository-relative links separately:
+Validate maintained repository-relative links, sidebar destinations, and release-facing metadata separately:
 
 ```bash
 node scripts/validate-markdown-links.mjs
+node scripts/validate-docs-navigation.mjs
+node scripts/validate-release-documentation.mjs
 ```
 
 The link check validates local file existence only. It does not make network requests or validate anchors, redirects, hosted documentation, or third-party services.
