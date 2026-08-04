@@ -1,4 +1,6 @@
 using System.Text;
+using Kioku.Mcp.Server.Domain.Coordination;
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -49,7 +51,24 @@ public class ZettelkastenToolsFolderTemplateTests : IAsyncLifetime
                 Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)))));
         var hybrid = new HybridSearchService(_fixture.Index, embedding);
         var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
-        return new ZettelkastenTools(_fixture.Index, embedding, hybrid, config, vaultConfig, bridge);
+        var mutations = CreateMutationService(config);
+        return new ZettelkastenTools(_fixture.Index, embedding, hybrid, config, vaultConfig, bridge, mutations);
+    }
+
+    private VaultMutationService CreateMutationService(KiokuConfiguration config)
+    {
+        var paths = new VaultPathPolicy(config);
+        var fileSystem = new CoordinationFileSystem();
+        var timeProvider = TimeProvider.System;
+        var validator = new CoordinationContractValidator();
+        var events = new CoordinationEventStore(paths, fileSystem, validator, timeProvider);
+        var claims = new CoordinationClaimStore(paths, fileSystem, events, validator, timeProvider);
+        return new VaultMutationService(
+            paths,
+            fileSystem,
+            claims,
+            new VaultIndexOperations(_fixture.Index),
+            timeProvider);
     }
 
     private VaultConfigService CreateVaultConfigWithTemplateFolder(string folder, string templatePath)

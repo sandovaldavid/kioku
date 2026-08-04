@@ -28,14 +28,21 @@ internal sealed class VaultMutationService(
         string content,
         VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        WriteCoreAsync(path, content, preconditions, requireAbsent: true, cancellationToken);
+        WriteCoreAsync(path, content, preconditions, requireAbsent: true, requireExists: false, cancellationToken);
 
     public Task<VaultMutationReceipt> WriteTextAsync(
         string path,
         string content,
         VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        WriteCoreAsync(path, content, preconditions, requireAbsent: false, cancellationToken);
+        WriteCoreAsync(path, content, preconditions, requireAbsent: false, requireExists: true, cancellationToken);
+
+    public Task<VaultMutationReceipt> UpsertTextAsync(
+        string path,
+        string content,
+        VaultMutationPreconditions? preconditions = null,
+        CancellationToken cancellationToken = default) =>
+        WriteCoreAsync(path, content, preconditions, requireAbsent: false, requireExists: false, cancellationToken);
 
     public async Task<VaultMutationReceipt> DeleteAsync(
         string path,
@@ -269,16 +276,18 @@ internal sealed class VaultMutationService(
         string content,
         VaultMutationPreconditions? preconditions,
         bool requireAbsent,
+        bool requireExists,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
         var target = ResolveWritePath(path);
         var normalized = NormalizePreconditions(preconditions);
         var resourceKey = ResolveResourceKey(target, normalized);
+        var operation = requireAbsent ? "create" : requireExists ? "write" : "upsert";
         var fingerprint = ComputeFingerprint(
-            requireAbsent ? "create" : "write", resourceKey, target, content, normalized);
+            operation, resourceKey, target, content, normalized);
         using var activity = metrics?.StartCoordinationActivity(
-            requireAbsent ? "coordination.mutation.create" : "coordination.mutation.write",
+            $"coordination.mutation.{operation}",
             claimId: normalized.ClaimId);
 
         try
@@ -301,7 +310,7 @@ internal sealed class VaultMutationService(
                             current,
                             observed[resourceKey],
                             timeProvider,
-                            requireExists: !requireAbsent);
+                            requireExists);
                         if (requireAbsent && current is not null)
                         {
                             throw new VaultMutationException(
@@ -320,7 +329,7 @@ internal sealed class VaultMutationService(
                             current,
                             observed[resourceKey],
                             timeProvider,
-                            requireExists: !requireAbsent);
+                            requireExists);
                         if (requireAbsent && current is not null)
                         {
                             throw new VaultMutationException(

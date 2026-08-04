@@ -117,6 +117,7 @@ public class UtilityToolsTests : IClassFixture<VaultFixture>
         Assert.Equal(
             KiokuCapabilityCatalog.CoordinationProfileVersion,
             document.RootElement.GetProperty("profile_version").GetInt32());
+        Assert.Equal("2.3.0", document.RootElement.GetProperty("server_version").GetString());
         Assert.False(document.RootElement.GetProperty("capability_group").GetProperty("enabled").GetBoolean());
         Assert.Equal("gated", document.RootElement.GetProperty("rollout").GetProperty("status").GetString());
         Assert.False(document.RootElement.GetProperty("capabilities").GetProperty("coordination.cas").GetProperty("enabled").GetBoolean());

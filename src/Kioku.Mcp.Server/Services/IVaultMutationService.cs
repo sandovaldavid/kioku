@@ -20,6 +20,12 @@ public interface IVaultMutationService
         VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 
+    Task<VaultMutationReceipt> UpsertTextAsync(
+        string path,
+        string content,
+        VaultMutationPreconditions? preconditions = null,
+        CancellationToken cancellationToken = default);
+
     Task<VaultMutationReceipt> DeleteAsync(
         string path,
         VaultMutationPreconditions? preconditions = null,
