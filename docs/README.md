@@ -88,7 +88,13 @@ node scripts/generate-public-docs.mjs --write
 node scripts/generate-public-docs.mjs --check
 ```
 
-The check validates generated contracts and metadata, current transport terminology, and repository-relative links in maintained Markdown entry points.
+Validate maintained repository-relative links separately:
+
+```bash
+node scripts/validate-markdown-links.mjs
+```
+
+The link check validates local file existence only. It does not make network requests or validate anchors, redirects, hosted documentation, or third-party services.
 
 ## Documentation boundary
 
