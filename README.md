@@ -2,7 +2,7 @@
 
 > **Kioku** (記憶) means “memory” in Japanese.
 >
-> Latest tagged server release: **3.0.0** <!-- x-release-please-version --> · [NuGet](https://www.nuget.org/packages/kioku-mcp-server) · [Documentation](https://sandovaldavid.github.io/kioku/) · [Releases](https://github.com/sandovaldavid/kioku/releases)
+> Latest tagged server release: **3.0.1** <!-- x-release-please-version --> · [NuGet](https://www.nuget.org/packages/kioku-mcp-server) · [Documentation](https://sandovaldavid.github.io/kioku/) · [Releases](https://github.com/sandovaldavid/kioku/releases)
 
 Kioku is a local-first Model Context Protocol server that lets Claude Code, Codex, OpenCode, and other MCP clients continue work across fresh sessions by reading and updating structured knowledge in an Obsidian vault.
 
