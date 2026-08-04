@@ -60,13 +60,13 @@ internal sealed partial class WorkSessionService
 
         var now = _timeProvider.GetUtcNow();
         var sb = new StringBuilder("# Work Context Snapshot\n\n");
-        sb.AppendLine($"**Generated:** {now:yyyy-MM-dd HH:mm} UTC\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Generated:** {now:yyyy-MM-dd HH:mm} UTC\n");
 
         var inbox = _vault.GetNotesInFolder(inboxFolder)
             .OrderByDescending(note => note.LastModified)
             .Take(maxPerSection)
             .ToList();
-        sb.AppendLine($"## Inbox ({inboxFolder}) — {inbox.Count} note(s)");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"## Inbox ({inboxFolder}) — {inbox.Count} note(s)");
         if (inbox.Count == 0)
         {
             sb.AppendLine("_(empty — inbox is clear)_");
@@ -76,7 +76,7 @@ internal sealed partial class WorkSessionService
             foreach (var note in inbox)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                sb.AppendLine($"- [[{note.Name}]] _(modified {FormatAge(note.LastModified, now)} ago)_");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- [[{note.Name}]] _(modified {FormatAge(note.LastModified, now)} ago)_");
             }
         }
 
@@ -85,7 +85,7 @@ internal sealed partial class WorkSessionService
             .OrderByDescending(note => note.LastModified)
             .Take(maxPerSection)
             .ToList();
-        sb.AppendLine($"## In Progress — Drafts ({drafts.Count} note(s))");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"## In Progress — Drafts ({drafts.Count} note(s))");
         if (drafts.Count == 0)
         {
             sb.AppendLine("_(no draft notes found)_");
@@ -98,7 +98,7 @@ internal sealed partial class WorkSessionService
                 var tags = note.Metadata.Tags.Count == 0
                     ? string.Empty
                     : $" [{string.Join(", ", note.Metadata.Tags.Take(2).Select(tag => "#" + tag))}]";
-                sb.AppendLine($"- [[{note.Name}]]{tags} _(modified {FormatAge(note.LastModified, now)} ago)_");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- [[{note.Name}]]{tags} _(modified {FormatAge(note.LastModified, now)} ago)_");
             }
         }
 
@@ -110,11 +110,11 @@ internal sealed partial class WorkSessionService
             .Take(recentLimit > 0 ? recentLimit : maxPerSection)
             .ToList();
         var scope = string.IsNullOrWhiteSpace(recentFolder) ? string.Empty : $" in '{recentFolder}'";
-        sb.AppendLine($"## Recently Modified{scope} ({recent.Count} note(s))");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"## Recently Modified{scope} ({recent.Count} note(s))");
         foreach (var note in recent)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            sb.AppendLine($"- [[{note.Name}]] _(modified {FormatAge(note.LastModified, now)} ago)_");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- [[{note.Name}]] _(modified {FormatAge(note.LastModified, now)} ago)_");
         }
 
         sb.AppendLine();
@@ -135,8 +135,9 @@ internal sealed partial class WorkSessionService
                     ? string.Empty
                     : $" · coordination `{session.Coordination.RunId}/{session.Coordination.WorkItemId}`";
                 sb.AppendLine(
-                    $"- [[{session.Note.Name}]] — `{id}` · {session.Agent ?? "unknown agent"} · " +
-                    $"{project}{coordination} _(started {FormatAge(session.StartedAt, now)} ago)_");
+                    CultureInfo.InvariantCulture,
+                    $"- [[{session.Note.Name}]] — `{id}` · {session.Agent ?? "unknown agent"} · {project}{coordination} " +
+                    $"_(started {FormatAge(session.StartedAt, now)} ago)_");
             }
         }
 
@@ -378,14 +379,14 @@ internal sealed partial class WorkSessionService
                     ? session.Note.LastModified.ToUniversalTime()
                     : now);
             sb.AppendLine(
-                $"- {session.Note.Name} — id: `{id}` — status: {session.Status} — " +
-                $"agent: {session.Agent ?? "unknown"} — project: {projectLabel} — " +
-                $"started: {FormatUtc(session.StartedAt)} — duration: {FormatDuration(end - session.StartedAt)}");
+                CultureInfo.InvariantCulture,
+                $"- {session.Note.Name} — id: `{id}` — status: {session.Status} — agent: {session.Agent ?? "unknown"} — " +
+                $"project: {projectLabel} — started: {FormatUtc(session.StartedAt)} — duration: {FormatDuration(end - session.StartedAt)}");
             if (session.Coordination is not null)
             {
                 sb.AppendLine(
-                    $"  Coordination: run `{session.Coordination.RunId}`, " +
-                    $"work item `{session.Coordination.WorkItemId}`, " +
+                    CultureInfo.InvariantCulture,
+                    $"  Coordination: run `{session.Coordination.RunId}`, work item `{session.Coordination.WorkItemId}`, " +
                     $"attempt `{session.Coordination.AttemptId}`.");
             }
             if (includeActivity)
@@ -828,12 +829,13 @@ internal sealed partial class WorkSessionService
             return;
         }
 
-        sb.AppendLine($"  Activity: {notes.Count} note(s) modified during session '{session.Note.Name}':");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"  Activity: {notes.Count} note(s) modified during session '{session.Note.Name}':");
         foreach (var note in notes)
         {
             sb.AppendLine(
-                $"    - {note.VaultRelativePath} " +
-                $"(modified {FormatDuration(note.LastModified.ToUniversalTime() - session.StartedAt)} after session start)");
+                CultureInfo.InvariantCulture,
+                $"    - {note.VaultRelativePath} (modified {FormatDuration(note.LastModified.ToUniversalTime() - session.StartedAt)} " +
+                $"after session start)");
         }
     }
 }

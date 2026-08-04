@@ -410,7 +410,7 @@ public sealed class VaultIndexService : IDisposable
         return component;
     }
 
-    private IReadOnlyList<Note> MaterializeBacklinks(IEnumerable<string> matchingKeys)
+    private List<Note> MaterializeBacklinks(IEnumerable<string> matchingKeys)
     {
         var sourcePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var key in matchingKeys)
@@ -451,7 +451,7 @@ public sealed class VaultIndexService : IDisposable
         await IndexVaultAsync(cancellationToken);
         if (_embedding is not null)
         {
-            await _embedding.SaveAsync();
+            await _embedding.SaveAsync(cancellationToken);
         }
 
         SetReady(true);
@@ -506,7 +506,7 @@ public sealed class VaultIndexService : IDisposable
 
             if (_embedding is not null)
             {
-                await _embedding.IndexNoteAsync(note);
+                await _embedding.IndexNoteAsync(note, cancellationToken);
             }
 
             Interlocked.Increment(ref _indexedCount);
@@ -850,7 +850,7 @@ public sealed class VaultIndexService : IDisposable
             : normalized;
     }
 
-    private static IReadOnlyList<string> TokenizeQuery(string query) =>
+    private static List<string> TokenizeQuery(string query) =>
         query.Split([' ', '\t', '\n', '\r', ',', '.', '!', '?'],
                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
              .Where(w => w.Length >= 2)
@@ -888,6 +888,7 @@ public sealed class VaultIndexService : IDisposable
 
     private static string ComputeHash(string content)
     {
+        // MD5 is a persisted non-security content identity for the embedding cache.
         var bytes = Encoding.UTF8.GetBytes(content);
         return Convert.ToHexString(MD5.HashData(bytes));
     }

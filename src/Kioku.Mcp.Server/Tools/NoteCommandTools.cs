@@ -782,7 +782,7 @@ public sealed partial class NoteCommandTools(
                     {
                         var age = DateTimeOffset.UtcNow - File.GetLastWriteTimeUtc(item.File);
                         var ageStr = age.TotalHours < 24 ? $"{(int)age.TotalHours}h" : $"{(int)age.TotalDays}d";
-                        sb.AppendLine($"  {item.Relative} (modified {ageStr} ago)");
+                        sb.AppendLine(CultureInfo.InvariantCulture, $"  {item.Relative} (modified {ageStr} ago)");
                     }
 
                     return sb.ToString();
@@ -889,7 +889,7 @@ public sealed partial class NoteCommandTools(
         return null;
     }
 
-    private string? FindInTrash(string name, string trashFolder)
+    private static string? FindInTrash(string name, string trashFolder)
     {
         var normalized = name.Replace('\\', Path.DirectorySeparatorChar)
             .TrimStart(Path.DirectorySeparatorChar);
@@ -1056,14 +1056,14 @@ public sealed partial class NoteCommandTools(
         }
 
         var sb = new StringBuilder();
-        sb.Append($"\n   Updated {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s).");
+        sb.Append(CultureInfo.InvariantCulture, $"\n   Updated {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s).");
 
         if (summary.AmbiguousLinks.Count > 0)
         {
-            sb.Append($"\n   Skipped {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) (another note shares this name):");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   Skipped {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) (another note shares this name):");
             foreach (var link in summary.AmbiguousLinks)
             {
-                sb.Append($"\n     - {link}");
+                sb.Append(CultureInfo.InvariantCulture, $"\n     - {link}");
             }
         }
 
@@ -1075,7 +1075,7 @@ public sealed partial class NoteCommandTools(
     {
         var sb = new StringBuilder();
         sb.Append("[info] Dry run — no files were modified.\n");
-        sb.Append($"   Would {action}: {beforePath} -> {afterPath}");
+        sb.Append(CultureInfo.InvariantCulture, $"   Would {action}: {beforePath} -> {afterPath}");
 
         if (!updateLinks)
         {
@@ -1089,19 +1089,19 @@ public sealed partial class NoteCommandTools(
         }
         else
         {
-            sb.Append($"\n   Would update {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s):");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   Would update {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s):");
             foreach (var (noteName, count) in summary.Details)
             {
-                sb.Append($"\n     - {noteName}: {count} link(s)");
+                sb.Append(CultureInfo.InvariantCulture, $"\n     - {noteName}: {count} link(s)");
             }
         }
 
         if (summary.AmbiguousLinks.Count > 0)
         {
-            sb.Append($"\n   {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) would be skipped:");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) would be skipped:");
             foreach (var link in summary.AmbiguousLinks)
             {
-                sb.Append($"\n     - {link}");
+                sb.Append(CultureInfo.InvariantCulture, $"\n     - {link}");
             }
         }
 

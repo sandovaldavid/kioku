@@ -131,7 +131,7 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
         {
             var today = DateOnly.FromDateTime(DateTime.Today);
             var sb = new StringBuilder();
-            sb.AppendLine($"Overdue tasks as of {today:yyyy-MM-dd} ({pageMetadata}):\n");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Overdue tasks as of {today:yyyy-MM-dd} ({pageMetadata}):\n");
             sb.Append(FormatTaskList(page, showDueDate: true, highlightOverdue: true));
             return sb.ToString();
         }
@@ -139,7 +139,7 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
         if (tagValue.Length > 0)
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"Tasks with tag '#{tagValue}' ({pageMetadata}):\n");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Tasks with tag '#{tagValue}' ({pageMetadata}):\n");
             sb.Append(FormatTaskList(page));
             return sb.ToString();
         }
@@ -213,7 +213,7 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
             if (task.VaultRelativePath != currentNote)
             {
                 currentNote = task.VaultRelativePath;
-                sb.AppendLine($"\n📄 {currentNote}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"\n📄 {currentNote}");
             }
 
             var checkbox = task.IsCompleted ? "[x]" : "[ ]";
@@ -243,7 +243,7 @@ public sealed class TaskManagementTools(VaultIndexService vault, TaskService tas
             }
 
             var extraStr = extras.Count > 0 ? $"  ({string.Join(" | ", extras)})" : "";
-            sb.AppendLine($"  {checkbox} {task.Text}{extraStr}  [{lineRef}]");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  {checkbox} {task.Text}{extraStr}  [{lineRef}]");
         }
 
         return sb.ToString().TrimStart('\n');

@@ -409,7 +409,7 @@ public sealed class CoordinationTools(ICoordinationService coordination)
     private static string? EmptyToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static IReadOnlyList<string> SplitList(string? value) =>
+    private static string[] SplitList(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? []
             : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

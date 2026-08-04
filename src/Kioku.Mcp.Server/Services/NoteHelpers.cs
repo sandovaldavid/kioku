@@ -258,10 +258,10 @@ public static class NoteHelpers
         var section = new StringBuilder($"\n\n## {sectionTitle}\n\n");
         foreach (var (name, annotation) in newTargets)
         {
-            section.Append($"- [[{name}]]");
+            section.Append(CultureInfo.InvariantCulture, $"- [[{name}]]");
             if (!string.IsNullOrEmpty(annotation))
             {
-                section.Append($" ({annotation})");
+                section.Append(CultureInfo.InvariantCulture, $" ({annotation})");
             }
 
             section.AppendLine();
@@ -279,12 +279,12 @@ public static class NoteHelpers
         var timestamp = now ?? DateTimeOffset.UtcNow;
         var merged = new Dictionary<string, string>(variables, StringComparer.OrdinalIgnoreCase);
 
-        merged.TryAdd("date", timestamp.ToString("yyyy-MM-dd"));
-        merged.TryAdd("time", timestamp.ToString("HH:mm:ss"));
-        merged.TryAdd("datetime", timestamp.ToString("yyyy-MM-dd HH:mm:ss"));
-        merged.TryAdd("year", timestamp.Year.ToString());
-        merged.TryAdd("month", timestamp.Month.ToString("D2"));
-        merged.TryAdd("day", timestamp.Day.ToString("D2"));
+        merged.TryAdd("date", timestamp.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        merged.TryAdd("time", timestamp.ToString("HH:mm:ss", CultureInfo.InvariantCulture));
+        merged.TryAdd("datetime", timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+        merged.TryAdd("year", timestamp.Year.ToString(CultureInfo.InvariantCulture));
+        merged.TryAdd("month", timestamp.Month.ToString("D2", CultureInfo.InvariantCulture));
+        merged.TryAdd("day", timestamp.Day.ToString("D2", CultureInfo.InvariantCulture));
         merged.TryAdd("uid", Guid.NewGuid().ToString("N"));
 
         if (noteTitle is not null)

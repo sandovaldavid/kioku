@@ -126,7 +126,7 @@ public static class RetrievalMetrics
 
     private static double Gain(int grade) => Math.Pow(2, grade) - 1;
 
-    private static bool IsRelevant(string path, IReadOnlyDictionary<string, int> normalizedJudgments) =>
+    private static bool IsRelevant(string path, Dictionary<string, int> normalizedJudgments) =>
         normalizedJudgments.TryGetValue(NormalizePath(path), out var grade) && grade > 0;
 
     private static Dictionary<string, int> NormalizeJudgments(IReadOnlyDictionary<string, int> relevanceByPath)

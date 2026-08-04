@@ -127,10 +127,10 @@ public sealed partial class WorkflowTools(
 
         // Inject built-in variables (only if not already provided)
         var now = DateTime.Now;
-        vars.TryAdd("date", now.ToString("yyyy-MM-dd"));
-        vars.TryAdd("time", now.ToString("HH:mm"));
+        vars.TryAdd("date", now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        vars.TryAdd("time", now.ToString("HH:mm", CultureInfo.InvariantCulture));
         vars.TryAdd("title", Path.GetFileNameWithoutExtension(target_path.Replace('/', Path.DirectorySeparatorChar)));
-        vars.TryAdd("datetime", now.ToString("yyyy-MM-dd HH:mm"));
+        vars.TryAdd("datetime", now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
 
         // Read and interpolate template
         var templateContent = await File.ReadAllTextAsync(templatePath, Encoding.UTF8);
@@ -199,7 +199,7 @@ public sealed partial class WorkflowTools(
         if (evalResult.Warning is not null)
         {
             result.AppendLine();
-            result.Append($"   [warning] {evalResult.Warning}");
+            result.Append(CultureInfo.InvariantCulture, $"   [warning] {evalResult.Warning}");
         }
 
         return result.ToString();
@@ -252,7 +252,7 @@ public sealed partial class WorkflowTools(
                 .ToList();
             var templateRelativePath = Path.GetRelativePath(config.VaultPath, filePath).Replace('\\', '/');
             var result = new StringBuilder($"[ok] Template '{name}' ({templateRelativePath}):\n\n");
-            result.AppendLine($"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+            result.AppendLine(CultureInfo.InvariantCulture, $"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
             result.AppendLine();
             result.AppendLine("```markdown");
             result.AppendLine(templateContent);
@@ -314,7 +314,7 @@ public sealed partial class WorkflowTools(
                 .OrderBy(v => v)
                 .ToList();
 
-            sb.Append($"  **{templateName}** ({relFolderName}/{templateName}.md)");
+            sb.Append(CultureInfo.InvariantCulture, $"  **{templateName}** ({relFolderName}/{templateName}.md)");
             sb.Append(vars.Count > 0
                 ? $" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}"
                 : " — no variables");
@@ -348,9 +348,9 @@ public sealed partial class WorkflowTools(
                 var path = workspace.GetVaultTemplatePath(key);
                 var hasOverride = path is not null && File.Exists(path);
                 var vars = ProjectWorkspaceService.SupportedVariablesFor(key);
-                sb.Append($"  **{key}** — ");
+                sb.Append(CultureInfo.InvariantCulture, $"  **{key}** — ");
                 sb.Append(hasOverride ? $"override at {workspace.ToVaultRelative(path!)}" : "using embedded default");
-                sb.AppendLine($" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
             }
 
             return sb.ToString();
@@ -361,7 +361,7 @@ public sealed partial class WorkflowTools(
             var effectiveContent = await workspace.ResolveTemplateAsync(typeKey);
             var vars = ProjectWorkspaceService.SupportedVariablesFor(typeKey);
             var result = new StringBuilder($"[ok] Template '{typeKey}' ({(isOverride ? $"override: {workspace.ToVaultRelative(overridePath!)}" : "embedded default")}):\n\n");
-            result.AppendLine($"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+            result.AppendLine(CultureInfo.InvariantCulture, $"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
             result.AppendLine();
             result.AppendLine("```markdown");
             result.AppendLine(effectiveContent);

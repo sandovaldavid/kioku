@@ -245,25 +245,25 @@ public sealed partial class ResearchTools(
         entry.Fields.TryGetValue("abstract", out var abstractText);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# {title ?? entry.CiteKey}\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# {title ?? entry.CiteKey}\n");
         sb.AppendLine("## Metadata\n");
-        sb.AppendLine($"- **Author:** {author ?? "Unknown"}");
-        sb.AppendLine($"- **Year:** {year ?? "n.d."}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- **Author:** {author ?? "Unknown"}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- **Year:** {year ?? "n.d."}");
 
         var venue = !string.IsNullOrWhiteSpace(journal) ? journal : booktitle;
         if (!string.IsNullOrWhiteSpace(venue))
         {
-            sb.AppendLine($"- **Venue:** {venue}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- **Venue:** {venue}");
         }
 
         if (!string.IsNullOrWhiteSpace(doi))
         {
-            sb.AppendLine($"- **DOI:** {doi}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- **DOI:** {doi}");
         }
 
         if (!string.IsNullOrWhiteSpace(url))
         {
-            sb.AppendLine($"- **URL:** {url}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- **URL:** {url}");
         }
 
         sb.AppendLine("\n## Summary\n");
@@ -281,7 +281,7 @@ public sealed partial class ResearchTools(
     {
         var citekey = extraFields.GetValueOrDefault("citekey", "unknown");
         var type = extraFields.GetValueOrDefault("bibtex-type", "misc");
-        sb.AppendLine($"@{type}{{{citekey},");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"@{type}{{{citekey},");
 
         foreach (var (name, value) in extraFields)
         {
@@ -291,14 +291,14 @@ public sealed partial class ResearchTools(
                 continue;
             }
 
-            sb.AppendLine($"  {name} = {{{value}}},");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  {name} = {{{value}}},");
         }
 
         sb.AppendLine("}");
         sb.AppendLine();
     }
 
-    private static IReadOnlyDictionary<string, string> BuildBibtexFields(Note note, string citekey)
+    private static Dictionary<string, string> BuildBibtexFields(Note note, string citekey)
     {
         var fields = new Dictionary<string, string>(note.Metadata.ExtraFields, StringComparer.OrdinalIgnoreCase)
         {
@@ -319,7 +319,7 @@ public sealed partial class ResearchTools(
     {
         var sb = new StringBuilder();
         var verb = dryRun ? "[dry-run] Would import" : "[ok] Imported";
-        sb.AppendLine($"{verb} {created.Count + updated.Count} entries " +
+        sb.AppendLine(CultureInfo.InvariantCulture, $"{verb} {created.Count + updated.Count} entries " +
                       $"({created.Count} new, {updated.Count} updated, {skipped.Count} skipped, {parseErrors.Count} failed to parse):");
         sb.AppendLine();
 
@@ -328,7 +328,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine(dryRun ? "**Would create:**" : "**Created:**");
             foreach (var line in created)
             {
-                sb.AppendLine($"- {line}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {line}");
             }
             sb.AppendLine();
         }
@@ -338,7 +338,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine(dryRun ? "**Would update:**" : "**Updated:**");
             foreach (var line in updated)
             {
-                sb.AppendLine($"- {line}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {line}");
             }
             sb.AppendLine();
         }
@@ -348,7 +348,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine("**Skipped (already exist):**");
             foreach (var line in skipped)
             {
-                sb.AppendLine($"- {line}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {line}");
             }
             sb.AppendLine();
         }
@@ -358,7 +358,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine("**Parse errors:**");
             foreach (var error in parseErrors)
             {
-                sb.AppendLine($"- {error}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {error}");
             }
         }
 
@@ -396,7 +396,7 @@ public sealed partial class ResearchTools(
                     : note.Metadata.ExtraFields.TryGetValue("authors", out var authors) ? authors : "Unknown";
                 var year = note.Metadata.ExtraFields.TryGetValue("year", out var y)
                     ? y
-                    : note.Metadata.Date?.Year.ToString() ?? "n.d.";
+                    : note.Metadata.Date?.Year.ToString(CultureInfo.InvariantCulture) ?? "n.d.";
                 var title = note.Metadata.ExtraFields.TryGetValue("title", out var t) ? t : note.Name;
                 return (note, citekey, author, year, title);
             })
@@ -413,7 +413,7 @@ public sealed partial class ResearchTools(
         var sb = new StringBuilder();
         if (format.Equals("bibtex", StringComparison.OrdinalIgnoreCase))
         {
-            sb.AppendLine($"[ok] Exported {withCitekey.Count} BibTeX entries:");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Exported {withCitekey.Count} BibTeX entries:");
             sb.AppendLine();
             foreach (var (note, citekey, _, _, _) in withCitekey)
             {
@@ -422,7 +422,7 @@ public sealed partial class ResearchTools(
         }
         else
         {
-            sb.AppendLine($"[ok] Citation export — {withCitekey.Count} notes:");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Citation export — {withCitekey.Count} notes:");
             sb.AppendLine();
             sb.AppendLine("| Citekey | Author | Year | Title | Note |");
             sb.AppendLine("|---------|--------|------|-------|------|");
@@ -431,7 +431,7 @@ public sealed partial class ResearchTools(
             {
                 var truncTitle = title.Length > 60 ? title[..57] + "..." : title;
                 var truncAuthor = author.Length > 30 ? author[..27] + "..." : author;
-                sb.AppendLine($"| `{citekey}` | {truncAuthor} | {year} | {truncTitle} | [{note.Name}]({note.VaultRelativePath}) |");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"| `{citekey}` | {truncAuthor} | {year} | {truncTitle} | [{note.Name}]({note.VaultRelativePath}) |");
             }
         }
 
@@ -480,7 +480,7 @@ public sealed partial class ResearchTools(
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[ok] Literature gaps — {gaps.Count} missing notes:");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Literature gaps — {gaps.Count} missing notes:");
         sb.AppendLine();
         sb.AppendLine("| Missing Citekey | Referenced In |");
         sb.AppendLine("|----------------|---------------|");
@@ -493,11 +493,11 @@ public sealed partial class ResearchTools(
             {
                 sourceList += $" (+{distinct.Count - 5} more)";
             }
-            sb.AppendLine($"| `@{citekey}` | {sourceList} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| `@{citekey}` | {sourceList} |");
         }
 
         sb.AppendLine();
-        sb.AppendLine($"**{knownCitekeys.Count}** notes with citekey found · **{referencedCitekeys.Count}** total referenced · **{gaps.Count}** missing");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**{knownCitekeys.Count}** notes with citekey found · **{referencedCitekeys.Count}** total referenced · **{gaps.Count}** missing");
         return sb.ToString();
     }
 
@@ -553,7 +553,7 @@ public sealed partial class ResearchTools(
         var orphans = ranked.Where(item => item.Citers.Count == 0).ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[ok] Citation graph — {sources.Count} source(s), {cited.Count} cited, {orphans.Count} orphan(s):");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Citation graph — {sources.Count} source(s), {cited.Count} cited, {orphans.Count} orphan(s):");
         sb.AppendLine();
 
         if (cited.Count > 0)
@@ -570,7 +570,7 @@ public sealed partial class ResearchTools(
                 {
                     citerList += $" (+{ordered.Count - 5} more)";
                 }
-                sb.AppendLine($"| `{citekey}` | {note.Name} | {citers.Count} | {citerList} |");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"| `{citekey}` | {note.Name} | {citers.Count} | {citerList} |");
             }
             sb.AppendLine();
         }
@@ -580,7 +580,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine("**Orphan sources (never cited):**");
             foreach (var (note, citekey, _) in orphans)
             {
-                sb.AppendLine($"- `{citekey}` — {note.Name} ({note.VaultRelativePath})");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- `{citekey}` — {note.Name} ({note.VaultRelativePath})");
             }
         }
         else
@@ -604,7 +604,7 @@ public sealed partial class ResearchTools(
 
         var scope = string.IsNullOrWhiteSpace(folder) ? "entire vault" : $"folder '{folder}'";
         var sb = new StringBuilder();
-        sb.AppendLine($"[ok] Citation audit ({scope}):");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Citation audit ({scope}):");
         sb.AppendLine();
         sb.AppendLine("## Citation graph");
         sb.AppendLine(BuildCitationGraphReport(folder));
@@ -677,16 +677,16 @@ public sealed partial class ResearchTools(
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[info] Validation report — {problematic.Count}/{researchNotes.Count} research note(s) missing fields:");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[info] Validation report — {problematic.Count}/{researchNotes.Count} research note(s) missing fields:");
         sb.AppendLine();
         sb.AppendLine("| Note | Missing Fields |");
         sb.AppendLine("|------|---|");
         foreach (var (note, missing) in problematic.OrderBy(item => item.Note.Name))
         {
-            sb.AppendLine($"| {note.Name} | {string.Join(", ", missing)} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| {note.Name} | {string.Join(", ", missing)} |");
         }
         sb.AppendLine();
-        sb.AppendLine($"**Summary:** {researchNotes.Count} total · {researchNotes.Count - problematic.Count} complete · {problematic.Count} incomplete");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Summary:** {researchNotes.Count} total · {researchNotes.Count - problematic.Count} complete · {problematic.Count} incomplete");
         return sb.ToString();
     }
 

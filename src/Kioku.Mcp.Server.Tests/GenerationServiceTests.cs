@@ -25,7 +25,7 @@ public class GenerationServiceTests
             requestTimeout);
     }
 
-    private static HttpMessageHandler RespondOk(Func<HttpRequestMessage, HttpResponseMessage> forRequest) =>
+    private static FakeHttpMessageHandler RespondOk(Func<HttpRequestMessage, HttpResponseMessage> forRequest) =>
         new FakeHttpMessageHandler((request, _) => Task.FromResult(forRequest(request)));
 
     [Fact]

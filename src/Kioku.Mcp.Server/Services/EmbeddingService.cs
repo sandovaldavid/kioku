@@ -363,7 +363,7 @@ public sealed class EmbeddingService : IDisposable
 
     public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
-        if (!IsAvailable || _store.Count == 0)
+        if (!IsAvailable || _store.IsEmpty)
         {
             return;
         }

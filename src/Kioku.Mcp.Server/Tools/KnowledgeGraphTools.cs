@@ -15,6 +15,13 @@ namespace Kioku.Mcp.Server.Tools;
 [McpServerToolType]
 public sealed class KnowledgeGraphTools(VaultIndexService vault)
 {
+    private static readonly JsonSerializerOptions GraphJsonOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+    };
+
     // -------------------------------------------------------------------------
     // get_concept_map
     // -------------------------------------------------------------------------
@@ -105,7 +112,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             Path: n.VaultRelativePath,
             Tags: n.Metadata.Tags.ToArray(),
             Status: n.Metadata.Status,
-            Date: n.Metadata.Date?.ToString("yyyy-MM-dd"),
+            Date: n.Metadata.Date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             IsCenter: n.FilePath.Equals(center.FilePath, StringComparison.OrdinalIgnoreCase)
         )).ToList();
 
@@ -124,12 +131,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             Edges: uniqueEdges
         );
 
-        var json = JsonSerializer.Serialize(graph, new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        });
+        var json = JsonSerializer.Serialize(graph, GraphJsonOptions);
 
         return $"[ok] Concept map for '{center.Name}' (depth={depth}, {nodes.Count} nodes, {uniqueEdges.Count} edges):\n{json}";
     }
@@ -166,7 +168,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             }
 
             var sb = new StringBuilder();
-            sb.AppendLine($"[ok] Vault snapshot — {allNotes.Count} notes");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Vault snapshot — {allNotes.Count} notes");
             sb.AppendLine();
 
             // --- Folder tree ---
@@ -182,7 +184,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
             foreach (var folder in byFolder)
             {
-                sb.AppendLine($"- **{folder.Key}/** — {folder.Count()} notes");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- **{folder.Key}/** — {folder.Count()} notes");
 
                 // Subfolders (level 2)
                 var subfolders = folder
@@ -193,12 +195,12 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
                 foreach (var sub in subfolders.Take(10))
                 {
-                    sb.AppendLine($"  - {sub.Key}/ ({sub.Count()})");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"  - {sub.Key}/ ({sub.Count()})");
                 }
 
                 if (subfolders.Count > 10)
                 {
-                    sb.AppendLine($"  - ... and {subfolders.Count - 10} more subfolders");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"  - ... and {subfolders.Count - 10} more subfolders");
                 }
             }
 
@@ -221,7 +223,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             {
                 foreach (var tag in tagCounts)
                 {
-                    sb.AppendLine($"- `{tag.Key}` ({tag.Count()})");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"- `{tag.Key}` ({tag.Count()})");
                 }
             }
 
@@ -239,11 +241,11 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
                 !string.IsNullOrWhiteSpace(n.Metadata.NoteType) ||
                 n.Metadata.Tags.Any());
 
-            sb.AppendLine($"- Notes with frontmatter: {withAnyFrontmatter}/{allNotes.Count} ({Pct(withAnyFrontmatter, allNotes.Count)}%)");
-            sb.AppendLine($"- With `date`: {withDate} ({Pct(withDate, allNotes.Count)}%)");
-            sb.AppendLine($"- With `status`: {withStatus} ({Pct(withStatus, allNotes.Count)}%)");
-            sb.AppendLine($"- With `type`: {withType} ({Pct(withType, allNotes.Count)}%)");
-            sb.AppendLine($"- With `tags`: {withTags} ({Pct(withTags, allNotes.Count)}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- Notes with frontmatter: {withAnyFrontmatter}/{allNotes.Count} ({Pct(withAnyFrontmatter, allNotes.Count)}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- With `date`: {withDate} ({Pct(withDate, allNotes.Count)}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- With `status`: {withStatus} ({Pct(withStatus, allNotes.Count)}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- With `type`: {withType} ({Pct(withType, allNotes.Count)}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- With `tags`: {withTags} ({Pct(withTags, allNotes.Count)}%)");
 
             // Status breakdown
             var statusGroups = allNotes
@@ -258,7 +260,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
                 sb.AppendLine("### Status breakdown");
                 foreach (var s in statusGroups)
                 {
-                    sb.AppendLine($"- `{s.Key}`: {s.Count()}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"- `{s.Key}`: {s.Count()}");
                 }
             }
 
@@ -273,7 +275,7 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
 
             foreach (var n in recent)
             {
-                sb.AppendLine($"- [{n.Name}]({n.VaultRelativePath}) — {n.LastModified:yyyy-MM-dd HH:mm}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- [{n.Name}]({n.VaultRelativePath}) — {n.LastModified:yyyy-MM-dd HH:mm}");
             }
 
             sb.AppendLine();
@@ -284,9 +286,9 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             var orphans = allNotes.Count(n => !n.OutgoingLinks.Any() && !vault.GetBacklinks(n).Any());
 
             sb.AppendLine("## Link statistics");
-            sb.AppendLine($"- Total wikilinks: {totalOutgoing}");
-            sb.AppendLine($"- Notes with outgoing links: {notesWithLinks} ({Pct(notesWithLinks, allNotes.Count)}%)");
-            sb.AppendLine($"- Orphan notes (no links in or out): {orphans}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- Total wikilinks: {totalOutgoing}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- Notes with outgoing links: {notesWithLinks} ({Pct(notesWithLinks, allNotes.Count)}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- Orphan notes (no links in or out): {orphans}");
 
             // --- Consolidated graph analysis ---
             var backlinkCounts = allNotes
@@ -305,14 +307,14 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             sb.AppendLine();
             sb.AppendLine("## Graph density");
             sb.AppendLine("Vault Graph Density Metrics:");
-            sb.AppendLine($"  Total notes: {allNotes.Count}");
-            sb.AppendLine($"  Total outgoing links: {totalOutgoing}");
-            sb.AppendLine($"  Total backlinks: {totalBacklinks}");
-            sb.AppendLine($"  Average outgoing links/note: {avgOutgoing:F2}");
-            sb.AppendLine($"  Average backlinks/note: {avgBacklinks:F2}");
-            sb.AppendLine($"  Notes with outgoing links: {notesWithLinks} ({notesWithLinks * 100.0 / allNotes.Count:F1}%)");
-            sb.AppendLine($"  Notes with backlinks: {notesWithBacklinks} ({notesWithBacklinks * 100.0 / allNotes.Count:F1}%)");
-            sb.AppendLine($"  Unlinked notes (isolated): {unlinkedNotes.Count} ({unlinkedNotes.Count * 100.0 / allNotes.Count:F1}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Total notes: {allNotes.Count}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Total outgoing links: {totalOutgoing}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Total backlinks: {totalBacklinks}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Average outgoing links/note: {avgOutgoing:F2}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Average backlinks/note: {avgBacklinks:F2}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Notes with outgoing links: {notesWithLinks} ({notesWithLinks * 100.0 / allNotes.Count:F1}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Notes with backlinks: {notesWithBacklinks} ({notesWithBacklinks * 100.0 / allNotes.Count:F1}%)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Unlinked notes (isolated): {unlinkedNotes.Count} ({unlinkedNotes.Count * 100.0 / allNotes.Count:F1}%)");
 
             sb.AppendLine();
             sb.AppendLine("## Unlinked notes");
@@ -322,10 +324,10 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             }
             else
             {
-                sb.AppendLine($"Found {unlinkedNotes.Count} unlinked note(s):");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"Found {unlinkedNotes.Count} unlinked note(s):");
                 foreach (var note in unlinkedNotes)
                 {
-                    sb.AppendLine($"- {note.Name} (modified: {note.LastModified:yyyy-MM-dd})");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"- {note.Name} (modified: {note.LastModified:yyyy-MM-dd})");
                 }
             }
 
@@ -334,15 +336,15 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             var islands = FindIslands(allNotes, island_threshold);
             if (islands.Count == 0)
             {
-                sb.AppendLine($"[info] No graph islands found (all components > {island_threshold} notes).");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"[info] No graph islands found (all components > {island_threshold} notes).");
             }
             else
             {
-                sb.AppendLine($"Found {islands.Count} island(s) (max {island_threshold} notes each):");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"Found {islands.Count} island(s) (max {island_threshold} notes each):");
                 foreach (var island in islands.OrderByDescending(i => i.Count))
                 {
                     var noteNames = string.Join(", ", island.Select(n => n.VaultRelativePath).OrderBy(path => path));
-                    sb.AppendLine($"- Island ({island.Count} notes): {noteNames}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"- Island ({island.Count} notes): {noteNames}");
                 }
             }
 

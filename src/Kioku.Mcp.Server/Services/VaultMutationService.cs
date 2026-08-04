@@ -442,7 +442,7 @@ internal sealed class VaultMutationService(
         return supplied;
     }
 
-    private VaultMutationPreconditions NormalizePreconditions(VaultMutationPreconditions? preconditions)
+    private static VaultMutationPreconditions NormalizePreconditions(VaultMutationPreconditions? preconditions)
     {
         preconditions ??= new VaultMutationPreconditions();
         ValidateToken(preconditions.ExpectedRevision, "expected_revision", 128);
@@ -561,7 +561,7 @@ internal sealed class VaultMutationService(
             MutationRecordRoot,
             $"{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(mutationId)))}.json"));
 
-    private static IReadOnlyList<string> BuildLockKeys(
+    private static string[] BuildLockKeys(
         string? mutationId,
         params string[] resourceKeys)
     {
@@ -591,7 +591,7 @@ internal sealed class VaultMutationService(
             preconditions.ExpectedRevision ?? string.Empty,
             preconditions.ExpectedHash ?? string.Empty,
             preconditions.ClaimId ?? string.Empty,
-            preconditions.FenceGeneration?.ToString() ?? string.Empty);
+            preconditions.FenceGeneration?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input)));
     }
 

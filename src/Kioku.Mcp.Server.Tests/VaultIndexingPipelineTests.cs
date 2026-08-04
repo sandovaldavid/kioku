@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using Kioku.Mcp.Server;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Hosting;
@@ -181,7 +182,7 @@ public sealed class VaultIndexingPipelineTests
 
         public void Delete(string filePath) => _notes.TryRemove(Path.GetFullPath(filePath), out _);
 
-        private IDisposable BeginOperation()
+        private DelegateDisposable BeginOperation()
         {
             var current = Interlocked.Increment(ref _active);
             while (true)
@@ -204,7 +205,7 @@ public sealed class VaultIndexingPipelineTests
             Name = System.IO.Path.GetFileNameWithoutExtension(filePath),
             RawContent = content,
             PlainText = content,
-            ContentHash = content.GetHashCode(StringComparison.Ordinal).ToString(),
+            ContentHash = content.GetHashCode(StringComparison.Ordinal).ToString(CultureInfo.InvariantCulture),
             LastModified = File.GetLastWriteTimeUtc(filePath),
         };
     }

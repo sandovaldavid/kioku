@@ -13,6 +13,8 @@ namespace Kioku.Mcp.Server.Resources;
 [McpServerResourceType]
 public sealed class NoteResources(VaultIndexService vault, KiokuConfiguration config)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
     [McpServerResource(UriTemplate = "kioku://note/{path}", Name = "note", MimeType = "text/markdown")]
     [Description("Full content (including frontmatter) of a note, resolved by vault-relative path or name.")]
     public string GetNote(string path)
@@ -44,11 +46,11 @@ public sealed class NoteResources(VaultIndexService vault, KiokuConfiguration co
             total_notes = allNotes.Count,
             unique_tags = tagCount,
             folders = folderCount,
-            last_indexed = vault.LastIndexed.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
+            last_indexed = vault.LastIndexed.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
             index_ready = vault.IsReady,
             vault_path = config.VaultPath,
         };
 
-        return JsonSerializer.Serialize(stats, new JsonSerializerOptions { WriteIndented = true });
+        return JsonSerializer.Serialize(stats, JsonOptions);
     }
 }
