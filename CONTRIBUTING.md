@@ -62,7 +62,7 @@ When editing documentation:
 - link to generated references instead of copying tool and environment-variable inventories;
 - mark compatibility-only behavior as `Deprecated`;
 - remove or relocate historical execution documents rather than leaving them beside active guidance;
-- check repository-relative links and generated public metadata.
+- run the repository-relative Markdown link validator and check generated public metadata.
 
 ## MCP contracts and public metadata
 
@@ -81,7 +81,15 @@ Do not hand-edit these generated files:
 - `docs/versioning.md`
 - `src/Kioku.Mcp.Server/.mcp/server.json`
 
-Update `docs/public-metadata.json` when adding or changing a public environment variable, capability profile, transport, manifest identity, or versioning rule. The check command compares that metadata with live MCP discovery, `KiokuOptions`, package manifests, and version files. It also rejects legacy transport terminology and broken repository-relative links in maintained Markdown entry points.
+Update `docs/public-metadata.json` when adding or changing a public environment variable, capability profile, transport, manifest identity, or versioning rule. The generator compares that metadata with live MCP discovery, `KiokuOptions`, package manifests, and version files.
+
+Validate maintained repository-relative Markdown links with:
+
+```bash
+node scripts/validate-markdown-links.mjs
+```
+
+The link validator checks local file existence only. It does not claim that external URLs, redirects, hosted pages, or Markdown anchors are available.
 
 ## Verification before a pull request
 
@@ -92,6 +100,7 @@ dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configura
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 node scripts/generate-public-docs.mjs --check
+node scripts/validate-markdown-links.mjs
 ```
 
 Run change-specific checks when applicable:
