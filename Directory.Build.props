@@ -6,17 +6,13 @@
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
-    <!-- Reviewed legacy analyzer baseline. These diagnostics remain visible as warnings while
-         all compiler warnings, code-style diagnostics, and analyzer rules not listed here fail
-         the build. CA1707 is intentionally retained by the public snake_case MCP contract;
-         the remaining rules represent pre-existing cleanup work that should be reduced in
-         focused refactors rather than hidden or changed as part of repository standardization. -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);CA1305;CA1310;CA1707;CA1822;CA1826;CA1836;CA1848;CA1859;CA1865;CA1866;CA1869;CA1873;CA2016;CA2254;CA5351</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">

@@ -15,6 +15,17 @@ internal sealed record CoordinationFaultPlan(
     string? SignalPath = null,
     string? ReleasePath = null);
 
+internal sealed record CoordinationToolResult(
+    string Text,
+    bool IsError,
+    JsonElement? StructuredContent)
+{
+    internal string Describe() =>
+        $"Text: {Text}{Environment.NewLine}" +
+        $"IsError: {IsError}{Environment.NewLine}" +
+        $"StructuredContent: {(StructuredContent is { } value ? value.GetRawText() : "<none>")}";
+}
+
 internal sealed record ProcessExitObservation(
     int ProcessId,
     bool Exited,
@@ -145,6 +156,15 @@ internal sealed class CoordinationProcessServer : IAsyncDisposable
         IReadOnlyDictionary<string, object?> arguments,
         CancellationToken cancellationToken = default)
     {
+        var result = await CallToolResultAsync(name, arguments, cancellationToken).ConfigureAwait(false);
+        return result.Text;
+    }
+
+    internal async Task<CoordinationToolResult> CallToolResultAsync(
+        string name,
+        IReadOnlyDictionary<string, object?> arguments,
+        CancellationToken cancellationToken = default)
+    {
         var current = client ?? throw new InvalidOperationException("The MCP client is not connected.");
         var result = await current.CallToolAsync(name, arguments, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
@@ -154,7 +174,7 @@ internal sealed class CoordinationProcessServer : IAsyncDisposable
                 .OfType<TextContentBlock>()
                 .Select(block => block.Text)
                 .Where(value => !string.IsNullOrWhiteSpace(value)));
-        return text;
+        return new CoordinationToolResult(text, result.IsError == true, result.StructuredContent);
     }
 
     internal async Task<JsonDocument> CallJsonToolAsync(
@@ -190,6 +210,19 @@ internal sealed class CoordinationProcessServer : IAsyncDisposable
         }
 
         return Observation;
+    }
+
+    internal async Task<string> CaptureStandardErrorAsync()
+    {
+        if (!process.HasExited)
+        {
+            killed = true;
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync().ConfigureAwait(false);
+        }
+
+        StandardError ??= await standardError.ConfigureAwait(false);
+        return StandardError;
     }
 
     public async ValueTask DisposeAsync()

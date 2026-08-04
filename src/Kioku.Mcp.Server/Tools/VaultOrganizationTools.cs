@@ -84,7 +84,7 @@ public sealed class VaultOrganizationTools(
             var sb = new StringBuilder($"[info] dry_run=true — {description}:\n\n");
             foreach (var note in affected)
             {
-                sb.AppendLine($"  {note.VaultRelativePath}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"  {note.VaultRelativePath}");
             }
             return sb.ToString();
         }
@@ -121,11 +121,11 @@ public sealed class VaultOrganizationTools(
         var scored = ScoreTagSuggestions(found, Math.Max(0, max_suggestions), inherited, excluded);
 
         var sb = new StringBuilder($"[ok] Tag state for '{found.Name}':\n\n");
-        sb.AppendLine($"Existing tags: {FormatTags(found.Metadata.Tags)}");
-        sb.AppendLine($"Inherited tags: {FormatTags(inherited)}");
-        sb.AppendLine($"Excluded from tags (frontmatter fields): {FormatTags(excluded, prefix: "")}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Existing tags: {FormatTags(found.Metadata.Tags)}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Inherited tags: {FormatTags(inherited)}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Excluded from tags (frontmatter fields): {FormatTags(excluded, prefix: "")}");
         sb.AppendLine();
-        sb.AppendLine($"Suggested tags ({scored.Count}):");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Suggested tags ({scored.Count}):");
         if (scored.Count == 0)
         {
             sb.Append("  (none)");
@@ -134,7 +134,7 @@ public sealed class VaultOrganizationTools(
         {
             foreach (var tag in scored)
             {
-                sb.AppendLine($"  #{tag}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"  #{tag}");
             }
         }
 
@@ -218,16 +218,16 @@ public sealed class VaultOrganizationTools(
 
         if (duplicates.Count == 0)
         {
-            return Task.FromResult($"[ok] No duplicate notes found (threshold: {threshold:P0}).\\n" +
+            return Task.FromResult($"[ok] No duplicate notes found (threshold: {(int)MathF.Round(threshold * 100)}%).\\n" +
                                    $"Analyzed {notes.Count} notes.");
         }
 
-        var sb = new StringBuilder($"[ok] Found {duplicates.Count} potential duplicate pair(s) (threshold: {threshold:P0}):\n\n");
+        var sb = new StringBuilder($"[ok] Found {duplicates.Count} potential duplicate pair(s) (threshold: {(int)MathF.Round(threshold * 100)}%):\n\n");
         foreach (var (a, b, sim, reason) in duplicates)
         {
-            sb.AppendLine($"  [{sim:P0} — {reason}]");
-            sb.AppendLine($"    A: {a.VaultRelativePath}");
-            sb.AppendLine($"    B: {b.VaultRelativePath}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  [{(int)MathF.Round(sim * 100)}% — {reason}]");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"    A: {a.VaultRelativePath}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"    B: {b.VaultRelativePath}");
             sb.AppendLine();
         }
 
@@ -253,8 +253,8 @@ public sealed class VaultOrganizationTools(
         var brokenLinks = ScanBrokenLinks(notes);
 
         var sb = new StringBuilder("# Kioku — Vault Audit Report\n\n");
-        sb.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
-        sb.AppendLine($"**Total notes:** {notes.Count}\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Total notes:** {notes.Count}\n");
 
         AppendSection(sb, $"Notes without tags ({noTags.Count})", noTags.Select(n => n.VaultRelativePath));
         AppendSection(sb, $"Notes without date in frontmatter ({noDates.Count})", noDates.Select(n => n.VaultRelativePath));
@@ -266,7 +266,7 @@ public sealed class VaultOrganizationTools(
                  .Select(n => $"{n.VaultRelativePath} (last modified: {n.LastModified:yyyy-MM-dd})"));
 
         sb.AppendLine("\n---");
-        sb.AppendLine($"**Summary:** {noTags.Count} untagged · {emptyNotes.Count} empty · " +
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Summary:** {noTags.Count} untagged · {emptyNotes.Count} empty · " +
                       $"{brokenLinks.Count} broken links · {stale.Count} stale");
 
         return Task.FromResult(sb.ToString());
@@ -389,7 +389,7 @@ public sealed class VaultOrganizationTools(
                 ? string.Join(", ", plan.RelatedNotes.Select(n => $"[[{n.Name}]]"))
                 : "none";
 
-            sb.AppendLine($"{i}. \"{plan.Note.Name}\" → {dest} · tags: {tags} · links: {links}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{i}. \"{plan.Note.Name}\" → {dest} · tags: {tags} · links: {links}");
             i++;
         }
 
@@ -461,7 +461,7 @@ public sealed class VaultOrganizationTools(
             var relatedSection = new StringBuilder("\n\n## Related\n\n");
             foreach (var related in plan.RelatedNotes)
             {
-                relatedSection.AppendLine($"- [[{related.Name}]]");
+                relatedSection.AppendLine(CultureInfo.InvariantCulture, $"- [[{related.Name}]]");
             }
 
             var rawContent = await File.ReadAllTextAsync(current.FilePath, Encoding.UTF8);
@@ -879,7 +879,7 @@ public sealed class VaultOrganizationTools(
         var sb = new StringBuilder($"[ok] Suggested folder(s) for '{found.Name}':\n\n");
         foreach (var (folder, score) in ranked)
         {
-            sb.AppendLine($"  {folder}  (score: {score:F2})");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  {folder}  (score: {score:F2})");
         }
 
         if (!embedding.IsAvailable)
@@ -893,7 +893,7 @@ public sealed class VaultOrganizationTools(
     private static void AppendSection(StringBuilder sb, string title, IEnumerable<string> items)
     {
         var list = items.ToList();
-        sb.AppendLine($"## {title}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"## {title}");
         if (list.Count == 0)
         {
             sb.AppendLine("_(none)_");
@@ -902,11 +902,11 @@ public sealed class VaultOrganizationTools(
         {
             foreach (var item in list.Take(50))
             {
-                sb.AppendLine($"- {item}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {item}");
             }
             if (list.Count > 50)
             {
-                sb.AppendLine($"- _(... and {list.Count - 50} more)_");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- _(... and {list.Count - 50} more)_");
             }
         }
         sb.AppendLine();

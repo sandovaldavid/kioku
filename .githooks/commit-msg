@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Conventional Commits validation: type(scope): description
+# https://www.conventionalcommits.org/
+set -u
+
+msg=$(cat "$1")
+
+# Allow merge commits and release-please automation
+if grep -qE '^(Merge|chore\(release\))' <<<"$msg"; then
+  exit 0
+fi
+
+pattern='^(feat|fix|build|chore|ci|docs|style|refactor|perf|test|revert)\([a-z0-9._/-]+\): .+'
+if ! grep -qE "$pattern" <<<"$msg"; then
+  echo "ERROR: commit message must follow conventional commits: type(scope): description"
+  echo "example: fix(server): repair note mutation"
+  echo "types: feat fix build chore ci docs style refactor perf test revert"
+  exit 1
+fi
+
+exit 0

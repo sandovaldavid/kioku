@@ -101,7 +101,7 @@ static void ConfigureKiokuTools(IMcpServerBuilder builder, VaultCapabilityProfil
 
     if (capabilities.IsEnabled("research"))
     {
-        builder.WithTools<SecureResearchTools>();
+        builder.WithTools<ResearchTools>();
     }
 
     if (capabilities.IsEnabled("bridge"))

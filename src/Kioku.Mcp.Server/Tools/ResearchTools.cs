@@ -15,34 +15,69 @@ public sealed partial class ResearchTools(
     VaultIndexService vault,
     KiokuConfiguration config,
     VaultConfigService vaultConfig,
+    VaultPathPolicy paths,
     IVaultMutationService? mutations = null)
 {
     [McpServerTool, Description(
-        "Imports a BibTeX (.bib) file or raw BibTeX content as literature notes, one per entry. " +
-        "Parses tolerantly: malformed entries are reported individually rather than aborting the " +
-        "whole import. Deduplicates by 'citekey' — re-importing the same file never creates " +
-        "duplicates. All BibTeX fields are stored in frontmatter, so export_citations(format='bibtex') can reconstruct " +
-        "the original entries losslessly. Use dry_run=true to preview before writing.")]
+        "Imports a vault-local BibTeX (.bib) file, an explicitly allowlisted external .bib file, " +
+        "or raw BibTeX content as literature notes. External file reads are denied by default. " +
+        "Use dry_run=true to preview before writing.")]
     public async Task<string> import_bibtex(
-        [Description("Path to a .bib file (absolute, vault-relative, or CWD-relative), or raw BibTeX content.")] string source,
+        [Description("Vault-relative .bib path, allowlisted absolute .bib path, or raw BibTeX content. Relative paths never use the server CWD.")] string source,
         [Description("Folder to create literature notes in. Default: the configured 'literature' folder, or 'Literature'.")] string folder = "",
-        [Description("If a note with the same citekey already exists, refresh its frontmatter fields (body is left untouched). Default: skip existing entries.")] bool update_existing = false,
-        [Description("Preview what would be created/updated/skipped without writing any files.")] bool dry_run = false)
+        [Description("If a note with the same citekey already exists, refresh its frontmatter fields while preserving its body.")] bool update_existing = false,
+        [Description("Preview what would be created, updated, or skipped without writing files.")] bool dry_run = false)
     {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return KiokuError.InvalidArgument("The BibTeX source cannot be empty.");
+        }
+
         if (!vault.IsReady)
         {
             return "[loading] The index is still loading. Wait a moment and try again.";
         }
 
         string content;
-        var sourcePath = ResolveSourcePath(source);
-        if (sourcePath is not null)
+        if (LooksLikeInlineBibtex(source) || !LooksLikeFileSource(source))
         {
-            content = await File.ReadAllTextAsync(sourcePath, Encoding.UTF8);
+            content = source;
         }
         else
         {
-            content = source;
+            string sourcePath;
+            try
+            {
+                sourcePath = paths.ResolveExternalReadPath(source);
+            }
+            catch (VaultAccessDeniedException)
+            {
+                return KiokuError.AccessDenied(
+                    "BibTeX file access is limited to the vault and explicitly allowlisted external roots.");
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                return KiokuError.AccessDenied("The BibTeX source could not be resolved within the configured security boundary.");
+            }
+
+            if (!Path.GetExtension(sourcePath).Equals(".bib", StringComparison.OrdinalIgnoreCase))
+            {
+                return KiokuError.InvalidArgument("File-based BibTeX imports require a .bib file.");
+            }
+
+            if (!File.Exists(sourcePath))
+            {
+                return KiokuError.NotFound("The requested BibTeX source file was not found.");
+            }
+
+            try
+            {
+                content = await File.ReadAllTextAsync(sourcePath, Encoding.UTF8);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                return KiokuError.AccessDenied("The requested BibTeX source file could not be read.");
+            }
         }
 
         var parsed = BibtexParser.Parse(content);
@@ -94,31 +129,14 @@ public sealed partial class ResearchTools(
         return FormatImportReport(dry_run, created, updatedEntries, skipped, parsed.Errors);
     }
 
-    private string? ResolveSourcePath(string source)
-    {
-        if (string.IsNullOrWhiteSpace(source))
-        {
-            return null;
-        }
+    private static bool LooksLikeInlineBibtex(string source) =>
+        source.TrimStart().StartsWith('@');
 
-        if (Path.IsPathRooted(source) && File.Exists(source))
-        {
-            return source;
-        }
-
-        var vaultRelative = Path.Combine(config.VaultPath, source);
-        if (File.Exists(vaultRelative))
-        {
-            return vaultRelative;
-        }
-
-        if (File.Exists(source))
-        {
-            return Path.GetFullPath(source);
-        }
-
-        return null;
-    }
+    private static bool LooksLikeFileSource(string source) =>
+        Path.IsPathRooted(source) ||
+        source.EndsWith(".bib", StringComparison.OrdinalIgnoreCase) ||
+        source.Contains('/') ||
+        source.Contains('\\');
 
     private Dictionary<string, Note> BuildCitekeyIndex()
     {
@@ -227,25 +245,25 @@ public sealed partial class ResearchTools(
         entry.Fields.TryGetValue("abstract", out var abstractText);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# {title ?? entry.CiteKey}\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# {title ?? entry.CiteKey}\n");
         sb.AppendLine("## Metadata\n");
-        sb.AppendLine($"- **Author:** {author ?? "Unknown"}");
-        sb.AppendLine($"- **Year:** {year ?? "n.d."}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- **Author:** {author ?? "Unknown"}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- **Year:** {year ?? "n.d."}");
 
         var venue = !string.IsNullOrWhiteSpace(journal) ? journal : booktitle;
         if (!string.IsNullOrWhiteSpace(venue))
         {
-            sb.AppendLine($"- **Venue:** {venue}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- **Venue:** {venue}");
         }
 
         if (!string.IsNullOrWhiteSpace(doi))
         {
-            sb.AppendLine($"- **DOI:** {doi}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- **DOI:** {doi}");
         }
 
         if (!string.IsNullOrWhiteSpace(url))
         {
-            sb.AppendLine($"- **URL:** {url}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- **URL:** {url}");
         }
 
         sb.AppendLine("\n## Summary\n");
@@ -263,7 +281,7 @@ public sealed partial class ResearchTools(
     {
         var citekey = extraFields.GetValueOrDefault("citekey", "unknown");
         var type = extraFields.GetValueOrDefault("bibtex-type", "misc");
-        sb.AppendLine($"@{type}{{{citekey},");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"@{type}{{{citekey},");
 
         foreach (var (name, value) in extraFields)
         {
@@ -273,14 +291,14 @@ public sealed partial class ResearchTools(
                 continue;
             }
 
-            sb.AppendLine($"  {name} = {{{value}}},");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  {name} = {{{value}}},");
         }
 
         sb.AppendLine("}");
         sb.AppendLine();
     }
 
-    private static IReadOnlyDictionary<string, string> BuildBibtexFields(Note note, string citekey)
+    private static Dictionary<string, string> BuildBibtexFields(Note note, string citekey)
     {
         var fields = new Dictionary<string, string>(note.Metadata.ExtraFields, StringComparer.OrdinalIgnoreCase)
         {
@@ -301,7 +319,7 @@ public sealed partial class ResearchTools(
     {
         var sb = new StringBuilder();
         var verb = dryRun ? "[dry-run] Would import" : "[ok] Imported";
-        sb.AppendLine($"{verb} {created.Count + updated.Count} entries " +
+        sb.AppendLine(CultureInfo.InvariantCulture, $"{verb} {created.Count + updated.Count} entries " +
                       $"({created.Count} new, {updated.Count} updated, {skipped.Count} skipped, {parseErrors.Count} failed to parse):");
         sb.AppendLine();
 
@@ -310,7 +328,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine(dryRun ? "**Would create:**" : "**Created:**");
             foreach (var line in created)
             {
-                sb.AppendLine($"- {line}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {line}");
             }
             sb.AppendLine();
         }
@@ -320,7 +338,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine(dryRun ? "**Would update:**" : "**Updated:**");
             foreach (var line in updated)
             {
-                sb.AppendLine($"- {line}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {line}");
             }
             sb.AppendLine();
         }
@@ -330,7 +348,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine("**Skipped (already exist):**");
             foreach (var line in skipped)
             {
-                sb.AppendLine($"- {line}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {line}");
             }
             sb.AppendLine();
         }
@@ -340,7 +358,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine("**Parse errors:**");
             foreach (var error in parseErrors)
             {
-                sb.AppendLine($"- {error}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {error}");
             }
         }
 
@@ -349,10 +367,9 @@ public sealed partial class ResearchTools(
 
     [McpServerTool, Description(
         "Exports citation keys found in note frontmatter as a full-fidelity BibTeX document or Markdown table. " +
-        "The BibTeX format preserves fields imported by import_bibtex for round-trip export. " +
         "Accepted formats are exactly 'bibtex' and 'markdown'.")]
     public string export_citations(
-        [Description("Export format: 'bibtex' for a round-trip BibTeX document or 'markdown' for a Markdown table (default: markdown).")] string format = "markdown",
+        [Description("Export format: 'bibtex' or 'markdown'.")] string format = "markdown",
         [Description("Folder to scan (vault-relative). Leave empty to scan the entire vault.")] string folder = "")
     {
         if (!string.Equals(format, "bibtex", StringComparison.OrdinalIgnoreCase) &&
@@ -379,7 +396,7 @@ public sealed partial class ResearchTools(
                     : note.Metadata.ExtraFields.TryGetValue("authors", out var authors) ? authors : "Unknown";
                 var year = note.Metadata.ExtraFields.TryGetValue("year", out var y)
                     ? y
-                    : note.Metadata.Date?.Year.ToString() ?? "n.d.";
+                    : note.Metadata.Date?.Year.ToString(CultureInfo.InvariantCulture) ?? "n.d.";
                 var title = note.Metadata.ExtraFields.TryGetValue("title", out var t) ? t : note.Name;
                 return (note, citekey, author, year, title);
             })
@@ -396,7 +413,7 @@ public sealed partial class ResearchTools(
         var sb = new StringBuilder();
         if (format.Equals("bibtex", StringComparison.OrdinalIgnoreCase))
         {
-            sb.AppendLine($"[ok] Exported {withCitekey.Count} BibTeX entries:");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Exported {withCitekey.Count} BibTeX entries:");
             sb.AppendLine();
             foreach (var (note, citekey, _, _, _) in withCitekey)
             {
@@ -405,7 +422,7 @@ public sealed partial class ResearchTools(
         }
         else
         {
-            sb.AppendLine($"[ok] Citation export — {withCitekey.Count} notes:");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Citation export — {withCitekey.Count} notes:");
             sb.AppendLine();
             sb.AppendLine("| Citekey | Author | Year | Title | Note |");
             sb.AppendLine("|---------|--------|------|-------|------|");
@@ -414,7 +431,7 @@ public sealed partial class ResearchTools(
             {
                 var truncTitle = title.Length > 60 ? title[..57] + "..." : title;
                 var truncAuthor = author.Length > 30 ? author[..27] + "..." : author;
-                sb.AppendLine($"| `{citekey}` | {truncAuthor} | {year} | {truncTitle} | [{note.Name}]({note.VaultRelativePath}) |");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"| `{citekey}` | {truncAuthor} | {year} | {truncTitle} | [{note.Name}]({note.VaultRelativePath}) |");
             }
         }
 
@@ -463,7 +480,7 @@ public sealed partial class ResearchTools(
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[ok] Literature gaps — {gaps.Count} missing notes:");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Literature gaps — {gaps.Count} missing notes:");
         sb.AppendLine();
         sb.AppendLine("| Missing Citekey | Referenced In |");
         sb.AppendLine("|----------------|---------------|");
@@ -476,11 +493,11 @@ public sealed partial class ResearchTools(
             {
                 sourceList += $" (+{distinct.Count - 5} more)";
             }
-            sb.AppendLine($"| `@{citekey}` | {sourceList} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| `@{citekey}` | {sourceList} |");
         }
 
         sb.AppendLine();
-        sb.AppendLine($"**{knownCitekeys.Count}** notes with citekey found · **{referencedCitekeys.Count}** total referenced · **{gaps.Count}** missing");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**{knownCitekeys.Count}** notes with citekey found · **{referencedCitekeys.Count}** total referenced · **{gaps.Count}** missing");
         return sb.ToString();
     }
 
@@ -536,7 +553,7 @@ public sealed partial class ResearchTools(
         var orphans = ranked.Where(item => item.Citers.Count == 0).ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[ok] Citation graph — {sources.Count} source(s), {cited.Count} cited, {orphans.Count} orphan(s):");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Citation graph — {sources.Count} source(s), {cited.Count} cited, {orphans.Count} orphan(s):");
         sb.AppendLine();
 
         if (cited.Count > 0)
@@ -553,7 +570,7 @@ public sealed partial class ResearchTools(
                 {
                     citerList += $" (+{ordered.Count - 5} more)";
                 }
-                sb.AppendLine($"| `{citekey}` | {note.Name} | {citers.Count} | {citerList} |");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"| `{citekey}` | {note.Name} | {citers.Count} | {citerList} |");
             }
             sb.AppendLine();
         }
@@ -563,7 +580,7 @@ public sealed partial class ResearchTools(
             sb.AppendLine("**Orphan sources (never cited):**");
             foreach (var (note, citekey, _) in orphans)
             {
-                sb.AppendLine($"- `{citekey}` — {note.Name} ({note.VaultRelativePath})");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- `{citekey}` — {note.Name} ({note.VaultRelativePath})");
             }
         }
         else
@@ -576,8 +593,7 @@ public sealed partial class ResearchTools(
 
     [McpServerTool, Description(
         "Audits citations in one combined report: citation graph and orphan sources, inline citation gaps, " +
-        "and required metadata on research/literature notes. The folder scopes source and audit notes; " +
-        "citation graph citers are still searched across the entire vault.")]
+        "and required metadata on research/literature notes.")]
     public string audit_citations(
         [Description("Folder to scope source notes, inline-gap notes, and metadata validation (vault-relative). Leave empty for the entire vault.")] string folder = "")
     {
@@ -588,7 +604,7 @@ public sealed partial class ResearchTools(
 
         var scope = string.IsNullOrWhiteSpace(folder) ? "entire vault" : $"folder '{folder}'";
         var sb = new StringBuilder();
-        sb.AppendLine($"[ok] Citation audit ({scope}):");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Citation audit ({scope}):");
         sb.AppendLine();
         sb.AppendLine("## Citation graph");
         sb.AppendLine(BuildCitationGraphReport(folder));
@@ -661,16 +677,16 @@ public sealed partial class ResearchTools(
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[info] Validation report — {problematic.Count}/{researchNotes.Count} research note(s) missing fields:");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[info] Validation report — {problematic.Count}/{researchNotes.Count} research note(s) missing fields:");
         sb.AppendLine();
         sb.AppendLine("| Note | Missing Fields |");
         sb.AppendLine("|------|---|");
         foreach (var (note, missing) in problematic.OrderBy(item => item.Note.Name))
         {
-            sb.AppendLine($"| {note.Name} | {string.Join(", ", missing)} |");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"| {note.Name} | {string.Join(", ", missing)} |");
         }
         sb.AppendLine();
-        sb.AppendLine($"**Summary:** {researchNotes.Count} total · {researchNotes.Count - problematic.Count} complete · {problematic.Count} incomplete");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Summary:** {researchNotes.Count} total · {researchNotes.Count - problematic.Count} complete · {problematic.Count} incomplete");
         return sb.ToString();
     }
 

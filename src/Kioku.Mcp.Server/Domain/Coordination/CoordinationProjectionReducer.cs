@@ -27,7 +27,7 @@ public sealed class CoordinationProjectionException(string code)
 /// </summary>
 public static class CoordinationProjectionReducer
 {
-    private static readonly IReadOnlyDictionary<string, string> EventStates =
+    private static readonly Dictionary<string, string> EventStates =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [CoordinationEventTypes.WorkItemCreated] = CoordinationStates.Pending,
@@ -44,7 +44,7 @@ public static class CoordinationProjectionReducer
             [CoordinationEventTypes.WorkItemClaimReleased] = CoordinationStates.Pending,
         };
 
-    private static readonly IReadOnlyDictionary<string, IReadOnlySet<string>> AllowedTransitions =
+    private static readonly Dictionary<string, IReadOnlySet<string>> AllowedTransitions =
         new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
         {
             [CoordinationStates.Pending] = new HashSet<string>(StringComparer.Ordinal)

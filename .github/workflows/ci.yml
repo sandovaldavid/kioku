@@ -2,15 +2,38 @@ name: ci
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  commit-message-check:
+    name: conventional-commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            range="$base..HEAD"
+          else
+            range="HEAD~1..HEAD"
+          fi
+          for sha in $(git rev-list "$range"); do
+            git log -1 --format=%B "$sha" > /tmp/commit-msg.txt
+            .githooks/commit-msg /tmp/commit-msg.txt
+          done
+
   build-server:
     name: build-server (ubuntu-latest)
     runs-on: ubuntu-latest
@@ -22,6 +45,8 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.x"
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Restore solution
         run: dotnet restore Kioku.slnx
@@ -34,7 +59,7 @@ jobs:
 
       - name: Upload failed build diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-build-diagnostics
           path: dotnet-build.log
@@ -61,7 +86,7 @@ jobs:
 
       - name: Upload failed format diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-format-diagnostics
           path: dotnet-format.log
@@ -78,7 +103,7 @@ jobs:
           dotnet list Kioku.slnx package --include-transitive --format json > artifacts/inventory/dotnet-packages.json
 
       - name: Upload package inventory
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dotnet-package-inventory
           path: artifacts/inventory/dotnet-packages.json
@@ -97,9 +122,11 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.x"
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Restore solution
         run: dotnet restore Kioku.slnx
@@ -137,7 +164,7 @@ jobs:
 
       - name: Upload failed test diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: server-test-results-${{ runner.os }}
           path: |
@@ -160,8 +187,8 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  test-filesystem-sandbox:
-    name: test-filesystem-sandbox (${{ matrix.os }})
+  package-smoke:
+    name: package-smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -175,49 +202,8 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.x"
-
-      - name: Restore
-        run: dotnet restore src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
-
-      - name: Test filesystem security contracts
-        shell: bash
-        run: |
-          set -o pipefail
-          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
-            --configuration Release \
-            --no-restore \
-            --verbosity minimal \
-            --logger "trx;LogFileName=filesystem-results.trx" \
-            --results-directory ./filesystem-results \
-            --filter "FullyQualifiedName~VaultPathPolicyTests|FullyQualifiedName~VaultIndexSandboxTests|FullyQualifiedName~SecureResearchToolsTests|FullyQualifiedName~PermanentDeletePolicyTests|FullyQualifiedName~NoteHelpersTests" \
-            2>&1 | tee filesystem-test.log
-
-      - name: Upload failed filesystem diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: filesystem-test-results-${{ runner.os }}
-          path: |
-            filesystem-test.log
-            filesystem-results/**/*.trx
-          if-no-files-found: error
-          retention-days: 7
-
-  package-smoke:
-    name: package-smoke (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.x"
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Restore solution
         run: dotnet restore Kioku.slnx
@@ -243,7 +229,7 @@ jobs:
             </packageSources>
             <packageSourceMapping>
               <packageSource key="local">
-                <package pattern="kioku-mcp-server" />
+                <package pattern="kioku-mcp-server*" />
               </packageSource>
               <packageSource key="nuget.org">
                 <package pattern="*" />
@@ -343,7 +329,7 @@ jobs:
 
       - name: Upload package smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: package-smoke-${{ runner.os }}-${{ runner.arch }}
           path: |
@@ -362,10 +348,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.x"
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "24"
+
+      - name: Restore server
+        run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+
+      - name: Build server
+        run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore
 
       - name: Validate JSON syntax
         run: |
@@ -374,8 +373,7 @@ jobs:
             integrations/claude-code-plugin/.claude-plugin/plugin.json \
             integrations/claude-code-plugin/.mcp.json \
             integrations/antigravity-plugin/plugin.json \
-            integrations/antigravity-plugin/mcp_config.json \
-            integrations/antigravity-plugin/hooks/hooks.json; do
+            integrations/antigravity-plugin/mcp_config.json; do
             echo "Checking $f"
             node -e "JSON.parse(require('fs').readFileSync('$f', 'utf8'))"
           done
@@ -385,6 +383,9 @@ jobs:
 
       - name: Check kioku-vault skill is in sync
         run: ./scripts/sync-skill.sh --check
+
+      - name: Verify generated public contracts
+        run: node scripts/generate-public-docs.mjs --check
 
       - name: Shellcheck
         run: |

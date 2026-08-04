@@ -37,7 +37,7 @@ public class ResearchToolsBibtexTests : IAsyncLifetime
     private ResearchTools CreateTools()
     {
         var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };
-        return new ResearchTools(_fixture.Index, config, _vaultConfig);
+        return new ResearchTools(_fixture.Index, config, _vaultConfig, new VaultPathPolicy(config));
     }
 
     private async Task CreateCitationNoteAsync(string name, string citekeyField, string citekey)
@@ -183,13 +183,14 @@ public class ResearchToolsBibtexTests : IAsyncLifetime
     [Fact]
     public async Task ImportBibtex_FromFilePath_ReadsContentFromDisk()
     {
-        var bibPath = Path.Combine(Path.GetTempPath(), $"kioku-test-{Guid.NewGuid():N}.bib");
+        var bibPath = Path.Combine(_fixture.VaultPath, "Imports", "library.bib");
+        Directory.CreateDirectory(Path.GetDirectoryName(bibPath)!);
         await File.WriteAllTextAsync(bibPath, OneEntry);
         try
         {
             var tools = CreateTools();
 
-            var result = await tools.import_bibtex(bibPath);
+            var result = await tools.import_bibtex("Imports/library.bib");
             await _fixture.Index.RebuildIndexAsync();
 
             Assert.Contains("[ok] Imported 1 entries", result);

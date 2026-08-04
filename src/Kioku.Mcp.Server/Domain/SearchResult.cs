@@ -3,19 +3,7 @@ namespace Kioku.Mcp.Server.Domain;
 /// <summary>
 /// Result of a search operation on the vault.
 /// </summary>
-public sealed class SearchResult
-{
-    public required Note Note { get; init; }
-
-    /// <summary>Relevance score [0.0 – 1.0]. Higher = more relevant.</summary>
-    public required float Score { get; init; }
-
-    /// <summary>Type of match that generated this result.</summary>
-    public required NoteMatchType MatchType { get; init; }
-
-    /// <summary>Snippet of the content that matched the search (to display to the user).</summary>
-    public string? Snippet { get; init; }
-}
+public sealed record SearchResult(Note Note, float Score, NoteMatchType MatchType, string? Snippet);
 
 /// <summary>Type of search that produced the result.</summary>
 public enum NoteMatchType

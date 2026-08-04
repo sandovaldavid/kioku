@@ -124,43 +124,15 @@ public sealed class HybridSearchService(VaultIndexService vault, EmbeddingServic
             .Select(r => new HybridResult(r.Note, r.Score, NoteMatchType.ContentMatch, null, false, true));
     }
 
-    /// <summary>
-    /// Returns the raw embedding vector for a note, for diagnostics.
-    /// </summary>
-    public float[]? GetEmbedding(string vaultRelativePath) =>
-        embedding.GetVector(vaultRelativePath);
-
 }
 
 /// <summary>
 /// Result of a hybrid (keyword + semantic) search.
 /// </summary>
-public sealed class HybridResult
-{
-    public Note Note { get; }
-
-    /// <summary>Normalized RRF score [0.0 – 1.0]. Higher = more relevant.</summary>
-    public float Score { get; }
-
-    /// <summary>Primary match type from the keyword leg (if available).</summary>
-    public NoteMatchType MatchType { get; }
-
-    /// <summary>Snippet from the keyword match (if available).</summary>
-    public string? Snippet { get; }
-
-    /// <summary>Whether this result was found by the keyword search leg.</summary>
-    public bool FromKeyword { get; }
-
-    /// <summary>Whether this result was found by the semantic search leg.</summary>
-    public bool FromSemantic { get; }
-
-    public HybridResult(Note note, float score, NoteMatchType matchType, string? snippet, bool fromKeyword, bool fromSemantic)
-    {
-        Note = note;
-        Score = score;
-        MatchType = matchType;
-        Snippet = snippet;
-        FromKeyword = fromKeyword;
-        FromSemantic = fromSemantic;
-    }
-}
+public sealed record HybridResult(
+    Note Note,
+    float Score,
+    NoteMatchType MatchType,
+    string? Snippet,
+    bool FromKeyword,
+    bool FromSemantic);

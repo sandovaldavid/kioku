@@ -268,7 +268,7 @@ function renderConfiguration(metadata) {
 
 function renderVersioning(metadata) {
   const version = readServerVersionSync();
-  return `# Versioning Policy\n\n> Generated from \`docs/public-metadata.json\`. Do not edit manually.\n> Verify: \`node scripts/generate-public-docs.mjs --check\`\n\n## Server\n\nCurrent server package version: **${version}**. ${metadata.versioning.server}\n\n## Obsidian plugin\n\n${metadata.versioning.plugin}\n\n## Root workspace\n\n${metadata.versioning.rootWorkspace}\n\n## Bridge compatibility\n\n${metadata.versioning.bridge}\n`;
+  return `# Versioning Policy\n\n> Generated from \`docs/public-metadata.json\`. Do not edit manually.\n> Verify: \`node scripts/generate-public-docs.mjs --check\`\n\n## Server\n\nCurrent server package version: **${version}**. ${metadata.versioning.server}\n\n## Obsidian plugin\n\n${metadata.versioning.plugin}\n\n## Bridge compatibility\n\n${metadata.versioning.bridge}\n`;
 }
 
 function renderManifest(metadata) {
@@ -297,10 +297,6 @@ async function validateRepositoryMetadata(metadata) {
   const optionsSource = await readFile(path.join(root, "src", "Kioku.Mcp.Server", "Hosting", "KiokuOptions.cs"), "utf8");
   const runtimeNames = new Set([...optionsSource.matchAll(/KIOKU_[A-Z0-9_]+/g)].map((match) => match[0]));
   assertSameSet(new Set(names), runtimeNames, "public metadata", "KiokuOptions runtime mappings");
-
-  const rootPackage = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
-  if (rootPackage.private !== true) fail("Root package.json must remain private.");
-  if (Object.hasOwn(rootPackage, "version")) fail("Private root package.json must not declare a product version.");
 }
 
 async function validateTerminology() {

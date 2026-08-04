@@ -264,7 +264,7 @@ public sealed class FrontmatterDocument
             : 0;
     }
 
-    private IReadOnlyDictionary<string, object?> ToFieldDictionary()
+    private Dictionary<string, object?> ToFieldDictionary()
     {
         var fields = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var (keyNode, valueNode) in _root.Children)
@@ -354,7 +354,7 @@ public sealed class FrontmatterDocument
         return false;
     }
 
-    private IReadOnlyList<string> ReadTags()
+    private List<string> ReadTags()
     {
         var node = FindValueNode("tags", "tag");
         if (node is YamlSequenceNode sequence)
@@ -376,7 +376,7 @@ public sealed class FrontmatterDocument
                 .ToList();
     }
 
-    private IReadOnlyList<string> ReadStringList(params string[] keys)
+    private List<string> ReadStringList(params string[] keys)
     {
         var node = FindValueNode(keys);
         return node switch

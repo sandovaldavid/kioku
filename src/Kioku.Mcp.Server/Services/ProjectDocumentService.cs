@@ -148,7 +148,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                 "adr", tags, "adr", title,
                 new Dictionary<string, string>
                 {
-                    ["number"] = number.ToString("D4"),
+                    ["number"] = number.ToString("D4", CultureInfo.InvariantCulture),
                     ["context"] = context,
                     ["decision"] = decision,
                     ["consequences"] = consequences,
@@ -307,10 +307,10 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# Project context: {project}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# Project context: {project}");
         sb.AppendLine();
-        sb.AppendLine($"**Folder:** {_workspace.ToVaultRelative(projectFolder)}/");
-        sb.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Folder:** {_workspace.ToVaultRelative(projectFolder)}/");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
         sb.AppendLine();
 
         // Project MOC verbatim: it is the human-curated overview. Named after the leaf segment,
@@ -330,14 +330,14 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
             var sessions = _workspace.EnumerateProjectDocs(project, "sessions").Take(limit).ToList();
             if (sessions.Count > 0)
             {
-                sb.AppendLine($"## Recent sessions ({sessions.Count})");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"## Recent sessions ({sessions.Count})");
                 sb.AppendLine();
                 foreach (var file in sessions)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var raw = await _fileSystem.ReadAllTextAsync(file.FullName, cancellationToken);
                     var meta = FrontmatterParser.Parse(raw);
-                    sb.AppendLine($"### [{meta.Status ?? "unknown"}] {Path.GetFileNameWithoutExtension(file.Name)} — {_workspace.ToVaultRelative(file.FullName)}");
+                    sb.AppendLine(CultureInfo.InvariantCulture, $"### [{meta.Status ?? "unknown"}] {Path.GetFileNameWithoutExtension(file.Name)} — {_workspace.ToVaultRelative(file.FullName)}");
                     var summary = ExtractSection(raw, "## Summary");
                     sb.AppendLine(string.IsNullOrWhiteSpace(summary) ? "_(no summary recorded)_" : summary.Trim());
                     sb.AppendLine();
@@ -366,7 +366,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
             }
 
             var docs = _workspace.EnumerateProjectDocs(project, key);
-            sb.AppendLine($"## {heading} ({docs.Count})");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"## {heading} ({docs.Count})");
             if (docs.Count == 0)
             {
                 sb.AppendLine("_(none)_");
@@ -380,20 +380,21 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                 var raw = await _fileSystem.ReadAllTextAsync(file.FullName, cancellationToken);
                 var meta = FrontmatterParser.Parse(raw);
                 var relPath = _workspace.ToVaultRelative(file.FullName);
-                var dateStr = meta.Date?.ToString("yyyy-MM-dd") ?? file.LastWriteTimeUtc.ToString("yyyy-MM-dd");
+                var dateStr = meta.Date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ??
+                    file.LastWriteTimeUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
                 var summaryLine = FirstBodyLine(raw);
 
-                sb.Append($"- [{meta.Status ?? "-"}] {Path.GetFileNameWithoutExtension(file.Name)} — {relPath} ({dateStr})");
+                sb.Append(CultureInfo.InvariantCulture, $"- [{meta.Status ?? "-"}] {Path.GetFileNameWithoutExtension(file.Name)} — {relPath} ({dateStr})");
                 if (!string.IsNullOrWhiteSpace(summaryLine))
                 {
-                    sb.Append($" — {summaryLine}");
+                    sb.Append(CultureInfo.InvariantCulture, $" — {summaryLine}");
                 }
 
                 sb.AppendLine();
 
                 if (includeContent)
                 {
-                    fullContent.AppendLine($"### {relPath}");
+                    fullContent.AppendLine(CultureInfo.InvariantCulture, $"### {relPath}");
                     fullContent.AppendLine();
                     fullContent.AppendLine(raw.Trim());
                     fullContent.AppendLine();
@@ -402,7 +403,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
 
             if (docs.Count > limit)
             {
-                sb.AppendLine($"_(+{docs.Count - limit} more — raise `limit` to see them)_");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"_(+{docs.Count - limit} more — raise `limit` to see them)_");
             }
 
             sb.AppendLine();
@@ -453,9 +454,9 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                 .DefaultIfEmpty(_fileSystem.GetDirectoryLastWriteTimeUtc(projectDir))
                 .Max();
 
-            sb.Append($"- **{project}**");
+            sb.Append(CultureInfo.InvariantCulture, $"- **{project}**");
             sb.Append(counts.Count > 0 ? $" — {string.Join(", ", counts)}" : " — empty");
-            sb.AppendLine($" (last modified {lastModified:yyyy-MM-dd})");
+            sb.AppendLine(CultureInfo.InvariantCulture, $" (last modified {lastModified:yyyy-MM-dd})");
         }
 
         return Task.FromResult(sb.ToString());
@@ -472,11 +473,11 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
             var isOverride = overridePath is not null && _fileSystem.FileExists(overridePath);
             var vars = ProjectWorkspaceService.SupportedVariablesFor(typeKey);
 
-            sb.Append($"  **{typeKey}** — ");
+            sb.Append(CultureInfo.InvariantCulture, $"  **{typeKey}** — ");
             sb.Append(isOverride
                 ? $"override at {_workspace.ToVaultRelative(overridePath!)}"
                 : "using embedded default");
-            sb.AppendLine($" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $" — variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
         }
 
         return Task.FromResult(sb.ToString());
@@ -498,7 +499,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         var vars = ProjectWorkspaceService.SupportedVariablesFor(typeKey);
 
         var sb = new StringBuilder($"[ok] Template '{typeKey}' ({(isOverride ? $"override: {_workspace.ToVaultRelative(overridePath!)}" : "embedded default")}):\n\n");
-        sb.AppendLine($"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Supported variables: {string.Join(", ", vars.Select(v => "{{" + v + "}}"))}");
         sb.AppendLine();
         sb.AppendLine("```markdown");
         sb.AppendLine(content);
@@ -626,11 +627,11 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         }
 
         var sb = new StringBuilder("[ok] Agent workflow setup complete.\n");
-        sb.AppendLine($"\nCreated ({created.Count}):");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"\nCreated ({created.Count}):");
         sb.AppendLine(created.Count > 0 ? string.Join("\n", created.Select(c => $"  - {c}")) : "  (nothing — everything already existed)");
         if (skipped.Count > 0)
         {
-            sb.AppendLine($"\nSkipped, already present ({skipped.Count}):");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"\nSkipped, already present ({skipped.Count}):");
             sb.AppendLine(string.Join("\n", skipped.Select(s => $"  - {s}")));
         }
 
@@ -785,12 +786,12 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         var sb = new StringBuilder($"[ok] {char.ToUpperInvariant(type[0]) + type[1..]} note created: {vaultRelPath}");
         if (scaffolded.Count > 0)
         {
-            sb.Append($"\n   Scaffolded project '{project}' ({scaffolded.Count} new folder(s)/note(s)).");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   Scaffolded project '{project}' ({scaffolded.Count} new folder(s)/note(s)).");
         }
 
         if (evalResult.Warning is not null)
         {
-            sb.Append($"\n   [warning] {evalResult.Warning}");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   [warning] {evalResult.Warning}");
         }
 
         return sb.ToString();
@@ -865,7 +866,8 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         {
             var trimmed = line.Trim();
             if (trimmed.Length > 0 && !trimmed.StartsWith('#') && !trimmed.StartsWith('>') &&
-                !trimmed.StartsWith("_(") && !trimmed.StartsWith("```"))
+                !trimmed.StartsWith("_(", StringComparison.Ordinal) &&
+                !trimmed.StartsWith("```", StringComparison.Ordinal))
             {
                 return trimmed.Length > 120 ? trimmed[..120] + "..." : trimmed;
             }

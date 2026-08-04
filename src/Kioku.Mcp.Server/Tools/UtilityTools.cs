@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Reflection;
 using System.Text.Json;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
@@ -101,7 +102,9 @@ public sealed class UtilityTools(
                 enabled = coordinationEnabled,
             },
             StringComparer.Ordinal);
-        var serverVersion = typeof(UtilityTools).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+        var serverVersion = typeof(UtilityTools).Assembly
+                                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                             ?? "unknown";
         var document = new
         {
             schema_version = KiokuCapabilityCatalog.CoordinationSchemaVersion,

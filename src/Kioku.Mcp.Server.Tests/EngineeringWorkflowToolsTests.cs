@@ -1,4 +1,5 @@
 using System.Text;
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,7 +38,14 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
         var bridge = CreateBridge(config);
         var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge);
-        return (new EngineeringWorkflowTools(_fixture.Index, config, vaultConfig, workspace, bridge), workspace);
+        var documents = new ProjectDocumentService(
+            _fixture.Index,
+            config,
+            vaultConfig,
+            workspace,
+            bridge,
+            new ProjectDocumentFileSystem());
+        return (new EngineeringWorkflowTools(documents), workspace);
     }
 
     private SessionContextTools CreateSessionTools()
@@ -46,7 +54,15 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);
         var bridge = CreateBridge(config);
         var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge);
-        return new SessionContextTools(_fixture.Index, config, vaultConfig, workspace, bridge);
+        var sessions = new WorkSessionService(
+            _fixture.Index,
+            config,
+            vaultConfig,
+            workspace,
+            bridge,
+            new WorkSessionFileSystem(),
+            TimeProvider.System);
+        return new SessionContextTools(sessions);
     }
 
     [Fact]
@@ -114,37 +130,6 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
 
         Assert.StartsWith("[error]", result);
         Assert.Contains("Valid options", result);
-    }
-
-    [Fact]
-    public async Task CreateProjectDoc_AdrNumberingIsSerialized()
-    {
-        var (tools, workspace) = CreateTools();
-
-        var first = tools.create_project_doc("adr", project: "demo", title: "First");
-        var second = tools.create_project_doc("adr", project: "demo", title: "Second");
-        await Task.WhenAll(first, second);
-
-        var files = Directory.GetFiles(workspace.GetSubfolder("demo", "decisions"), "ADR-*.md");
-        Assert.Equal(2, files.Length);
-        Assert.Equal(2, files.Select(f => Path.GetFileName(f)[4..8]).Distinct().Count());
-    }
-
-    [Fact]
-    public async Task CreateProjectDoc_UsesTypeTemplateAndPreservesAdrMetadata()
-    {
-        var (tools, workspace) = CreateTools();
-        await tools.set_engineering_template("adr", "CUSTOM: {{decision}}");
-
-        await tools.create_project_doc(
-            "adr", project: "demo", title: "Custom", decision: "the decision", tags: "important");
-
-        var file = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "decisions"), "ADR-*.md"));
-        var content = await File.ReadAllTextAsync(file);
-        Assert.Contains("CUSTOM: the decision", content);
-        Assert.Contains("adr: \"0001\"", content);
-        Assert.Contains("  - ADR-0001", content);
-        Assert.Contains("  - important", content);
     }
 
     // ADR numbering

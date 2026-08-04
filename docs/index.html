@@ -3,56 +3,96 @@ layout: default
 title: Home
 is_home: true
 sidebar: false
-description: Kioku is a local-first MCP server that gives AI agents persistent, structured memory in an Obsidian vault.
+description: Kioku gives AI agents persistent, structured, local-first memory in an Obsidian vault.
 ---
 
-<section class="hero-section">
-  <div class="hero-logo-container">
-    <img src="{{ site.baseurl }}/assets/images/logo.svg" alt="Kioku logo" class="hero-logo">
-  </div>
-  <h1 class="hero-title">Kioku</h1>
-  <p class="hero-subtitle">
-    Persistent, local-first memory for Claude Code, Codex, OpenCode, and other MCP clients,
-    backed by readable Markdown and typed YAML frontmatter in Obsidian.
-  </p>
-  <div class="hero-buttons">
-    <a href="{{ site.baseurl }}/install.html" class="btn btn-primary">Get started</a>
-    <a href="https://github.com/{{ site.github_repo }}" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">View on GitHub</a>
-  </div>
-</section>
+<div class="home-wrap">
+  <section class="hero-section" aria-labelledby="hero-title">
+    <div class="hero-brand" aria-label="Kioku — persistent memory for AI agents">
+      <img src="{{ site.baseurl }}/assets/images/logo.svg" alt="" class="hero-logo">
+      <div class="hero-brand-copy">
+        <p class="hero-wordmark">Kioku</p>
+        <p class="hero-tagline">記憶 · Persistent memory for AI agents</p>
+      </div>
+    </div>
+    <span class="version-badge">{{ site.version_label | default: "v3.0.0" }}</span>
+    <p class="hero-kicker">Local-first MCP memory</p>
+    <h1 class="hero-title" id="hero-title">Your agents forget.<br><span>Kioku gives them continuity.</span></h1>
+    <p class="hero-subtitle">Persistent, structured memory in your own Obsidian vault—readable Markdown, typed YAML frontmatter, guarded mutations, and deterministic handoff across fresh sessions.</p>
+    <div class="hero-buttons">
+      <a href="{{ site.baseurl }}/install.html" class="btn btn-primary">Install Kioku</a>
+      <a href="{{ site.baseurl }}/commands-reference.html" class="btn btn-secondary">Explore the MCP contract</a>
+      <a href="https://github.com/{{ site.github_repo }}" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+    </div>
+    <div class="hero-command" aria-label="Quick install command">
+      <span class="code-label">Quick install</span>
+      <pre><code>dotnet tool install --global kioku-mcp-server</code></pre>
+    </div>
+  </section>
 
-<section>
-  <h2 class="home-section-title">What Kioku provides</h2>
-  <div class="feature-grid">
-    <div class="feature-card"><h3>Multi-agent handoff</h3><p>Persist project context, plans, decisions, bugs, and session ownership across fresh agent sessions.</p></div>
-    <div class="feature-card"><h3>Hybrid retrieval</h3><p>Combine indexed full-text search with optional local Ollama embeddings and reciprocal rank fusion.</p></div>
-    <div class="feature-card"><h3>Safe vault mutations</h3><p>Keep writes inside the configured vault and preserve typed custom frontmatter.</p></div>
-    <div class="feature-card"><h3>Stable MCP contracts</h3><p>Generate schemas, annotations, prompts, resources, and profile inventories from live protocol discovery.</p></div>
-    <div class="feature-card"><h3>Two transports</h3><p>Use local stdio or authenticated Streamable HTTP with secure loopback defaults.</p></div>
-    <div class="feature-card"><h3>Optional Obsidian bridge</h3><p>Open notes, run approved commands, and integrate supported plugins through an authenticated WebSocket bridge.</p></div>
+  <div class="trust-strip" aria-label="Supported MCP clients">
+    <span>Claude Code</span><span>Codex</span><span>OpenCode</span><span>Antigravity</span><span>Any MCP-compatible client</span>
   </div>
-</section>
 
-<section class="arch-block">
-  <h2>Architecture</h2>
-  <div class="mermaid">
-    graph TD
-      Agent["MCP client"]
-      Server["Kioku server (.NET 10)"]
-      Plugin["Optional Obsidian plugin"]
-      Vault[("Obsidian vault")]
-      Agent -->|stdio or Streamable HTTP| Server
-      Server -->|bounded file access| Vault
-      Server <-->|authenticated WebSocket| Plugin
-  </div>
-</section>
+  <section class="home-section" aria-labelledby="why-kioku">
+    <p class="section-kicker">Why Kioku</p>
+    <h2 class="home-section-title" id="why-kioku">Built for reliable agent work</h2>
+    <p class="section-lede">Kioku keeps operational context useful to agents while preserving privacy, portability, explicit safety boundaries, and recoverable files.</p>
+    <div class="feature-grid">
+      <article class="feature-card"><span class="card-label">Capability</span><h3>Durable handoff</h3><p>Persist project context, decisions, plans, bugs, knowledge, ownership, and session handoffs for the next agent.</p><a href="{{ site.baseurl }}/work-sessions.html" class="card-link">Learn how handoff works →</a></article>
+      <article class="feature-card"><span class="card-label">Capability</span><h3>Guarded mutations</h3><p>Bounded paths, compare-and-swap writes, idempotency, and structured failures protect vault integrity.</p><a href="{{ site.baseurl }}/threat-and-privacy-model.html" class="card-link">Review safety boundaries →</a></article>
+      <article class="feature-card"><span class="card-label">Capability</span><h3>Hybrid retrieval</h3><p>Combine indexed full-text search with optional local embeddings and reciprocal rank fusion.</p><a href="{{ site.baseurl }}/commands-reference.html" class="card-link">Explore retrieval tools →</a></article>
+      <article class="feature-card"><span class="card-label">Capability</span><h3>Headless operation</h3><p>Use core notes, search, projects, indexing, sessions, and coordination while Obsidian is closed.</p><a href="{{ site.baseurl }}/architecture.html" class="card-link">Understand the architecture →</a></article>
+    </div>
+  </section>
 
-<section>
-  <h2 class="home-section-title">Documentation</h2>
-  <div class="docs-grid">
-    <div class="doc-card"><div><h4>Installation</h4><p>Install the tool, configure clients, build from source, or deploy with Docker.</p></div><a href="{{ site.baseurl }}/install.html" class="doc-card-link">Read guide</a></div>
-    <div class="doc-card"><div><h4>MCP contracts</h4><p>Live tool schemas, annotations, prompts, resources, and capability profiles.</p></div><a href="{{ site.baseurl }}/commands-reference.html" class="doc-card-link">View reference</a></div>
-    <div class="doc-card"><div><h4>Configuration</h4><p>Generated process configuration and vault-level behavior.</p></div><a href="{{ site.baseurl }}/configuration-reference.html" class="doc-card-link">View configuration</a></div>
-    <div class="doc-card"><div><h4>Security</h4><p>Filesystem boundaries, authentication, origins, proxies, and deployment guidance.</p></div><a href="{{ site.baseurl }}/deploy/auth-options.html" class="doc-card-link">Review security</a></div>
-  </div>
-</section>
+  <aside class="product-boundary" aria-labelledby="product-boundary-title">
+    <span class="boundary-icon" aria-hidden="true"></span>
+    <div>
+      <h2 id="product-boundary-title">Server first, plugin optional</h2>
+      <p>The MCP server reads and writes the vault directly. Obsidian and the companion plugin are required only for optional UI, command, and supported-plugin bridge operations.</p>
+    </div>
+    <a href="https://github.com/{{ site.plugin_repo }}" class="boundary-link" target="_blank" rel="noopener noreferrer">View plugin →</a>
+  </aside>
+
+  <section class="home-section" aria-labelledby="how-it-works">
+    <p class="section-kicker">How it works</p>
+    <h2 class="home-section-title" id="how-it-works">From installation to durable memory</h2>
+    <div class="steps-grid">
+      <article class="step-card"><span class="step-number">1</span><h3>Install the server</h3><p>Install the .NET tool, build from source, or deploy Kioku with Docker.</p></article>
+      <article class="step-card"><span class="step-number">2</span><h3>Choose a vault</h3><p>Point Kioku at an Obsidian vault and optionally configure folders, templates, and capabilities.</p></article>
+      <article class="step-card"><span class="step-number">3</span><h3>Register a client</h3><p>Add Kioku to Claude Code, Codex, OpenCode, Antigravity, or another MCP client.</p></article>
+    </div>
+  </section>
+
+  <section class="home-section" aria-labelledby="server-and-plugin">
+    <p class="section-kicker">Clear product boundary</p>
+    <h2 class="home-section-title" id="server-and-plugin">The MCP server works headlessly. The plugin adds Obsidian UI integration.</h2>
+    <p class="section-lede">Core note, search, project, indexing, session, and coordination workflows read and write the vault directly. Obsidian only needs to be open for optional bridge and supported-plugin operations.</p>
+    <div class="product-grid">
+      <article class="product-card server"><span class="card-label">Required</span><h3>Kioku MCP server</h3><p>The private memory and workflow layer used by AI agents.</p><ul class="product-list"><li>Vault reading and structured writes</li><li>Search and retrieval</li><li>Projects, engineering workflows, and sessions</li><li>stdio and authenticated Streamable HTTP</li></ul></article>
+      <article class="product-card plugin"><span class="card-label">Optional</span><h3>Kioku Obsidian plugin</h3><p>A separate companion repository for UI-aware operations inside a running Obsidian application.</p><ul class="product-list"><li>Open notes in Obsidian</li><li>Run approved commands</li><li>Integrate supported plugins</li><li>Authenticated WebSocket bridge</li></ul></article>
+      <article class="product-card"><span class="card-label">User controlled</span><h3>Your Obsidian vault</h3><p>The durable source of truth remains ordinary files under your ownership.</p><ul class="product-list"><li>Portable Markdown</li><li>Typed YAML frontmatter</li><li>Explicit folder and exclusion policy</li><li>No database migration dependency</li></ul></article>
+    </div>
+  </section>
+
+  <section class="home-section" aria-labelledby="documentation">
+    <p class="section-kicker">Documentation</p>
+    <h2 class="home-section-title" id="documentation">Start with the guide for your task</h2>
+    <div class="docs-grid">
+      <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Installation</h3><p>Install the tool, register an MCP client, build from source, or deploy with Docker.</p></div><a href="{{ site.baseurl }}/install.html" class="doc-card-link">Read the guide →</a></article>
+      <article class="doc-card"><div><span class="card-label">Documentation</span><h3>MCP contract reference</h3><p>Review generated tool schemas, annotations, prompts, resources, and capability profiles.</p></div><a href="{{ site.baseurl }}/commands-reference.html" class="doc-card-link">Browse contracts →</a></article>
+      <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Vault configuration</h3><p>Configure folders, templates, metadata behavior, exclusions, and capability gates.</p></div><a href="{{ site.baseurl }}/vault-config.html" class="doc-card-link">Configure a vault →</a></article>
+      <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Security model</h3><p>Understand filesystem boundaries, authentication, origins, proxies, and external data flows.</p></div><a href="{{ site.baseurl }}/threat-and-privacy-model.html" class="doc-card-link">Review security →</a></article>
+      <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Migrate to 3.0</h3><p>Prepare integrations for focused tools, structured results, and guarded mutations.</p></div><a href="{{ site.baseurl }}/migration-2.3.0-to-3.0.0.html" class="doc-card-link">Open migration guide →</a></article>
+      <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Obsidian plugin</h3><p>Add optional UI-aware bridge operations while keeping the server usable headlessly.</p></div><a href="https://github.com/{{ site.plugin_repo }}" class="doc-card-link" target="_blank" rel="noopener noreferrer">View plugin repository →</a></article>
+    </div>
+  </section>
+
+  <section class="home-section">
+    <div class="cta-panel">
+      <div><h2>Give the next agent the context the current agent earned.</h2><p>Install Kioku, keep your knowledge local, and make session continuity an explicit part of your engineering workflow.</p></div>
+      <a href="{{ site.baseurl }}/install.html" class="btn btn-primary">Get started</a>
+    </div>
+  </section>
+</div>

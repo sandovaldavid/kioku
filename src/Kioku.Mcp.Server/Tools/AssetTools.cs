@@ -81,7 +81,7 @@ public sealed class AssetTools(
             foreach (var orphan in orphans)
             {
                 var relPath = Path.GetRelativePath(config.VaultPath, orphan);
-                sb.AppendLine($"  {relPath}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"  {relPath}");
             }
             return sb.ToString();
         }
@@ -223,7 +223,7 @@ public sealed class AssetTools(
             {
                 var relOldPath = ToVaultRelativePath(move.OldPath, config.VaultPath);
                 var relNewPath = ToVaultRelativePath(move.NewPath, config.VaultPath);
-                sb.AppendLine($"  {relOldPath} → {relNewPath}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"  {relOldPath} → {relNewPath}");
             }
             foreach (var rename in renames)
             {

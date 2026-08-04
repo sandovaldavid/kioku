@@ -1,5 +1,4 @@
 using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
 
 namespace Kioku.Mcp.Server.Protocol;
 
@@ -54,21 +53,6 @@ internal static class KiokuToolAnnotations
         "trigger_obsidian_command", "get_installed_plugins", "query_dataview",
         "apply_template", "lint", "import_bibtex", "create_zettel",
     };
-
-    internal static IMcpServerBuilder WithKiokuToolAnnotations(this IMcpServerBuilder builder) =>
-        builder.WithRequestFilters(filters =>
-        {
-            filters.AddListToolsFilter(next => async (context, cancellationToken) =>
-            {
-                var result = await next(context, cancellationToken);
-                foreach (var tool in result.Tools)
-                {
-                    tool.Annotations = Create(tool.Name);
-                }
-
-                return result;
-            });
-        });
 
     internal static ToolAnnotations Create(string toolName) => new()
     {

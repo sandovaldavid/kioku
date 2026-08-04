@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -44,7 +45,7 @@ public sealed class NoteQueryPresentationSnapshotTests : IClassFixture<VaultFixt
     }
 
     private static string ModifiedStamp(Kioku.Mcp.Server.Domain.Note note) =>
-        note.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+        note.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
 
     // read_note
 

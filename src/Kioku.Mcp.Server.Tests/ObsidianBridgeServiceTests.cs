@@ -273,6 +273,7 @@ public class ObsidianBridgeServiceTests
 /// bound to an ephemeral port. Tests drive it directly via Accept/Send/Receive/Close instead
 /// of scripting behavior through a mocking framework.
 /// </summary>
+#pragma warning disable CA1822 // Keep the fake server helpers instance-shaped for test readability.
 internal sealed class FakeObsidianServer : IAsyncDisposable
 {
     private readonly WebApplication _app;
@@ -409,3 +410,4 @@ internal sealed class FakeObsidianServer : IAsyncDisposable
         await _app.DisposeAsync();
     }
 }
+#pragma warning restore CA1822

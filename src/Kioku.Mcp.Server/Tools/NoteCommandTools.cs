@@ -230,7 +230,7 @@ public sealed partial class NoteCommandTools(
                 return KiokuError.NotFound($"Template not found: '{template}'");
             }
 
-            var rawTemplate = await File.ReadAllTextAsync(templatePath, Encoding.UTF8);
+            var rawTemplate = await NoteHelpers.ReadAllTextAsync(templatePath);
             body = NoteHelpers.ExpandTemplateVariables(
                 rawTemplate,
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -301,7 +301,7 @@ public sealed partial class NoteCommandTools(
         {
             case "replace":
                 {
-                    var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+                    var rawContent = await NoteHelpers.ReadAllTextAsync(found.FilePath);
                     var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
                     var frontmatter = rawContent[..bodyStart];
                     var updatedContent = NoteHelpers.TouchUpdated(
@@ -320,7 +320,7 @@ public sealed partial class NoteCommandTools(
 
             case "prepend":
                 {
-                    var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+                    var rawContent = await NoteHelpers.ReadAllTextAsync(found.FilePath);
                     var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
                     var frontmatter = rawContent[..bodyStart];
                     var body = rawContent[bodyStart..];
@@ -348,7 +348,7 @@ public sealed partial class NoteCommandTools(
                     }
 
                     toAppend.AppendLine(content.Replace("\\n", "\n"));
-                    var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+                    var rawContent = await NoteHelpers.ReadAllTextAsync(found.FilePath);
                     var updatedContent = NoteHelpers.TouchUpdated(
                         rawContent + toAppend.ToString(), DateOnly.FromDateTime(DateTime.Today), vaultConfig.MaintainUpdated);
                     try
@@ -398,7 +398,7 @@ public sealed partial class NoteCommandTools(
             return KiokuError.NotFound($"Note not found: '{note}'");
         }
 
-        var rawContent = await File.ReadAllTextAsync(found.FilePath, Encoding.UTF8);
+        var rawContent = await NoteHelpers.ReadAllTextAsync(found.FilePath);
         var bodyStart = FrontmatterParser.GetBodyStart(rawContent);
         var body = rawContent[bodyStart..];
 
@@ -539,7 +539,7 @@ public sealed partial class NoteCommandTools(
         string? replacementContent = null;
         if (vaultConfig.MaintainUpdated)
         {
-            var movedContent = await File.ReadAllTextAsync(oldPath, Encoding.UTF8);
+            var movedContent = await NoteHelpers.ReadAllTextAsync(oldPath);
             replacementContent = NoteHelpers.TouchUpdated(
                 movedContent, DateOnly.FromDateTime(DateTime.Today), true);
         }
@@ -782,7 +782,7 @@ public sealed partial class NoteCommandTools(
                     {
                         var age = DateTimeOffset.UtcNow - File.GetLastWriteTimeUtc(item.File);
                         var ageStr = age.TotalHours < 24 ? $"{(int)age.TotalHours}h" : $"{(int)age.TotalDays}d";
-                        sb.AppendLine($"  {item.Relative} (modified {ageStr} ago)");
+                        sb.AppendLine(CultureInfo.InvariantCulture, $"  {item.Relative} (modified {ageStr} ago)");
                     }
 
                     return sb.ToString();
@@ -889,7 +889,7 @@ public sealed partial class NoteCommandTools(
         return null;
     }
 
-    private string? FindInTrash(string name, string trashFolder)
+    private static string? FindInTrash(string name, string trashFolder)
     {
         var normalized = name.Replace('\\', Path.DirectorySeparatorChar)
             .TrimStart(Path.DirectorySeparatorChar);
@@ -1013,7 +1013,7 @@ public sealed partial class NoteCommandTools(
 
         foreach (var source in candidates.Values.OrderBy(n => n.VaultRelativePath, StringComparer.OrdinalIgnoreCase))
         {
-            var raw = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
+            var raw = await NoteHelpers.ReadAllTextAsync(source.FilePath);
             var bodyStart = FrontmatterParser.GetBodyStart(raw);
             var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
 
@@ -1056,14 +1056,14 @@ public sealed partial class NoteCommandTools(
         }
 
         var sb = new StringBuilder();
-        sb.Append($"\n   Updated {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s).");
+        sb.Append(CultureInfo.InvariantCulture, $"\n   Updated {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s).");
 
         if (summary.AmbiguousLinks.Count > 0)
         {
-            sb.Append($"\n   Skipped {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) (another note shares this name):");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   Skipped {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) (another note shares this name):");
             foreach (var link in summary.AmbiguousLinks)
             {
-                sb.Append($"\n     - {link}");
+                sb.Append(CultureInfo.InvariantCulture, $"\n     - {link}");
             }
         }
 
@@ -1075,7 +1075,7 @@ public sealed partial class NoteCommandTools(
     {
         var sb = new StringBuilder();
         sb.Append("[info] Dry run — no files were modified.\n");
-        sb.Append($"   Would {action}: {beforePath} -> {afterPath}");
+        sb.Append(CultureInfo.InvariantCulture, $"   Would {action}: {beforePath} -> {afterPath}");
 
         if (!updateLinks)
         {
@@ -1089,19 +1089,19 @@ public sealed partial class NoteCommandTools(
         }
         else
         {
-            sb.Append($"\n   Would update {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s):");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   Would update {summary.LinksUpdated} wikilink(s) in {summary.NotesUpdated} note(s):");
             foreach (var (noteName, count) in summary.Details)
             {
-                sb.Append($"\n     - {noteName}: {count} link(s)");
+                sb.Append(CultureInfo.InvariantCulture, $"\n     - {noteName}: {count} link(s)");
             }
         }
 
         if (summary.AmbiguousLinks.Count > 0)
         {
-            sb.Append($"\n   {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) would be skipped:");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   {summary.AmbiguousLinks.Count} ambiguous bare-name link(s) would be skipped:");
             foreach (var link in summary.AmbiguousLinks)
             {
-                sb.Append($"\n     - {link}");
+                sb.Append(CultureInfo.InvariantCulture, $"\n     - {link}");
             }
         }
 

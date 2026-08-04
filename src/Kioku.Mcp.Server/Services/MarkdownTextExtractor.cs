@@ -1,16 +1,16 @@
-using System.Buffers;
+using System.Text.RegularExpressions;
+using Markdig;
 
 namespace Kioku.Mcp.Server.Services;
 
 /// <summary>
 /// Extracts clean text from Obsidian Markdown notes.
-/// Removes frontmatter, Markdown syntax, and wikilinks to produce
-/// indexable text for the search engine.
-/// No external dependencies — manual parsing with Span&lt;char&gt;.
 /// </summary>
-public static class MarkdownTextExtractor
+public static partial class MarkdownTextExtractor
 {
-    private static readonly SearchValues<char> AlphaNum = SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+    private static readonly MarkdownPipeline Pipeline =
+        new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
     /// <summary>
     /// Extracts plain text from a Markdown note.
     /// </summary>
@@ -25,25 +25,16 @@ public static class MarkdownTextExtractor
             return string.Empty;
         }
 
-        var body = rawContent.AsSpan(bodyStart);
-        var sb = new System.Text.StringBuilder(body.Length);
-
-        int pos = 0;
-        while (pos < body.Length)
-        {
-            int lineEnd = body[pos..].IndexOfAny('\n', '\r');
-            var line = lineEnd < 0 ? body[pos..] : body.Slice(pos, lineEnd);
-
-            ProcessLine(line, sb);
-
-            pos += lineEnd < 0 ? body.Length - pos : lineEnd + 1;
-            if (pos < body.Length && body[pos - 1] == '\r' && body[pos] == '\n')
-            {
-                pos++;
-            }
-        }
-
-        return sb.ToString().Trim();
+        var body = rawContent[bodyStart..];
+        body = ObsidianFencedCodePattern().Replace(body, string.Empty);
+        body = ObsidianCommentPattern().Replace(body, string.Empty);
+        body = ObsidianCalloutMarkerPattern().Replace(body, string.Empty);
+        body = ObsidianBlockIdPattern().Replace(body, string.Empty);
+        var plainText = Markdown.ToPlainText(body, Pipeline, null);
+        return ObsidianWikilinkPattern().Replace(plainText, match =>
+            match.Groups["alias"].Success
+                ? match.Groups["alias"].Value
+                : match.Groups["target"].Value).Trim();
     }
 
     /// <summary>
@@ -88,8 +79,7 @@ public static class MarkdownTextExtractor
         int pos = 0;
         while (pos < line.Length)
         {
-            // Skip inline code spans entirely: `...` — wikilinks written there are example
-            // syntax, not real links.
+            // Skip inline code spans entirely: wikilinks there are example syntax.
             if (line[pos] == '`')
             {
                 int closeTick = line[(pos + 1)..].IndexOf('`');
@@ -107,11 +97,9 @@ public static class MarkdownTextExtractor
                 }
 
                 var link = line.Slice(absOpen, close);
-                // Support for [[note|alias]] — we only extract the target
                 int pipeIdx = link.IndexOf('|');
                 var target = pipeIdx >= 0 ? link[..pipeIdx] : link;
 
-                // Support for [[note#header]] — we only extract the file
                 int hashIdx = target.IndexOf('#');
                 if (hashIdx >= 0)
                 {
@@ -132,184 +120,18 @@ public static class MarkdownTextExtractor
         }
     }
 
-    // Private helpers
+    [GeneratedRegex(@"!?\[\[(?<target>[^\]|]+)(?:\|(?<alias>[^\]]+))?\]\]")]
+    private static partial Regex ObsidianWikilinkPattern();
 
-    private static void ProcessLine(ReadOnlySpan<char> line, System.Text.StringBuilder sb)
-    {
-        if (line.IsEmpty)
-        {
-            sb.AppendLine();
-            return;
-        }
+    [GeneratedRegex(@"(?ms)^[ \t]{0,3}(?<fence>`{3,}|~{3,})[^\r\n]*(?:\r\n|\r|\n).*?^[ \t]{0,3}\k<fence>[`~]*[ \t]*$")]
+    private static partial Regex ObsidianFencedCodePattern();
 
-        // Skip code blocks (``` ... ```)
-        var trimmed = line.TrimStart();
-        if (trimmed.StartsWith("```".AsSpan()) || trimmed.StartsWith("~~~".AsSpan()))
-        {
-            // We do not add the opening/closing lines of code blocks
-            return;
-        }
+    [GeneratedRegex(@"(?s)%%.*?%%")]
+    private static partial Regex ObsidianCommentPattern();
 
-        // Skip Markdown table lines (| col1 | col2 |)
-        if (trimmed.StartsWith("|".AsSpan()))
-        {
-            // Extract only the cell text
-            ExtractTableCellText(trimmed, sb);
-            sb.AppendLine();
-            return;
-        }
+    [GeneratedRegex(@"(?im)^[ \t]{0,3}>[ \t]*\[![A-Za-z0-9_-]+\][ \t]*")]
+    private static partial Regex ObsidianCalloutMarkerPattern();
 
-        // Process the line removing Markdown syntax
-        CleanLine(line, sb);
-        sb.AppendLine();
-    }
-
-    private static void CleanLine(ReadOnlySpan<char> line, System.Text.StringBuilder sb)
-    {
-        int pos = 0;
-
-        // Remove header prefixes (# ## ### etc.)
-        if (line.TrimStart().StartsWith("#".AsSpan()))
-        {
-            while (pos < line.Length && (line[pos] == '#' || line[pos] == ' '))
-            {
-                pos++;
-            }
-        }
-
-        // Remove list prefixes (- * + 1.)
-        var lineAfterHeading = line[pos..].TrimStart();
-        if (lineAfterHeading.Length > 0 && (lineAfterHeading[0] == '-' || lineAfterHeading[0] == '*' || lineAfterHeading[0] == '+'))
-        {
-            var afterBullet = lineAfterHeading[1..].TrimStart();
-            ProcessInlineMarkdown(afterBullet, sb);
-            return;
-        }
-
-        ProcessInlineMarkdown(line[pos..], sb);
-    }
-
-    private static void ProcessInlineMarkdown(ReadOnlySpan<char> text, System.Text.StringBuilder sb)
-    {
-        int pos = 0;
-        while (pos < text.Length)
-        {
-            char c = text[pos];
-
-            // Wikilinks: [[target|alias]] → alias (or target if no alias)
-            if (c == '[' && pos + 1 < text.Length && text[pos + 1] == '[')
-            {
-                int close = text[(pos + 2)..].IndexOf("]]".AsSpan(), StringComparison.Ordinal);
-                if (close >= 0)
-                {
-                    var inner = text.Slice(pos + 2, close);
-                    int pipe = inner.IndexOf('|');
-                    sb.Append(pipe >= 0 ? inner[(pipe + 1)..] : inner);
-                    pos += close + 4;
-                    continue;
-                }
-            }
-
-            // Markdown links: [text](url) → text
-            if (c == '[' && pos + 1 < text.Length)
-            {
-                int closeBracket = text[(pos + 1)..].IndexOf(']');
-                if (closeBracket >= 0)
-                {
-                    int parenOpen = pos + 1 + closeBracket + 1;
-                    if (parenOpen < text.Length && text[parenOpen] == '(')
-                    {
-                        int parenClose = text[parenOpen..].IndexOf(')');
-                        if (parenClose >= 0)
-                        {
-                            sb.Append(text.Slice(pos + 1, closeBracket));
-                            pos = parenOpen + parenClose + 1;
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            // Bold/italic: **text** or *text* or __text__ or _text_ → text
-            if ((c == '*' || c == '_') && pos + 1 < text.Length)
-            {
-                bool isDouble = pos + 1 < text.Length && text[pos + 1] == c;
-                var marker = isDouble ? text.Slice(pos, 2) : text.Slice(pos, 1);
-                int closeMarker = text[(pos + marker.Length)..].IndexOf(marker, StringComparison.Ordinal);
-                if (closeMarker >= 0)
-                {
-                    sb.Append(text.Slice(pos + marker.Length, closeMarker));
-                    pos += marker.Length + closeMarker + marker.Length;
-                    continue;
-                }
-            }
-
-            // Inline code: `code` → delete
-            if (c == '`')
-            {
-                int close = text[(pos + 1)..].IndexOf('`');
-                if (close >= 0)
-                {
-                    // Include the code text so it is indexable
-                    sb.Append(text.Slice(pos + 1, close));
-                    pos += close + 2;
-                    continue;
-                }
-            }
-
-            sb.Append(c);
-            pos++;
-        }
-    }
-
-    private static void ExtractTableCellText(ReadOnlySpan<char> line, System.Text.StringBuilder sb)
-    {
-        // Skip table separator lines (| --- | --- |)
-        // A separator line contains '-' but no alphanumeric characters
-        bool hasDash = line.Contains('-');
-        bool hasAlphaNum = false;
-        foreach (char ch in line)
-        {
-            if (char.IsLetterOrDigit(ch)) { hasAlphaNum = true; break; }
-        }
-        if (hasDash && !hasAlphaNum)
-        {
-            return;
-        }
-
-        bool firstCell = true;
-        int pos = 0;
-
-        // Skip leading '|' so pos points to the start of the first cell
-        if (line.Length > 0 && line[0] == '|')
-        {
-            pos = 1;
-        }
-
-        while (pos < line.Length)
-        {
-            int nextPipe = line[pos..].IndexOf('|');
-            if (nextPipe < 0)
-            {
-                break;
-            }
-
-            var cell = line.Slice(pos, nextPipe);
-            var cellTrimmed = cell.Trim();
-            bool isSeparator = !cellTrimmed.IsEmpty && cellTrimmed.IndexOf('-') >= 0
-                && !cellTrimmed.ContainsAny(AlphaNum);
-            if (!cellTrimmed.IsEmpty && !isSeparator)
-            {
-                if (!firstCell)
-                {
-                    sb.Append(' ');
-                }
-
-                ProcessInlineMarkdown(cellTrimmed, sb);
-                firstCell = false;
-            }
-
-            pos = pos + nextPipe + 1;
-        }
-    }
+    [GeneratedRegex(@"(?m)(?:^|[ \t])\^[A-Za-z0-9_-]+[ \t]*(?=\r?$)")]
+    private static partial Regex ObsidianBlockIdPattern();
 }

@@ -44,7 +44,7 @@ public sealed class ZettelkastenTools(
         }
 
         // Generate Zettelkasten ID from current timestamp
-        var zettelId = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+        var zettelId = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss", CultureInfo.InvariantCulture);
 
         // Resolve target folder: user-provided > config default > auto-detect via content similarity
         var targetFolder = folder;
@@ -124,15 +124,15 @@ public sealed class ZettelkastenTools(
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[ok] Zettel created: {relPath}");
-        sb.AppendLine($"  Path: {relPath}");
-        sb.AppendLine($"  ID: {zettelId}");
-        sb.AppendLine($"  Title: {title}");
-        sb.AppendLine($"  Link: [[{relPath[..^3]}|{title.Replace('|', '-')}]]");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Zettel created: {relPath}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"  Path: {relPath}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"  ID: {zettelId}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"  Title: {title}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"  Link: [[{relPath[..^3]}|{title.Replace('|', '-')}]]");
 
         if (relatedLinks.Count > 0)
         {
-            sb.AppendLine($"  Linked to: {string.Join(", ", relatedLinks.Select(l => $"[[{l}]]"))}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  Linked to: {string.Join(", ", relatedLinks.Select(l => $"[[{l}]]"))}");
         }
         else if (link_related && !embedding.IsAvailable)
         {
@@ -141,7 +141,7 @@ public sealed class ZettelkastenTools(
 
         if (evalResult.Warning is not null)
         {
-            sb.AppendLine($"  [warning] {evalResult.Warning}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  [warning] {evalResult.Warning}");
         }
 
         return sb.ToString().TrimEnd();
@@ -278,8 +278,8 @@ public sealed class ZettelkastenTools(
             .ToList();
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# {folderTitle}\n");
-        sb.AppendLine($"> Auto-generated index for `{folder}`. Last updated: {DateTime.Today:yyyy-MM-dd}\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# {folderTitle}\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"> Auto-generated index for `{folder}`. Last updated: {DateTime.Today:yyyy-MM-dd}\n");
         sb.Append(WrapManagedSection(BuildFolderReadmeNotesList(folder, notes), "folder-readme"));
 
         var frontmatter = NoteHelpers.BuildFrontmatter(
@@ -412,8 +412,6 @@ public sealed class ZettelkastenTools(
 
     // Private helpers
 
-    private Note? ResolveNote(string nameOrPath) => NoteHelpers.ResolveNote(nameOrPath, vault);
-
     private string BuildFilePath(string name) => NoteHelpers.BuildFilePath(name, config.VaultPath);
 
     private static List<string> ParseTags(string tags) => NoteHelpers.ParseTags(tags);
@@ -431,10 +429,10 @@ public sealed class ZettelkastenTools(
         NoteHelpers.BuildFrontmatter(tags, type, status, date, zettelId, domain,
             aliases: aliases, extraFields: extraFields, updated: updated);
 
-    private static string BuildZettelBody(string title, string content, IReadOnlyList<string> relatedLinks)
+    private static string BuildZettelBody(string title, string content, List<string> relatedLinks)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"# {title}\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# {title}\n");
         sb.AppendLine(content.TrimEnd());
 
         if (relatedLinks.Count > 0)
@@ -442,7 +440,7 @@ public sealed class ZettelkastenTools(
             sb.AppendLine("\n## Related\n");
             foreach (var link in relatedLinks)
             {
-                sb.AppendLine($"- [[{link}]]");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- [[{link}]]");
             }
         }
 
@@ -453,14 +451,14 @@ public sealed class ZettelkastenTools(
     {
         var folderTitle = folder.Split('/', '\\').Last();
         var sb = new StringBuilder();
-        sb.AppendLine($"# {folderTitle} — Map of Content\n");
-        sb.AppendLine($"> Auto-generated index for `{folder}`. Last updated: {DateTime.Today:yyyy-MM-dd}\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# {folderTitle} — Map of Content\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"> Auto-generated index for `{folder}`. Last updated: {DateTime.Today:yyyy-MM-dd}\n");
         sb.Append(notesList);
         return sb.ToString();
     }
 
     /// <summary>Just the grouped notes list (no heading/wrapper) — reused as {{moc_list}} by a user template.</summary>
-    private static string BuildMocNotesList(string folder, IReadOnlyList<Note> notes)
+    private static string BuildMocNotesList(string folder, List<Note> notes)
     {
         var sb = new StringBuilder();
         string? lastSubdir = null;
@@ -475,20 +473,20 @@ public sealed class ZettelkastenTools(
             {
                 lastSubdir = subdir;
                 var sectionTitle = string.IsNullOrEmpty(subdir) ? "Notes" : subdir;
-                sb.AppendLine($"\n## {sectionTitle}\n");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"\n## {sectionTitle}\n");
             }
 
             var tags = note.Metadata.Tags.Count > 0
                 ? $" — _{string.Join(", ", note.Metadata.Tags.Select(t => $"#{t}"))}_"
                 : "";
 
-            sb.AppendLine($"- [[{note.Name}]]{tags}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- [[{note.Name}]]{tags}");
         }
 
         return sb.ToString();
     }
 
-    private static string BuildFolderReadmeNotesList(string folder, IReadOnlyList<Note> notes)
+    private static string BuildFolderReadmeNotesList(string folder, List<Note> notes)
     {
         var sb = new StringBuilder();
         if (notes.Count == 0)
@@ -507,13 +505,13 @@ public sealed class ZettelkastenTools(
             if (noteSubfolder != currentSubfolder && !string.IsNullOrEmpty(noteSubfolder))
             {
                 currentSubfolder = noteSubfolder;
-                sb.AppendLine($"\n### {noteSubfolder}\n");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"\n### {noteSubfolder}\n");
             }
 
             var tags = note.Metadata.Tags.Count > 0
                 ? $" _{string.Join(", ", note.Metadata.Tags.Select(t => $"#{t}"))}_"
                 : "";
-            sb.AppendLine($"- [[{note.Name}]]{tags}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- [[{note.Name}]]{tags}");
         }
 
         return sb.ToString();
@@ -615,7 +613,7 @@ public sealed class ZettelkastenTools(
         }
         else
         {
-            await mutations.WriteTextAsync(path, content, preconditions);
+            await mutations.UpsertTextAsync(path, content, preconditions);
         }
     }
 
@@ -712,14 +710,14 @@ public sealed class ZettelkastenTools(
         string summary)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"# {title}\n");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# {title}\n");
         sb.AppendLine("## Metadata\n");
-        sb.AppendLine($"- **Author:** {author}");
-        sb.AppendLine($"- **Year:** {year}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- **Author:** {author}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"- **Year:** {year}");
 
         if (!string.IsNullOrWhiteSpace(source))
         {
-            sb.AppendLine($"- **Source:** {source}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- **Source:** {source}");
         }
 
         sb.AppendLine("\n## Summary\n");

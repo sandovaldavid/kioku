@@ -64,7 +64,7 @@ When deploying Kioku:
 
 1. **Use HTTPS** for HTTP transport (never expose plain HTTP)
 2. **Set API keys** for all HTTP endpoints
-3. **Keep dependencies updated** (run `dotnet list package --vulnerable` and `pnpm audit` regularly)
+3. **Keep dependencies updated** (run `dotnet list package --vulnerable` and review Dependabot alerts regularly)
 4. **Monitor logs** for suspicious activity
 5. **Backup your vault** regularly (use git or other version control)
 6. **Review permissions** - the server runs with your user's file access rights

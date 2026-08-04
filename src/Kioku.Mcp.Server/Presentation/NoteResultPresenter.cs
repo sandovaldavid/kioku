@@ -65,13 +65,13 @@ internal static class NoteResultPresenter
                 name = found.Name,
                 path = found.VaultRelativePath,
                 revision = found.Revision,
-                modified = found.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                modified = found.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
                 tags = m.Tags,
                 aliases = m.Aliases,
                 status = m.Status,
                 type = m.NoteType,
-                date = m.Date?.ToString("yyyy-MM-dd"),
-                updated = m.Updated?.ToString("yyyy-MM-dd"),
+                date = m.Date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                updated = m.Updated?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 extra_fields = m.ExtraFields,
                 outgoing_links = found.OutgoingLinks,
             });
@@ -195,8 +195,8 @@ internal static class NoteResultPresenter
                     tags = n.Metadata.Tags,
                     status = n.Metadata.Status,
                     type = n.Metadata.NoteType,
-                    date = n.Metadata.Date?.ToString("yyyy-MM-dd"),
-                    modified = n.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                    date = n.Metadata.Date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    modified = n.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
                 }),
             });
         }
@@ -206,7 +206,7 @@ internal static class NoteResultPresenter
             var tags = n.Metadata.Tags.Count > 0
                 ? $" [#{string.Join(", #", n.Metadata.Tags)}]"
                 : "";
-            var modified = n.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+            var modified = n.LastModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
             return $"- {n.VaultRelativePath}{tags} (modified: {modified})";
         });
 
@@ -267,7 +267,7 @@ internal static class NoteResultPresenter
             return ToJson(new { query, mode = "semantic", results = Array.Empty<object>() });
         }
 
-        var threshold = minScore > 0f ? $" above {minScore:P0} similarity" : "";
+        var threshold = minScore > 0f ? $" above {(int)MathF.Round(minScore * 100)}% similarity" : "";
         return $"No semantically similar notes found for: '{query}'{threshold}";
     }
 
@@ -278,7 +278,7 @@ internal static class NoteResultPresenter
             return ToJson(new { query, mode = "hybrid", results = Array.Empty<object>() });
         }
 
-        var threshold = minScore > 0f ? $" above {minScore:P0} score" : "";
+        var threshold = minScore > 0f ? $" above {(int)MathF.Round(minScore * 100)}% score" : "";
         return $"No hybrid results found for: '{query}'{threshold}";
     }
 
@@ -307,7 +307,7 @@ internal static class NoteResultPresenter
 
         var lines = list.Select((r, i) =>
         {
-            var score = (r.Score * 100).ToString("F0");
+            var score = (r.Score * 100).ToString("F0", CultureInfo.InvariantCulture);
             var tags = r.Note.Metadata.Tags.Count > 0
                 ? $" [#{string.Join(", #", r.Note.Metadata.Tags)}]"
                 : "";
@@ -394,14 +394,14 @@ internal static class NoteResultPresenter
     // find_similar_notes
 
     internal static string RenderNoSimilarNotes(string sourceName, float minScore) =>
-        $"No notes similar to '{sourceName}' found above {minScore:P0} similarity.";
+        $"No notes similar to '{sourceName}' found above {(int)MathF.Round(minScore * 100)}% similarity.";
 
     internal static string RenderSimilarNotes(string sourceName, IEnumerable<NoteSearchRow> rows)
     {
         var list = rows.ToList();
         var lines = list.Select((r, i) =>
         {
-            var score = (r.Score * 100).ToString("F0");
+            var score = (r.Score * 100).ToString("F0", CultureInfo.InvariantCulture);
             var tags = r.Note.Metadata.Tags.Count > 0
                 ? $" [#{string.Join(", #", r.Note.Metadata.Tags)}]"
                 : "";

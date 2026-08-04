@@ -58,21 +58,4 @@ public static class EmbeddingModelRegistry
         return Registry.TryGetValue(modelName, out var info) ? info : DefaultInfo;
     }
 
-    /// <summary>
-    /// Returns the expected dimension for a model, or the default if unknown.
-    /// </summary>
-    public static int GetExpectedDimension(string modelName) => GetModelInfo(modelName).Dimension;
-
-    /// <summary>
-    /// Returns true if the model is in the known registry.
-    /// </summary>
-    public static bool IsKnownModel(string modelName)
-    {
-        return !string.IsNullOrWhiteSpace(modelName) && Registry.ContainsKey(modelName);
-    }
-
-    /// <summary>
-    /// Returns all known model names.
-    /// </summary>
-    public static IReadOnlyCollection<string> KnownModels => Registry.Keys;
 }

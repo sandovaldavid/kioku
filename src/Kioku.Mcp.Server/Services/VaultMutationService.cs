@@ -28,14 +28,21 @@ internal sealed class VaultMutationService(
         string content,
         VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        WriteCoreAsync(path, content, preconditions, requireAbsent: true, cancellationToken);
+        WriteCoreAsync(path, content, preconditions, requireAbsent: true, requireExists: false, cancellationToken);
 
     public Task<VaultMutationReceipt> WriteTextAsync(
         string path,
         string content,
         VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default) =>
-        WriteCoreAsync(path, content, preconditions, requireAbsent: false, cancellationToken);
+        WriteCoreAsync(path, content, preconditions, requireAbsent: false, requireExists: true, cancellationToken);
+
+    public Task<VaultMutationReceipt> UpsertTextAsync(
+        string path,
+        string content,
+        VaultMutationPreconditions? preconditions = null,
+        CancellationToken cancellationToken = default) =>
+        WriteCoreAsync(path, content, preconditions, requireAbsent: false, requireExists: false, cancellationToken);
 
     public async Task<VaultMutationReceipt> DeleteAsync(
         string path,
@@ -106,19 +113,26 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (IOException)
+        catch (Exception exception) when (IsSharingViolation(exception))
         {
             RecordMutationFailure("WRITE_CONFLICT");
-            throw new VaultMutationException("INTERNAL", "The vault mutation could not be committed.",
-                new VaultMutationConflict(
-                    VaultMutationErrorCodes.WriteConflict,
-                    resourceKey,
-                    normalized.ExpectedRevision,
-                    null,
-                    normalized.ExpectedHash,
-                    null,
-                    null,
-                    "Retry after checking the target resource."));
+            throw Conflict(
+                VaultMutationErrorCodes.WriteConflict,
+                resourceKey,
+                normalized,
+                currentContent: null,
+                currentClaim: null,
+                "Retry after checking the target resource.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            RecordMutationFailure("ACCESS_DENIED");
+            throw AccessDenied();
+        }
+        catch (IOException)
+        {
+            RecordMutationFailure("INTERNAL");
+            throw new VaultMutationException("INTERNAL", "The vault deletion could not be committed.");
         }
     }
 
@@ -234,11 +248,26 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (IOException)
+        catch (Exception exception) when (IsSharingViolation(exception))
         {
             RecordMutationFailure("WRITE_CONFLICT");
-            throw new VaultMutationException(
-                "INTERNAL", "The vault move could not be committed.");
+            throw Conflict(
+                VaultMutationErrorCodes.WriteConflict,
+                sourceResource,
+                normalized,
+                currentContent: null,
+                currentClaim: null,
+                "Retry after checking the source and destination resources.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            RecordMutationFailure("ACCESS_DENIED");
+            throw AccessDenied();
+        }
+        catch (IOException)
+        {
+            RecordMutationFailure("INTERNAL");
+            throw new VaultMutationException("INTERNAL", "The vault move could not be committed.");
         }
     }
 
@@ -247,16 +276,18 @@ internal sealed class VaultMutationService(
         string content,
         VaultMutationPreconditions? preconditions,
         bool requireAbsent,
+        bool requireExists,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
         var target = ResolveWritePath(path);
         var normalized = NormalizePreconditions(preconditions);
         var resourceKey = ResolveResourceKey(target, normalized);
+        var operation = requireAbsent ? "create" : requireExists ? "write" : "upsert";
         var fingerprint = ComputeFingerprint(
-            requireAbsent ? "create" : "write", resourceKey, target, content, normalized);
+            operation, resourceKey, target, content, normalized);
         using var activity = metrics?.StartCoordinationActivity(
-            requireAbsent ? "coordination.mutation.create" : "coordination.mutation.write",
+            $"coordination.mutation.{operation}",
             claimId: normalized.ClaimId);
 
         try
@@ -279,7 +310,7 @@ internal sealed class VaultMutationService(
                             current,
                             observed[resourceKey],
                             timeProvider,
-                            requireExists: !requireAbsent);
+                            requireExists);
                         if (requireAbsent && current is not null)
                         {
                             throw new VaultMutationException(
@@ -298,7 +329,7 @@ internal sealed class VaultMutationService(
                             current,
                             observed[resourceKey],
                             timeProvider,
-                            requireExists: !requireAbsent);
+                            requireExists);
                         if (requireAbsent && current is not null)
                         {
                             throw new VaultMutationException(
@@ -335,11 +366,26 @@ internal sealed class VaultMutationService(
             RecordMutationFailure("ACCESS_DENIED");
             throw AccessDenied();
         }
-        catch (IOException)
+        catch (Exception exception) when (IsSharingViolation(exception))
         {
             RecordMutationFailure("WRITE_CONFLICT");
-            throw new VaultMutationException(
-                "INTERNAL", "The vault mutation could not be committed.");
+            throw Conflict(
+                VaultMutationErrorCodes.WriteConflict,
+                resourceKey,
+                normalized,
+                currentContent: null,
+                currentClaim: null,
+                "Retry after checking the target resource.");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            RecordMutationFailure("ACCESS_DENIED");
+            throw AccessDenied();
+        }
+        catch (IOException)
+        {
+            RecordMutationFailure("INTERNAL");
+            throw new VaultMutationException("INTERNAL", "The vault mutation could not be committed.");
         }
     }
 
@@ -442,7 +488,7 @@ internal sealed class VaultMutationService(
         return supplied;
     }
 
-    private VaultMutationPreconditions NormalizePreconditions(VaultMutationPreconditions? preconditions)
+    private static VaultMutationPreconditions NormalizePreconditions(VaultMutationPreconditions? preconditions)
     {
         preconditions ??= new VaultMutationPreconditions();
         ValidateToken(preconditions.ExpectedRevision, "expected_revision", 128);
@@ -561,7 +607,7 @@ internal sealed class VaultMutationService(
             MutationRecordRoot,
             $"{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(mutationId)))}.json"));
 
-    private static IReadOnlyList<string> BuildLockKeys(
+    private static string[] BuildLockKeys(
         string? mutationId,
         params string[] resourceKeys)
     {
@@ -591,7 +637,7 @@ internal sealed class VaultMutationService(
             preconditions.ExpectedRevision ?? string.Empty,
             preconditions.ExpectedHash ?? string.Empty,
             preconditions.ClaimId ?? string.Empty,
-            preconditions.FenceGeneration?.ToString() ?? string.Empty);
+            preconditions.FenceGeneration?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(input)));
     }
 
@@ -696,12 +742,23 @@ internal sealed class VaultMutationService(
                 recoveryAction));
 
     private static VaultMutationException AccessDenied() =>
-        new("ACCESS_DENIED", "The requested filesystem operation is outside Kioku's configured security boundary.");
+        new("ACCESS_DENIED", "The filesystem denied access to the requested resource.");
+
+    internal static bool IsSharingViolation(Exception exception)
+    {
+        if (exception is not (IOException or UnauthorizedAccessException))
+        {
+            return false;
+        }
+
+        var errorCode = exception.HResult & 0xFFFF;
+        return errorCode is 32 or 33;
+    }
 
     private void RecordMutationFailure(string code)
     {
         metrics?.RecordCoordinationMutation(code);
-        logger?.LogWarning("Vault mutation rejected. Code={Code}.", code);
+        logger?.Warn("Vault mutation rejected. Code={Code}.", code);
     }
 
     private Task InjectAsync(

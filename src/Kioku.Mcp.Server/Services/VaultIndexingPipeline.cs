@@ -194,7 +194,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
             }
             catch (OperationCanceledException)
             {
-                _logger.LogWarning(
+                _logger.Warn(
                     "Indexing shutdown drain exceeded 10 seconds with {Pending} paths remaining.",
                     _pending.Count);
             }
@@ -327,7 +327,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
         catch (Exception exception)
         {
             _metrics.ChangeFailed();
-            _logger.LogError(exception, "Indexing change failed for {File}.", change.Path);
+            _logger.Error(exception, "Indexing change failed for {File}.", change.Path);
             RequestReconciliation("change_failure");
         }
     }
@@ -338,7 +338,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
         Volatile.Write(ref _ready, 0);
         _index.SetReady(false);
         _readiness.MarkIndexRebuilding();
-        _logger.LogInformation(
+        _logger.Info(
             "Starting vault reconciliation ({Reason}) with maximum concurrency {Concurrency}.",
             reason,
             IndexConcurrency);
@@ -379,7 +379,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
                     catch (Exception exception)
                     {
                         _metrics.ChangeFailed();
-                        _logger.LogError(exception, "Could not reconcile {File}.", filePath);
+                        _logger.Error(exception, "Could not reconcile {File}.", filePath);
                     }
                 });
 
@@ -391,7 +391,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
             Volatile.Write(ref _ready, 1);
             _metrics.ReconciliationCompleted(duration, files.Length);
             _readiness.MarkIndexReady();
-            _logger.LogInformation(
+            _logger.Info(
                 "Vault reconciliation completed in {ElapsedMs:F0} ms. {Count} Markdown files observed.",
                 duration.TotalMilliseconds,
                 files.Length);
@@ -428,7 +428,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
                 }
 
                 var delay = TimeSpan.FromMilliseconds(50 * attempt * attempt);
-                _logger.LogDebug(
+                _logger.Debug(
                     exception,
                     "Transient indexing failure for {File}; retrying attempt {Attempt}/{Maximum} after {DelayMs} ms.",
                     filePath,
@@ -511,13 +511,13 @@ public sealed class VaultIndexingPipeline : BackgroundService
         };
         _watcher.Error += (_, eventArgs) =>
         {
-            _logger.LogWarning(
+            _logger.Warn(
                 eventArgs.GetException(),
                 "FileSystemWatcher overflow/error detected; scheduling a full reconciliation.");
             RequestReconciliation("watcher_error");
         };
         _watcher.EnableRaisingEvents = true;
-        _logger.LogInformation(
+        _logger.Info(
             "Bounded FileSystemWatcher pipeline active on {Path} with queue capacity {Capacity}.",
             _paths.VaultRoot,
             QueueCapacity);
@@ -542,7 +542,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
             return;
         }
 
-        _logger.LogWarning(
+        _logger.Warn(
             "Indexing queue reached capacity {Capacity}; scheduling reconciliation instead of dropping state silently.",
             QueueCapacity);
         Interlocked.Exchange(ref _reconciliationRequested, 1);
@@ -555,7 +555,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
             return;
         }
 
-        _logger.LogWarning("Vault reconciliation requested: {Reason}.", reason);
+        _logger.Warn("Vault reconciliation requested: {Reason}.", reason);
         if (_changes.Writer.TryWrite(new VaultFileChange(
                 VaultFileChangeKind.Reconcile,
                 _paths.VaultRoot,

@@ -5,9 +5,6 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$repo_root"
 
-echo "[info] Normalizing host-side Dev Container permissions..."
-bash .devcontainer/scripts/initialize-host.sh
-
 if ! command -v devcontainer >/dev/null 2>&1; then
   echo "[error] The Dev Container CLI is required." >&2
   echo "Install it from VS Code or with: npm install -g @devcontainers/cli" >&2
@@ -27,8 +24,6 @@ echo "[info] Running repository quality gates inside the Dev Container..."
 devcontainer exec --workspace-folder . bash -lc '
   set -euo pipefail
 
-  bash .devcontainer/scripts/verify-environment.sh
-
   dotnet restore Kioku.slnx
   dotnet build Kioku.slnx --configuration Release --no-restore
   dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
@@ -38,9 +33,6 @@ devcontainer exec --workspace-folder . bash -lc '
   dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
   dotnet format Kioku.slnx style --verify-no-changes --no-restore
   dotnet list Kioku.slnx package --vulnerable --include-transitive
-
-  pnpm install --frozen-lockfile
-  pnpm audit --audit-level=high
 
   node scripts/lib/validate-skill-frontmatter.mjs
   ./scripts/sync-skill.sh --check

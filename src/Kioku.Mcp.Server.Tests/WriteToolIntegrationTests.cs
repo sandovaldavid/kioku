@@ -65,7 +65,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
             mutations: mutations);
     }
 
-    private IVaultMutationService CreateMutationService(KiokuConfiguration config)
+    private VaultMutationService CreateMutationService(KiokuConfiguration config)
     {
         var paths = new VaultPathPolicy(config);
         var fileSystem = new CoordinationFileSystem();
@@ -477,7 +477,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     [Fact]
     public async Task CreateNote_MocKind_GeneratesIndexNote()
     {
-        var tools = CreateTools();
+        var tools = CreateMutationTools();
         var folder = $"MocKind-{Guid.NewGuid():N}";
         await tools.create_note($"{folder}/Inner", "Inner body", tags: "");
         await _fixture.Index.RebuildIndexAsync();
@@ -491,7 +491,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
     [Fact]
     public async Task CreateNote_FolderReadmeKind_GeneratesFolderNote()
     {
-        var tools = CreateTools();
+        var tools = CreateMutationTools();
         var folder = $"ReadmeKind-{Guid.NewGuid():N}";
         await tools.create_note($"{folder}/Inner", "Inner body", tags: "");
         await _fixture.Index.RebuildIndexAsync();

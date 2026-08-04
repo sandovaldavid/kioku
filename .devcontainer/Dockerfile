@@ -5,21 +5,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        bat \
         ca-certificates \
         curl \
-        fd-find \
-        fzf \
         gnupg2 \
         jq \
-        less \
         openssh-client \
         python3 \
         ripgrep \
         shellcheck \
         unzip \
-    && ln -sf /usr/bin/batcat /usr/local/bin/bat \
-    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PATH="/home/vscode/.dotnet/tools:/home/vscode/.local/bin:${PATH}"
+ENV PATH="/home/vscode/.dotnet/tools:${PATH}"

@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
-using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
@@ -154,13 +153,13 @@ public sealed partial class TaskService(
         var vaultRelative = Path.GetRelativePath(_vaultPath, filePath).Replace('\\', '/');
         var noteName = Path.GetFileNameWithoutExtension(filePath);
 
-        return ParseTasksFromContent(updatedLine, filePath, vaultRelative, noteName, startLine: lineNumber)
-            .FirstOrDefault();
+        var parsed = ParseTasksFromContent(updatedLine, filePath, vaultRelative, noteName, startLine: lineNumber);
+        return parsed.Count == 0 ? null : parsed[0];
     }
 
     // Internal parsing helpers
 
-    private static IReadOnlyList<TaskItem> ParseTasksFromContent(
+    private static List<TaskItem> ParseTasksFromContent(
         string content,
         string filePath,
         string vaultRelativePath,
@@ -219,7 +218,7 @@ public sealed partial class TaskService(
         return DateOnly.TryParse(match.Groups[1].Value, out var date) ? date : null;
     }
 
-    private static IReadOnlyList<string> ExtractInlineTags(string text)
+    private static List<string> ExtractInlineTags(string text)
     {
         return InlineTagRegex()
             .Matches(text)

@@ -4,15 +4,12 @@ This document describes the current internal structure of the `develop` branch. 
 
 ## System boundary
 
-```mermaid
-flowchart LR
-    Client[MCP client] -->|stdio or Streamable HTTP| Host[Kioku host]
-    Host --> Adapter[MCP adapters]
-    Adapter --> App[Application contracts and services]
-    App --> Infra[Infrastructure services and ports]
-    Infra --> Vault[(Obsidian vault)]
-    Infra --> Ollama[Ollama]
-    Infra --> Bridge[Optional Obsidian bridge]
+```text
+MCP client -- stdio or Streamable HTTP --> Kioku host
+Kioku host --> MCP adapters --> application services --> infrastructure
+infrastructure --> Obsidian vault
+infrastructure --> Ollama
+infrastructure --> optional Obsidian bridge
 ```
 
 The optional bridge is consumed by the independently versioned [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian) plugin. The plugin source and release workflow are not part of this repository.
@@ -66,7 +63,7 @@ The architecture and supported-filesystem boundary are documented in
 - Keyword search remains available when Ollama is unavailable.
 - Optional generation requires `KIOKU_GEN_MODEL`.
 
-Exact public tool schemas and modes are defined in [commands-reference.md](commands-reference.md). Reproducible measurements and evaluation methodology live in [benchmarks.md](benchmarks.md) and [retrieval-eval.md](retrieval-eval.md).
+Exact public tool schemas and modes are defined in [commands-reference.md](commands-reference.md). Retrieval evaluation methodology lives in [retrieval-eval.md](retrieval-eval.md).
 
 ## Application slices
 

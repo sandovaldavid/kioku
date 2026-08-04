@@ -1,0 +1,300 @@
+/* Header */
+.main-header {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  height: var(--header-height);
+  border-bottom: 1px solid var(--border-default);
+  background: color-mix(in srgb, var(--surface-base) 92%, transparent);
+  backdrop-filter: blur(1rem);
+}
+
+.header-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100%, var(--page-width));
+  height: 100%;
+  margin: auto;
+  padding: 0 var(--space-6);
+}
+
+.logo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-heading);
+}
+
+.logo-link:hover {
+  color: var(--text-heading);
+}
+
+.header-logo {
+  width: 2.125rem;
+  height: 2.125rem;
+  flex: 0 0 auto;
+}
+
+.header-title {
+  font: 700 1.25rem / 1.4 var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+.header-badge {
+  display: none;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.nav-link {
+  min-height: 2.5rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-body);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  line-height: 2.5rem;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.nav-link:hover {
+  background: var(--surface-raised);
+  color: var(--text-heading);
+}
+
+.nav-link.active {
+  background: var(--action-primary-subtle);
+  color: var(--action-primary-hover);
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: var(--space-2);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: var(--text-heading);
+}
+
+.github-link:hover {
+  border-color: var(--action-primary);
+  background: var(--surface-elevated);
+}
+
+.menu-toggle {
+  display: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-base);
+  color: var(--text-heading);
+  cursor: pointer;
+}
+
+/* Documentation shell */
+.site-shell {
+  width: min(100%, var(--page-width));
+  min-height: calc(100vh - var(--header-height));
+  margin: var(--header-height) auto 0;
+}
+
+.site-shell.with-sidebar {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--toc-width);
+}
+
+.sidebar-nav {
+  position: sticky;
+  top: var(--header-height);
+  height: calc(100vh - var(--header-height));
+  overflow-y: auto;
+  padding: var(--space-8) var(--space-4) var(--space-12);
+  border-right: 1px solid var(--border-default);
+  background: var(--surface-navigation);
+}
+
+.sidebar-section {
+  margin-bottom: var(--space-8);
+}
+
+.sidebar-section:last-child {
+  margin-bottom: 0;
+}
+
+.sidebar-title {
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-3);
+  border: 0;
+  color: var(--text-muted);
+  font: 700 var(--type-label-sm) / 1.33 var(--font-body);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sidebar-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sidebar-list li {
+  margin: var(--space-1) 0;
+}
+
+.sidebar-link {
+  display: block;
+  min-height: 2.5rem;
+  padding: 0.625rem var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-body);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+  line-height: 1.43;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-link:hover {
+  background: var(--surface-raised);
+  color: var(--text-heading);
+}
+
+.sidebar-link.active {
+  background: var(--action-primary-subtle);
+  color: var(--action-primary-hover);
+  font-weight: 600;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+.main-content {
+  min-width: 0;
+  padding: var(--space-12) clamp(var(--space-6), 5vw, var(--space-16)) var(--space-10);
+}
+
+.main-content.has-sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.content-body {
+  width: min(100%, var(--content-width));
+  min-width: 0;
+  flex: 1;
+}
+
+.content-body > p:first-of-type {
+  color: var(--text-body);
+  font-size: var(--type-body-lg);
+  line-height: 1.67;
+}
+
+.content-body h2 {
+  padding-top: var(--space-2);
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  color: var(--text-muted);
+  font-size: var(--type-body-sm);
+  font-weight: 500;
+}
+
+.breadcrumb a {
+  color: var(--text-link);
+}
+
+.page-toc {
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-8));
+  align-self: start;
+  max-height: calc(100vh - var(--header-height) - var(--space-16));
+  overflow-y: auto;
+  margin-top: var(--space-12);
+  padding: 0 var(--space-6) var(--space-8) var(--space-4);
+  border-left: 1px solid var(--border-default);
+}
+
+.page-toc-title {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--type-label-sm);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.page-toc ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.page-toc a {
+  display: block;
+  margin: var(--space-1) 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--type-body-sm);
+  line-height: 1.43;
+}
+
+.page-toc a:hover {
+  background: var(--surface-raised);
+  color: var(--text-heading);
+}
+
+.page-toc a.active {
+  background: var(--action-primary-subtle);
+  color: var(--action-primary-hover);
+}
+
+.page-toc .toc-level-3 a {
+  padding-left: var(--space-5);
+}
+
+.docs-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  width: min(100%, var(--content-width));
+  margin-top: var(--space-16);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-default);
+  color: var(--text-muted);
+  font-size: var(--type-body-sm);
+}
+
+.docs-footer p {
+  margin: 0;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+.docs-footer a {
+  color: var(--text-muted);
+}
+
+.docs-footer a:hover {
+  color: var(--text-link);
+}

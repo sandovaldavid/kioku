@@ -47,42 +47,42 @@ public static class NoteChunker
         var m = note.Metadata;
         if (m.Tags.Count > 0)
         {
-            sb.AppendLine($"Tags: {string.Join(", ", m.Tags)}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Tags: {string.Join(", ", m.Tags)}");
         }
 
         if (m.Aliases.Count > 0)
         {
-            sb.AppendLine($"Aliases: {string.Join(", ", m.Aliases)}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Aliases: {string.Join(", ", m.Aliases)}");
         }
 
         if (m.Status is not null)
         {
-            sb.AppendLine($"Status: {m.Status}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Status: {m.Status}");
         }
 
         if (m.NoteType is not null)
         {
-            sb.AppendLine($"Type: {m.NoteType}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Type: {m.NoteType}");
         }
 
         if (m.Domain is not null)
         {
-            sb.AppendLine($"Domain: {m.Domain}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Domain: {m.Domain}");
         }
 
         if (m.Date.HasValue)
         {
-            sb.AppendLine($"Date: {m.Date:yyyy-MM-dd}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Date: {m.Date:yyyy-MM-dd}");
         }
 
         if (m.Updated.HasValue)
         {
-            sb.AppendLine($"Updated: {m.Updated:yyyy-MM-dd}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Updated: {m.Updated:yyyy-MM-dd}");
         }
 
         foreach (var (k, v) in m.ExtraFields)
         {
-            sb.AppendLine($"{k}: {v}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{k}: {v}");
         }
 
         if (!string.IsNullOrWhiteSpace(note.PlainText))

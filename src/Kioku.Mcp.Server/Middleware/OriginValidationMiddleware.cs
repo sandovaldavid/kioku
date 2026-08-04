@@ -1,5 +1,4 @@
 using Kioku.Mcp.Server.Http;
-using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Middleware;

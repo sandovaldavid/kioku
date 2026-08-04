@@ -6,11 +6,13 @@ This file defines how coding agents must work in `sandovaldavid/kioku`. It is an
 
 Kioku is a .NET 10 Model Context Protocol server that reads and writes an Obsidian vault. The server supports local `stdio` and authenticated Streamable HTTP transports. The optional Obsidian bridge plugin is maintained and released independently in [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian).
 
+The server accesses the vault filesystem directly. Obsidian does not need to be open for core note, search, project, session, indexing, or coordination operations. A running Obsidian application and plugin are required only for operations registered through the optional `bridge` and `plugin` capability groups.
+
 This repository owns:
 
 - the MCP server, contracts, prompts, resources, and integrations;
 - vault indexing, retrieval, filesystem policy, work sessions, and engineering workflows;
-- server packaging, Docker deployment, CI, releases, benchmarks, and public documentation.
+- server packaging, Docker deployment, CI, releases, retrieval evaluation, and public documentation.
 
 This repository does not own the Obsidian plugin source or its release workflow.
 
@@ -31,9 +33,11 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 - Target framework: `net10.0`, configured in `Directory.Build.props`.
 - Solution: `Kioku.slnx`.
 - Server package version on `develop`: `2.3.0`; the branch can contain unreleased changes.
+- MCP C# SDK packages on `develop`: `ModelContextProtocol` and `ModelContextProtocol.AspNetCore` `1.4.1`. The 2.0 migration remains planned and blocked by tracked compatibility work.
 - Default MCP profile: 44 tools.
 - All-capabilities profile: 77 tools.
 - Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
+- Supported `scripts/add-to-client.sh` targets: `claude-code`, `codex`, `opencode`, and `antigravity`; CI dry-runs all four.
 - The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative for tool names, schemas, annotations, prompts, resources, and profile counts.
 - The generated [`docs/configuration-reference.md`](docs/configuration-reference.md) is authoritative for public process configuration.
 - Markdown files in the vault are the durable source of truth. Runtime indexes and the embeddings cache are derived data; there are no database migrations to maintain.
@@ -70,8 +74,6 @@ Do not copy the complete tool or environment-variable inventory into this file.
 ├── scripts/
 │   ├── Kioku.Ci/
 │   ├── Kioku.Eval/
-│   ├── Kioku.Benchmarks/
-│   ├── Kioku.HandoffDemo/
 │   └── generate-public-docs.mjs
 └── src/
     ├── Kioku.Mcp.Server/
@@ -117,11 +119,18 @@ node scripts/generate-public-docs.mjs --write
 node scripts/generate-public-docs.mjs --check
 ```
 
+Validate maintained repository-relative Markdown links separately:
+
+```bash
+node scripts/validate-markdown-links.mjs
+```
+
 ## Implementation rules
 
 - Keep MCP adapters thin. Put workflow behavior behind application services and external effects behind infrastructure services or ports.
 - Preserve the vault filesystem boundary. External reads and permanent deletion require explicit configuration.
 - Preserve unknown YAML frontmatter fields during mutations.
+- Preserve headless server operation. Core tools, indexing, sessions, and coordination must not depend on a running Obsidian process; UI and supported-plugin operations belong behind `bridge` or `plugin` capability gates.
 - Use focused creation tools in prompts and integrations. `create_note` and `create_project_doc` remain **Deprecated** compatibility wrappers during the documented compatibility window.
 - Keep optional higher-risk capabilities gated.
 - Use structured logging. MCP `stdio` reserves stdout for protocol traffic; diagnostics belong on stderr.
@@ -138,14 +147,18 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configuration Release --no-restore
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
-corepack enable
-pnpm install --frozen-lockfile
-pnpm docs:check
+node scripts/generate-public-docs.mjs --check
+node scripts/validate-markdown-links.mjs
 ```
 
 Change-specific checks:
 
 ```bash
+# Client installer changes
+for client in claude-code codex opencode antigravity; do
+  ./scripts/add-to-client.sh "$client" --vault /absolute/path/to/test-vault --dry-run --yes
+done
+
 # Dev Container changes
 bash .devcontainer/scripts/validate-devcontainer.sh
 

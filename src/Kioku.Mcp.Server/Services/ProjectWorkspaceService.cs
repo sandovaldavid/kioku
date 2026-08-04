@@ -118,6 +118,7 @@ public sealed partial class ProjectWorkspaceService(
     /// </summary>
     public async Task<List<string>> EnsureProjectScaffoldAsync(string project)
     {
+        using var scaffoldLock = await AcquireScaffoldLockAsync(project);
         var created = new List<string>();
         var projectFolder = GetProjectFolder(project);
 
@@ -264,6 +265,16 @@ public sealed partial class ProjectWorkspaceService(
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> AdrLocks =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> ScaffoldLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task<IDisposable> AcquireScaffoldLockAsync(string project)
+    {
+        var semaphore = ScaffoldLocks.GetOrAdd(GetProjectFolder(project), _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
+        return new SemaphoreReleaser(semaphore);
+    }
+
     private async Task WriteTextAsync(string path, string content, bool requireAbsent)
     {
         if (mutations is null)
@@ -341,7 +352,7 @@ public sealed partial class ProjectWorkspaceService(
         var overridePath = GetVaultTemplatePath(typeKey);
         if (overridePath is not null && File.Exists(overridePath))
         {
-            return await File.ReadAllTextAsync(overridePath, Encoding.UTF8);
+            return await NoteHelpers.ReadAllTextAsync(overridePath);
         }
 
         return ReadEmbeddedTemplate(typeKey);

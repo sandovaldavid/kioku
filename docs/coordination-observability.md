@@ -1,9 +1,9 @@
 # Coordination observability
 
 Kioku exposes operational signals for the durable coordination profile without
-making telemetry part of the coordination source of truth. Coordination state
-continues to live in the local event log, and trace identifiers never become
-durable identity, ownership, or authorization.
+making telemetry part of the coordination source of truth. The event-log
+authority and durable identifiers are defined in the [durable coordination
+profile](durable-coordination.md); trace identifiers remain diagnostic only.
 
 <!-- prettier-ignore -->
 > [!NOTE]
@@ -97,12 +97,10 @@ contract based on transport.
 
 ## Privacy boundary
 
-Coordination logs and activities may contain validated domain IDs, event types,
-bounded reason or error codes, and numeric sequence or fence values. They must
-not contain note bodies, handoff payloads, canonical vault paths, raw resource
-keys, tokens, authority scopes, or sensitive conflict details. The local
-`.kioku/coordination/` event log remains the only authority for reconstructing
-coordination state.
+Coordination telemetry follows the trust, data-flow, and residual-risk controls
+in the [threat and privacy model](threat-and-privacy-model.md). It contains no
+note bodies, handoff payloads, canonical paths, raw resource keys, tokens,
+authority scopes, or sensitive conflict details.
 
 See [the threat and privacy model](threat-and-privacy-model.md) and [the rollout
 policy](coordination-rollout.md) for external data-flow and release controls.

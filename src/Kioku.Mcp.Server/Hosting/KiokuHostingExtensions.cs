@@ -123,7 +123,7 @@ internal sealed class KiokuRuntime(
 
     public async Task ShutdownAsync(CancellationToken cancellationToken)
     {
-        await embedding.SaveAsync().WaitAsync(cancellationToken);
+        await embedding.SaveAsync(cancellationToken);
     }
 }
 
@@ -145,7 +145,7 @@ internal sealed class KiokuLifecycleService(
                 status.EmbeddingsAvailable,
                 status.GenerationConfigured,
                 status.GenerationAvailable);
-            logger.LogInformation(
+            logger.Info(
                 "Kioku runtime initialized in {ElapsedMs:F0} ms.",
                 timeProvider.GetElapsedTime(startedAt).TotalMilliseconds);
         }
@@ -167,9 +167,9 @@ internal sealed class KiokuLifecycleService(
     {
         await InjectAsync(CoordinationFaultPoint.ProcessShutdown, cancellationToken)
             .ConfigureAwait(false);
-        logger.LogInformation("Shutting down: flushing embedding cache asynchronously...");
+        logger.Info("Shutting down: flushing embedding cache asynchronously...");
         await runtime.ShutdownAsync(cancellationToken);
-        logger.LogInformation("Embedding cache flushed.");
+        logger.Info("Embedding cache flushed.");
     }
 
     private Task InjectAsync(

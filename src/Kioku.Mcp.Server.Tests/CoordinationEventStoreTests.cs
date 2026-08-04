@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kioku.Mcp.Server;
@@ -368,8 +369,8 @@ public sealed class CoordinationEventStoreTests : IDisposable
             ".kioku",
             "coordination",
             "events",
-            gap.RecordedAt.UtcDateTime.ToString("yyyy"),
-            gap.RecordedAt.UtcDateTime.ToString("MM"),
+            gap.RecordedAt.UtcDateTime.ToString("yyyy", CultureInfo.InvariantCulture),
+            gap.RecordedAt.UtcDateTime.ToString("MM", CultureInfo.InvariantCulture),
             $"{gap.EventId}.json");
         Directory.CreateDirectory(Path.GetDirectoryName(gapPath)!);
         await File.WriteAllTextAsync(gapPath, CoordinationContractSerializer.Serialize(gap));

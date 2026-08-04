@@ -16,7 +16,7 @@ internal sealed class CoordinationFileSystem : ICoordinationFileSystem
         File.Move(sourcePath, destinationPath, overwrite);
 
     public Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken) =>
-        File.ReadAllTextAsync(path, NoteHelpers.Utf8NoBom, cancellationToken);
+        NoteHelpers.ReadAllTextAsync(path, cancellationToken);
 
     public IReadOnlyList<string> EnumerateJsonFiles(string directory)
     {
@@ -87,7 +87,19 @@ internal sealed class CoordinationFileSystem : ICoordinationFileSystem
         {
             await WriteFlushedAsync(temporary, content, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            File.Move(temporary, path, overwrite);
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    File.Move(temporary, path, overwrite);
+                    break;
+                }
+                catch (Exception exception) when (
+                    exception is (IOException or UnauthorizedAccessException) && attempt < 7)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+                }
+            }
         }
         finally
         {

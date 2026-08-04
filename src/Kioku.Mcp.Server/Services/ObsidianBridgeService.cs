@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using Kioku.Mcp.Server.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace Kioku.Mcp.Server.Services;
@@ -161,7 +160,7 @@ public sealed partial class ObsidianBridgeService : IDisposable
             _logger.Info("Connected to Obsidian bridge successfully.");
 
             _loopCts = new CancellationTokenSource();
-            _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(_loopCts.Token));
+            _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(_loopCts.Token), CancellationToken.None);
 
             await NegotiateAsync(cancellationToken);
         }
