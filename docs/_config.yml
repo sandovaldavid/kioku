@@ -27,6 +27,36 @@ defaults:
         <meta name="twitter:title" content="Kioku — Persistent memory for AI agents">
         <meta name="twitter:description" content="Fast, private, reliable, and structured access to knowledge in your own Obsidian vault.">
         <meta name="twitter:image" content="https://sandovaldavid.github.io/kioku/assets/images/og-image.png">
+  - scope:
+      path: "docker.md"
+    values:
+      layout: default
+      title: Docker Deployment
+      sidebar: true
+  - scope:
+      path: "configuration-reference.md"
+    values:
+      layout: default
+      title: Server Configuration Reference
+      sidebar: true
+  - scope:
+      path: "commands-reference.md"
+    values:
+      layout: default
+      title: MCP Contract Reference
+      sidebar: true
+  - scope:
+      path: "migration-2.3.0-to-3.0.0.md"
+    values:
+      layout: default
+      title: Migrate from Kioku 2.3.0 to 3.0.0
+      sidebar: true
+  - scope:
+      path: "troubleshooting.md"
+    values:
+      layout: default
+      title: Troubleshooting
+      sidebar: true
 
 markdown: kramdown
 theme: null

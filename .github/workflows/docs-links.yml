@@ -28,3 +28,6 @@ jobs:
 
       - name: Validate repository-relative Markdown links
         run: node scripts/validate-markdown-links.mjs
+
+      - name: Validate documentation sidebar contract
+        run: node scripts/validate-docs-navigation.mjs
