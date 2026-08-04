@@ -7,7 +7,8 @@ github_username: sandovaldavid
 github_repo: sandovaldavid/kioku
 github_edit_branch: develop
 plugin_repo: sandovaldavid/kioku-obsidian
-version_label: "v3.0"
+version_label: "v3.0.0"
+design_system_url: "https://www.figma.com/design/ZSJYeVqAlp9fpPLsmiYgkY/Kioku-%E2%80%94-Brand---Documentation-Design-System"
 
 markdown: kramdown
 theme: null
