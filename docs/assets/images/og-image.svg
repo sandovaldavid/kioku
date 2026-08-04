@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+<title id="title">Kioku documentation</title><desc id="desc">Persistent memory for AI agents, powered by a local-first MCP server and Obsidian.</desc>
+<rect width="1200" height="630" fill="#090D18"/><circle cx="1060" cy="70" r="280" fill="#2A245A" opacity=".8"/><circle cx="1140" cy="570" r="180" fill="#102133"/>
+<g transform="translate(72 54) scale(.84)"><path d="M50 7 82 34 68 77 50 93 32 77 18 34 50 7Z" fill="#8B7CFF"/><path d="M50 7v45L18 34 50 7Z" fill="#A093FF"/><path d="m50 52 32-18-14 43-18-25Z" fill="#6D5AE8"/><path d="m50 52 18 25-18 16-18-16 18-25Z" fill="#5141B8"/><path d="M45 44 38 38M55 44l8-6M50 56v10" stroke="#F7F8FF" stroke-width="3" stroke-linecap="round"/><circle cx="50" cy="49" r="7" fill="#F7F8FF"/><circle cx="35" cy="35" r="4" fill="#57D4FF"/><circle cx="66" cy="35" r="4" fill="#57D4FF"/><circle cx="50" cy="70" r="4" fill="#57D4FF"/></g>
+<text x="185" y="105" fill="#F7F8FF" font-family="Outfit,Inter,sans-serif" font-size="46" font-weight="700">Kioku</text><text x="185" y="132" fill="#8E9AB8" font-family="Inter,sans-serif" font-size="16">記憶 · Persistent memory for AI agents</text>
+<text x="72" y="225" fill="#F7F8FF" font-family="Outfit,Inter,sans-serif" font-size="48" font-weight="700">Persistent memory for AI agents</text>
+<text x="72" y="274" fill="#C9D2EA" font-family="Inter,sans-serif" font-size="20">Fast, private, reliable, and structured access to knowledge in your own Obsidian vault.</text>
+<line x1="72" y1="313" x2="712" y2="313" stroke="#293754"/>
+<g font-family="Inter,sans-serif" font-size="15" fill="#A093FF"><rect x="72" y="346" width="108" height="34" rx="17" fill="#2A245A" stroke="#8B7CFF"/><text x="88" y="368">MCP server</text><rect x="195" y="346" width="135" height="34" rx="17" fill="#2A245A" stroke="#8B7CFF"/><text x="211" y="368">Obsidian plugin</text><rect x="345" y="346" width="100" height="34" rx="17" fill="#2A245A" stroke="#8B7CFF"/><text x="361" y="368">Local-first</text></g>
+<text x="72" y="570" fill="#8E9AB8" font-family="JetBrains Mono,monospace" font-size="12">sandovaldavid.github.io/kioku</text><text x="1050" y="570" fill="#8E9AB8" font-family="Inter,sans-serif" font-size="12">Kioku 3.0.0</text>
+</svg>
