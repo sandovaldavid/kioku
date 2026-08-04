@@ -20,6 +20,8 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.x"
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Restore dependencies
         run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj

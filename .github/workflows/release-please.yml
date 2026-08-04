@@ -54,6 +54,8 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.x"
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       - name: Publish (${{ matrix.rid }})
         run: |
@@ -134,6 +136,8 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.x"
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
 
       # Package as a self-contained, multi-RID .NET tool package.
       # Under .NET 10, the SDK automatically restores, builds, and packs separate NuGet
