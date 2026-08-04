@@ -2,11 +2,38 @@ name: security-analysis
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
+    paths:
+      - "**/*.cjs"
+      - "**/*.js"
+      - "**/*.jsx"
+      - "**/*.mjs"
+      - "**/*.ts"
+      - "**/*.tsx"
+      - ".github/codeql/**"
+      - ".github/workflows/codeql.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "pnpm-lock.yaml"
+      - "yarn.lock"
   pull_request:
     branches: [main, develop]
+    paths:
+      - "**/*.cjs"
+      - "**/*.js"
+      - "**/*.jsx"
+      - "**/*.mjs"
+      - "**/*.ts"
+      - "**/*.tsx"
+      - ".github/codeql/**"
+      - ".github/workflows/codeql.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "pnpm-lock.yaml"
+      - "yarn.lock"
   schedule:
     - cron: "23 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
