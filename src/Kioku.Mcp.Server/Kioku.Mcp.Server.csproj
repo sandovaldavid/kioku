@@ -21,13 +21,16 @@
     <PackageType>McpServer</PackageType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>kioku-mcp-server</PackageId>
-    <PackageVersion>2.3.0</PackageVersion>
+    <PackageVersion>3.0.0</PackageVersion>
     <Version>$(PackageVersion)</Version>
     <InformationalVersion>$(PackageVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageTags>AI; MCP; obsidian; notes; server; stdio; streamable-http</PackageTags>
-    <Description>Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read and write notes via the Model Context Protocol.</Description>
+    <PackageProjectUrl>https://sandovaldavid.github.io/kioku/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/sandovaldavid/kioku</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>AI;MCP;Obsidian;memory;notes;local-first;server;stdio;streamable-http</PackageTags>
+    <Description>Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read, write, and organize notes through the Model Context Protocol.</Description>
     <Authors>sandovaldavid</Authors>
     <Copyright>Copyright © 2026 sandovaldavid</Copyright>
 

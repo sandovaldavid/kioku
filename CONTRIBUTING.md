@@ -1,6 +1,6 @@
 # Contributing to Kioku
 
-Kioku is a .NET 10 MCP server. Ordinary changes branch from `origin/develop`, pull requests target `develop`, and release promotion to `main` follows the repository release workflow. The companion Obsidian plugin lives in its own repository, [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian), with its own contribution and release workflow.
+Kioku is a .NET 10 MCP server. Ordinary changes branch from `origin/develop`, pull requests target `develop`, and release promotion to `main` follows the repository release workflow. After each release, synchronize `main` back into `develop` before starting the next release cycle. The companion Obsidian plugin lives in its own repository, [`sandovaldavid/kioku-obsidian`](https://github.com/sandovaldavid/kioku-obsidian), with its own contribution and release workflow.
 
 The server reads and writes the vault filesystem directly. Core server development and tests must not require Obsidian to be open. A running Obsidian application and plugin are required only when validating the optional `bridge` or `plugin` capability groups.
 
@@ -62,7 +62,7 @@ When editing documentation:
 - link to generated references instead of copying tool and environment-variable inventories;
 - mark compatibility-only behavior as `Deprecated`;
 - remove or relocate historical execution documents rather than leaving them beside active guidance;
-- run the repository-relative Markdown link validator and check generated public metadata.
+- run the repository-relative Markdown link validator, sidebar contract validator, release-facing metadata validator, and generated public metadata check.
 
 ## MCP contracts and public metadata
 
@@ -83,13 +83,15 @@ Do not hand-edit these generated files:
 
 Update `docs/public-metadata.json` when adding or changing a public environment variable, capability profile, transport, manifest identity, or versioning rule. The generator compares that metadata with live MCP discovery, `KiokuOptions`, package manifests, and version files.
 
-Validate maintained repository-relative Markdown links with:
+Validate maintained documentation and release metadata with:
 
 ```bash
 node scripts/validate-markdown-links.mjs
+node scripts/validate-docs-navigation.mjs
+node scripts/validate-release-documentation.mjs
 ```
 
-The link validator checks local file existence only. It does not claim that external URLs, redirects, hosted pages, or Markdown anchors are available.
+The link validator checks local file existence only. It does not claim that external URLs, redirects, hosted pages, or Markdown anchors are available. The release validator checks that package, manifest, README, agent guide, versioning page, and site badge versions remain synchronized and covered by Release Please.
 
 ## Verification before a pull request
 
@@ -101,6 +103,8 @@ dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 node scripts/generate-public-docs.mjs --check
 node scripts/validate-markdown-links.mjs
+node scripts/validate-docs-navigation.mjs
+node scripts/validate-release-documentation.mjs
 ```
 
 Run change-specific checks when applicable:
