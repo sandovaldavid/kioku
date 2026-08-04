@@ -7,5 +7,5 @@
 <text x="72" y="274" fill="#C9D2EA" font-family="Inter,sans-serif" font-size="20">Fast, private, reliable, and structured access to knowledge in your own Obsidian vault.</text>
 <line x1="72" y1="313" x2="712" y2="313" stroke="#293754"/>
 <g font-family="Inter,sans-serif" font-size="15" fill="#A093FF"><rect x="72" y="346" width="108" height="34" rx="17" fill="#2A245A" stroke="#8B7CFF"/><text x="88" y="368">MCP server</text><rect x="195" y="346" width="135" height="34" rx="17" fill="#2A245A" stroke="#8B7CFF"/><text x="211" y="368">Obsidian plugin</text><rect x="345" y="346" width="100" height="34" rx="17" fill="#2A245A" stroke="#8B7CFF"/><text x="361" y="368">Local-first</text></g>
-<text x="72" y="570" fill="#8E9AB8" font-family="JetBrains Mono,monospace" font-size="12">sandovaldavid.github.io/kioku</text><text x="1010" y="570" fill="#8E9AB8" font-family="Inter,sans-serif" font-size="12">Kioku documentation</text>
+<text x="72" y="570" fill="#8E9AB8" font-family="JetBrains Mono,monospace" font-size="12">sandovaldavid.github.io/kioku</text><text x="1050" y="570" fill="#8E9AB8" font-family="Inter,sans-serif" font-size="12">Kioku 3.0.0</text>
 </svg>
