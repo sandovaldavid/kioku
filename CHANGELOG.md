@@ -33,6 +33,8 @@
 
 * **ci:** match RID-specific packages in package-smoke's local feed mapping ([#346](https://github.com/sandovaldavid/kioku/issues/346)) ([7d732f5](https://github.com/sandovaldavid/kioku/commit/7d732f571114b12dffecc7c9b37deaf0fdcd6a82))
 * **docs:** preserve the sidebar on linked documentation pages ([#370](https://github.com/sandovaldavid/kioku/issues/370)) ([ab4d2fa](https://github.com/sandovaldavid/kioku/commit/ab4d2faab3ae637487bebf9b237b552aa3a18ecf))
+* **release:** refresh generated v3 version docs ([6a74446](https://github.com/sandovaldavid/kioku/commit/6a74446acbafac9e2eaf8b9373caf9489ac07f99))
+* **release:** repair v3 release gates ([c102810](https://github.com/sandovaldavid/kioku/commit/c1028109be93cbd2d78f0aec907892deb461c1e2))
 * **server:** align index and MCP results ([#301](https://github.com/sandovaldavid/kioku/issues/301)) ([e8e6bba](https://github.com/sandovaldavid/kioku/commit/e8e6bba0d5bbe76089628ec4d0804579c7efdeb5))
 * **server:** close review gaps ([#354](https://github.com/sandovaldavid/kioku/issues/354)) ([9b6733d](https://github.com/sandovaldavid/kioku/commit/9b6733ddbcd34535e08951d66a06dded64209dc4))
 * **server:** harden Streamable HTTP transport ([#271](https://github.com/sandovaldavid/kioku/issues/271)) ([8781937](https://github.com/sandovaldavid/kioku/commit/87819374bf8b026875ca318059643eb5932e9b2b))
