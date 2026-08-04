@@ -119,7 +119,11 @@ node scripts/generate-public-docs.mjs --write
 node scripts/generate-public-docs.mjs --check
 ```
 
-The check also validates public metadata, terminology, and repository-relative links in maintained Markdown entry points.
+Validate maintained repository-relative Markdown links separately:
+
+```bash
+node scripts/validate-markdown-links.mjs
+```
 
 ## Implementation rules
 
@@ -144,6 +148,7 @@ dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj --configura
 dotnet format Kioku.slnx whitespace --verify-no-changes --no-restore
 dotnet format Kioku.slnx style --verify-no-changes --no-restore
 node scripts/generate-public-docs.mjs --check
+node scripts/validate-markdown-links.mjs
 ```
 
 Change-specific checks:
