@@ -8,12 +8,15 @@ Kioku is a local-first Model Context Protocol server that lets Claude Code, Code
 
 It combines typed MCP contracts, a strict vault filesystem boundary, concurrent work-session ownership, full-text and semantic retrieval, and an optional Obsidian bridge. The server supports local `stdio` and authenticated **Streamable HTTP** deployments.
 
+Kioku reads and writes the vault directory directly. The Obsidian application does not need to be open for core note, search, project, session, indexing, or coordination operations. Obsidian and the companion plugin are required only for optional UI and supported-plugin bridge operations.
+
 The `develop` branch can contain verified but unreleased changes beyond the latest tag. Use generated contracts from the branch you are running.
 
 ## Why Kioku
 
 - **Deterministic handoff** — agents can record project context, decisions, plans, bugs, daily notes, and session handoffs.
 - **Obsidian-native storage** — Markdown and YAML frontmatter remain readable and editable without Kioku.
+- **Headless server operation** — core MCP workflows continue when Obsidian is closed.
 - **Safe vault access** — writes stay inside the configured vault; external reads and permanent deletion require explicit opt-in.
 - **Stable MCP contracts** — tool schemas, annotations, prompts, and resources are mechanically documented from live discovery.
 - **Local AI support** — optional Ollama embeddings and generation keep note content on your machine under the default configuration.
@@ -40,15 +43,25 @@ export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
 kioku
 ```
 
-For supported client installers:
+The repository installer supports Claude Code, Codex, OpenCode, and Antigravity:
 
 ```bash
+./scripts/add-to-client.sh claude-code --vault /absolute/path/to/your/vault
 ./scripts/add-to-client.sh codex --vault /absolute/path/to/your/vault
 ./scripts/add-to-client.sh opencode --vault /absolute/path/to/your/vault
 ./scripts/add-to-client.sh antigravity --vault /absolute/path/to/your/vault
 ```
 
-Claude Code users can install the bundled plugin and skill:
+The default Claude Code target installs the bundled plugin and `kioku-vault` skill. Use direct native MCP registration instead with:
+
+```bash
+./scripts/add-to-client.sh claude-code \
+  --vault /absolute/path/to/your/vault \
+  --simple \
+  --scope project
+```
+
+Claude Code users can also install the bundled plugin manually:
 
 ```bash
 claude plugin marketplace add sandovaldavid/kioku
@@ -71,8 +84,9 @@ Kioku.Mcp.Server (.NET 10)
   ├─ application and infrastructure services
   └─ optional authenticated WebSocket bridge
           │
-          ▼
-Obsidian vault + optional Obsidian plugin (sandovaldavid/kioku-obsidian)
+          ├──────────────► Obsidian vault on disk
+          │
+          └── optional ──► running Obsidian plugin
 ```
 
 See the [current architecture](docs/architecture.md) for operational component boundaries.

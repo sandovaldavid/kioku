@@ -4,6 +4,8 @@
 
 The server is a .NET 10 MCP host for safe, structured access to an Obsidian vault. It supports local `stdio` and authenticated **Streamable HTTP** transports, a bounded indexing pipeline, typed tool results, prompts, resources, and an optional Obsidian WebSocket bridge.
 
+Kioku accesses the configured vault directory directly. The Obsidian application does not need to be open for core note, search, project, session, indexing, or coordination operations. A running Obsidian application and companion plugin are required only for optional UI and supported-plugin bridge operations.
+
 ## Public surface
 
 Do not maintain tool or environment-variable inventories in this package README. The authoritative generated references are:
@@ -25,7 +27,7 @@ Application workflows and typed contracts
 Vault, indexing, retrieval, bridge, and persistence infrastructure
 ```
 
-Capability groups are configured in `{vault}/.kioku/config.yml`. Core tools are always available; optional groups can be enabled or disabled without changing the server package.
+Capability groups are configured in `{vault}/.kioku/config.yml`. Core tools are always available; optional groups can be enabled or disabled without changing the server package. The `bridge` and `plugin` groups are the only groups that require the separate Obsidian runtime integration.
 
 ## Development
 
