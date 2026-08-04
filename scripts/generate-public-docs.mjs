@@ -268,7 +268,7 @@ function renderConfiguration(metadata) {
 
 function renderVersioning(metadata) {
   const version = readServerVersionSync();
-  return `# Versioning Policy\n\n> Generated from \`docs/public-metadata.json\`. Do not edit manually.\n> Verify: \`node scripts/generate-public-docs.mjs --check\`\n\n## Server\n\nCurrent server package version: **${version}**. ${metadata.versioning.server}\n\n## Obsidian plugin\n\n${metadata.versioning.plugin}\n\n## Bridge compatibility\n\n${metadata.versioning.bridge}\n`;
+  return `# Versioning Policy\n\n> Generated from \`docs/public-metadata.json\`. Do not edit manually.\n> Verify: \`node scripts/generate-public-docs.mjs --check\`\n\n## Server\n\nCurrent server package version: **${version}**. <!-- x-release-please-version --> ${metadata.versioning.server}\n\n## Obsidian plugin\n\n${metadata.versioning.plugin}\n\n## Bridge compatibility\n\n${metadata.versioning.bridge}\n`;
 }
 
 function renderManifest(metadata) {
