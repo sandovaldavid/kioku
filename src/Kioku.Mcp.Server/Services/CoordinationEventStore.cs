@@ -641,8 +641,8 @@ internal sealed class CoordinationEventStore(
         paths.ResolveVaultWritePath(Path.Combine(
             CoordinationRoot,
             "events",
-            coordinationEvent.RecordedAt.UtcDateTime.ToString("yyyy"),
-            coordinationEvent.RecordedAt.UtcDateTime.ToString("MM"),
+            coordinationEvent.RecordedAt.UtcDateTime.ToString("yyyy", CultureInfo.InvariantCulture),
+            coordinationEvent.RecordedAt.UtcDateTime.ToString("MM", CultureInfo.InvariantCulture),
             $"{coordinationEvent.EventId}.json"));
 
     private static void ValidateIdentifier(string value)

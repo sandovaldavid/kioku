@@ -123,7 +123,7 @@ internal sealed class KiokuRuntime(
 
     public async Task ShutdownAsync(CancellationToken cancellationToken)
     {
-        await embedding.SaveAsync().WaitAsync(cancellationToken);
+        await embedding.SaveAsync(cancellationToken);
     }
 }
 

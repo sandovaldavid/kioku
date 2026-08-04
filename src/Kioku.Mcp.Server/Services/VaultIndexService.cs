@@ -35,7 +35,10 @@ public sealed class VaultIndexService : IDisposable
     // FileSystemWatcher and debouncing
     private FileSystemWatcher? _watcher;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _debouncers = new();
+    private readonly ConcurrentDictionary<string, PendingWatcherDelete> _pendingWatcherDeletes = new(StringComparer.OrdinalIgnoreCase);
     private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(500);
+
+    internal Func<string, Task>? WatcherDeleteBeforeEmbeddingRemoveAsync { get; set; }
 
     // Index state
     private int _indexedCount;
@@ -409,7 +412,7 @@ public sealed class VaultIndexService : IDisposable
         return component;
     }
 
-    private IReadOnlyList<Note> MaterializeBacklinks(IEnumerable<string> matchingKeys)
+    private List<Note> MaterializeBacklinks(IEnumerable<string> matchingKeys)
     {
         var sourcePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var key in matchingKeys)
@@ -450,7 +453,7 @@ public sealed class VaultIndexService : IDisposable
         await IndexVaultAsync(cancellationToken);
         if (_embedding is not null)
         {
-            await _embedding.SaveAsync();
+            await _embedding.SaveAsync(cancellationToken);
         }
 
         SetReady(true);
@@ -478,7 +481,7 @@ public sealed class VaultIndexService : IDisposable
                 return;
             }
 
-            var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
+            var content = await NoteHelpers.ReadAllTextAsync(filePath, cancellationToken);
             var note = BuildNote(filePath, content);
 
             // Purge stale postings first, so an edited note doesn't keep matching words it
@@ -505,7 +508,7 @@ public sealed class VaultIndexService : IDisposable
 
             if (_embedding is not null)
             {
-                await _embedding.IndexNoteAsync(note);
+                await _embedding.IndexNoteAsync(note, cancellationToken);
             }
 
             Interlocked.Increment(ref _indexedCount);
@@ -554,17 +557,19 @@ public sealed class VaultIndexService : IDisposable
 
         _watcher.Changed += (_, e) => ScheduleReindex(e.FullPath);
         _watcher.Created += (_, e) => ScheduleReindex(e.FullPath);
-        _watcher.Deleted += (_, e) => RemoveFromIndex(e.FullPath);
+        _watcher.Deleted += (_, e) => ScheduleWatcherDelete(e.FullPath);
         _watcher.Renamed += (_, e) =>
         {
             if (IsExcludedPath(e.FullPath))
             {
+                CancelPendingWatcherDelete(e.OldFullPath);
                 RemoveFromIndex(e.OldFullPath);
                 return;
             }
 
             // Content is unchanged on a rename: re-key the embedding instead of dropping it,
             // so the re-index sees a matching hash and skips the Ollama round-trip.
+            CancelPendingWatcherDelete(e.OldFullPath);
             _embedding?.Move(e.OldFullPath, e.FullPath);
             RemoveFromIndex(e.OldFullPath, removeEmbedding: false);
             ScheduleReindex(e.FullPath);
@@ -615,6 +620,74 @@ public sealed class VaultIndexService : IDisposable
                 _logger.Error(ex, "Re-index failed: {File}", filePath);
             }
         });
+    }
+
+    private void ScheduleWatcherDelete(string filePath)
+    {
+        if (IsExcludedPath(filePath))
+        {
+            return;
+        }
+
+        // A move can surface as delete/create on some platforms. Keep the embedding briefly so
+        // SynchronizeFileMoveAsync can re-key it before a real deletion is finalized.
+        RemoveFromIndex(filePath, removeEmbedding: false);
+        if (_pendingWatcherDeletes.TryRemove(filePath, out var previous))
+        {
+            CancelPendingWatcherDelete(previous);
+        }
+
+        var pending = new PendingWatcherDelete();
+        _pendingWatcherDeletes[filePath] = pending;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(DebounceDelay, pending.Cancellation.Token);
+                if (WatcherDeleteBeforeEmbeddingRemoveAsync is { } beforeRemove)
+                {
+                    await beforeRemove(filePath);
+                }
+
+                lock (pending.Gate)
+                {
+                    pending.Cancellation.Token.ThrowIfCancellationRequested();
+                    if (!File.Exists(filePath))
+                    {
+                        _embedding?.Remove(filePath);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            finally
+            {
+                if (_pendingWatcherDeletes.TryGetValue(filePath, out var current) &&
+                    ReferenceEquals(current, pending))
+                {
+                    _pendingWatcherDeletes.TryRemove(filePath, out _);
+                }
+
+                pending.Dispose();
+            }
+        });
+    }
+
+    private void CancelPendingWatcherDelete(string filePath)
+    {
+        if (_pendingWatcherDeletes.TryRemove(filePath, out var pending))
+        {
+            CancelPendingWatcherDelete(pending);
+        }
+    }
+
+    private static void CancelPendingWatcherDelete(PendingWatcherDelete pending)
+    {
+        lock (pending.Gate)
+        {
+            pending.Cancellation.Cancel();
+        }
     }
 
     private void RemoveFromIndex(string filePath, bool removeEmbedding = true)
@@ -687,6 +760,8 @@ public sealed class VaultIndexService : IDisposable
         try
         {
             var move = _paths.ResolveVaultMove(oldPath, newPath);
+            CancelPendingWatcherDelete(move.Source);
+            CancelPendingWatcherDelete(move.Destination);
             _embedding?.Move(move.Source, move.Destination);
             RemoveFromIndex(move.Source, removeEmbedding: false);
             await IndexFileAsync(move.Destination);
@@ -705,6 +780,7 @@ public sealed class VaultIndexService : IDisposable
     {
         if (_paths.IsInsideVault(filePath))
         {
+            CancelPendingWatcherDelete(filePath);
             RemoveFromIndex(filePath);
         }
     }
@@ -719,6 +795,7 @@ public sealed class VaultIndexService : IDisposable
     {
         try
         {
+            CancelPendingWatcherDelete(filePath);
             RemoveFromIndex(filePath);
             await IndexFileAsync(filePath);
         }
@@ -792,7 +869,7 @@ public sealed class VaultIndexService : IDisposable
             : normalized;
     }
 
-    private static IReadOnlyList<string> TokenizeQuery(string query) =>
+    private static List<string> TokenizeQuery(string query) =>
         query.Split([' ', '\t', '\n', '\r', ',', '.', '!', '?'],
                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
              .Where(w => w.Length >= 2)
@@ -830,6 +907,7 @@ public sealed class VaultIndexService : IDisposable
 
     private static string ComputeHash(string content)
     {
+        // MD5 is a persisted non-security content identity for the embedding cache.
         var bytes = Encoding.UTF8.GetBytes(content);
         return Convert.ToHexString(MD5.HashData(bytes));
     }
@@ -870,6 +948,19 @@ public sealed class VaultIndexService : IDisposable
             cts.Cancel();
         }
 
+        foreach (var pending in _pendingWatcherDeletes.Values)
+        {
+            CancelPendingWatcherDelete(pending);
+        }
+
         _watcher?.Dispose();
+    }
+
+    private sealed class PendingWatcherDelete : IDisposable
+    {
+        internal readonly CancellationTokenSource Cancellation = new();
+        internal readonly object Gate = new();
+
+        public void Dispose() => Cancellation.Dispose();
     }
 }

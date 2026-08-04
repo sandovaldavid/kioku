@@ -160,7 +160,7 @@ public sealed partial class ObsidianBridgeService : IDisposable
             _logger.Info("Connected to Obsidian bridge successfully.");
 
             _loopCts = new CancellationTokenSource();
-            _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(_loopCts.Token));
+            _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(_loopCts.Token), CancellationToken.None);
 
             await NegotiateAsync(cancellationToken);
         }

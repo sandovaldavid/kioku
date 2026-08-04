@@ -225,6 +225,70 @@ public class EmbeddingServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task IndexNoteAsyncConcurrentSameHashEmbedsOnlyOnce()
+    {
+        var embedCalls = 0;
+        var firstRequestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var service = CreateService(async (req, ct) =>
+        {
+            if (req.Method == HttpMethod.Get)
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK);
+            }
+
+            Interlocked.Increment(ref embedCalls);
+            firstRequestStarted.TrySetResult();
+            await releaseFirstRequest.Task.WaitAsync(ct);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new { embedding = new[] { 0.1f, 0.2f } }),
+            };
+        });
+
+        await service.InitializeAsync([]);
+
+        var note = MakeNote("A.md", "same-hash");
+        var first = service.IndexNoteAsync(note);
+        await firstRequestStarted.Task;
+        var second = service.IndexNoteAsync(note);
+        releaseFirstRequest.TrySetResult();
+
+        await Task.WhenAll(first, second);
+
+        Assert.Equal(1, embedCalls);
+    }
+
+    [Fact]
+    public async Task IndexNoteAsync_MissingEntryAppearsBeforePathLock_DoesNotReenterDestinationLock()
+    {
+        var embedCalls = 0;
+        using var service = CreateService(
+            DeterministicEmbedding.Responder(_ => Interlocked.Increment(ref embedCalls)));
+        await service.InitializeAsync([]);
+
+        var addMissingEntry = 1;
+        service.IndexNoteBeforePathLockAsync = () =>
+            Interlocked.Exchange(ref addMissingEntry, 0) == 1
+                ? service.IndexNoteAsync(MakeNote("Old.md", "same-hash"))
+                : Task.CompletedTask;
+
+        try
+        {
+            await service.IndexNoteAsync(MakeNote("New.md", "same-hash"))
+                .WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            service.IndexNoteBeforePathLockAsync = null;
+        }
+
+        Assert.Equal(2, embedCalls);
+        Assert.NotNull(service.GetVector("Old.md"));
+        Assert.NotNull(service.GetVector("New.md"));
+    }
+
+    [Fact]
     public async Task IndexNoteAsync_LongMultiChunkNote_CachedEmbeddingCountStaysNoteLevel()
     {
         var embedCalls = 0;
@@ -313,7 +377,7 @@ public class EmbeddingServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SynchronizeFileMoveAsync_UnchangedContent_ReusesVectorWithoutReEmbedding()
+    public async Task SynchronizeFileMoveAsyncUnchangedContentReusesVectorWithoutReEmbedding()
     {
         var embedCalls = 0;
         var service = CreateService(DeterministicEmbedding.Responder(_ => Interlocked.Increment(ref embedCalls)));
@@ -341,6 +405,73 @@ public class EmbeddingServiceTests : IAsyncLifetime
         Assert.Null(service.GetVector("Old.md"));
     }
 
+    [Fact]
+    public async Task MoveCaseOnlyRenameUpdatesCachedVectorPath()
+    {
+        var service = CreateService(DeterministicEmbedding.Responder());
+        await service.InitializeAsync([]);
+        await service.IndexNoteAsync(MakeNote("Notes/Design.md", "stable-hash"));
+        await WaitForBacklogToClearAsync(service);
+
+        var oldPath = Path.Combine(_vaultPath, "Notes", "Design.md");
+        var newPath = Path.Combine(_vaultPath, "Notes", "design.md");
+        service.Move(oldPath, newPath);
+        await service.SaveAsync();
+
+        var cache = await EmbeddingPersistence.LoadAsync(Path.Combine(_vaultPath, ".kioku", "embeddings.bin"));
+        Assert.DoesNotContain(cache.Entries.Keys, key => key.Equals("Notes/Design.md", StringComparison.Ordinal));
+        Assert.Contains(cache.Entries.Keys, key => key.Equals("Notes/design.md", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task WatcherDeleteBeforeExplicitMoveReusesVector()
+    {
+        var embedCalls = 0;
+        var service = CreateService(DeterministicEmbedding.Responder(_ => Interlocked.Increment(ref embedCalls)));
+        var config = new KiokuConfiguration { VaultPath = _vaultPath, EmbeddingModel = "nomic-embed-text" };
+        using var vault = new VaultIndexService(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<VaultIndexService>.Instance, config, service);
+        var watcherDeleteReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowWatcherDelete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var watcherDeleteFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vault.WatcherDeleteBeforeEmbeddingRemoveAsync = async _ =>
+        {
+            watcherDeleteReached.TrySetResult();
+            try
+            {
+                await allowWatcherDelete.Task;
+            }
+            finally
+            {
+                watcherDeleteFinished.TrySetResult();
+            }
+        };
+
+        var oldPath = Path.Combine(_vaultPath, "Old.md");
+        await File.WriteAllTextAsync(oldPath, "---\ntags: [prueba]\n---\ncontenido estable de la nota");
+        await vault.InitializeAsync();
+        Assert.True(await service.WaitForInitialBacklogAsync(TimeSpan.FromSeconds(5)));
+        await WaitForBacklogToClearAsync(service);
+
+        var callsAfterIndexing = embedCalls;
+        var newPath = Path.Combine(_vaultPath, "Sub", "New.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
+        File.Copy(oldPath, newPath);
+        File.Delete(oldPath);
+
+        await WaitForConditionAsync(() => vault.GetNote(oldPath) is null);
+        await watcherDeleteReached.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await vault.SynchronizeFileMoveAsync(oldPath, newPath);
+        allowWatcherDelete.TrySetResult();
+        await watcherDeleteFinished.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForBacklogToClearAsync(service);
+        vault.WatcherDeleteBeforeEmbeddingRemoveAsync = null;
+
+        Assert.Equal(callsAfterIndexing, embedCalls);
+        Assert.NotNull(service.GetVector(Path.Combine("Sub", "New.md")));
+        Assert.Null(service.GetVector("Old.md"));
+    }
+
     private static void InterlockedMax(ref int target, int value)
     {
         int initial, computed;
@@ -349,5 +480,18 @@ public class EmbeddingServiceTests : IAsyncLifetime
             initial = target;
             computed = Math.Max(initial, value);
         } while (Interlocked.CompareExchange(ref target, computed, initial) != initial);
+    }
+
+    private static async Task WaitForConditionAsync(
+        Func<bool> condition,
+        TimeSpan? timeout = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(5));
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.True(condition(), "The expected watcher state was not observed before the timeout.");
     }
 }

@@ -4,8 +4,22 @@ using Xunit;
 
 namespace Kioku.Mcp.Server.Tests;
 
-public class HttpConfigurationTests
+public sealed class HttpConfigurationTests : IDisposable
 {
+    private readonly string _vaultPath = Path.Combine(
+        Path.GetTempPath(),
+        $"kioku-http-config-{Guid.NewGuid():N}");
+
+    public HttpConfigurationTests() => Directory.CreateDirectory(_vaultPath);
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_vaultPath))
+        {
+            Directory.Delete(_vaultPath, recursive: true);
+        }
+    }
+
     [Fact]
     public void Defaults_ToLoopbackAndAllowsUnauthenticatedLocalUse()
     {
@@ -77,13 +91,13 @@ public class HttpConfigurationTests
     private static ValidateOptionsResult Validate(KiokuOptions options) =>
         new KiokuOptionsValidator().Validate(Options.DefaultName, options);
 
-    private static KiokuOptions Create(
+    private KiokuOptions Create(
         string httpHost = "127.0.0.1",
         string? apiKey = null,
         bool allowInsecureHttp = false) =>
         new()
         {
-            VaultPath = "/tmp",
+            VaultPath = _vaultPath,
             Transport = "http",
             HttpHost = httpHost,
             ApiKey = apiKey,

@@ -16,6 +16,18 @@ csharp_prefer_braces = true:warning
 csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_var_for_built_in_types = false:suggestion
 
+# MCP tool, resource, and prompt identifiers intentionally use the snake_case wire contract.
+dotnet_diagnostic.CA1707.severity = none
+
+[**/Kioku.Mcp.Server.Tests/*.cs]
+# xUnit owns async fixture cleanup and test arrays are intentionally local/readable.
+dotnet_diagnostic.CA1001.severity = none
+dotnet_diagnostic.CA1861.severity = none
+
+[src/Kioku.Mcp.Server/Services/VaultIndexService.cs]
+# MD5 is a persisted non-security content identity; changing it would invalidate the cache.
+dotnet_diagnostic.CA5351.severity = none
+
 [*.{csproj,props,targets,xml}]
 indent_size = 2
 

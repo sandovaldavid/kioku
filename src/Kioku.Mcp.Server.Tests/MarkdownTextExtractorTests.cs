@@ -124,6 +124,84 @@ public class MarkdownTextExtractorTests
         Assert.Contains("Third paragraph", result);
     }
 
+    [Fact]
+    public void ExtractEmbedIndexesTargetWithoutEmbedMarker()
+    {
+        var result = MarkdownTextExtractor.Extract("Embedded note: ![[Other Note]]");
+
+        Assert.Contains("Other Note", result);
+        Assert.DoesNotContain("![[", result);
+    }
+
+    [Fact]
+    public void ExtractEmbedWithAliasAndHeadingIndexesAlias()
+    {
+        var result = MarkdownTextExtractor.Extract("See ![[Project#Overview|the overview]] here");
+
+        Assert.Contains("the overview", result);
+        Assert.DoesNotContain("Project", result);
+        Assert.DoesNotContain("![[", result);
+    }
+
+    [Fact]
+    public void ExtractCalloutRemovesMarkerButKeepsContent()
+    {
+        var result = MarkdownTextExtractor.Extract("> [!NOTE] Important\n> Keep this text");
+
+        Assert.Contains("Important", result);
+        Assert.Contains("Keep this text", result);
+        Assert.DoesNotContain("[!NOTE]", result);
+    }
+
+    [Fact]
+    public void ExtractObsidianCommentDoesNotEnterIndex()
+    {
+        var result = MarkdownTextExtractor.Extract("Visible %% private implementation detail %% text");
+
+        Assert.Contains("Visible", result);
+        Assert.Contains("text", result);
+        Assert.DoesNotContain("private implementation detail", result);
+    }
+
+    [Fact]
+    public void ExtractFencedCodeBlockDoesNotEnterIndex()
+    {
+        var result = MarkdownTextExtractor.Extract("Visible\n\n```csharp\nvar hidden = true;\n```\n\nAfter");
+
+        Assert.Contains("Visible", result);
+        Assert.Contains("After", result);
+        Assert.DoesNotContain("hidden", result);
+    }
+
+    [Fact]
+    public void ExtractBlockIdDoesNotEnterIndex()
+    {
+        var result = MarkdownTextExtractor.Extract("Paragraph text ^block-id");
+
+        Assert.Contains("Paragraph text", result);
+        Assert.DoesNotContain("block-id", result);
+    }
+
+    [Fact]
+    public void ExtractWikilinksAdjacentToTextPreservesTargets()
+    {
+        var result = MarkdownTextExtractor.Extract("texto[[Nota]] texto![[Embed]]");
+
+        Assert.Contains("Nota", result);
+        Assert.Contains("Embed", result);
+        Assert.DoesNotContain("![[", result);
+    }
+
+    [Fact]
+    public void ExtractLongerClosingFenceDoesNotEnterIndex()
+    {
+        var result = MarkdownTextExtractor.Extract("Visible\n\n```csharp\nvar hidden = true;\n````\n\nAfter");
+
+        Assert.Contains("Visible", result);
+        Assert.Contains("After", result);
+        Assert.DoesNotContain("hidden", result);
+    }
+
     // ExtractWikilinks tests
 
     [Fact]

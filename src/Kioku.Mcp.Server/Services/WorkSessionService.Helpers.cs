@@ -415,12 +415,12 @@ internal sealed partial class WorkSessionService
         DateTimeOffset startedAt)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"# Work Session — {title}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# Work Session — {title}");
         sb.AppendLine();
-        sb.AppendLine($"**Started:** {FormatUtc(startedAt)}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Started:** {FormatUtc(startedAt)}");
         if (!string.IsNullOrWhiteSpace(goal))
         {
-            sb.AppendLine($"**Goal:** {goal}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"**Goal:** {goal}");
         }
         sb.AppendLine();
         sb.AppendLine("## Notes");
@@ -436,19 +436,19 @@ internal sealed partial class WorkSessionService
         DateTimeOffset endedAt,
         DateTimeOffset startedAt,
         string summary,
-        IReadOnlyCollection<Note> notes)
+        List<Note> notes)
     {
         var sb = new StringBuilder();
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();
-        sb.AppendLine($"## Session ended — {FormatUtc(endedAt)}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"## Session ended — {FormatUtc(endedAt)}");
         sb.AppendLine();
-        sb.AppendLine($"**Duration:** {FormatDuration(endedAt - startedAt)}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"**Duration:** {FormatDuration(endedAt - startedAt)}");
         if (!string.IsNullOrWhiteSpace(summary))
         {
-            sb.AppendLine($"**Outcome:** {summary.Trim()}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"**Outcome:** {summary.Trim()}");
         }
         sb.AppendLine();
         if (notes.Count == 0)
@@ -457,10 +457,10 @@ internal sealed partial class WorkSessionService
         }
         else
         {
-            sb.AppendLine($"### Notes touched during session ({notes.Count})");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"### Notes touched during session ({notes.Count})");
             foreach (var note in notes)
             {
-                sb.AppendLine($"- [[{note.Name}]]");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- [[{note.Name}]]");
             }
         }
         return sb.ToString();

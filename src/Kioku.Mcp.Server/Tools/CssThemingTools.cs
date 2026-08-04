@@ -17,6 +17,8 @@ public sealed class CssThemingTools(
     KiokuConfiguration config,
     IVaultMutationService? mutations = null)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
     private string SnippetsFolder => Path.Combine(config.VaultPath, ".obsidian", "snippets");
     private string AppJsonPath => Path.Combine(config.VaultPath, ".obsidian", "app.json");
 
@@ -137,13 +139,13 @@ public sealed class CssThemingTools(
             var sizeBytes = new FileInfo(file).Length;
             var status = isEnabled ? "✓ enabled" : "○ disabled";
 
-            sb.AppendLine($"  [{status}] {snippetName}.css ({sizeBytes} bytes)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  [{status}] {snippetName}.css ({sizeBytes} bytes)");
 
             // Preview first non-empty, non-comment line
             var preview = await GetCssPreview(file);
             if (!string.IsNullOrEmpty(preview))
             {
-                sb.AppendLine($"    {preview}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"    {preview}");
             }
         }
 
@@ -250,7 +252,7 @@ public sealed class CssThemingTools(
                 : appJson.ToDictionary(kv => kv.Key, kv => (object)kv.Value);
             dict["enabledCssSnippets"] = updatedSnippets;
 
-            var updatedJson = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
+            var updatedJson = JsonSerializer.Serialize(dict, JsonOptions);
             await WriteTextAsync(AppJsonPath, updatedJson);
 
             return enable
@@ -320,9 +322,9 @@ public sealed class CssThemingTools(
             {
                 var trimmed = line.Trim();
                 if (!string.IsNullOrWhiteSpace(trimmed) &&
-                    !trimmed.StartsWith("/*") &&
-                    !trimmed.StartsWith("*") &&
-                    !trimmed.StartsWith("//"))
+                    !trimmed.StartsWith("/*", StringComparison.Ordinal) &&
+                    !trimmed.StartsWith('*') &&
+                    !trimmed.StartsWith("//", StringComparison.Ordinal))
                 {
                     return trimmed.Length > 80 ? trimmed[..80] + "…" : trimmed;
                 }

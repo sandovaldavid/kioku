@@ -14,6 +14,31 @@ public static class NoteHelpers
     /// </summary>
     public static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
 
+    public static async Task<string> ReadAllTextAsync(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    bufferSize: 4096,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
+                using var reader = new StreamReader(stream, Utf8NoBom, detectEncodingFromByteOrderMarks: true);
+                return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (IOException) when (attempt < 7)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     /// <summary>
     /// Ensures that a candidate path remains inside the vault root after canonicalization and
     /// symbolic-link resolution. The legacy facade preserves its exact InvalidOperationException
@@ -258,10 +283,10 @@ public static class NoteHelpers
         var section = new StringBuilder($"\n\n## {sectionTitle}\n\n");
         foreach (var (name, annotation) in newTargets)
         {
-            section.Append($"- [[{name}]]");
+            section.Append(CultureInfo.InvariantCulture, $"- [[{name}]]");
             if (!string.IsNullOrEmpty(annotation))
             {
-                section.Append($" ({annotation})");
+                section.Append(CultureInfo.InvariantCulture, $" ({annotation})");
             }
 
             section.AppendLine();
@@ -279,12 +304,12 @@ public static class NoteHelpers
         var timestamp = now ?? DateTimeOffset.UtcNow;
         var merged = new Dictionary<string, string>(variables, StringComparer.OrdinalIgnoreCase);
 
-        merged.TryAdd("date", timestamp.ToString("yyyy-MM-dd"));
-        merged.TryAdd("time", timestamp.ToString("HH:mm:ss"));
-        merged.TryAdd("datetime", timestamp.ToString("yyyy-MM-dd HH:mm:ss"));
-        merged.TryAdd("year", timestamp.Year.ToString());
-        merged.TryAdd("month", timestamp.Month.ToString("D2"));
-        merged.TryAdd("day", timestamp.Day.ToString("D2"));
+        merged.TryAdd("date", timestamp.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        merged.TryAdd("time", timestamp.ToString("HH:mm:ss", CultureInfo.InvariantCulture));
+        merged.TryAdd("datetime", timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+        merged.TryAdd("year", timestamp.Year.ToString(CultureInfo.InvariantCulture));
+        merged.TryAdd("month", timestamp.Month.ToString("D2", CultureInfo.InvariantCulture));
+        merged.TryAdd("day", timestamp.Day.ToString("D2", CultureInfo.InvariantCulture));
         merged.TryAdd("uid", Guid.NewGuid().ToString("N"));
 
         if (noteTitle is not null)

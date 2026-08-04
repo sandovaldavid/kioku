@@ -43,6 +43,66 @@ internal static class Program
 
     private static async Task RunStdioAsync(SmokeOptions options, CancellationToken cancellationToken)
     {
+        await using var client = await CreateStdioClientAsync(options, cancellationToken);
+        await VerifyProtocolAsync(
+            client,
+            options,
+            token => CreateStdioClientAsync(options, token),
+            cancellationToken);
+    }
+
+    private static async Task RunHttpAsync(SmokeOptions options, CancellationToken cancellationToken)
+    {
+        if (options.Endpoint is null)
+        {
+            throw new InvalidOperationException("--endpoint is required for the HTTP smoke test.");
+        }
+
+        using var process = StartHttpServer(options);
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        Exception? failure = null;
+        try
+        {
+            await WaitForReadinessAsync(process, options, cancellationToken);
+            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(options.ApiKey))
+            {
+                headers["Authorization"] = $"Bearer {options.ApiKey}";
+            }
+
+            await using var client = await CreateHttpClientAsync(options, headers, cancellationToken);
+            await VerifyProtocolAsync(
+                client,
+                options,
+                token => CreateHttpClientAsync(options, headers, token),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+        finally
+        {
+            await StopProcessAsync(process);
+        }
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+        if (failure is not null)
+        {
+            throw new InvalidOperationException(
+                $"{Redact(failure.Message, options)}{Environment.NewLine}--- server stdout ---{Environment.NewLine}" +
+                $"{Redact(stdout, options)}{Environment.NewLine}--- server stderr ---{Environment.NewLine}" +
+                Redact(stderr, options),
+                failure);
+        }
+    }
+
+    private static async Task<McpClient> CreateStdioClientAsync(
+        SmokeOptions options,
+        CancellationToken cancellationToken)
+    {
         var command = options.Command;
         IList<string> arguments = options.CommandArguments;
         var environment = CreateServerEnvironment(options, "stdio");
@@ -66,69 +126,36 @@ internal static class Program
             InheritEnvironmentVariables = false,
             EnvironmentVariables = environment,
         });
-        await VerifyProtocolAsync(transport, options, cancellationToken);
+        return await McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
     }
 
-    private static async Task RunHttpAsync(SmokeOptions options, CancellationToken cancellationToken)
+    private static async Task<McpClient> CreateHttpClientAsync(
+        SmokeOptions options,
+        IReadOnlyDictionary<string, string> headers,
+        CancellationToken cancellationToken)
     {
-        if (options.Endpoint is null)
+        var transport = new HttpClientTransport(new HttpClientTransportOptions
         {
-            throw new InvalidOperationException("--endpoint is required for the HTTP smoke test.");
-        }
-
-        using var process = StartHttpServer(options);
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        Exception? failure = null;
-        try
-        {
-            await WaitForReadinessAsync(process, options, cancellationToken);
-            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (!string.IsNullOrWhiteSpace(options.ApiKey))
-            {
-                headers["Authorization"] = $"Bearer {options.ApiKey}";
-            }
-
-            var transport = new HttpClientTransport(new HttpClientTransportOptions
-            {
-                Name = "Kioku CI Streamable HTTP",
-                Endpoint = options.Endpoint,
-                TransportMode = HttpTransportMode.StreamableHttp,
-                AdditionalHeaders = headers,
-            });
-            await VerifyProtocolAsync(transport, options, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            failure = ex;
-        }
-        finally
-        {
-            await StopProcessAsync(process);
-        }
-
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
-        if (failure is not null)
-        {
-            throw new InvalidOperationException(
-                $"{Redact(failure.Message, options)}{Environment.NewLine}--- server stdout ---{Environment.NewLine}" +
-                $"{Redact(stdout, options)}{Environment.NewLine}--- server stderr ---{Environment.NewLine}" +
-                Redact(stderr, options),
-                failure);
-        }
+            Name = "Kioku CI Streamable HTTP",
+            Endpoint = options.Endpoint ?? throw new InvalidOperationException("HTTP endpoint is required."),
+            TransportMode = HttpTransportMode.StreamableHttp,
+            AdditionalHeaders = new Dictionary<string, string>(headers, StringComparer.OrdinalIgnoreCase),
+        });
+        return await McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
     }
 
     private static async Task VerifyProtocolAsync(
-        IClientTransport transport,
+        McpClient client,
         SmokeOptions options,
+        Func<CancellationToken, Task<McpClient>> createSecondClientAsync,
         CancellationToken cancellationToken)
     {
-        await using var client = await McpClient.CreateAsync(transport, cancellationToken: cancellationToken);
         await client.PingAsync(cancellationToken: cancellationToken);
         var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
         var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
         RequireTool(toolNames, "list_work_sessions");
+        RequireTool(toolNames, "start_work_session");
+        RequireTool(toolNames, "end_work_session");
         if (options.Coordination)
         {
             RequireTool(toolNames, "create_coordination_work_item");
@@ -143,6 +170,7 @@ internal static class Program
         RequireTool(toolNames, "get_server_capabilities");
 
         await VerifyCapabilitiesAsync(client, options, cancellationToken);
+        await VerifyWorkSessionHandoffAsync(client, createSecondClientAsync, cancellationToken);
 
         var sessionsResult = await client.CallToolAsync(
             "list_work_sessions",
@@ -241,6 +269,163 @@ internal static class Program
             throw new InvalidOperationException(
                 $"The coordination capability state was {enabled}, expected {options.Coordination}.");
         }
+    }
+
+    private static async Task VerifyWorkSessionHandoffAsync(
+        McpClient firstClient,
+        Func<CancellationToken, Task<McpClient>> createSecondClientAsync,
+        CancellationToken cancellationToken)
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var parentResult = await firstClient.CallToolAsync(
+            "start_work_session",
+            new Dictionary<string, object?>
+            {
+                ["session_name"] = $"ci-handoff-parent-{suffix}",
+                ["sessions_folder"] = "Sessions",
+                ["agent"] = "ci-process-a",
+                ["goal"] = "Validate cross-process durable handoff.",
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("start_work_session parent", parentResult);
+        EnsureStructuredEnvelope("start_work_session parent", parentResult);
+        using var parentJson = ParseJsonResult(parentResult);
+        var parent = ParseSessionIdentity(parentJson.RootElement, "parent");
+
+        await using var secondClient = await createSecondClientAsync(cancellationToken);
+        await secondClient.PingAsync(cancellationToken: cancellationToken);
+
+        using var parentBeforeClose = await ReadSessionMetadataAsync(
+            secondClient,
+            parent.Path,
+            cancellationToken);
+        EnsureSessionMetadata(parentBeforeClose.RootElement, parent.Id, "active", null, "parent before close");
+
+        var childResult = await secondClient.CallToolAsync(
+            "start_work_session",
+            new Dictionary<string, object?>
+            {
+                ["session_name"] = $"ci-handoff-child-{suffix}",
+                ["sessions_folder"] = "Sessions",
+                ["agent"] = "ci-process-b",
+                ["parent_session_id"] = parent.Id,
+                ["goal"] = "Continue the parent session from another client.",
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("start_work_session child", childResult);
+        EnsureStructuredEnvelope("start_work_session child", childResult);
+        using var childJson = ParseJsonResult(childResult);
+        var child = ParseSessionIdentity(childJson.RootElement, "child");
+
+        using var childBeforeClose = await ReadSessionMetadataAsync(
+            secondClient,
+            child.Path,
+            cancellationToken);
+        EnsureSessionMetadata(childBeforeClose.RootElement, child.Id, "active", parent.Id, "child before parent close");
+
+        var closeParentResult = await secondClient.CallToolAsync(
+            "end_work_session",
+            new Dictionary<string, object?>
+            {
+                ["session_id"] = parent.Id,
+                ["summary"] = "Parent session closed after handoff.",
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("end_work_session parent", closeParentResult);
+        EnsureStructuredEnvelope("end_work_session parent", closeParentResult);
+
+        using var parentAfterClose = await ReadSessionMetadataAsync(
+            secondClient,
+            parent.Path,
+            cancellationToken);
+        EnsureSessionMetadata(parentAfterClose.RootElement, parent.Id, "done", null, "parent after close");
+
+        using var childAfterParentClose = await ReadSessionMetadataAsync(
+            secondClient,
+            child.Path,
+            cancellationToken);
+        EnsureSessionMetadata(
+            childAfterParentClose.RootElement,
+            child.Id,
+            "active",
+            parent.Id,
+            "child after parent close");
+
+        var closeChildResult = await secondClient.CallToolAsync(
+            "end_work_session",
+            new Dictionary<string, object?>
+            {
+                ["session_id"] = child.Id,
+                ["summary"] = "Child session smoke cleanup.",
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("end_work_session child", closeChildResult);
+    }
+
+    private static async Task<JsonDocument> ReadSessionMetadataAsync(
+        McpClient client,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var result = await client.CallToolAsync(
+            "read_note",
+            new Dictionary<string, object?>
+            {
+                ["note"] = path,
+                ["metadata_only"] = true,
+                ["format"] = "json",
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("read_note session metadata", result);
+        EnsureStructuredEnvelope("read_note session metadata", result);
+        return ParseJsonResult(result);
+    }
+
+    private static (string Id, string Path) ParseSessionIdentity(JsonElement root, string label)
+    {
+        var id = RequiredString(root, "session_id", $"{label} session id");
+        var path = RequiredString(root, "path", $"{label} session path");
+        return (id, path);
+    }
+
+    private static void EnsureSessionMetadata(
+        JsonElement root,
+        string expectedId,
+        string expectedStatus,
+        string? expectedParentId,
+        string label)
+    {
+        if (!string.Equals(RequiredString(root, "status", $"{label} status"), expectedStatus, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"The {label} status was not '{expectedStatus}'.");
+        }
+
+        var extra = root.GetProperty("extra_fields");
+        if (!string.Equals(RequiredString(extra, "session_id", $"{label} session id"), expectedId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"The {label} session id changed unexpectedly.");
+        }
+
+        if (expectedParentId is not null &&
+            !string.Equals(
+                RequiredString(extra, "parent_session_id", $"{label} parent session id"),
+                expectedParentId,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"The {label} parent session id was not preserved.");
+        }
+    }
+
+    private static string RequiredString(JsonElement objectElement, string property, string label)
+    {
+        if (objectElement.TryGetProperty(property, out var value) &&
+            value.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(value.GetString()))
+        {
+            return value.GetString()!;
+        }
+
+        throw new InvalidOperationException($"The smoke response did not include {label}.");
     }
 
     private static async Task VerifyCoordinationAsync(
@@ -343,7 +528,32 @@ internal static class Program
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         if (text is not null)
         {
-            return JsonDocument.Parse(text);
+            try
+            {
+                return JsonDocument.Parse(text);
+            }
+            catch (JsonException)
+            {
+                // Some tools prefix their JSON response with a human-readable line.
+            }
+
+            foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Reverse())
+            {
+                try
+                {
+                    var candidate = JsonDocument.Parse(line.Trim());
+                    if (candidate.RootElement.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                    {
+                        return candidate;
+                    }
+
+                    candidate.Dispose();
+                }
+                catch (JsonException)
+                {
+                    // Some tools prefix their JSON response with a human-readable line.
+                }
+            }
         }
 
         if (result.StructuredContent is { ValueKind: JsonValueKind.Object } structured)
@@ -422,7 +632,7 @@ internal static class Program
         return environment;
     }
 
-    private static void CopyCurrentEnvironment(IDictionary<string, string?> target, string key)
+    private static void CopyCurrentEnvironment(Dictionary<string, string?> target, string key)
     {
         var value = Environment.GetEnvironmentVariable(key);
         if (!string.IsNullOrWhiteSpace(value))

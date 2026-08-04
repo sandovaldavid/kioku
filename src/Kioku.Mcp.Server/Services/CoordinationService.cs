@@ -932,7 +932,7 @@ internal sealed class CoordinationService(
         SessionId = sessionId,
     };
 
-    private static IReadOnlyList<string> NormalizeResourceScope(IReadOnlyList<string> values)
+    private static string[] NormalizeResourceScope(IReadOnlyList<string> values)
     {
         ArgumentNullException.ThrowIfNull(values);
         if (values.Count > 256)

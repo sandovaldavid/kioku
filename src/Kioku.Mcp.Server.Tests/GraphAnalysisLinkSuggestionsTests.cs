@@ -35,7 +35,7 @@ public class GraphAnalysisLinkSuggestionsTests : IAsyncLifetime
         return [.. Topics.Select(t => lower.Contains(t) ? 1f : 0f)];
     }
 
-    private static HttpMessageHandler CreateFakeOllamaHandler() => new FakeHttpMessageHandler(async (request, ct) =>
+    private static FakeHttpMessageHandler CreateFakeOllamaHandler() => new FakeHttpMessageHandler(async (request, ct) =>
     {
         if (request.Method == HttpMethod.Get)
         {

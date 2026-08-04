@@ -65,7 +65,7 @@ public class WriteToolIntegrationTests : IClassFixture<VaultFixture>
             mutations: mutations);
     }
 
-    private IVaultMutationService CreateMutationService(KiokuConfiguration config)
+    private VaultMutationService CreateMutationService(KiokuConfiguration config)
     {
         var paths = new VaultPathPolicy(config);
         var fileSystem = new CoordinationFileSystem();

@@ -150,7 +150,7 @@ internal static class KiokuOptionsConfiguration
     }
 
     private static void AddList(
-        IDictionary<string, string?> values,
+        Dictionary<string, string?> values,
         string propertyName,
         string? raw,
         char separator)
@@ -186,7 +186,7 @@ public sealed class KiokuOptionsValidator : IValidateOptions<KiokuOptions>
             : ValidateOptionsResult.Fail(failures);
     }
 
-    private static void ValidateVault(KiokuOptions options, ICollection<string> failures)
+    private static void ValidateVault(KiokuOptions options, List<string> failures)
     {
         if (string.IsNullOrWhiteSpace(options.VaultPath))
         {
@@ -211,7 +211,7 @@ public sealed class KiokuOptionsValidator : IValidateOptions<KiokuOptions>
         }
     }
 
-    private static void ValidateTransport(KiokuOptions options, ICollection<string> failures)
+    private static void ValidateTransport(KiokuOptions options, List<string> failures)
     {
         if (!options.Transport.Equals("stdio", StringComparison.OrdinalIgnoreCase) &&
             !options.Transport.Equals("http", StringComparison.OrdinalIgnoreCase))
@@ -220,7 +220,7 @@ public sealed class KiokuOptionsValidator : IValidateOptions<KiokuOptions>
         }
     }
 
-    private static void ValidateRanges(KiokuOptions options, ICollection<string> failures)
+    private static void ValidateRanges(KiokuOptions options, List<string> failures)
     {
         AddRangeFailure(failures, options.MaxSearchResults, 1, 1000, "KIOKU_MAX_RESULTS");
         AddRangeFailure(failures, options.ObsidianBridgePort, 1, 65535, "KIOKU_OBSIDIAN_PORT");
@@ -235,7 +235,7 @@ public sealed class KiokuOptionsValidator : IValidateOptions<KiokuOptions>
         }
     }
 
-    private static void ValidateOllama(KiokuOptions options, ICollection<string> failures)
+    private static void ValidateOllama(KiokuOptions options, List<string> failures)
     {
         if (!Uri.TryCreate(options.OllamaUrl, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
@@ -244,7 +244,7 @@ public sealed class KiokuOptionsValidator : IValidateOptions<KiokuOptions>
         }
     }
 
-    private static void ValidateHttp(KiokuOptions options, ICollection<string> failures)
+    private static void ValidateHttp(KiokuOptions options, List<string> failures)
     {
         if (!IsValidHttpHost(options.HttpHost))
         {
@@ -276,7 +276,7 @@ public sealed class KiokuOptionsValidator : IValidateOptions<KiokuOptions>
         }
     }
 
-    private static void ValidateExternalRoots(KiokuOptions options, ICollection<string> failures)
+    private static void ValidateExternalRoots(KiokuOptions options, List<string> failures)
     {
         if (!options.AllowExternalReads)
         {
@@ -301,7 +301,7 @@ public sealed class KiokuOptionsValidator : IValidateOptions<KiokuOptions>
     }
 
     private static void AddRangeFailure(
-        ICollection<string> failures,
+        List<string> failures,
         int value,
         int minimum,
         int maximum,

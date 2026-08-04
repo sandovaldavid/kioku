@@ -24,6 +24,8 @@ public class VaultConfigServiceTests : IDisposable
         {
             // ignore cleanup errors
         }
+
+        GC.SuppressFinalize(this);
     }
 
     private VaultConfigService CreateService(string yaml)

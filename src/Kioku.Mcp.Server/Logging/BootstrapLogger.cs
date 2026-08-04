@@ -15,7 +15,7 @@ internal static class BootstrapLogger
 
     public static void Error(string format, params object[] args)
     {
-        Console.Error.WriteLine($"[error] {string.Format(format, args)}");
+        Console.Error.WriteLine($"[error] {string.Format(CultureInfo.InvariantCulture, format, args)}");
     }
 
     public static void Warn(string message)

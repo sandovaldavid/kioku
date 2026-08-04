@@ -4,11 +4,6 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
 
-    <!-- xUnit owns the lifetime of test classes and recognizes IAsyncLifetime/IDisposable
-         cleanup patterns that the general-purpose ownership analyzers cannot infer. Constant
-         arrays in tests optimize readability and isolation rather than hot-path allocations.
-         Keep these diagnostics visible without blocking production-quality analyzer gates. -->
-    <WarningsNotAsErrors>$(WarningsNotAsErrors);CA1001;CA1816;CA1861</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

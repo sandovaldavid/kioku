@@ -320,7 +320,7 @@ public sealed class GenerationTools(
         sb.AppendLine();
         foreach (var card in cards)
         {
-            sb.AppendLine($"{card.Q!.Trim()}::{card.A!.Trim()}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{card.Q!.Trim()}::{card.A!.Trim()}");
             sb.AppendLine();
         }
 
@@ -347,7 +347,7 @@ public sealed class GenerationTools(
         sb.AppendLine("front,back,tags");
         foreach (var card in cards)
         {
-            sb.AppendLine($"{EscapeCsvField(card.Q!.Trim())},{EscapeCsvField(card.A!.Trim())},{EscapeCsvField("flashcards")}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{EscapeCsvField(card.Q!.Trim())},{EscapeCsvField(card.A!.Trim())},{EscapeCsvField("flashcards")}");
         }
 
         return sb.ToString();

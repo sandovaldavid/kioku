@@ -136,11 +136,11 @@ internal static class KiokuTypedResultFilters
             });
         });
 
-    private static object? ParseData(string text, bool isError)
+    private static JsonElement ParseData(string text, bool isError)
     {
         if (isError || string.IsNullOrWhiteSpace(text))
         {
-            return null;
+            return JsonSerializer.SerializeToElement<object?>(null);
         }
 
         try
@@ -150,16 +150,16 @@ internal static class KiokuTypedResultFilters
         }
         catch (JsonException)
         {
-            return new { text };
+            return JsonSerializer.SerializeToElement(new { text });
         }
     }
 
-    private static object? ExtractPagination(object? data)
+    private static object? ExtractPagination(JsonElement data)
     {
-        if (data is not JsonElement { ValueKind: JsonValueKind.Object } element ||
-            !element.TryGetProperty("total", out var total) ||
-            !element.TryGetProperty("offset", out var offset) ||
-            !element.TryGetProperty("limit", out var limit) ||
+        if (data.ValueKind != JsonValueKind.Object ||
+            !data.TryGetProperty("total", out var total) ||
+            !data.TryGetProperty("offset", out var offset) ||
+            !data.TryGetProperty("limit", out var limit) ||
             !total.TryGetInt32(out var totalValue) ||
             !offset.TryGetInt32(out var offsetValue) ||
             !limit.TryGetInt32(out var limitValue))

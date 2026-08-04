@@ -184,10 +184,10 @@ public sealed class GraphAnalysisTools(
         var i = 1;
         foreach (var s in suggestions)
         {
-            sb.AppendLine($"{i}. [[{DisplayNote(s.Source)}]] → [[{DisplayNote(s.Target)}]]  (score: {(int)MathF.Round(s.Score * 100)}%, {s.Reason})");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{i}. [[{DisplayNote(s.Source)}]] → [[{DisplayNote(s.Target)}]]  (score: {(int)MathF.Round(s.Score * 100)}%, {s.Reason})");
             if (!string.IsNullOrWhiteSpace(s.Snippet))
             {
-                sb.AppendLine($"   \"{s.Snippet}\"");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"   \"{s.Snippet}\"");
             }
 
             i++;
@@ -350,17 +350,17 @@ public sealed class GraphAnalysisTools(
         var sb = new StringBuilder();
         foreach (var (source, sourceSuggestions) in applied)
         {
-            sb.AppendLine($"[ok] Added {sourceSuggestions.Count} related link(s) to '{DisplayNote(source)}':");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[ok] Added {sourceSuggestions.Count} related link(s) to '{DisplayNote(source)}':");
             foreach (var suggestion in sourceSuggestions)
             {
-                sb.AppendLine($"  - [[{LinkText(suggestion.Target)}]] ({(int)MathF.Round(suggestion.Score * 100)}%)");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"  - [[{LinkText(suggestion.Target)}]] ({(int)MathF.Round(suggestion.Score * 100)}%)");
             }
         }
 
         return sb.ToString().TrimEnd();
     }
 
-    private static string AppendMissingTargets(string result, IReadOnlyList<string> missing) =>
+    private static string AppendMissingTargets(string result, List<string> missing) =>
         missing.Count == 0
             ? result
             : $"{result}\n\n[info] Could not resolve: {string.Join(", ", missing)}";
@@ -391,10 +391,10 @@ public sealed class GraphAnalysisTools(
         }
         else
         {
-            sb.AppendLine($"Found {unlinked.Count} unlinked note(s):");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Found {unlinked.Count} unlinked note(s):");
             foreach (var note in unlinked)
             {
-                sb.AppendLine($"- {note.Name} (modified: {note.LastModified:yyyy-MM-dd})");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- {note.Name} (modified: {note.LastModified:yyyy-MM-dd})");
             }
         }
 
@@ -402,15 +402,15 @@ public sealed class GraphAnalysisTools(
         var islands = FindIslands(IslandThreshold);
         if (islands.Count == 0)
         {
-            sb.AppendLine($"[info] No graph islands found (all components > {IslandThreshold} notes).");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"[info] No graph islands found (all components > {IslandThreshold} notes).");
         }
         else
         {
-            sb.AppendLine($"Found {islands.Count} island(s) (max {IslandThreshold} notes each):");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Found {islands.Count} island(s) (max {IslandThreshold} notes each):");
             foreach (var island in islands.OrderByDescending(i => i.Count))
             {
                 var noteNames = string.Join(", ", island.Select(DisplayNote).OrderBy(x => x));
-                sb.AppendLine($"- Island ({island.Count} notes): {noteNames}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- Island ({island.Count} notes): {noteNames}");
             }
         }
 
