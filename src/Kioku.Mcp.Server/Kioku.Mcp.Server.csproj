@@ -21,7 +21,7 @@
     <PackageType>McpServer</PackageType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>kioku-mcp-server</PackageId>
-    <PackageVersion>3.0.0</PackageVersion>
+    <PackageVersion>3.0.1</PackageVersion>
     <Version>$(PackageVersion)</Version>
     <InformationalVersion>$(PackageVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
@@ -39,14 +39,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources/Templates/AgentWorkflow/*.md" />
-    <EmbeddedResource Include="Resources/Coordination/Schemas/*.json" />
+    <EmbeddedResource Include="Resources/Templates/AgentWorkflow/*.md"/>
+    <EmbeddedResource Include="Resources/Coordination/Schemas/*.json"/>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/" />
-    <None Include="README.md" Pack="true" PackagePath="/" />
-    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+    <None Include=".mcp\server.json" Pack="true" PackagePath="/.mcp/"/>
+    <None Include="README.md" Pack="true" PackagePath="/"/>
+    <None Include="../../LICENSE" Pack="true" PackagePath="/"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -56,13 +56,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Markdig" />
-    <PackageReference Include="Microsoft.NET.ILLink.Tasks" PrivateAssets="all" />
-    <PackageReference Include="ModelContextProtocol" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" />
-    <PackageReference Include="NJsonSchema" />
-    <PackageReference Include="Sentry.AspNetCore" />
-    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="Markdig"/>
+    <PackageReference Include="Microsoft.NET.ILLink.Tasks" PrivateAssets="all"/>
+    <PackageReference Include="ModelContextProtocol"/>
+    <PackageReference Include="ModelContextProtocol.AspNetCore"/>
+    <PackageReference Include="NJsonSchema"/>
+    <PackageReference Include="Sentry.AspNetCore"/>
+    <PackageReference Include="YamlDotNet"/>
   </ItemGroup>
 
 </Project>
