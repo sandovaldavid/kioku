@@ -134,13 +134,43 @@ KIOKU_VAULT_PATH = "/absolute/path/to/your/vault"
 
 ### OpenCode
 
-OpenCode configures MCP servers via `opencode mcp add` CLI command or directly through `opencode.json` at the root of your workspace or user config.
+OpenCode configures MCP servers via the interactive `opencode mcp add` command or directly through `opencode.json` at the root of your workspace or user config. The current stable CLI does not document a fully parameterized one-line `mcp add` equivalent to Claude Code, Codex, or Copilot, so Kioku documents the exact answers for the interactive wizard.
 
 #### Native CLI Registration
+
+Export the vault path before starting the wizard:
 
 ```bash
 export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
 opencode mcp add
+```
+
+Use these values when prompted:
+
+```text
+MCP server name: kioku
+MCP server type: Local
+Command to run: kioku
+```
+
+Some OpenCode versions also ask where the configuration should be saved. If that prompt appears:
+
+- choose **Global** to make Kioku available across OpenCode projects;
+- choose **Current project** only when you intentionally want repository-local MCP configuration.
+
+The wizard stores the MCP definition, but the exported vault path is process-local shell state. `KIOKU_VAULT_PATH` must therefore be present whenever you launch a future OpenCode session. Persist it using the mechanism appropriate for your shell if you want the setting to survive new terminals.
+
+Verify that OpenCode can see and start Kioku:
+
+```bash
+opencode mcp list
+```
+
+The `kioku` entry should report as connected. If it does not, first verify that both the executable and vault variable are visible in the same shell used to launch OpenCode:
+
+```bash
+command -v kioku
+printf '%s\n' "$KIOKU_VAULT_PATH"
 ```
 
 #### Workspace Configuration (`opencode.json`)
