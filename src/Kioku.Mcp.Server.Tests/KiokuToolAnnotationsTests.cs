@@ -10,7 +10,7 @@ namespace Kioku.Mcp.Server.Tests;
 
 public sealed class KiokuToolAnnotationsTests
 {
-    private static readonly Dictionary<string, (bool ReadOnly, bool Destructive, bool Idempotent, bool OpenWorld)> ReviewedToolMatrix = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, (bool ReadOnly, bool Destructive, bool Idempotent, bool OpenWorld)> ReviewedToolMatrix = new(StringComparer.Ordinal)
     {
         ["acquire_coordination_claim"] = (false, false, true, false),
         ["add_backlog_item"] = (false, false, false, false),
@@ -29,7 +29,7 @@ public sealed class KiokuToolAnnotationsTests
         ["delete_note"] = (false, true, false, false),
         ["edit_in_obsidian"] = (false, true, false, true),
         ["edit_note"] = (false, true, false, false),
-        ["end_work_session"] = (false, false, false, false),
+        ["end_work_session"] = (false, true, false, false),
         ["expire_coordination_claim"] = (false, false, true, false),
         ["export_citations"] = (true, false, true, false),
         ["find_duplicate_notes"] = (true, false, true, false),
@@ -62,12 +62,12 @@ public sealed class KiokuToolAnnotationsTests
         ["list_tasks"] = (true, false, true, false),
         ["list_work_sessions"] = (true, false, true, false),
         ["manage_css_snippets"] = (false, true, false, false),
-        ["manage_tags"] = (false, false, false, false),
-        ["manage_templates"] = (false, false, false, false),
+        ["manage_tags"] = (false, true, false, false),
+        ["manage_templates"] = (false, true, false, false),
         ["manage_trash"] = (false, true, false, false),
         ["move_note"] = (false, true, false, false),
         ["open_note_in_obsidian"] = (false, false, true, true),
-        ["process_inbox"] = (false, false, false, false),
+        ["process_inbox"] = (false, true, false, false),
         ["query_dataview"] = (true, false, true, true),
         ["read_note"] = (true, false, true, false),
         ["rebuild_index"] = (false, false, true, false),
@@ -78,7 +78,7 @@ public sealed class KiokuToolAnnotationsTests
         ["resolve_coordination_conflict"] = (false, false, true, false),
         ["save_project_knowledge"] = (false, false, false, false),
         ["search_notes"] = (true, false, true, true),
-        ["set_task_state"] = (false, false, false, false),
+        ["set_task_state"] = (false, true, false, false),
         ["setup_agent_workflow"] = (false, false, true, false),
         ["start_work_session"] = (false, false, false, false),
         ["suggest_folder"] = (true, false, true, false),

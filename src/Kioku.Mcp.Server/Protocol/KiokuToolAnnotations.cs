@@ -30,7 +30,8 @@ internal static class KiokuToolAnnotations
         "delete_note", "edit_note", "move_note", "update_frontmatter", "manage_trash",
         "tidy_attachments", "manage_css_snippets", "lint", "edit_in_obsidian",
         "trigger_obsidian_command", "suggest_links", "create_moc", "create_folder_readme",
-        "find_orphan_assets",
+        "find_orphan_assets", "manage_templates", "process_inbox", "manage_tags",
+        "set_task_state", "end_work_session",
     };
 
     private static readonly HashSet<string> IdempotentTools = new(StringComparer.Ordinal)

@@ -72,6 +72,12 @@ public sealed class McpSurfaceMetadataContractTests
             var tools = await FetchToolsListAsync(server.BaseUrl, client);
             Assert.Equal(77, tools.Count);
 
+            var discoveredNames = tools.Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+            var reviewedNames = KiokuToolAnnotationsTests.ReviewedToolMatrix.Keys.ToHashSet(StringComparer.Ordinal);
+
+            Assert.Equal(77, KiokuToolAnnotationsTests.ReviewedToolMatrix.Count);
+            Assert.Equal(reviewedNames.OrderBy(x => x), discoveredNames.OrderBy(x => x));
+
             foreach (var tool in tools)
             {
                 Assert.False(string.IsNullOrWhiteSpace(tool.Name));
@@ -84,6 +90,60 @@ public sealed class McpSurfaceMetadataContractTests
                 Assert.Equal(expectedAnnotations.DestructiveHint, tool.Annotations.DestructiveHint);
                 Assert.Equal(expectedAnnotations.IdempotentHint, tool.Annotations.IdempotentHint);
                 Assert.Equal(expectedAnnotations.OpenWorldHint, tool.Annotations.OpenWorldHint);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempVault))
+            {
+                Directory.Delete(tempVault, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Stdio_and_HTTP_transports_expose_identical_tool_names_annotations_and_output_schemas()
+    {
+        var tempVault = Path.Combine(Path.GetTempPath(), $"kioku-contract-parity-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempVault);
+        try
+        {
+            // 1. Discover surface over HTTP transport
+            await using var httpServer = await StartTestServerAsync(tempVault, enableAllCapabilities: false);
+            using var httpClient = CreateHttpClient();
+            await InitializeMcpSessionAsync(httpServer.BaseUrl, httpClient);
+            var httpTools = await FetchToolsListAsync(httpServer.BaseUrl, httpClient);
+
+            // 2. Discover surface over stdio transport process
+            await using var stdioServer = await CoordinationProcessServer.StartStdioAsync(tempVault, "parity-test-client");
+            var stdioTools = await stdioServer.Client.ListToolsAsync();
+
+            // 3. Compare tool counts
+            Assert.Equal(httpTools.Count, stdioTools.Count);
+
+            // 4. Compare tool names
+            var httpNames = httpTools.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
+            var stdioNames = stdioTools.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
+            Assert.Equal(httpNames, stdioNames);
+
+            // 5. Compare annotations and outputSchemas for every tool
+            var stdioMap = stdioTools.ToDictionary(t => t.Name, StringComparer.Ordinal);
+            foreach (var httpTool in httpTools)
+            {
+                var stdioTool = stdioMap[httpTool.Name];
+                Assert.NotNull(httpTool.Annotations);
+                Assert.NotNull(stdioTool.ProtocolTool.Annotations);
+
+                Assert.Equal(httpTool.Annotations.ReadOnlyHint, stdioTool.ProtocolTool.Annotations.ReadOnlyHint);
+                Assert.Equal(httpTool.Annotations.DestructiveHint, stdioTool.ProtocolTool.Annotations.DestructiveHint);
+                Assert.Equal(httpTool.Annotations.IdempotentHint, stdioTool.ProtocolTool.Annotations.IdempotentHint);
+                Assert.Equal(httpTool.Annotations.OpenWorldHint, stdioTool.ProtocolTool.Annotations.OpenWorldHint);
+
+                Assert.NotNull(httpTool.OutputSchema);
+                Assert.NotNull(stdioTool.ProtocolTool.OutputSchema);
+                Assert.Equal(
+                    JsonSerializer.Serialize(httpTool.OutputSchema.Value),
+                    JsonSerializer.Serialize(stdioTool.ProtocolTool.OutputSchema.Value));
             }
         }
         finally
