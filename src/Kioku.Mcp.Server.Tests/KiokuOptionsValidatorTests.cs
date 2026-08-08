@@ -26,6 +26,34 @@ public sealed class KiokuOptionsValidatorTests : IDisposable
     }
 
     [Fact]
+    public void Missing_or_empty_vault_path_fails_validation()
+    {
+        var options = CreateValidOptions();
+        options.VaultPath = "";
+
+        var result = new KiokuOptionsValidator().Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures ?? [],
+            failure => failure.Contains("KIOKU_VAULT_PATH", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Non_existent_vault_path_fails_validation()
+    {
+        var options = CreateValidOptions();
+        options.VaultPath = Path.Combine(Path.GetTempPath(), $"nonexistent-vault-{Guid.NewGuid():N}");
+
+        var result = new KiokuOptionsValidator().Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures ?? [],
+            failure => failure.Contains("KIOKU_VAULT_PATH", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Invalid_ranges_transport_and_uri_fail_with_actionable_messages()
     {
         var options = CreateValidOptions();

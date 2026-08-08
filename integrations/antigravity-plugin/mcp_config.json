@@ -3,9 +3,7 @@
     "kioku": {
       "command": "kioku",
       "args": [],
-      "env": {
-        "KIOKU_VAULT_PATH": "/home/sandovaldavid/workspaces/me/Cortex-L7"
-      }
+      "env": {}
     }
   }
 }
