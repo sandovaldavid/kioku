@@ -38,7 +38,7 @@ the plugin's `userConfig`; no manual `.mcp.json` editing is required.
 
 ## `antigravity-plugin/`
 
-An Antigravity plugin bundle. Installed into `~/.gemini/antigravity-cli/plugins/kioku/` (user scope) or `.agents/plugins/kioku/` (workspace scope) via `agy`:
+An Antigravity plugin bundle. Installed globally for the user into `~/.gemini/antigravity-cli/plugins/kioku/` via `agy`:
 
 ```bash
 export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"

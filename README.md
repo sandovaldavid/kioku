@@ -75,7 +75,11 @@ copilot mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- k
 #### Antigravity CLI (`agy`)
 ```bash
 export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
-agy plugin install ./integrations/antigravity-plugin
+# Native MCP configuration (~/.gemini/config/mcp_config.json):
+# { "mcpServers": { "kioku": { "command": "kioku" } } }
+
+# Or install local plugin bundle (from cloned kioku repository):
+# agy plugin install ./integrations/antigravity-plugin
 ```
 
 See the [Installation Guide](docs/install.md) for detailed configuration, scope options, manual TOML/JSON files, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
