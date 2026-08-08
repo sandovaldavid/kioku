@@ -15,7 +15,7 @@ internal static class KiokuToolAnnotations
         "get_project_context", "list_projects", "get_concept_map", "get_vault_snapshot",
         "get_obsidian_state", "get_installed_plugins", "query_dataview",
         "summarize_note", "list_tasks", "get_task", "get_daily_note",
-        "list_templates", "read_template", "list_assets", "find_orphan_assets",
+        "list_templates", "read_template", "list_assets",
         "get_metrics", "health_check", "get_server_capabilities",
         "get_coordination_work_item", "list_coordination_work_items", "list_coordination_runs",
         "list_coordination_claims", "list_coordination_history", "get_coordination_handoff",
@@ -30,6 +30,7 @@ internal static class KiokuToolAnnotations
         "delete_note", "edit_note", "move_note", "update_frontmatter", "manage_trash",
         "tidy_attachments", "manage_css_snippets", "lint", "edit_in_obsidian",
         "trigger_obsidian_command", "suggest_links", "create_moc", "create_folder_readme",
+        "find_orphan_assets",
     };
 
     private static readonly HashSet<string> IdempotentTools = new(StringComparer.Ordinal)
@@ -48,7 +49,7 @@ internal static class KiokuToolAnnotations
         "audit_vault", "find_duplicate_notes", "get_server_status", "get_work_context",
         "list_tasks", "list_work_sessions", "suggest_folder", "suggest_tags",
         "audit_citations", "export_citations", "get_daily_note", "list_templates",
-        "read_template", "list_assets", "find_orphan_assets", "rebuild_index",
+        "read_template", "list_assets", "rebuild_index",
     };
 
     private static readonly HashSet<string> OpenWorldTools = new(StringComparer.Ordinal)

@@ -109,27 +109,90 @@ public sealed class McpSurfaceMetadataContractTests
             // 1. Pure read: get_server_status
             var statusResult = await CallToolJsonRpcAsync(server.BaseUrl, client, "get_server_status", new { });
             AssertValidStructuredEnvelope(statusResult);
+            AssertSuccessEnvelope(statusResult);
 
             // 2. Pure read: list_projects
             var projectsResult = await CallToolJsonRpcAsync(server.BaseUrl, client, "list_projects", new { });
             AssertValidStructuredEnvelope(projectsResult);
+            AssertSuccessEnvelope(projectsResult);
 
             // 3. Structured search: list_notes
             var listNotesResult = await CallToolJsonRpcAsync(server.BaseUrl, client, "list_notes", new { limit = 10 });
             AssertValidStructuredEnvelope(listNotesResult);
+            AssertSuccessEnvelope(listNotesResult);
 
             // 4. Session / task: list_tasks
             var tasksResult = await CallToolJsonRpcAsync(server.BaseUrl, client, "list_tasks", new { });
             AssertValidStructuredEnvelope(tasksResult);
+            AssertSuccessEnvelope(tasksResult);
 
             // 5. Mixed preview / apply: process_inbox (apply=false preview)
             var inboxResult = await CallToolJsonRpcAsync(server.BaseUrl, client, "process_inbox", new { apply = false });
             AssertValidStructuredEnvelope(inboxResult);
+            AssertSuccessEnvelope(inboxResult);
 
             // 6. Error envelope: read_note on missing note
             var notFoundResult = await CallToolJsonRpcAsync(server.BaseUrl, client, "read_note", new { note = "NonExistentNote999" });
             AssertValidStructuredEnvelope(notFoundResult);
             AssertErrorEnvelope(notFoundResult, "NOT_FOUND");
+        }
+        finally
+        {
+            if (Directory.Exists(tempVault))
+            {
+                Directory.Delete(tempVault, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Get_server_status_returns_success_true_even_if_ollama_is_unavailable()
+    {
+        var tempVault = Path.Combine(Path.GetTempPath(), $"kioku-contract-status-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempVault);
+        try
+        {
+            await using var server = await StartTestServerAsync(tempVault, enableAllCapabilities: false);
+            using var client = CreateHttpClient();
+            await InitializeMcpSessionAsync(server.BaseUrl, client);
+
+            var result = await CallToolJsonRpcAsync(server.BaseUrl, client, "get_server_status", new { });
+            AssertValidStructuredEnvelope(result);
+
+            var envelope = result.GetProperty("structuredContent");
+            Assert.True(envelope.GetProperty("success").GetBoolean(), "get_server_status must return success=true");
+            Assert.Equal(JsonValueKind.Null, envelope.GetProperty("error").ValueKind);
+        }
+        finally
+        {
+            if (Directory.Exists(tempVault))
+            {
+                Directory.Delete(tempVault, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Manage_tags_returns_success_true_and_warning_for_non_existent_tag()
+    {
+        var tempVault = Path.Combine(Path.GetTempPath(), $"kioku-contract-tags-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempVault);
+        try
+        {
+            await using var server = await StartTestServerAsync(tempVault, enableAllCapabilities: true);
+            using var client = CreateHttpClient();
+            await InitializeMcpSessionAsync(server.BaseUrl, client);
+
+            var result = await CallToolJsonRpcAsync(server.BaseUrl, client, "manage_tags", new { operation = "rename", old_tag = "nonexistenttag999", new_tag = "newtag" });
+            AssertValidStructuredEnvelope(result);
+
+            var envelope = result.GetProperty("structuredContent");
+            Assert.True(envelope.GetProperty("success").GetBoolean(), "manage_tags no-op must return success=true");
+            Assert.Equal(JsonValueKind.Null, envelope.GetProperty("error").ValueKind);
+
+            var warnings = envelope.GetProperty("warnings");
+            Assert.True(warnings.GetArrayLength() > 0, "manage_tags no-op must include warning message");
+            Assert.Contains("not found", warnings[0].GetString(), StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -159,6 +222,12 @@ public sealed class McpSurfaceMetadataContractTests
         {
             Assert.True(props.TryGetProperty(reqProp, out _), $"OutputSchema missing property '{reqProp}'");
         }
+
+        Assert.True(schema.TryGetProperty("required", out var reqArray));
+        Assert.Equal(RequiredEnvelopeProperties.Length, reqArray.GetArrayLength());
+
+        Assert.True(schema.TryGetProperty("additionalProperties", out var addProps));
+        Assert.False(addProps.GetBoolean());
     }
 
     private static void AssertValidStructuredEnvelope(JsonElement resultElement)
@@ -166,24 +235,65 @@ public sealed class McpSurfaceMetadataContractTests
         Assert.True(resultElement.TryGetProperty("structuredContent", out var envelope), "Response missing structuredContent");
         Assert.Equal(JsonValueKind.Object, envelope.ValueKind);
 
+        // Additional properties check: exactly 5 top-level properties
+        var propNames = envelope.EnumerateObject().Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+        Assert.Equal(RequiredEnvelopeProperties.Length, propNames.Count);
+        foreach (var reqProp in RequiredEnvelopeProperties)
+        {
+            Assert.True(propNames.Contains(reqProp), $"StructuredContent envelope missing required property '{reqProp}'");
+        }
+
         Assert.True(envelope.TryGetProperty("success", out var successProp));
         Assert.True(successProp.ValueKind is JsonValueKind.True or JsonValueKind.False);
+        var success = successProp.GetBoolean();
 
         Assert.True(envelope.TryGetProperty("data", out _));
+
         Assert.True(envelope.TryGetProperty("error", out var errorProp));
-        Assert.True(errorProp.ValueKind is JsonValueKind.Object or JsonValueKind.Null);
+        if (success)
+        {
+            Assert.Equal(JsonValueKind.Null, errorProp.ValueKind);
+        }
+        else
+        {
+            Assert.Equal(JsonValueKind.Object, errorProp.ValueKind);
+            Assert.True(errorProp.TryGetProperty("code", out var codeProp));
+            Assert.Equal(JsonValueKind.String, codeProp.ValueKind);
+            Assert.False(string.IsNullOrWhiteSpace(codeProp.GetString()));
+
+            Assert.True(errorProp.TryGetProperty("message", out var msgProp));
+            Assert.Equal(JsonValueKind.String, msgProp.ValueKind);
+        }
 
         Assert.True(envelope.TryGetProperty("pagination", out var pageProp));
-        Assert.True(pageProp.ValueKind is JsonValueKind.Object or JsonValueKind.Null);
+        if (pageProp.ValueKind != JsonValueKind.Null)
+        {
+            Assert.Equal(JsonValueKind.Object, pageProp.ValueKind);
+            Assert.True(pageProp.TryGetProperty("total", out var totalProp) && totalProp.GetInt32() >= 0);
+            Assert.True(pageProp.TryGetProperty("offset", out var offsetProp) && offsetProp.GetInt32() >= 0);
+            Assert.True(pageProp.TryGetProperty("limit", out var limitProp) && limitProp.GetInt32() >= 1);
+            Assert.True(pageProp.TryGetProperty("has_more", out var hasMoreProp) && (hasMoreProp.ValueKind is JsonValueKind.True or JsonValueKind.False));
+        }
 
         Assert.True(envelope.TryGetProperty("warnings", out var warningsProp));
         Assert.Equal(JsonValueKind.Array, warningsProp.ValueKind);
+        foreach (var warningItem in warningsProp.EnumerateArray())
+        {
+            Assert.Equal(JsonValueKind.String, warningItem.ValueKind);
+        }
+    }
+
+    private static void AssertSuccessEnvelope(JsonElement resultElement)
+    {
+        var envelope = resultElement.GetProperty("structuredContent");
+        Assert.True(envelope.GetProperty("success").GetBoolean(), "Expected success=true");
+        Assert.Equal(JsonValueKind.Null, envelope.GetProperty("error").ValueKind);
     }
 
     private static void AssertErrorEnvelope(JsonElement resultElement, string expectedCode)
     {
         var envelope = resultElement.GetProperty("structuredContent");
-        Assert.False(envelope.GetProperty("success").GetBoolean());
+        Assert.False(envelope.GetProperty("success").GetBoolean(), "Expected success=false");
         var error = envelope.GetProperty("error");
         Assert.Equal(JsonValueKind.Object, error.ValueKind);
         Assert.Equal(expectedCode, error.GetProperty("code").GetString());

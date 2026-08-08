@@ -139,8 +139,28 @@ internal static class KiokuTypedResultFilters
             return new(true, "INTERNAL_ERROR", normalized, null);
         }
 
+        if (normalized.StartsWith("[info]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(false, string.Empty, string.Empty, StripPrefix(normalized));
+        }
+
+        if (normalized.StartsWith("[ok]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(false, string.Empty, string.Empty, null);
+        }
+
+        if (normalized.StartsWith("[loading]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(true, "INDEX_NOT_READY", StripPrefix(normalized), null);
+        }
+
         if (normalized.StartsWith("[error:NOT_FOUND]", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            (normalized.StartsWith("[error]", StringComparison.OrdinalIgnoreCase) && normalized.Contains("not found", StringComparison.OrdinalIgnoreCase)) ||
+            normalized.StartsWith("Note not found", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("Template not found", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("Session note not found", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("The requested BibTeX source file was not found", StringComparison.OrdinalIgnoreCase) ||
+            (normalized.StartsWith("Project '", StringComparison.OrdinalIgnoreCase) && normalized.Contains("' not found", StringComparison.OrdinalIgnoreCase)))
         {
             return new(true, "NOT_FOUND", StripPrefix(normalized), null);
         }
@@ -156,13 +176,7 @@ internal static class KiokuTypedResultFilters
             return new(true, "AMBIGUOUS_REFERENCE", StripPrefix(normalized), null);
         }
 
-        if (normalized.StartsWith("[loading]", StringComparison.OrdinalIgnoreCase))
-        {
-            return new(true, "INDEX_NOT_READY", StripPrefix(normalized), null);
-        }
-
-        if (normalized.StartsWith("[error:DEPENDENCY_UNAVAILABLE]", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Contains("unavailable", StringComparison.OrdinalIgnoreCase))
+        if (normalized.StartsWith("[error:DEPENDENCY_UNAVAILABLE]", StringComparison.OrdinalIgnoreCase))
         {
             return new(true, "DEPENDENCY_UNAVAILABLE", StripPrefix(normalized), null);
         }
@@ -190,11 +204,6 @@ internal static class KiokuTypedResultFilters
                 var code = normalized["[error:".Length..closingBracket].ToUpperInvariant();
                 return new(true, code, StripPrefix(normalized), null);
             }
-        }
-
-        if (normalized.StartsWith("[info]", StringComparison.OrdinalIgnoreCase))
-        {
-            return new(false, string.Empty, string.Empty, StripPrefix(normalized));
         }
 
         return new(false, string.Empty, string.Empty, null);

@@ -33,7 +33,7 @@ public sealed class KiokuToolAnnotationsTests
         ["expire_coordination_claim"] = (false, false, true, false),
         ["export_citations"] = (true, false, true, false),
         ["find_duplicate_notes"] = (true, false, true, false),
-        ["find_orphan_assets"] = (true, false, true, false),
+        ["find_orphan_assets"] = (false, true, false, false),
         ["find_similar_notes"] = (true, false, true, true),
         ["generate_flashcards"] = (false, false, false, true),
         ["get_concept_map"] = (true, false, true, false),
@@ -168,6 +168,8 @@ public sealed class KiokuToolAnnotationsTests
     [Fact]
     public void All_77_tools_match_reviewed_annotation_matrix()
     {
+        Assert.Equal(77, ReviewedToolMatrix.Count);
+
         foreach (var (toolName, (expectedReadOnly, expectedDestructive, expectedIdempotent, expectedOpenWorld)) in ReviewedToolMatrix)
         {
             var annotations = KiokuToolAnnotations.Create(toolName);
