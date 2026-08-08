@@ -101,15 +101,26 @@ public sealed class McpSurfaceMetadataContractTests
         }
     }
 
-    [Fact]
-    public async Task Stdio_and_HTTP_transports_expose_identical_tool_names_annotations_and_output_schemas()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Stdio_and_HTTP_transports_expose_identical_tool_names_annotations_and_output_schemas(bool enableAllCapabilities)
     {
         var tempVault = Path.Combine(Path.GetTempPath(), $"kioku-contract-parity-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempVault);
         try
         {
+            if (enableAllCapabilities)
+            {
+                var configDir = Path.Combine(tempVault, ".kioku");
+                Directory.CreateDirectory(configDir);
+                await File.WriteAllTextAsync(
+                    Path.Combine(configDir, "config.yml"),
+                    "capabilities:\n  require_explicit: true\n  enabled: [tasks, organization, sessions, workflows, graph, engineering, research, generation, css, assets, bridge, plugin, coordination]\n");
+            }
+
             // 1. Discover surface over HTTP transport
-            await using var httpServer = await StartTestServerAsync(tempVault, enableAllCapabilities: false);
+            await using var httpServer = await StartTestServerAsync(tempVault, enableAllCapabilities);
             using var httpClient = CreateHttpClient();
             await InitializeMcpSessionAsync(httpServer.BaseUrl, httpClient);
             var httpTools = await FetchToolsListAsync(httpServer.BaseUrl, httpClient);
@@ -118,8 +129,10 @@ public sealed class McpSurfaceMetadataContractTests
             await using var stdioServer = await CoordinationProcessServer.StartStdioAsync(tempVault, "parity-test-client");
             var stdioTools = await stdioServer.Client.ListToolsAsync();
 
-            // 3. Compare tool counts
-            Assert.Equal(httpTools.Count, stdioTools.Count);
+            // 3. Compare tool counts (44 for default, 77 for all-capabilities)
+            var expectedCount = enableAllCapabilities ? 77 : 44;
+            Assert.Equal(expectedCount, httpTools.Count);
+            Assert.Equal(expectedCount, stdioTools.Count);
 
             // 4. Compare tool names
             var httpNames = httpTools.Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();

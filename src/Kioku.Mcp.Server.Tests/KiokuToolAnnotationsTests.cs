@@ -14,7 +14,7 @@ public sealed class KiokuToolAnnotationsTests
     {
         ["acquire_coordination_claim"] = (false, false, true, false),
         ["add_backlog_item"] = (false, false, false, false),
-        ["apply_template"] = (false, false, false, true),
+        ["apply_template"] = (false, true, false, true),
         ["audit_citations"] = (true, false, true, false),
         ["audit_vault"] = (true, false, true, false),
         ["create_coordination_work_item"] = (false, false, false, false),
@@ -35,7 +35,7 @@ public sealed class KiokuToolAnnotationsTests
         ["find_duplicate_notes"] = (true, false, true, false),
         ["find_orphan_assets"] = (false, true, false, false),
         ["find_similar_notes"] = (true, false, true, true),
-        ["generate_flashcards"] = (false, false, false, true),
+        ["generate_flashcards"] = (false, true, false, true),
         ["get_concept_map"] = (true, false, true, false),
         ["get_coordination_handoff"] = (true, false, true, false),
         ["get_coordination_work_item"] = (true, false, true, false),
@@ -47,7 +47,7 @@ public sealed class KiokuToolAnnotationsTests
         ["get_server_status"] = (true, false, true, false),
         ["get_vault_snapshot"] = (true, false, true, false),
         ["get_work_context"] = (true, false, true, false),
-        ["import_bibtex"] = (false, false, false, true),
+        ["import_bibtex"] = (false, true, false, true),
         ["lint"] = (false, true, false, true),
         ["list_coordination_blockers"] = (true, false, true, false),
         ["list_coordination_claims"] = (true, false, true, false),
@@ -142,6 +142,22 @@ public sealed class KiokuToolAnnotationsTests
         Assert.False(annotations.DestructiveHint);
         Assert.False(annotations.IdempotentHint);
         Assert.False(annotations.OpenWorldHint);
+    }
+
+    [Theory]
+    [InlineData("apply_template")]
+    [InlineData("import_bibtex")]
+    [InlineData("generate_flashcards")]
+    [InlineData("find_orphan_assets")]
+    [InlineData("manage_templates")]
+    [InlineData("process_inbox")]
+    [InlineData("manage_tags")]
+    public void Mixed_tools_with_overwrite_or_move_capabilities_are_destructive(string toolName)
+    {
+        var annotations = KiokuToolAnnotations.Create(toolName);
+
+        Assert.False(annotations.ReadOnlyHint, $"Tool '{toolName}' must not be read-only.");
+        Assert.True(annotations.DestructiveHint, $"Tool '{toolName}' must be marked as destructive due to potential overwrites/moves.");
     }
 
     [Theory]
