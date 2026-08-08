@@ -12,6 +12,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classify-changes:
+    name: classify-changes
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify pull request changes
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Pushes to main and manual runs always execute the complete CI matrix.
+          if [[ "$GITHUB_EVENT_NAME" != "pull_request" ]]; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            echo "Non-pull-request event: full CI required."
+            exit 0
+          fi
+
+          base="${{ github.event.pull_request.base.sha }}"
+          mapfile -t changed_files < <(git diff --name-only "$base"...HEAD)
+
+          # Fail safe: an empty or unknown change set runs the full matrix.
+          docs_only=true
+          if [[ ${#changed_files[@]} -eq 0 ]]; then
+            docs_only=false
+          fi
+
+          for file in "${changed_files[@]}"; do
+            case "$file" in
+              README.md | AGENTS.md | CONTRIBUTING.md | docs/*)
+                ;;
+              *)
+                docs_only=false
+                ;;
+            esac
+          done
+
+          printf 'docs_only=%s\n' "$docs_only" >> "$GITHUB_OUTPUT"
+          printf 'Changed files:\n'
+          printf '  %s\n' "${changed_files[@]}"
+          printf 'Documentation-only: %s\n' "$docs_only"
+
   commit-message-check:
     name: conventional-commits
     runs-on: ubuntu-latest
@@ -36,6 +83,8 @@ jobs:
 
   build-server:
     name: build-server (ubuntu-latest)
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -112,6 +161,8 @@ jobs:
 
   test-server:
     name: test-server (${{ matrix.os }})
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.docs_only != 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -189,6 +240,8 @@ jobs:
 
   package-smoke:
     name: package-smoke (${{ matrix.os }})
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.docs_only != 'true' }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -343,6 +396,8 @@ jobs:
 
   validate-integrations:
     name: validate-integrations (ubuntu-latest)
+    needs: classify-changes
+    if: ${{ needs.classify-changes.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
 
     steps:
