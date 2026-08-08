@@ -67,6 +67,22 @@ export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
 opencode mcp add
 ```
 
+When OpenCode prompts you, use:
+
+```text
+MCP server name: kioku
+MCP server type: Local
+Command to run: kioku
+```
+
+If OpenCode asks where to save the configuration, choose **Global** to make Kioku available across projects, or **Current project** only when you intentionally want repository-local configuration. Then verify the connection:
+
+```bash
+opencode mcp list
+```
+
+`KIOKU_VAULT_PATH` must also be present in the environment when future OpenCode sessions start; persist it in your shell profile if you want the setting to survive new terminals.
+
 #### GitHub Copilot CLI
 ```bash
 copilot mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
