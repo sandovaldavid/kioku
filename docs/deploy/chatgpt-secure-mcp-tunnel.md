@@ -37,12 +37,14 @@ Do not disable or weaken Kioku HTTP authentication to make this integration work
 
 ## Prerequisites
 
-1. Install Kioku and verify the local command:
+1. Install Kioku and verify that the command is on `PATH` without starting the MCP process:
 
    ```bash
    dotnet tool install --global kioku-mcp-server
-   kioku --help
+   command -v kioku
    ```
+
+   Kioku currently starts the MCP server directly and does not expose a documented `--help` command, so do not use `kioku --help` as a harmless presence check.
 
 2. Configure the vault path in the environment that will start the tunnel:
 
