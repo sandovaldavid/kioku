@@ -6,9 +6,9 @@ sidebar: true
 
 # ChatGPT Secure MCP Tunnel
 
-> **Status:** Kioku's local `stdio` server is implemented and supported. The OpenAI Secure MCP Tunnel integration described here is an external developer-mode integration and remains **Unconfirmed end to end** until `sandovaldavid/chatgpt-plugins#1` completes its ChatGPT validation matrix.
+> **Status:** Kioku's local `stdio` server is implemented and supported. The OpenAI Secure MCP Tunnel integration described here is an external developer-mode integration and remains **Unconfirmed end to end** until the ChatGPT validation matrix is completed.
 
-Use this path when ChatGPT developer mode needs private access to a Kioku server running on the same trusted workstation as the vault. Secure MCP Tunnel keeps the MCP endpoint private: `tunnel-client` establishes outbound connectivity to OpenAI and reaches the local MCP process without requiring public ingress to Kioku or Cortex-L7.
+Use this path when ChatGPT developer mode needs private access to a Kioku server running on the same trusted workstation as the vault. Secure MCP Tunnel keeps the MCP endpoint private: `tunnel-client` establishes outbound connectivity to OpenAI and reaches the local MCP process without requiring public ingress to Kioku or the configured vault.
 
 ## Recommended topology
 
@@ -86,7 +86,7 @@ Keep `tunnel-client run` healthy while ChatGPT uses the native Kioku connection.
 6. Create the connection and inspect the discovered MCP tools/metadata.
 7. Verify read-only calls before attempting writes.
 8. Verify one deliberately scoped focused write; do not use destructive tools merely to prove connectivity.
-9. Copy the resulting technical ChatGPT connection ID when packaging the full Kioku ChatGPT plugin.
+9. Copy the resulting technical ChatGPT connection ID only if a separate plugin package needs to reference the registered connection.
 
 Do not guess an Authentication dropdown value from this repository. The stdio MCP process does not use `ApiKeyMiddleware`; validate the current ChatGPT tunnel registration behavior in the target workspace.
 
@@ -104,15 +104,15 @@ Use a known test project or explicitly scoped disposable memory entry.
 
 Do not exercise `delete_note`, permanent trash operations, broad moves, or other destructive tools solely for a connection smoke test.
 
-## Provider behavior in the ChatGPT Kioku plugin
+## Provider behavior for a ChatGPT Kioku workflow
 
-The companion private `sandovaldavid/chatgpt-plugins` package uses this provider order:
+Use this provider order:
 
 1. connected native Kioku MCP tool/capability;
-2. GitHub-backed Cortex-L7 compatibility provider when native Kioku is unavailable;
+2. a separately configured Cortex-L7 compatibility workflow when native Kioku is unavailable;
 3. `Blocked` when neither provider can satisfy the requested operation.
 
-The GitHub fallback is intentionally weaker and must not claim live MCP discovery, semantic/hybrid retrieval, local Obsidian state, native session identity, atomic filesystem writes, compare-and-swap enforcement, mutation IDs, claims, leases, or fencing.
+Any compatibility fallback is intentionally weaker and must not claim live MCP discovery, semantic/hybrid retrieval, local Obsidian state, native session identity, atomic filesystem writes, compare-and-swap enforcement, mutation IDs, claims, leases, or fencing.
 
 ## Streamable HTTP alternative
 
