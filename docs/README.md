@@ -60,6 +60,7 @@ Kioku's core MCP server works directly against the configured vault directory. O
 |---|---|---|
 | [Threat and privacy model](threat-and-privacy-model.md) | Implemented with named gaps | Trust boundaries, data flows, controls, and residual risks. |
 | [Streamable HTTP authentication](deploy/auth-options.md) | Implemented | API keys, origins, proxies, and deployment guidance. |
+| [ChatGPT Secure MCP Tunnel](deploy/chatgpt-secure-mcp-tunnel.md) | Unconfirmed end to end / integration guide | Connect ChatGPT developer mode privately to local Kioku `stdio` through OpenAI Secure MCP Tunnel without exposing a public Kioku endpoint. |
 | [Docker](docker.md) | Implemented | Build and run the supplied Dockerfile and Compose stack. |
 | [systemd unit](deploy/kioku.service) | Implemented example | Service unit template that requires operator-specific paths and secrets. |
 | [Nginx configuration](deploy/nginx.conf) | Implemented example | Reverse-proxy template that requires operator-specific values. |
