@@ -72,10 +72,10 @@ opencode mcp add
 copilot mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
 ```
 
-#### Antigravity CLI / IDE
+#### Antigravity CLI (`agy`)
 ```bash
 export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
-# Register via ~/.gemini/config/mcp_config.json or workspace plugin bundle
+agy plugin install ./integrations/antigravity-plugin
 ```
 
 See the [Installation Guide](docs/install.md) for detailed configuration, scope options, manual TOML/JSON files, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).

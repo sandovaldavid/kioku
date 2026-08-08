@@ -3,9 +3,7 @@
     "kioku": {
       "command": "kioku",
       "args": [],
-      "env": {
-        "KIOKU_VAULT_PATH": "${KIOKU_VAULT_PATH}"
-      }
+      "env": {}
     }
   }
 }

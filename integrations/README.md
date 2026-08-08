@@ -38,7 +38,18 @@ the plugin's `userConfig`; no manual `.mcp.json` editing is required.
 
 ## `antigravity-plugin/`
 
-An Antigravity plugin bundle. Installed into `~/.gemini/config/plugins/kioku/` (user scope) or `.agents/plugins/kioku/` (workspace scope).
+An Antigravity plugin bundle. Installed into `~/.gemini/antigravity-cli/plugins/kioku/` (user scope) or `.agents/plugins/kioku/` (workspace scope) via `agy`:
+
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+agy plugin install ./integrations/antigravity-plugin
+```
+
+Validate the bundle structure with:
+
+```bash
+agy plugin validate ./integrations/antigravity-plugin
+```
 
 - **`skills/*/SKILL.md` files are generated.** Update the canonical Claude Code copies and run
   `scripts/sync-skill.sh`; CI checks drift with `sync-skill.sh --check`.

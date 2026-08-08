@@ -89,9 +89,9 @@ async function validateConfigs() {
   // Verify antigravity plugin mcp_config.json
   try {
     const agConfig = JSON.parse(await readFile(path.join(rootDir, "integrations/antigravity-plugin/mcp_config.json"), "utf8"));
-    const vaultPath = agConfig.mcpServers?.kioku?.env?.KIOKU_VAULT_PATH;
-    if (vaultPath !== "${KIOKU_VAULT_PATH}") {
-      failures.push(`integrations/antigravity-plugin/mcp_config.json: KIOKU_VAULT_PATH must be '\${KIOKU_VAULT_PATH}', found '${vaultPath}'`);
+    const kiokuServer = agConfig.mcpServers?.kioku;
+    if (!kiokuServer || kiokuServer.command !== "kioku") {
+      failures.push(`integrations/antigravity-plugin/mcp_config.json: mcpServers.kioku command must be 'kioku'`);
     }
   } catch (error) {
     failures.push(`integrations/antigravity-plugin/mcp_config.json: invalid or missing configuration (${error.message})`);

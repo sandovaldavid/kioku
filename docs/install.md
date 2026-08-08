@@ -195,31 +195,37 @@ copilot mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- k
 
 ---
 
-### Antigravity CLI / IDE
+### Antigravity
 
-Antigravity supports user-scoped configuration (`~/.gemini/config/mcp_config.json`), workspace-scoped plugin bundles (`.agents/plugins/kioku/`), or global plugin bundles (`~/.gemini/config/plugins/kioku/`).
+Antigravity supports native plugin installation via the `agy` CLI as well as manual configuration in `~/.gemini/config/mcp_config.json`.
 
-#### User Configuration (`~/.gemini/config/mcp_config.json`)
+#### Antigravity CLI (`agy`)
 
-Set `KIOKU_VAULT_PATH` in your shell environment or specify the absolute path in `mcp_config.json`:
+Install the verified plugin bundle using the official `agy plugin` CLI command:
+
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+agy plugin install ./integrations/antigravity-plugin
+```
+
+This stages the plugin under `~/.gemini/antigravity-cli/plugins/kioku/` (or workspace-scoped `.agents/plugins/kioku/`).
+
+#### Antigravity IDE / Config (`mcp_config.json`)
+
+For user-level configuration in `~/.gemini/config/mcp_config.json`:
 
 ```json
 {
   "mcpServers": {
     "kioku": {
       "command": "kioku",
-      "args": [],
-      "env": {
-        "KIOKU_VAULT_PATH": "${KIOKU_VAULT_PATH}"
-      }
+      "args": []
     }
   }
 }
 ```
 
-#### Native Plugin Bundle
-
-Copy `integrations/antigravity-plugin` to `~/.gemini/config/plugins/kioku/` (user scope) or `.agents/plugins/kioku/` (workspace scope).
+Ensure `KIOKU_VAULT_PATH` is exported in your environment prior to launching.
 
 ---
 
