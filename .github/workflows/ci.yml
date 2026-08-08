@@ -389,11 +389,7 @@ jobs:
 
       - name: Shellcheck
         run: |
-          shellcheck scripts/add-to-client.sh scripts/sync-skill.sh scripts/install.sh scripts/sync-develop-to-main.sh
+          shellcheck scripts/sync-skill.sh scripts/install.sh scripts/sync-develop-to-main.sh
 
-      - name: Dry-run add-to-client.sh for every client
-        run: |
-          mkdir -p /tmp/fake-vault
-          for client in claude-code codex opencode antigravity; do
-            ./scripts/add-to-client.sh "$client" --vault /tmp/fake-vault --dry-run --yes
-          done
+      - name: Validate portable client configurations
+        run: node scripts/validate-portable-configs.mjs

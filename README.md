@@ -30,45 +30,59 @@ Open issues, historical plans, and pull-request descriptions are not implementat
 
 ## Quick start
 
-### Install the server
+### Step 1: Install the server
 
 ```bash
 dotnet tool install --global kioku-mcp-server
 ```
 
-Set the vault path and register `kioku` in your MCP client:
+Or install via one-liner script:
 
 ```bash
-export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
-kioku
+curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/install.sh | bash
 ```
 
-The repository installer supports Claude Code, Codex, OpenCode, and Antigravity:
+### Step 2: Register in your MCP client
 
+Set `KIOKU_VAULT_PATH` and register using your client's native registration mechanism:
+
+#### Claude Code
 ```bash
-./scripts/add-to-client.sh claude-code --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh codex --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh opencode --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh antigravity --vault /absolute/path/to/your/vault
-```
+# Global user scope
+claude mcp add kioku --scope user --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
 
-The default Claude Code target installs the bundled plugin and `kioku-vault` skill. Use direct native MCP registration instead with:
-
-```bash
-./scripts/add-to-client.sh claude-code \
-  --vault /absolute/path/to/your/vault \
-  --simple \
-  --scope project
-```
-
-Claude Code users can also install the bundled plugin manually:
-
-```bash
+# Or via plugin marketplace
 claude plugin marketplace add sandovaldavid/kioku
 claude plugin install kioku@kioku
 ```
 
-See the [installation guide](docs/install.md) for manual client configuration, source builds, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
+#### Codex CLI
+```bash
+codex mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### OpenCode
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+opencode mcp add
+```
+
+#### GitHub Copilot CLI
+```bash
+copilot mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### Antigravity CLI (`agy`)
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+# Native MCP configuration (~/.gemini/config/mcp_config.json):
+# { "mcpServers": { "kioku": { "command": "kioku" } } }
+
+# Or install local plugin bundle (from cloned kioku repository):
+# agy plugin install ./integrations/antigravity-plugin
+```
+
+See the [Installation Guide](docs/install.md) for detailed configuration, scope options, manual TOML/JSON files, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
 
 ## Architecture
 

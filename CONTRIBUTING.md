@@ -105,15 +105,14 @@ node scripts/generate-public-docs.mjs --check
 node scripts/validate-markdown-links.mjs
 node scripts/validate-docs-navigation.mjs
 node scripts/validate-release-documentation.mjs
+node scripts/validate-portable-configs.mjs
 ```
 
 Run change-specific checks when applicable:
 
 ```bash
-# Client installer changes
-for client in claude-code codex opencode antigravity; do
-  ./scripts/add-to-client.sh "$client" --vault /absolute/path/to/test-vault --dry-run --yes
-done
+# Integration asset / configuration changes
+node scripts/validate-portable-configs.mjs
 
 # Dev Container changes
 bash .devcontainer/scripts/validate-devcontainer.sh
