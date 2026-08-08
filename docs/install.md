@@ -4,59 +4,113 @@ title: Installation Guide
 sidebar: true
 ---
 
-# Installation
+# Installation Guide
 
-## Requirements
+Kioku installation and client integration is organized into two independent steps:
 
-- An existing Obsidian vault directory. The Obsidian application does not need to be open for core server operations.
-- .NET 10 only when building from source; the published global tool and self-contained binaries include what they need.
-- Ollama only for semantic retrieval or local generation.
-- The [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian) only for UI and supported-plugin bridge operations. Those operations require Obsidian and the plugin to be running.
+```text
+Step 1: Install Kioku server
+Step 2: Register Kioku with your MCP client using native mechanisms
+```
 
-## Install the .NET tool
+> [!NOTE]
+> `KIOKU_VAULT_PATH` is a required user-local configuration. Kioku has no implicit default vault (such as `~/Documents/Obsidian` or the current directory) and fails explicitly during server initialization if a valid vault path is missing or invalid.
+
+---
+
+## Step 1: Install Kioku server
+
+Install the prebuilt Kioku MCP server binary or global tool.
+
+### Option A: Install via .NET Global Tool (Recommended)
 
 ```bash
 dotnet tool install --global kioku-mcp-server
-export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
-kioku
 ```
 
-Update later with:
+To update later:
 
 ```bash
 dotnet tool update --global kioku-mcp-server
 ```
 
-## Register an MCP client
-
-The repository installer supports Claude Code, Codex, OpenCode, and Antigravity:
+### Option B: Install via One-Line Install Script
 
 ```bash
-./scripts/add-to-client.sh claude-code --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh codex --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh opencode --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh antigravity --vault /absolute/path/to/your/vault
+curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/install.sh | bash
 ```
 
-For Claude Code, the default target registers the Kioku marketplace and installs the bundled plugin and `kioku-vault` skill. The script asks for the vault path when Claude installs the plugin configuration.
+This installs the standalone `kioku` binary for your platform to `~/.local/bin/kioku`. Ensure `~/.local/bin` is in your `PATH`.
 
-Use Claude Code's native MCP registration without the bundled plugin with:
+### Option C: Build from Source
 
 ```bash
-./scripts/add-to-client.sh claude-code \
-  --vault /absolute/path/to/your/vault \
-  --simple \
-  --scope project
+git clone https://github.com/sandovaldavid/kioku.git
+cd kioku
+dotnet restore Kioku.slnx
+dotnet build Kioku.slnx --configuration Release --no-restore
 ```
 
-A minimal manual stdio configuration is:
+---
+
+## Step 2: Register with your MCP client
+
+Register `kioku` with your AI coding client using the native registration mechanism for that client.
+
+### Paths containing spaces
+When your vault directory path contains spaces, wrap the path in quotes in shell commands or JSON configurations:
+- Shell: `export KIOKU_VAULT_PATH="/Users/yourname/My Obsidian Vault"`
+- JSON: `"KIOKU_VAULT_PATH": "/Users/yourname/My Obsidian Vault"`
+
+---
+
+### Claude Code
+
+Claude Code supports native CLI MCP registration as well as native plugin installation.
+
+#### Native CLI Registration
+
+To add Kioku to your Claude Code configuration:
+
+```bash
+# Global user configuration
+claude mcp add kioku -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+
+# Project scope
+claude mcp add kioku --scope project -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### Native Plugin Installation
+
+Claude Code users can install the Kioku plugin from the marketplace:
+
+```bash
+claude plugin marketplace add sandovaldavid/kioku
+claude plugin install kioku@kioku
+```
+
+During installation, Claude Code prompts for `userConfig.vault_path` (and optional Ollama settings).
+
+---
+
+### Codex CLI
+
+Codex supports native MCP server registration via `codex mcp add` or directly in `~/.codex/config.json`:
+
+#### CLI Command
+
+```bash
+codex mcp add kioku -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### Native Configuration (`~/.codex/config.json`)
 
 ```json
 {
   "mcpServers": {
     "kioku": {
-      "type": "stdio",
       "command": "kioku",
+      "args": [],
       "env": {
         "KIOKU_VAULT_PATH": "/absolute/path/to/your/vault"
       }
@@ -65,11 +119,103 @@ A minimal manual stdio configuration is:
 }
 ```
 
-Use your client's equivalent MCP configuration location. Keep the vault path absolute.
+---
 
-## Streamable HTTP
+### OpenCode
 
-Start a long-running loopback server:
+OpenCode configures MCP servers via `opencode.json` at the root of your workspace or globally. `opencode.json` supports environment variable interpolation using `{env:VARIABLE_NAME}`.
+
+#### Project Configuration (`opencode.json`)
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "kioku": {
+      "type": "local",
+      "command": ["kioku"],
+      "enabled": true,
+      "environment": {
+        "KIOKU_VAULT_PATH": "{env:KIOKU_VAULT_PATH}",
+        "KIOKU_OLLAMA_URL": "http://localhost:11434",
+        "KIOKU_EMBEDDING_MODEL": "nomic-embed-text"
+      }
+    }
+  }
+}
+```
+
+Ensure `KIOKU_VAULT_PATH` is exported in your environment before launching OpenCode:
+
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+```
+
+---
+
+### GitHub Copilot (VS Code)
+
+GitHub Copilot in VS Code supports MCP server registration via `.vscode/mcp.json` (workspace scope) or global VS Code settings.
+
+#### Workspace Configuration (`.vscode/mcp.json`)
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "kioku",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "/absolute/path/to/your/vault"
+      }
+    }
+  }
+}
+```
+
+---
+
+### Antigravity CLI / IDE
+
+Antigravity supports user-scoped configuration (`~/.gemini/config/mcp_config.json`), workspace-scoped plugin bundles (`.agents/plugins/kioku/`), or global plugin bundles (`~/.gemini/config/plugins/kioku/`).
+
+#### User Configuration (`~/.gemini/config/mcp_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "kioku": {
+      "command": "kioku",
+      "args": [],
+      "env": {
+        "KIOKU_VAULT_PATH": "${KIOKU_VAULT_PATH}"
+      }
+    }
+  }
+}
+```
+
+#### Native Plugin Bundle
+
+Copy `integrations/antigravity-plugin` to `~/.gemini/config/plugins/kioku/` (user scope) or `.agents/plugins/kioku/` (workspace scope).
+
+---
+
+## Verifying Server Startup & Tools
+
+After completing registration, start your client and verify that `kioku` connects.
+
+1. Call `tools/list` to confirm tools are registered.
+2. Invoke `get_server_status` to verify vault path resolution and status.
+3. Invoke `get_server_capabilities` to inspect available tool profiles and capability gates.
+
+If `KIOKU_VAULT_PATH` is missing or invalid, server initialization fails explicitly with an actionable message.
+
+---
+
+## Streamable HTTP (Remote / Loopback Server)
+
+Start a long-running HTTP server:
 
 ```bash
 export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
@@ -78,63 +224,13 @@ export KIOKU_API_KEY="$(openssl rand -hex 32)"
 kioku
 ```
 
-Endpoint: `http://127.0.0.1:5173/mcp`
+Endpoint: `http://127.0.0.1:5173/mcp`  
+Header: `Authorization: Bearer <KIOKU_API_KEY>`
 
-A client must send:
+See [Streamable HTTP security](deploy/auth-options.md) for details on authentication and host binding options.
 
-```text
-Authorization: Bearer <KIOKU_API_KEY>
-```
+---
 
-Read [Streamable HTTP security](deploy/auth-options.md) before changing the bind host or placing Kioku behind a proxy.
+## Optional Obsidian Plugin
 
-## Build from source
-
-```bash
-git clone https://github.com/sandovaldavid/kioku.git
-cd kioku
-dotnet restore Kioku.slnx
-dotnet build Kioku.slnx --configuration Release --no-restore
-KIOKU_VAULT_PATH=/absolute/path/to/vault dotnet run --project src/Kioku.Mcp.Server
-```
-
-Publish a native single-file binary by selecting a supported RID:
-
-```bash
-dotnet publish src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
-  --configuration Release \
-  --runtime linux-x64 \
-  --self-contained \
-  --output artifacts/kioku
-```
-
-Representative RIDs include `linux-x64`, `linux-arm64`, `win-x64`, `win-arm64`, `osx-x64`, and `osx-arm64`.
-
-## Optional Obsidian plugin
-
-The Obsidian plugin lives in its own repository: [sandovaldavid/kioku-obsidian](https://github.com/sandovaldavid/kioku-obsidian). It is versioned and released independently of the server.
-
-Install it with [BRAT](https://github.com/TfTHacker/obsidian42-brat) by adding `sandovaldavid/kioku-obsidian` as a beta plugin, or download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/sandovaldavid/kioku-obsidian/releases/latest) into:
-
-```text
-<vault>/.obsidian/plugins/kioku-mcp/
-```
-
-Enable **Kioku MCP** under Obsidian → Settings → Community plugins. Configure the plugin auth token and `KIOKU_BRIDGE_TOKEN` with the same secret.
-
-The plugin is not required for filesystem-backed note, project, session, search, indexing, or coordination tools. It is required only when a caller uses the optional Obsidian UI or supported-plugin bridge surface.
-
-## Configuration
-
-The complete, generated list of environment variables and canonical configuration paths is in the [server configuration reference](configuration-reference.md). Vault-level behavior is documented in [vault configuration](vault-config.md).
-
-## Verify an installation
-
-After starting the server, use an MCP client to run `tools/list`, then call `get_server_status` and `get_server_capabilities`. Core server verification is valid with Obsidian closed; the bridge state may report unavailable until the optional plugin is running. Coordination must report a gated rollout and a disabled capability group unless you explicitly enabled it for a reviewed local-filesystem deployment.
-
-For HTTP deployments:
-
-```bash
-curl http://127.0.0.1:5173/health/live
-curl -H "Authorization: Bearer $KIOKU_API_KEY" http://127.0.0.1:5173/health/ready
-```
+The optional Obsidian bridge plugin is maintained in [sandovaldavid/kioku-obsidian](https://github.com/sandovaldavid/kioku-obsidian). It is needed only for Obsidian UI operations or plugin bridge integrations. Direct note, search, session, and project tools operate directly on the vault filesystem without needing Obsidian to be running.

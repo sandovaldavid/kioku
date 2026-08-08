@@ -37,7 +37,7 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 - Default MCP profile: 44 tools.
 - All-capabilities profile: 77 tools.
 - Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
-- Supported `scripts/add-to-client.sh` targets: `claude-code`, `codex`, `opencode`, and `antigravity`; CI dry-runs all four.
+- Supported client integrations: Claude Code, Codex, OpenCode, GitHub Copilot, and Antigravity via native client MCP registration.
 - The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative for tool names, schemas, annotations, prompts, resources, and profile counts.
 - The generated [`docs/configuration-reference.md`](docs/configuration-reference.md) is authoritative for public process configuration.
 - Markdown files in the vault are the durable source of truth. Runtime indexes and the embeddings cache are derived data; there are no database migrations to maintain.
@@ -155,15 +155,14 @@ node scripts/generate-public-docs.mjs --check
 node scripts/validate-markdown-links.mjs
 node scripts/validate-docs-navigation.mjs
 node scripts/validate-release-documentation.mjs
+node scripts/validate-portable-configs.mjs
 ```
 
 Change-specific checks:
 
 ```bash
-# Client installer changes
-for client in claude-code codex opencode antigravity; do
-  ./scripts/add-to-client.sh "$client" --vault /absolute/path/to/test-vault --dry-run --yes
-done
+# Integration asset / configuration changes
+node scripts/validate-portable-configs.mjs
 
 # Dev Container changes
 bash .devcontainer/scripts/validate-devcontainer.sh
