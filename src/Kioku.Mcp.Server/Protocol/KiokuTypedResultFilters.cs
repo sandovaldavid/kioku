@@ -6,47 +6,6 @@ namespace Kioku.Mcp.Server.Protocol;
 
 internal static class KiokuTypedResultFilters
 {
-    private static readonly HashSet<string> MigratedTools = new(StringComparer.Ordinal)
-    {
-        "read_note",
-        "list_notes",
-        "search_notes",
-        "get_project_context",
-        "start_work_session",
-        "end_work_session",
-        "create_note",
-        "edit_note",
-        "delete_note",
-        "record_adr",
-        "record_bug",
-        "create_implementation_plan",
-        "save_project_knowledge",
-        "add_backlog_item",
-        "create_regular_note",
-        "create_zettel",
-        "create_literature_note",
-        "create_moc",
-        "create_folder_readme",
-        "get_server_capabilities",
-        "create_coordination_work_item",
-        "get_coordination_work_item",
-        "list_coordination_work_items",
-        "list_coordination_runs",
-        "transition_coordination_work_item",
-        "acquire_coordination_claim",
-        "renew_coordination_claim",
-        "release_coordination_claim",
-        "expire_coordination_claim",
-        "list_coordination_claims",
-        "list_coordination_history",
-        "get_coordination_handoff",
-        "list_coordination_blockers",
-        "list_stale_coordination_work",
-        "list_failed_coordination_attempts",
-        "list_coordination_conflicts",
-        "resolve_coordination_conflict",
-    };
-
     private static readonly JsonElement OutputSchema = JsonSerializer.SerializeToElement(new
     {
         type = "object",
@@ -97,10 +56,7 @@ internal static class KiokuTypedResultFilters
                 foreach (var tool in result.Tools)
                 {
                     tool.Annotations = KiokuToolAnnotations.Create(tool.Name);
-                    if (MigratedTools.Contains(tool.Name))
-                    {
-                        tool.OutputSchema = OutputSchema;
-                    }
+                    tool.OutputSchema = OutputSchema;
                 }
 
                 return result;
@@ -109,8 +65,7 @@ internal static class KiokuTypedResultFilters
             filters.AddCallToolFilter(next => async (context, cancellationToken) =>
             {
                 var result = await next(context, cancellationToken);
-                if (!MigratedTools.Contains(context.Params.Name) ||
-                    result.StructuredContent is JsonElement { ValueKind: JsonValueKind.Object })
+                if (result.StructuredContent is JsonElement { ValueKind: JsonValueKind.Object })
                 {
                     return result;
                 }
@@ -184,8 +139,28 @@ internal static class KiokuTypedResultFilters
             return new(true, "INTERNAL_ERROR", normalized, null);
         }
 
+        if (normalized.StartsWith("[info]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(false, string.Empty, string.Empty, StripPrefix(normalized));
+        }
+
+        if (normalized.StartsWith("[ok]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(false, string.Empty, string.Empty, null);
+        }
+
+        if (normalized.StartsWith("[loading]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(true, "INDEX_NOT_READY", StripPrefix(normalized), null);
+        }
+
         if (normalized.StartsWith("[error:NOT_FOUND]", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            (normalized.StartsWith("[error]", StringComparison.OrdinalIgnoreCase) && normalized.Contains("not found", StringComparison.OrdinalIgnoreCase)) ||
+            normalized.StartsWith("Note not found", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("Template not found", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("Session note not found", StringComparison.OrdinalIgnoreCase) ||
+            normalized.StartsWith("The requested BibTeX source file was not found", StringComparison.OrdinalIgnoreCase) ||
+            (normalized.StartsWith("Project '", StringComparison.OrdinalIgnoreCase) && normalized.Contains("' not found", StringComparison.OrdinalIgnoreCase)))
         {
             return new(true, "NOT_FOUND", StripPrefix(normalized), null);
         }
@@ -201,13 +176,7 @@ internal static class KiokuTypedResultFilters
             return new(true, "AMBIGUOUS_REFERENCE", StripPrefix(normalized), null);
         }
 
-        if (normalized.StartsWith("[loading]", StringComparison.OrdinalIgnoreCase))
-        {
-            return new(true, "INDEX_NOT_READY", StripPrefix(normalized), null);
-        }
-
-        if (normalized.StartsWith("[error:DEPENDENCY_UNAVAILABLE]", StringComparison.OrdinalIgnoreCase) ||
-            normalized.Contains("unavailable", StringComparison.OrdinalIgnoreCase))
+        if (normalized.StartsWith("[error:DEPENDENCY_UNAVAILABLE]", StringComparison.OrdinalIgnoreCase))
         {
             return new(true, "DEPENDENCY_UNAVAILABLE", StripPrefix(normalized), null);
         }
@@ -235,11 +204,6 @@ internal static class KiokuTypedResultFilters
                 var code = normalized["[error:".Length..closingBracket].ToUpperInvariant();
                 return new(true, code, StripPrefix(normalized), null);
             }
-        }
-
-        if (normalized.StartsWith("[info]", StringComparison.OrdinalIgnoreCase))
-        {
-            return new(false, string.Empty, string.Empty, StripPrefix(normalized));
         }
 
         return new(false, string.Empty, string.Empty, null);
