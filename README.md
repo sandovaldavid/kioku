@@ -44,24 +44,41 @@ curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/in
 
 ### Step 2: Register in your MCP client
 
-Set `KIOKU_VAULT_PATH` and register using your client's native MCP mechanism:
+Set `KIOKU_VAULT_PATH` and register using your client's native registration mechanism:
 
+#### Claude Code
 ```bash
-# Example for Claude Code (native CLI)
-claude mcp add kioku -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+# Global user scope
+claude mcp add kioku --scope user --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
 
-# Example for Codex CLI
-codex mcp add kioku -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
-```
-
-Claude Code users can also install the bundled plugin:
-
-```bash
+# Or via plugin marketplace
 claude plugin marketplace add sandovaldavid/kioku
 claude plugin install kioku@kioku
 ```
 
-See the [Installation Guide](docs/install.md) for detailed native client setup (OpenCode, GitHub Copilot, Antigravity, etc.), source builds, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
+#### Codex CLI
+```bash
+codex mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### OpenCode
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+opencode mcp add
+```
+
+#### GitHub Copilot CLI
+```bash
+copilot mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### Antigravity CLI / IDE
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+# Register via ~/.gemini/config/mcp_config.json or workspace plugin bundle
+```
+
+See the [Installation Guide](docs/install.md) for detailed configuration, scope options, manual TOML/JSON files, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
 
 ## Architecture
 

@@ -58,9 +58,9 @@ dotnet build Kioku.slnx --configuration Release --no-restore
 Register `kioku` with your AI coding client using the native registration mechanism for that client.
 
 ### Paths containing spaces
-When your vault directory path contains spaces, wrap the path in quotes in shell commands or JSON configurations:
+When your vault directory path contains spaces, wrap the path in quotes in shell commands or configuration files:
 - Shell: `export KIOKU_VAULT_PATH="/Users/yourname/My Obsidian Vault"`
-- JSON: `"KIOKU_VAULT_PATH": "/Users/yourname/My Obsidian Vault"`
+- JSON / TOML: `"KIOKU_VAULT_PATH": "/Users/yourname/My Obsidian Vault"`
 
 ---
 
@@ -70,14 +70,12 @@ Claude Code supports native CLI MCP registration as well as native plugin instal
 
 #### Native CLI Registration
 
-To add Kioku to your Claude Code configuration:
-
 ```bash
-# Global user configuration
-claude mcp add kioku -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+# Global user scope (recommended for personal setup)
+claude mcp add kioku --scope user --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
 
-# Project scope
-claude mcp add kioku --scope project -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+# Project scope (workspace-local)
+claude mcp add kioku --scope project --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
 ```
 
 #### Native Plugin Installation
@@ -91,19 +89,7 @@ claude plugin install kioku@kioku
 
 During installation, Claude Code prompts for `userConfig.vault_path` (and optional Ollama settings).
 
----
-
-### Codex CLI
-
-Codex supports native MCP server registration via `codex mcp add` or directly in `~/.codex/config.json`:
-
-#### CLI Command
-
-```bash
-codex mcp add kioku -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
-```
-
-#### Native Configuration (`~/.codex/config.json`)
+#### Manual JSON Configuration (`.mcp.json`)
 
 ```json
 {
@@ -121,11 +107,45 @@ codex mcp add kioku -e KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
 
 ---
 
+### Codex CLI
+
+Codex CLI manages MCP servers natively via `codex mcp add` or via `~/.codex/config.toml` (or `.codex/config.toml`).
+
+#### Native CLI Registration
+
+```bash
+codex mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### Manual TOML Configuration (`~/.codex/config.toml`)
+
+Codex configuration uses TOML tables for MCP server definitions:
+
+```toml
+[mcp_servers.kioku]
+command = "kioku"
+args = []
+
+[mcp_servers.kioku.env]
+KIOKU_VAULT_PATH = "/absolute/path/to/your/vault"
+```
+
+---
+
 ### OpenCode
 
-OpenCode configures MCP servers via `opencode.json` at the root of your workspace or globally. `opencode.json` supports environment variable interpolation using `{env:VARIABLE_NAME}`.
+OpenCode configures MCP servers via `opencode mcp add` CLI command or directly through `opencode.json` at the root of your workspace or user config.
 
-#### Project Configuration (`opencode.json`)
+#### Native CLI Registration
+
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+opencode mcp add
+```
+
+#### Workspace Configuration (`opencode.json`)
+
+`opencode.json` supports environment variable interpolation using `{env:VARIABLE_NAME}`:
 
 ```json
 {
@@ -145,19 +165,19 @@ OpenCode configures MCP servers via `opencode.json` at the root of your workspac
 }
 ```
 
-Ensure `KIOKU_VAULT_PATH` is exported in your environment before launching OpenCode:
-
-```bash
-export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
-```
-
 ---
 
-### GitHub Copilot (VS Code)
+### GitHub Copilot CLI / VS Code
 
-GitHub Copilot in VS Code supports MCP server registration via `.vscode/mcp.json` (workspace scope) or global VS Code settings.
+GitHub Copilot CLI supports native MCP server registration via `copilot mcp add`. VS Code also supports workspace configuration via `.vscode/mcp.json`.
 
-#### Workspace Configuration (`.vscode/mcp.json`)
+#### Native CLI Registration (Terminal Users)
+
+```bash
+copilot mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### VS Code Workspace Configuration (`.vscode/mcp.json`)
 
 ```json
 {
@@ -180,6 +200,8 @@ GitHub Copilot in VS Code supports MCP server registration via `.vscode/mcp.json
 Antigravity supports user-scoped configuration (`~/.gemini/config/mcp_config.json`), workspace-scoped plugin bundles (`.agents/plugins/kioku/`), or global plugin bundles (`~/.gemini/config/plugins/kioku/`).
 
 #### User Configuration (`~/.gemini/config/mcp_config.json`)
+
+Set `KIOKU_VAULT_PATH` in your shell environment or specify the absolute path in `mcp_config.json`:
 
 ```json
 {
