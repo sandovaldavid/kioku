@@ -243,7 +243,10 @@ static async Task<int> RunHttpAsync(
     HttpTransportSecurity.ConfigureBuilder(builder, config);
 
     var capabilities = VaultCapabilityProfile.Load(config.VaultPath);
-    var mcpBuilder = builder.Services.AddMcpServer().WithHttpTransport();
+    var mcpBuilder = builder.Services.AddMcpServer().WithHttpTransport(options =>
+    {
+        options.Stateless = true;
+    });
     ConfigureKiokuTools(mcpBuilder, capabilities);
     ConfigureKiokuPromptsAndResources(mcpBuilder, capabilities);
 
