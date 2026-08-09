@@ -46,34 +46,46 @@ public sealed class VaultLinkResolver(
             return Malformed(rawTarget);
         }
 
+        // A literal '#' is legal in a filename. Prefer the entire literal target first, then
+        // examine fragment separators from right to left so `file#name#Heading` resolves the
+        // longest existing filename (`file#name`) before treating `#Heading` as a fragment.
         var literal = ResolveLiteral(source, rawTarget, normalized);
         if (literal.Status != VaultLinkResolutionStatus.Missing)
         {
             return literal;
         }
 
-        var hashIndex = normalized.IndexOf('#');
-        if (hashIndex < 0)
+        var hashIndex = normalized.LastIndexOf('#');
+        VaultLinkResolution? firstNonMissing = null;
+        while (hashIndex >= 0)
         {
-            return literal;
+            var target = normalized[..hashIndex].Trim();
+            var fragment = normalized[hashIndex..].Trim();
+            if (fragment.Length <= 1)
+            {
+                return Malformed(rawTarget, target, fragment);
+            }
+
+            if (target.Length == 0)
+            {
+                return source is null
+                    ? Missing(rawTarget, target, fragment)
+                    : Resolved(rawTarget, target, fragment, source, CanonicalPath(source));
+            }
+
+            var withoutFragment = ResolveLiteral(source, rawTarget, target) with { Fragment = fragment };
+            if (withoutFragment.Status == VaultLinkResolutionStatus.Resolved)
+            {
+                return withoutFragment;
+            }
+
+            firstNonMissing ??= withoutFragment.Status == VaultLinkResolutionStatus.Missing
+                ? null
+                : withoutFragment;
+            hashIndex = normalized.LastIndexOf('#', hashIndex - 1);
         }
 
-        var target = normalized[..hashIndex].Trim();
-        var fragment = normalized[hashIndex..].Trim();
-        if (fragment.Length <= 1)
-        {
-            return Malformed(rawTarget, target, fragment);
-        }
-
-        if (target.Length == 0)
-        {
-            return source is null
-                ? Missing(rawTarget, target, fragment)
-                : Resolved(rawTarget, target, fragment, source, CanonicalPath(source));
-        }
-
-        var withoutFragment = ResolveLiteral(source, rawTarget, target);
-        return withoutFragment with { Fragment = fragment };
+        return firstNonMissing ?? literal;
     }
 
     private VaultLinkResolution ResolveLiteral(Note? source, string rawTarget, string target)
