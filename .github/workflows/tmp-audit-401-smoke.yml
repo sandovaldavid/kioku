@@ -1,0 +1,62 @@
+name: temporary-audit-401-smoke
+
+on:
+  push:
+    branches: [fix/audit-pagination-401]
+
+permissions:
+  contents: write
+
+jobs:
+  fixup:
+    if: ${{ !contains(github.event.head_commit.message, 'cover audit contract across transports') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/audit-pagination-401
+          fetch-depth: 0
+
+      - name: Add audit_vault contract smoke to shared transport verification
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/Kioku.Ci/Program.cs')
+          text = path.read_text()
+
+          old_call = '''        await VerifyCapabilitiesAsync(client, options, cancellationToken);\n        await VerifyWorkSessionHandoffAsync(client, createSecondClientAsync, cancellationToken);'''
+          new_call = '''        await VerifyCapabilitiesAsync(client, options, cancellationToken);\n        await VerifyAuditVaultAsync(client, cancellationToken);\n        await VerifyWorkSessionHandoffAsync(client, createSecondClientAsync, cancellationToken);'''
+          if old_call not in text:
+              raise SystemExit('VerifyProtocol insertion point not found')
+          text = text.replace(old_call, new_call, 1)
+
+          marker = '''    private static async Task VerifyWorkSessionHandoffAsync(\n'''
+          method = '''    private static async Task VerifyAuditVaultAsync(\n        McpClient client,\n        CancellationToken cancellationToken)\n    {\n        var result = await client.CallToolAsync(\n            "audit_vault",\n            new Dictionary<string, object?>\n            {\n                ["offset"] = 0,\n                ["limit"] = 1,\n            },\n            cancellationToken: cancellationToken);\n        EnsureSuccess("audit_vault", result);\n        EnsureStructuredEnvelope("audit_vault", result);\n\n        using var document = ParseJsonResult(result);\n        var root = document.RootElement;\n        var data = root.GetProperty("data");\n        var counts = data.GetProperty("counts");\n        _ = counts.GetProperty("broken_occurrences").GetInt32();\n        _ = counts.GetProperty("unique_broken_edges").GetInt32();\n        _ = counts.GetProperty("unique_broken_targets").GetInt32();\n\n        foreach (var category in new[] { "broken", "ambiguous", "malformed" })\n        {\n            var page = data.GetProperty("links").GetProperty(category);\n            if (page.GetProperty("offset").GetInt32() != 0 ||\n                page.GetProperty("limit").GetInt32() != 1 ||\n                page.GetProperty("returned").GetInt32() is < 0 or > 1)\n            {\n                throw new InvalidOperationException(\n                    $"audit_vault returned invalid pagination metadata for '{category}'.");\n            }\n\n            _ = page.GetProperty("total_occurrences").GetInt32();\n            _ = page.GetProperty("unique_edges").GetInt32();\n            _ = page.GetProperty("unique_targets").GetInt32();\n            _ = page.GetProperty("has_more").GetBoolean();\n        }\n    }\n\n'''
+          if marker not in text:
+              raise SystemExit('VerifyWorkSessionHandoff marker not found')
+          text = text.replace(marker, method + marker, 1)
+          path.write_text(text)
+          PY
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.x"
+
+      - name: Validate smoke client compiles
+        run: |
+          dotnet restore Kioku.slnx
+          dotnet build scripts/Kioku.Ci/Kioku.Ci.csproj --configuration Release --no-restore
+
+      - name: Commit and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/tmp-audit-401-smoke.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "test(audit): cover audit contract across transports"
+          git push origin HEAD:fix/audit-pagination-401
