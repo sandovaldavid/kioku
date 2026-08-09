@@ -2,6 +2,7 @@ using System.Text;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModelContextProtocol.Protocol;
 using Xunit;
 
 namespace Kioku.Mcp.Server.Tests;
@@ -77,8 +78,9 @@ public class VaultOrganizationToolsLinkTests : IAsyncLifetime
         var tools = CreateTools();
 
         var result = await tools.audit_vault();
+        var text = result.Content.OfType<TextContentBlock>().Single().Text;
 
-        Assert.DoesNotContain("Example Template", result);
-        Assert.Contains("Nonexistent Note", result);
+        Assert.DoesNotContain("Example Template", text);
+        Assert.Contains("Nonexistent Note", text);
     }
 }

@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace Kioku.Mcp.Server.Tools;
@@ -148,7 +150,6 @@ public sealed class VaultOrganizationTools(
         IEnumerable<string>? inheritedTags = null,
         IEnumerable<string>? excludedTags = null)
     {
-        // Get all unique tags across the vault
         var allTags = vault.GetAllNotes()
             .SelectMany(n => n.Metadata.Tags)
             .GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
@@ -159,7 +160,6 @@ public sealed class VaultOrganizationTools(
             .Concat(excludedTags ?? [])
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Score tags by word overlap with note content + title
         var noteWords = TokenizeText(found.PlainText + " " + found.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -199,7 +199,6 @@ public sealed class VaultOrganizationTools(
                 var a = notes[i];
                 var b = notes[j];
 
-                // Check title similarity (Jaro-Winkler approximation via word overlap)
                 var titleSim = TitleSimilarity(a.Name, b.Name);
                 if (titleSim >= threshold)
                 {
@@ -207,7 +206,6 @@ public sealed class VaultOrganizationTools(
                     continue;
                 }
 
-                // Check content similarity (word overlap / Jaccard)
                 var contentSim = ContentJaccard(a.PlainText, b.PlainText);
                 if (contentSim >= threshold)
                 {
@@ -237,48 +235,16 @@ public sealed class VaultOrganizationTools(
     // audit_vault
 
     [McpServerTool, Description(
-        "Generates a health report of the vault: notes without tags, without dates, " +
-        "without content, missing/ambiguous/malformed wikilinks, and stale notes.")]
-    public Task<string> audit_vault(
-        [Description("Flag notes not updated in this many days (default: 90).")] int stale_days = 90)
-    {
-        var notes = vault.GetAllNotes().ToList();
-        var cutoff = DateTime.UtcNow.AddDays(-stale_days);
-
-        var noTags = notes.Where(n => n.Metadata.Tags.Count == 0).ToList();
-        var noDates = notes.Where(n => !n.Metadata.Date.HasValue).ToList();
-        var emptyNotes = notes.Where(n => string.IsNullOrWhiteSpace(n.PlainText)).ToList();
-        var stale = notes.Where(n => n.LastModified < cutoff).ToList();
-
-        var linkIssues = ScanLinkIssues(notes);
-        var missingLinks = linkIssues.Where(issue => issue.Status == VaultLinkResolutionStatus.Missing).ToList();
-        var ambiguousLinks = linkIssues.Where(issue => issue.Status == VaultLinkResolutionStatus.Ambiguous).ToList();
-        var malformedLinks = linkIssues.Where(issue => issue.Status == VaultLinkResolutionStatus.Malformed).ToList();
-
-        var sb = new StringBuilder("# Kioku — Vault Audit Report\n\n");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"**Total notes:** {notes.Count}\n");
-
-        AppendSection(sb, $"Notes without tags ({noTags.Count})", noTags.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Notes without date in frontmatter ({noDates.Count})", noDates.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Empty notes ({emptyNotes.Count})", emptyNotes.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Broken wikilinks ({missingLinks.Count})",
-            missingLinks.Select(issue => $"{issue.Note}: [[{issue.Link}]]"));
-        AppendSection(sb, $"Ambiguous wikilinks ({ambiguousLinks.Count})",
-            ambiguousLinks.Select(issue => $"{issue.Note}: [[{issue.Link}]]"));
-        AppendSection(sb, $"Malformed wikilinks ({malformedLinks.Count})",
-            malformedLinks.Select(issue => $"{issue.Note}: {issue.Link}"));
-        AppendSection(sb, $"Stale notes (not updated in {stale_days}+ days) ({stale.Count})",
-            stale.OrderBy(n => n.LastModified)
-                 .Select(n => $"{n.VaultRelativePath} (last modified: {n.LastModified:yyyy-MM-dd})"));
-
-        sb.AppendLine("\n---");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"**Summary:** {noTags.Count} untagged · {emptyNotes.Count} empty · " +
-                      $"{missingLinks.Count} broken links · {ambiguousLinks.Count} ambiguous links · " +
-                      $"{malformedLinks.Count} malformed links · {stale.Count} stale");
-
-        return Task.FromResult(sb.ToString());
-    }
+        "Generates a health report of the vault: notes without tags, without dates, without content, " +
+        "missing/ambiguous/malformed wikilinks, recognized empty template placeholders, and stale notes. " +
+        "Wikilink findings preserve every occurrence, expose unique edge/target counts, and support " +
+        "bounded pagination via offset/limit.")]
+    public Task<CallToolResult> audit_vault(
+        [Description("Flag notes not updated in this many days (default: 90).")] int stale_days = 90,
+        [Description("Number of findings to skip in each wikilink category (default: 0).")] int offset = 0,
+        [Description("Maximum findings to return per wikilink category (default: 50). The effective maximum preserves the legacy 50-item preview and honors larger KIOKU_MAX_RESULTS values.")]
+        int limit = 50) =>
+        VaultAuditService.CreateAsync(vault, config, vaultConfig, stale_days, offset, limit);
 
     // process_inbox
 
@@ -486,11 +452,6 @@ public sealed class VaultOrganizationTools(
         return $"- {note.Name}: {string.Join("; ", actions)}";
     }
 
-    /// <summary>
-    /// Rewrites inbound full-path wikilinks after moving a note — same semantics as
-    /// NoteCommandTools.move_note (bare-name links are untouched, since the note's short name
-    /// doesn't change on a folder move).
-    /// </summary>
     private async Task<int> UpdateInboundWikilinksForMoveAsync(Note found, string newVaultRelativePath)
     {
         var plan = new WikilinkRewriter.RewritePlan(
@@ -537,8 +498,6 @@ public sealed class VaultOrganizationTools(
 
     private static string StripMdExtension(string path) =>
         path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? path[..^3] : path;
-
-    // Private helpers
 
     private static bool TagWouldChange(
         string tag,
@@ -628,10 +587,6 @@ public sealed class VaultOrganizationTools(
         };
     }
 
-    /// <summary>
-    /// Rewrites only the frontmatter tags/tag field. This deliberately avoids replacing list
-    /// items in the Markdown body and supports YAML list, inline-list, and scalar forms.
-    /// </summary>
     private static string RewriteTagFrontmatter(string content, Func<string, string?> transform)
     {
         var bodyStart = FrontmatterParser.GetBodyStart(content);
@@ -742,40 +697,6 @@ public sealed class VaultOrganizationTools(
         return values.Count == 0 ? "(none)" : string.Join(", ", values);
     }
 
-    private sealed record LinkIssue(
-        string Note,
-        string Link,
-        VaultLinkResolutionStatus Status);
-
-    private List<LinkIssue> ScanLinkIssues(IReadOnlyCollection<Note> notes)
-    {
-        var issues = new List<LinkIssue>();
-        foreach (var note in notes)
-        {
-            foreach (var reference in MarkdownTextExtractor.ExtractWikilinkReferences(note.RawContent))
-            {
-                if (reference.IsMalformed)
-                {
-                    issues.Add(new LinkIssue(
-                        note.VaultRelativePath,
-                        reference.Raw,
-                        VaultLinkResolutionStatus.Malformed));
-                    continue;
-                }
-
-                var resolution = vault.ResolveLinkResult(note, reference.Target);
-                if (resolution.Status == VaultLinkResolutionStatus.Resolved)
-                {
-                    continue;
-                }
-
-                issues.Add(new LinkIssue(note.VaultRelativePath, reference.Target, resolution.Status));
-            }
-        }
-
-        return issues;
-    }
-
     private static string NormalizeTag(string tag)
     {
         return tag.ToLowerInvariant()
@@ -818,7 +739,6 @@ public sealed class VaultOrganizationTools(
             return 0;
         }
 
-        // Use 3-character shingles on first 2000 chars for performance
         const int limit = 2000;
         var a = textA.Length > limit ? textA[..limit] : textA;
         var b = textB.Length > limit ? textB[..limit] : textB;
@@ -844,6 +764,7 @@ public sealed class VaultOrganizationTools(
         {
             shingles.Add(normalized.Substring(i, k));
         }
+
         return shingles;
     }
 

@@ -306,10 +306,10 @@ jobs:
         run: |
           set -euo pipefail
           VAULT="$RUNNER_TEMP/kioku-tool-vault"
-          mkdir -p "$VAULT"
+          mkdir -p "$VAULT/Templates" "$VAULT/.kioku"
           printf '# Seed\n\nPackage smoke fixture.\n' > "$VAULT/seed.md"
-          mkdir -p "$VAULT/.kioku"
-          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n' > "$VAULT/.kioku/config.yml"
+          printf '%s\n' '- [[]]' > "$VAULT/Templates/template-smoke.md"
+          printf 'folders:\n  templates: Templates\ncapabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n    - organization\n' > "$VAULT/.kioku/config.yml"
           mkdir -p "$VAULT/Sessions"
           cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
           dotnet run \
@@ -360,10 +360,10 @@ jobs:
         run: |
           set -euo pipefail
           VAULT="$RUNNER_TEMP/kioku-http-vault"
-          mkdir -p "$VAULT"
+          mkdir -p "$VAULT/Templates" "$VAULT/.kioku"
           printf '# Seed\n\nHTTP smoke fixture.\n' > "$VAULT/seed.md"
-          mkdir -p "$VAULT/.kioku"
-          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n' > "$VAULT/.kioku/config.yml"
+          printf '%s\n' '- [[]]' > "$VAULT/Templates/template-smoke.md"
+          printf 'folders:\n  templates: Templates\ncapabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n    - organization\n' > "$VAULT/.kioku/config.yml"
           mkdir -p "$VAULT/Sessions"
           cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
           dotnet run \

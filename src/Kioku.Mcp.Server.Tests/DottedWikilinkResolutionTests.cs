@@ -3,6 +3,7 @@ using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModelContextProtocol.Protocol;
 using Xunit;
 
 namespace Kioku.Mcp.Server.Tests;
@@ -172,9 +173,10 @@ public sealed class DottedWikilinkResolutionTests : IAsyncLifetime
             _embedding,
             _vaultConfig);
         var audit = await auditTools.audit_vault();
-        Assert.DoesNotContain("[[web.admin]]", audit);
-        Assert.DoesNotContain("[[web.admin.md]]", audit);
-        Assert.DoesNotContain("[[web.admin#Heading]]", audit);
+        var auditText = audit.Content.OfType<TextContentBlock>().Single().Text;
+        Assert.DoesNotContain("[[web.admin]]", auditText);
+        Assert.DoesNotContain("[[web.admin.md]]", auditText);
+        Assert.DoesNotContain("[[web.admin#Heading]]", auditText);
 
         var graph = new KnowledgeGraphTools(_fixture.Index).get_concept_map(
             "Dotted Source",

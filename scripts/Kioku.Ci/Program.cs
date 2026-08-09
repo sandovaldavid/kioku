@@ -150,7 +150,6 @@ internal static class Program
         Func<CancellationToken, Task<McpClient>> createSecondClientAsync,
         CancellationToken cancellationToken)
     {
-        await client.PingAsync(cancellationToken: cancellationToken);
         var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
         var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
         RequireTool(toolNames, "list_work_sessions");
@@ -169,7 +168,9 @@ internal static class Program
         RequireTool(toolNames, "delete_note");
         RequireTool(toolNames, "get_server_capabilities");
 
+        await VerifyLivenessAsync(client, "primary client", cancellationToken);
         await VerifyCapabilitiesAsync(client, options, cancellationToken);
+        await VerifyAuditVaultAsync(client, cancellationToken);
         await VerifyWorkSessionHandoffAsync(client, createSecondClientAsync, cancellationToken);
 
         var sessionsResult = await client.CallToolAsync(
@@ -239,6 +240,20 @@ internal static class Program
             },
             cancellationToken: cancellationToken);
         EnsureSuccess("delete_note", deleteResult);
+        await VerifyLivenessAsync(client, "primary client after smoke", cancellationToken);
+    }
+
+    private static async Task VerifyLivenessAsync(
+        McpClient client,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        var result = await client.CallToolAsync(
+            "get_server_capabilities",
+            new Dictionary<string, object?>(),
+            cancellationToken: cancellationToken);
+        EnsureSuccess($"{label} get_server_capabilities", result);
+        EnsureStructuredEnvelope($"{label} get_server_capabilities", result);
     }
 
     private static async Task VerifyCapabilitiesAsync(
@@ -271,6 +286,64 @@ internal static class Program
         }
     }
 
+    private static async Task VerifyAuditVaultAsync(
+        McpClient client,
+        CancellationToken cancellationToken)
+    {
+        var result = await client.CallToolAsync(
+            "audit_vault",
+            new Dictionary<string, object?>
+            {
+                ["offset"] = 0,
+                ["limit"] = 1,
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("audit_vault", result);
+        EnsureStructuredEnvelope("audit_vault", result);
+
+        using var document = ParseJsonResult(result);
+        var root = document.RootElement;
+        var data = root.GetProperty("data");
+        var counts = data.GetProperty("counts");
+        _ = counts.GetProperty("broken_occurrences").GetInt32();
+        _ = counts.GetProperty("unique_broken_edges").GetInt32();
+        _ = counts.GetProperty("unique_broken_targets").GetInt32();
+        var templatePlaceholderOccurrences = counts.GetProperty("template_placeholder_occurrences").GetInt32();
+        if (templatePlaceholderOccurrences < 1)
+        {
+            throw new InvalidOperationException(
+                "audit_vault did not classify the package-smoke empty template placeholder.");
+        }
+
+        foreach (var category in new[] { "broken", "ambiguous", "malformed", "template_placeholders" })
+        {
+            var page = data.GetProperty("links").GetProperty(category);
+            if (page.GetProperty("offset").GetInt32() != 0 ||
+                page.GetProperty("limit").GetInt32() != 1 ||
+                page.GetProperty("returned").GetInt32() is < 0 or > 1)
+            {
+                throw new InvalidOperationException(
+                    $"audit_vault returned invalid pagination metadata for '{category}'.");
+            }
+
+            _ = page.GetProperty("total_occurrences").GetInt32();
+            _ = page.GetProperty("unique_edges").GetInt32();
+            _ = page.GetProperty("unique_targets").GetInt32();
+            _ = page.GetProperty("has_more").GetBoolean();
+        }
+
+        var placeholderPage = data.GetProperty("links").GetProperty("template_placeholders");
+        if (placeholderPage.GetProperty("returned").GetInt32() != 1 ||
+            !string.Equals(
+                placeholderPage.GetProperty("findings")[0].GetProperty("status").GetString(),
+                "template_placeholder",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "audit_vault did not expose the expected template-placeholder finding.");
+        }
+    }
+
     private static async Task VerifyWorkSessionHandoffAsync(
         McpClient firstClient,
         Func<CancellationToken, Task<McpClient>> createSecondClientAsync,
@@ -293,7 +366,7 @@ internal static class Program
         var parent = ParseSessionIdentity(parentJson.RootElement, "parent");
 
         await using var secondClient = await createSecondClientAsync(cancellationToken);
-        await secondClient.PingAsync(cancellationToken: cancellationToken);
+        await VerifyLivenessAsync(secondClient, "handoff client", cancellationToken);
 
         using var parentBeforeClose = await ReadSessionMetadataAsync(
             secondClient,
@@ -321,7 +394,7 @@ internal static class Program
             secondClient,
             child.Path,
             cancellationToken);
-        EnsureSessionMetadata(childBeforeClose.RootElement, child.Id, "active", parent.Id, "child before parent close");
+        EnsureSessionMetadata(childBeforeClose.RootElement, child.Id, "active", parent.Id, "child before close");
 
         var closeParentResult = await secondClient.CallToolAsync(
             "end_work_session",
