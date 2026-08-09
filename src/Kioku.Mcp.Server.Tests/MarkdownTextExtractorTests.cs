@@ -228,11 +228,27 @@ public class MarkdownTextExtractorTests
     }
 
     [Fact]
-    public void ExtractWikilinks_LinkWithHeader_ExtractsFileOnly()
+    public void ExtractWikilinks_LinkWithHeader_PreservesTargetForResolver()
     {
         var result = MarkdownTextExtractor.ExtractWikilinks("See [[My Note#Section]] here");
         Assert.Single(result);
-        Assert.Equal("My Note", result[0]);
+        Assert.Equal("My Note#Section", result[0]);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_LinkWithBlockReference_PreservesTargetForResolver()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinks("See [[My Note#^block-id]] here");
+        Assert.Single(result);
+        Assert.Equal("My Note#^block-id", result[0]);
+    }
+
+    [Fact]
+    public void ExtractWikilinks_LiteralHashInTarget_PreservesTarget()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinks("See [[filename-with-#-character]] here");
+        Assert.Single(result);
+        Assert.Equal("filename-with-#-character", result[0]);
     }
 
     [Fact]
@@ -258,6 +274,15 @@ public class MarkdownTextExtractorTests
     {
         var result = MarkdownTextExtractor.ExtractWikilinks("See [[unclosed link");
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExtractWikilinkReferences_UnclosedLink_ReportsMalformed()
+    {
+        var result = MarkdownTextExtractor.ExtractWikilinkReferences("See [[unclosed link");
+        Assert.Single(result);
+        Assert.True(result[0].IsMalformed);
+        Assert.Contains("[[unclosed link", result[0].Raw);
     }
 
     [Fact]
