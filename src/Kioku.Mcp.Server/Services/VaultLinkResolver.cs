@@ -102,7 +102,7 @@ public sealed class VaultLinkResolver(
             return ResolveFilesystemPath(rawTarget, normalized, target, notes);
         }
 
-        if (source is not null && normalized.StartsWith("/", StringComparison.Ordinal))
+        if (source is not null && normalized.StartsWith('/'))
         {
             return ResolveFilesystemPath(rawTarget, normalized, normalized.TrimStart('/'), notes);
         }
