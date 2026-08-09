@@ -6,6 +6,27 @@
 
 * **server:** add privacy-preserving coordination observability, capability negotiation, interoperability mappings, and gated rollout controls ([#311](https://github.com/sandovaldavid/kioku/issues/311))
 
+## [3.1.0](https://github.com/sandovaldavid/kioku/compare/v3.0.1...v3.1.0) (2026-08-09)
+
+
+### Features
+
+* **engineering:** add first-class specs and durable workflow boundary ([#417](https://github.com/sandovaldavid/kioku/issues/417)) ([a22e6fc](https://github.com/sandovaldavid/kioku/commit/a22e6fc35fd6dcdd42d4a2f4a8e3e1ccedd982e6))
+
+
+### Bug Fixes
+
+* **audit:** expose complete wikilink findings ([#404](https://github.com/sandovaldavid/kioku/issues/404)) ([a3c9ae1](https://github.com/sandovaldavid/kioku/commit/a3c9ae1090a355ef6f3dc44efb2840a1267f37c5))
+* **ci:** replace legacy MCP ping liveness check ([#410](https://github.com/sandovaldavid/kioku/issues/410)) ([b863dcb](https://github.com/sandovaldavid/kioku/commit/b863dcb37a327f75330a0c6ab12ab77e8862122f))
+* **integrations:** remove personal vault paths from client configurations ([40dd8d0](https://github.com/sandovaldavid/kioku/commit/40dd8d0409ed9132f69bf27e824ec30275f2a7aa))
+* **mcp:** harden tool output schemas and safety annotations for ChatGPT ([#387](https://github.com/sandovaldavid/kioku/issues/387)) ([#390](https://github.com/sandovaldavid/kioku/issues/390)) ([6b06186](https://github.com/sandovaldavid/kioku/commit/6b06186d006f362c5fdd80f14432b8aa184a5de7))
+* **mcp:** keep cold indexing off the host startup path ([#399](https://github.com/sandovaldavid/kioku/issues/399)) ([a7de4d6](https://github.com/sandovaldavid/kioku/commit/a7de4d6fa54f6a4d74946cab7d23f20d22af614d))
+* **server:** classify empty template placeholders ([#406](https://github.com/sandovaldavid/kioku/issues/406)) ([8867ea8](https://github.com/sandovaldavid/kioku/commit/8867ea801ae23a662906ef75868de437f987daaa))
+* **server:** make Streamable HTTP stateless explicit ([#411](https://github.com/sandovaldavid/kioku/issues/411)) ([6b0b942](https://github.com/sandovaldavid/kioku/commit/6b0b942a7cba298d293e60df9be9ea98748294d0))
+* **server:** make wikilink rewriting resolver-aware ([#397](https://github.com/sandovaldavid/kioku/issues/397)) ([bf5a095](https://github.com/sandovaldavid/kioku/commit/bf5a09576dee8901aff54d2cc610b7a68d20b1db))
+* **server:** preserve dotted wikilink basenames ([#403](https://github.com/sandovaldavid/kioku/issues/403)) ([2cd149a](https://github.com/sandovaldavid/kioku/commit/2cd149a510b0ce10888b262550546552064d1aa2))
+* **server:** unify wikilink resolution across graph surfaces ([#395](https://github.com/sandovaldavid/kioku/issues/395)) ([46e8037](https://github.com/sandovaldavid/kioku/commit/46e8037eac05111b102cc9ac94a8c868a53a8b42))
+
 ## [3.0.1](https://github.com/sandovaldavid/kioku/compare/v3.0.0...v3.0.1) (2026-08-04)
 
 
