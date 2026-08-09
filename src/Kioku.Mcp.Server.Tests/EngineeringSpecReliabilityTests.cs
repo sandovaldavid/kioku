@@ -20,13 +20,13 @@ public sealed class EngineeringSpecReliabilityTests : IAsyncLifetime
     [Fact]
     public async Task ConcurrentCreate_SameSpec_AllowsExactlyOneMutation()
     {
-        var mutations = new AtomicCreateMutationService(_fixture.VaultPath);
+        var mutations = new AtomicCreateMutationService(_fixture.VaultPath, synchronizeCreates: true);
         var (service, workspace) = CreateService(mutations);
 
         var first = Task.Run(() => service.CreateSpecAsync(
-            "demo", "Concurrent", "objective", "requirements", mutationId: null));
+            "demo", "Concurrent", "objective", "requirements"));
         var second = Task.Run(() => service.CreateSpecAsync(
-            "demo", "Concurrent", "objective", "requirements", mutationId: null));
+            "demo", "Concurrent", "objective", "requirements"));
 
         var outcomes = new List<string>();
         var failures = new List<VaultMutationException>();
@@ -90,9 +90,12 @@ public sealed class EngineeringSpecReliabilityTests : IAsyncLifetime
         return (service, workspace);
     }
 
-    private sealed class AtomicCreateMutationService(string vaultPath) : IVaultMutationService
+    private sealed class AtomicCreateMutationService(
+        string vaultPath,
+        bool synchronizeCreates = false) : IVaultMutationService
     {
         private readonly object _gate = new();
+        private readonly Barrier? _createBarrier = synchronizeCreates ? new Barrier(2) : null;
 
         public Task<VaultMutationReceipt> CreateTextAsync(
             string path,
@@ -101,6 +104,8 @@ public sealed class EngineeringSpecReliabilityTests : IAsyncLifetime
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            _createBarrier?.SignalAndWait(cancellationToken);
+
             lock (_gate)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -110,12 +115,11 @@ public sealed class EngineeringSpecReliabilityTests : IAsyncLifetime
                     using var writer = new StreamWriter(stream, NoteHelpers.Utf8NoBom);
                     writer.Write(content);
                 }
-                catch (IOException exception)
+                catch (IOException)
                 {
                     throw new VaultMutationException(
                         VaultMutationErrorCodes.WriteConflict,
-                        "Concurrent create lost the existing-file race.",
-                        exception);
+                        "Concurrent create lost the existing-file race.");
                 }
 
                 var relative = Path.GetRelativePath(vaultPath, path).Replace('\\', '/');
