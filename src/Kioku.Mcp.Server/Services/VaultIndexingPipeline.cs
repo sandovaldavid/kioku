@@ -101,6 +101,11 @@ public sealed class VaultIndexingPipeline : BackgroundService
             await ReconcileCoreAsync("cold_start", cancellationToken);
             _initialized.TrySetResult(true);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _initialized.TrySetCanceled(cancellationToken);
+            throw;
+        }
         catch (Exception exception)
         {
             _initialized.TrySetException(exception);
@@ -167,7 +172,14 @@ public sealed class VaultIndexingPipeline : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await _initialized.Task.WaitAsync(stoppingToken);
+        try
+        {
+            await _initialized.Task.WaitAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
 
         try
         {
@@ -395,6 +407,11 @@ public sealed class VaultIndexingPipeline : BackgroundService
                 "Vault reconciliation completed in {ElapsedMs:F0} ms. {Count} Markdown files observed.",
                 duration.TotalMilliseconds,
                 files.Length);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _index.SetReady(false);
+            throw;
         }
         catch
         {
