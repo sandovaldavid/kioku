@@ -25,8 +25,9 @@ public sealed class WikilinkResolutionConsistencyTests : IAsyncLifetime
         await WriteNoteAsync("Hub", "Hub body", aliases: ["linktree"]);
         await WriteNoteAsync("Identity", "Identity body", aliases: ["identidad-marca-personal"]);
         await WriteNoteAsync("target", "Root target");
+        await WriteNoteAsync("Unique", "Unique basename target");
         await WriteNoteAsync("HeadingTarget", "# Heading\nBlock ^block");
-        await WriteNoteAsync("filename-with-#-character", "Literal hash filename");
+        await WriteNoteAsync("filename-with-#-character", "# Heading\nLiteral hash filename");
         await WriteNoteAsync("projects/target", "Parent target");
         await WriteNoteAsync("projects/yukidoke-api", "API target");
         await WriteNoteAsync("projects/yukidoke-web", "Web target");
@@ -46,7 +47,11 @@ public sealed class WikilinkResolutionConsistencyTests : IAsyncLifetime
             [[../target]]
             [[../../target]]
             [[./local]]
+            [[/target]]
+            [[projects/yukidoke-api]]
+            [[Unique]]
             [[filename-with-#-character]]
+            [[filename-with-#-character#Heading]]
             [[HeadingTarget#Heading]]
             [[HeadingTarget#^block]]
             [[Missing Target]]
@@ -91,11 +96,14 @@ public sealed class WikilinkResolutionConsistencyTests : IAsyncLifetime
     [InlineData("../target", "projects/target.md")]
     [InlineData("../../target", "target.md")]
     [InlineData("./local", "projects/current/local.md")]
+    [InlineData("/target", "target.md")]
+    [InlineData("projects/yukidoke-api", "projects/yukidoke-api.md")]
     [InlineData("../yukidoke-api", "projects/yukidoke-api.md")]
     [InlineData("../yukidoke-web", "projects/yukidoke-web.md")]
+    [InlineData("Unique", "Unique.md")]
     [InlineData("linktree", "Hub.md")]
     [InlineData("identidad-marca-personal", "Identity.md")]
-    public void ResolveLink_ValidRelativeAndAliasTargets_AreResolved(string target, string expectedPath)
+    public void ResolveLink_ValidRelativePathBasenameAndAliasTargets_AreResolved(string target, string expectedPath)
     {
         var source = RequiredNote("projects/current/source");
 
@@ -135,6 +143,18 @@ public sealed class WikilinkResolutionConsistencyTests : IAsyncLifetime
         Assert.Null(result.Fragment);
     }
 
+    [Fact]
+    public void ResolveLink_LiteralHashFilenameWithFragment_UsesLongestExistingFilename()
+    {
+        var result = _index.ResolveLinkResult(
+            RequiredNote("projects/current/source"),
+            "filename-with-#-character#Heading");
+
+        Assert.Equal(VaultLinkResolutionStatus.Resolved, result.Status);
+        Assert.Equal("filename-with-#-character.md", result.Note?.VaultRelativePath);
+        Assert.Equal("#Heading", result.Fragment);
+    }
+
     [Theory]
     [InlineData("HeadingTarget#Heading", "#Heading")]
     [InlineData("HeadingTarget#^block", "#^block")]
@@ -153,6 +173,14 @@ public sealed class WikilinkResolutionConsistencyTests : IAsyncLifetime
         var result = _index.ResolveLinkResult(RequiredNote("projects/current/source"), "Missing Target");
 
         Assert.Equal(VaultLinkResolutionStatus.Missing, result.Status);
+    }
+
+    [Fact]
+    public void ResolveLink_EmptyTarget_IsMalformed()
+    {
+        var result = _index.ResolveLinkResult(RequiredNote("projects/current/source"), "   ");
+
+        Assert.Equal(VaultLinkResolutionStatus.Malformed, result.Status);
     }
 
     [Fact]
@@ -198,6 +226,7 @@ public sealed class WikilinkResolutionConsistencyTests : IAsyncLifetime
         Assert.DoesNotContain("[[identidad-marca-personal]]", audit);
         Assert.DoesNotContain("[[../yukidoke-api]]", audit);
         Assert.DoesNotContain("[[../yukidoke-web]]", audit);
+        Assert.DoesNotContain("[[filename-with-#-character#Heading]]", audit);
 
         var graph = new KnowledgeGraphTools(_index).get_concept_map(
             "projects/current/source",
