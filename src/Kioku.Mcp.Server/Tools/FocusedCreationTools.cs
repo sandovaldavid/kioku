@@ -90,7 +90,62 @@ public sealed class FocusedCreationTools(
             preconditions: VaultMutationPreconditions.FromToolArguments(
                 expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id));
 
-    [McpServerTool, Description("Creates an implementation plan for a project.")]
+    [McpServerTool, Description(
+        "Creates a first-class engineering specification in the project's core specs folder. " +
+        "Spec status is one of draft, approved, superseded, or discarded.")]
+    public Task<string> create_engineering_spec(
+        [Description("Project name.")] string project,
+        [Description("Short specification title.")] string title,
+        [Description("What is being built and the intended behavior.")] string objective,
+        [Description("Requirements in markdown.")] string requirements,
+        [Description("Spec status: draft, approved, superseded, or discarded.")] string status = "draft",
+        [Description("Source issue or request reference, e.g. '#408'.")] string source_issue = "",
+        [Description("Extra tags, comma-separated.")] string tags = "",
+        [Description("Relevant background and constraints.")] string context = "",
+        [Description("Explicit non-goals in markdown.")] string non_goals = "",
+        [Description("Architecture/design in markdown.")] string architecture = "",
+        [Description("Components involved in markdown.")] string components = "",
+        [Description("Data flow in markdown.")] string data_flow = "",
+        [Description("Error handling requirements in markdown.")] string error_handling = "",
+        [Description("Security and privacy requirements in markdown.")] string security_privacy = "",
+        [Description("Compatibility constraints in markdown.")] string compatibility = "",
+        [Description("Testing strategy in markdown.")] string testing_strategy = "",
+        [Description("Decisions already made in markdown.")] string decisions = "",
+        [Description("Open questions in markdown.")] string open_questions = "",
+        [Description("Related issue, PR, ADR, or note references in markdown.")] string related = "",
+        [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
+        [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
+        [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
+        [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
+        [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "") =>
+        documents.CreateSpecAsync(
+            project,
+            title,
+            objective,
+            requirements,
+            status,
+            source_issue,
+            tags,
+            context,
+            non_goals,
+            architecture,
+            components,
+            data_flow,
+            error_handling,
+            security_privacy,
+            compatibility,
+            testing_strategy,
+            decisions,
+            open_questions,
+            related,
+            preconditions: VaultMutationPreconditions.FromToolArguments(
+                expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id));
+
+    [McpServerTool, Description(
+        "Creates an implementation plan for a project. When spec is supplied, the plan is linked " +
+        "to that same-project first-class spec. Draft specs are allowed with a warning; superseded " +
+        "or discarded specs are rejected as historical/non-actionable.")]
     public Task<string> create_implementation_plan(
         [Description("Project name.")] string project,
         [Description("Short plan title.")] string title,
@@ -99,22 +154,21 @@ public sealed class FocusedCreationTools(
         [Description("Plan status: draft, active, or done.")] string status = "draft",
         [Description("Optional linked ticket note.")] string ticket = "",
         [Description("Extra tags, comma-separated.")] string tags = "",
+        [Description("Optional linked spec basename or wikilink from the same project.")] string spec = "",
         [Description("Expected SHA-256 revision from a prior read; empty keeps legacy behavior.")] string expected_revision = "",
         [Description("Expected SHA-256 hash alias; empty keeps legacy behavior.")] string expected_hash = "",
         [Description("Current claim ID protecting the resource, when fencing is required.")] string claim_id = "",
         [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
         [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
-        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "") =>
-        _engineering.create_plan(
-            project,
-            title,
-            objective,
-            steps,
-            status,
-            ticket,
-            tags,
-            preconditions: VaultMutationPreconditions.FromToolArguments(
-                expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id));
+        [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "")
+    {
+        var preconditions = VaultMutationPreconditions.FromToolArguments(
+            expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id);
+
+        return string.IsNullOrWhiteSpace(spec)
+            ? _engineering.create_plan(project, title, objective, steps, status, ticket, tags, preconditions)
+            : documents.CreatePlanFromSpecAsync(project, title, objective, steps, spec, status, ticket, tags, preconditions);
+    }
 
     [McpServerTool, Description("Saves project-specific or general reusable knowledge.")]
     public Task<string> save_project_knowledge(

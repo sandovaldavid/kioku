@@ -5,7 +5,7 @@ namespace Kioku.Mcp.Server.Services;
 
 /// <summary>
 /// Workflow orchestration for per-project engineering documents: architecture decision records
-/// (ADRs), bug logs, implementation plans, knowledge notes, backlog ideas, project context
+/// (ADRs), bug logs, specifications, implementation plans, knowledge notes, backlog ideas, project context
 /// re-reading, project discovery, and engineering template management. Documents live in the
 /// vault so humans edit them from Obsidian and agents re-read them through
 /// <see cref="GetProjectContextAsync"/>.
@@ -28,6 +28,8 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         ["decisions"] = "decisions",
         ["bug"] = "bugs",
         ["bugs"] = "bugs",
+        ["spec"] = "specs",
+        ["specs"] = "specs",
         ["plan"] = "plans",
         ["plans"] = "plans",
         ["knowledge"] = "knowledge",
@@ -47,6 +49,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
     private readonly ObsidianBridgeService _bridge;
     private readonly IProjectDocumentFileSystem _fileSystem;
     private readonly IVaultMutationService? _mutations;
+    private readonly EngineeringSpecService _specs;
 
     public ProjectDocumentService(
         VaultIndexService vault,
@@ -64,6 +67,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         _bridge = bridge;
         _fileSystem = fileSystem;
         _mutations = mutations;
+        _specs = new EngineeringSpecService(workspace, vaultConfig, vault, bridge, mutations!);
     }
 
     public async Task<string> CreateProjectDocAsync(
@@ -252,6 +256,62 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
              objective: objective, steps: steps, ticket: ticket, content: "", description: "",
              preconditions: preconditions, cancellationToken: cancellationToken);
 
+
+    public Task<string> CreateSpecAsync(
+        string project,
+        string title,
+        string objective,
+        string requirements,
+        string status = "draft",
+        string sourceIssue = "",
+        string tags = "",
+        string context = "",
+        string nonGoals = "",
+        string architecture = "",
+        string components = "",
+        string dataFlow = "",
+        string errorHandling = "",
+        string securityPrivacy = "",
+        string compatibility = "",
+        string testingStrategy = "",
+        string decisions = "",
+        string openQuestions = "",
+        string related = "",
+        VaultMutationPreconditions? preconditions = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (_mutations is null)
+        {
+            return Task.FromResult("[error] First-class spec creation requires the configured vault mutation boundary.");
+        }
+
+        return _specs.CreateSpecAsync(
+            project, title, objective, requirements, status, sourceIssue, tags, context, nonGoals,
+            architecture, components, dataFlow, errorHandling, securityPrivacy, compatibility,
+            testingStrategy, decisions, openQuestions, related, preconditions, cancellationToken);
+    }
+
+    public Task<string> CreatePlanFromSpecAsync(
+        string project,
+        string title,
+        string objective,
+        string steps,
+        string spec,
+        string status = "draft",
+        string ticket = "",
+        string tags = "",
+        VaultMutationPreconditions? preconditions = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (_mutations is null)
+        {
+            return Task.FromResult("[error] Spec-linked plan creation requires the configured vault mutation boundary.");
+        }
+
+        return _specs.CreatePlanFromSpecAsync(
+            project, title, objective, steps, spec, status, ticket, tags, preconditions, cancellationToken);
+    }
+
     public Task<string> AddKnowledgeAsync(
         string title,
         string content,
@@ -343,6 +403,19 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
                     sb.AppendLine();
                 }
             }
+        }
+
+
+        if (typeFilter.Contains("specs"))
+        {
+            var specsSection = await _specs.BuildSpecsSectionAsync(project, includeContent, limit, cancellationToken);
+            if (specsSection.StartsWith("[error]", StringComparison.OrdinalIgnoreCase))
+            {
+                return specsSection;
+            }
+
+            sb.AppendLine(specsSection);
+            sb.AppendLine();
         }
 
         var sections = new (string Key, string Heading)[]
@@ -899,6 +972,7 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
             #   subfolders:
             #     decisions: "decisions"
             #     bugs: "bugs"
+            #     specs: "specs"
             #     plans: "plans"
             #     knowledge: "knowledge"
             #     sessions: "sessions"

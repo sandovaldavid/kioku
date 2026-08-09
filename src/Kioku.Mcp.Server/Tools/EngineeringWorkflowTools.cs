@@ -7,8 +7,8 @@ namespace Kioku.Mcp.Server.Tools;
 
 /// <summary>
 /// MCP tools for per-project engineering knowledge: architecture decision records (ADRs),
-/// bug logs, implementation plans, knowledge notes, backlog ideas, and project context
-/// re-reading. Documents live in the vault so humans edit them from Obsidian and agents
+/// bug logs, specifications, implementation plans, knowledge notes, backlog ideas, and project
+/// context re-reading. Documents live in the vault so humans edit them from Obsidian and agents
 /// re-read them via get_project_context.
 /// </summary>
 [McpServerToolType]
@@ -23,7 +23,8 @@ public sealed class EngineeringWorkflowTools
 
     [McpServerTool, Description(
         "Creates an engineering document for a project. doc_type is adr, bug, plan, backlog, or " +
-        "knowledge; knowledge may omit project to create a general knowledge note.")]
+        "knowledge; knowledge may omit project to create a general knowledge note. Use the focused " +
+        "create_engineering_spec tool for first-class specifications.")]
     public Task<string> create_project_doc(
         [Description("Document type: adr, bug, plan, backlog, or knowledge.")] string doc_type,
         [Description("Project name; omit only for general knowledge.")] string project = "",
@@ -57,7 +58,6 @@ public sealed class EngineeringWorkflowTools
                 expected_revision, expected_hash, claim_id, fence_generation, resource_key, mutation_id),
             cancellationToken: cancellationToken);
 
-    // Kept as a non-MCP compatibility entry point for existing in-process callers.
     public Task<string> record_adr(
         string project, string title, string context, string decision, string consequences,
         string alternatives = "", string status = "accepted", string tags = "",
@@ -67,9 +67,6 @@ public sealed class EngineeringWorkflowTools
             project, title, context, decision, consequences, alternatives, status, tags,
             preconditions: preconditions,
             cancellationToken: cancellationToken);
-
-    // Legacy compatibility wrappers are intentionally not MCP-exposed.
-    // log_bug
 
     [Description(
         "Logs a bug and its solution for a project as {projects}/{project}/bugs/BUG-{date}-{title}.md. " +
@@ -91,8 +88,6 @@ public sealed class EngineeringWorkflowTools
             preconditions: preconditions,
             cancellationToken: cancellationToken);
 
-    // create_plan
-
     [Description(
         "Creates an implementation plan for a project as {projects}/{project}/plans/PLAN-{date}-{title}.md. " +
         "Write steps as a markdown checkbox list (- [ ] step) so task tools can track them. " +
@@ -113,8 +108,6 @@ public sealed class EngineeringWorkflowTools
             preconditions: preconditions,
             cancellationToken: cancellationToken);
 
-    // add_knowledge
-
     [Description(
         "Saves a knowledge note. With a project it goes to {projects}/{project}/knowledge/; " +
         "without one it goes to the general knowledge folder. " +
@@ -130,8 +123,6 @@ public sealed class EngineeringWorkflowTools
             title, content, project, tags,
             preconditions: preconditions,
             cancellationToken: cancellationToken);
-
-    // add_backlog_item
 
     [Description(
         "Adds a future improvement or idea to a project's backlog as {projects}/{project}/backlog/{title}.md " +
@@ -149,21 +140,18 @@ public sealed class EngineeringWorkflowTools
             preconditions: preconditions,
             cancellationToken: cancellationToken);
 
-    // get_project_context
-
     [McpServerTool, Description(
         "Returns the current state of a project workspace: the project MOC note, summaries of " +
-        "recent work sessions, and per-type listings (decisions, bugs, plans, tickets, backlog, " +
-        "knowledge, daily). Reads fresh from disk. Call this before resuming work on a project.")]
+        "recent work sessions, and per-type listings (decisions, bugs, specs, plans, tickets, backlog, " +
+        "knowledge, daily). Reads fresh from disk. Approved specs are current requirements; draft " +
+        "specs are in progress; superseded/discarded specs are explicitly historical.")]
     public Task<string> get_project_context(
         [Description("Project name (folder under the projects root). Use list_projects to discover names.")] string project,
         [Description("Include the full content of every listed document (verbose).")] bool include_content = false,
-        [Description("Comma-separated type filter (adr, bug, plan, ticket, idea, knowledge, session, daily). Empty = all.")] string types = "",
+        [Description("Comma-separated type filter (adr, decision(s), bug(s), spec(s), plan(s), ticket(s), idea/backlog, knowledge, session(s), daily). Empty = all.")] string types = "",
         [Description("Maximum documents listed per type.")] int limit = 20,
         CancellationToken cancellationToken = default) =>
         _documents.GetProjectContextAsync(project, include_content, types, limit, cancellationToken);
-
-    // list_projects
 
     [McpServerTool, Description(
         "Lists all project workspaces under the projects root with per-type document counts " +
@@ -173,38 +161,32 @@ public sealed class EngineeringWorkflowTools
     public Task<string> list_projects(CancellationToken cancellationToken = default) =>
         _documents.ListProjectsAsync(cancellationToken);
 
-    // list_engineering_templates
-
     [Description(
-        "Lists the engineering doc types (adr, bug, plan, knowledge, idea, session, daily, " +
+        "Lists the engineering doc types (adr, bug, spec, plan, knowledge, idea, session, daily, " +
         "ticket, project-moc), whether each has a vault override or falls back to the embedded " +
-         "default, its path, and the {{variables}} it supports. Use manage_templates with " +
-         "scope='engineering' before editing a template.")]
+        "default, its path, and the {{variables}} it supports. Use manage_templates with " +
+        "scope='engineering' before editing a template.")]
     public Task<string> list_engineering_templates(CancellationToken cancellationToken = default) =>
         _documents.ListEngineeringTemplatesAsync(cancellationToken);
-
-    // get_engineering_template
 
     [Description(
         "Reads the current effective body template for an engineering doc type (vault override " +
         "if one exists, otherwise the embedded default), plus the {{variables}} it supports. " +
         "Read this before proposing an edit with set_engineering_template.")]
     public Task<string> get_engineering_template(
-        [Description("Doc type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc.")] string type_key,
+        [Description("Doc type: adr, bug, spec, plan, knowledge, idea, session, daily, ticket, or project-moc.")] string type_key,
         CancellationToken cancellationToken = default) =>
         _documents.GetEngineeringTemplateAsync(type_key, cancellationToken);
-
-    // set_engineering_template
 
     [Description(
         "Creates or updates the vault override template for an engineering doc type at " +
         "{templates}/kioku/{type_key}.md (always overwrites, unlike create_template). " +
         "Pass reset_to_default=true to delete the override and revert to the embedded default. " +
         "Never triggers Templater evaluation: this writes the template itself, which is only " +
-         "evaluated later when a note is generated from it. Prefer manage_templates with " +
-         "scope='engineering' for MCP access.")]
+        "evaluated later when a note is generated from it. Prefer manage_templates with " +
+        "scope='engineering' for MCP access.")]
     public Task<string> set_engineering_template(
-        [Description("Doc type: adr, bug, plan, knowledge, idea, session, daily, ticket, or project-moc.")] string type_key,
+        [Description("Doc type: adr, bug, spec, plan, knowledge, idea, session, daily, ticket, or project-moc.")] string type_key,
         [Description("New template body content. Ignored when reset_to_default=true.")] string content = "",
         [Description("Delete the vault override and revert to the embedded default instead of writing.")] bool reset_to_default = false,
         CancellationToken cancellationToken = default) =>
@@ -215,11 +197,9 @@ public sealed class EngineeringWorkflowTools
             preconditions: null,
             cancellationToken: cancellationToken);
 
-    // setup_agent_workflow
-
     [McpServerTool, Description(
         "Sets up the agent workflow structure in the vault: creates the projects and knowledge " +
-        "root folders, copies the default document templates (adr, bug, plan, knowledge, idea, " +
+        "root folders, copies the default document templates (adr, bug, spec, plan, knowledge, idea, " +
         "session, daily, ticket, project-moc) into {templates}/kioku/ so the user can edit them " +
         "in Obsidian, and documents the configuration in .kioku/config.yml. " +
         "Fully idempotent: never overwrites existing files or human edits.")]
@@ -232,4 +212,5 @@ public sealed class EngineeringWorkflowTools
 
     internal static string ExtractSection(string content, string heading) =>
         ProjectDocumentService.ExtractSection(content, heading);
+
 }

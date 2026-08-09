@@ -22,7 +22,7 @@ public sealed class McpSurfaceMetadataContractTests
     private static readonly string[] RequiredEnvelopeProperties = ["success", "data", "error", "pagination", "warnings"];
 
     [Fact]
-    public async Task Default_profile_exposes_44_tools_with_truthful_schemas_and_annotations()
+    public async Task Default_profile_exposes_45_tools_with_truthful_schemas_and_annotations()
     {
         var tempVault = Path.Combine(Path.GetTempPath(), $"kioku-contract-default-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempVault);
@@ -33,7 +33,7 @@ public sealed class McpSurfaceMetadataContractTests
             await InitializeMcpSessionAsync(server.BaseUrl, client);
 
             var tools = await FetchToolsListAsync(server.BaseUrl, client);
-            Assert.Equal(44, tools.Count);
+            Assert.Equal(45, tools.Count);
 
             foreach (var tool in tools)
             {
@@ -59,7 +59,7 @@ public sealed class McpSurfaceMetadataContractTests
     }
 
     [Fact]
-    public async Task All_capabilities_profile_exposes_77_tools_with_truthful_schemas_and_annotations()
+    public async Task All_capabilities_profile_exposes_78_tools_with_truthful_schemas_and_annotations()
     {
         var tempVault = Path.Combine(Path.GetTempPath(), $"kioku-contract-all-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempVault);
@@ -70,12 +70,12 @@ public sealed class McpSurfaceMetadataContractTests
             await InitializeMcpSessionAsync(server.BaseUrl, client);
 
             var tools = await FetchToolsListAsync(server.BaseUrl, client);
-            Assert.Equal(77, tools.Count);
+            Assert.Equal(78, tools.Count);
 
             var discoveredNames = tools.Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
             var reviewedNames = KiokuToolAnnotationsTests.ReviewedToolMatrix.Keys.ToHashSet(StringComparer.Ordinal);
 
-            Assert.Equal(77, KiokuToolAnnotationsTests.ReviewedToolMatrix.Count);
+            Assert.Equal(78, KiokuToolAnnotationsTests.ReviewedToolMatrix.Count);
             Assert.Equal(reviewedNames.OrderBy(x => x), discoveredNames.OrderBy(x => x));
 
             foreach (var tool in tools)
@@ -129,8 +129,8 @@ public sealed class McpSurfaceMetadataContractTests
             await using var stdioServer = await CoordinationProcessServer.StartStdioAsync(tempVault, "parity-test-client");
             var stdioTools = await stdioServer.Client.ListToolsAsync();
 
-            // 3. Compare tool counts (44 for default, 77 for all-capabilities)
-            var expectedCount = enableAllCapabilities ? 77 : 44;
+            // 3. Compare tool counts (45 for default, 78 for all-capabilities)
+            var expectedCount = enableAllCapabilities ? 78 : 45;
             Assert.Equal(expectedCount, httpTools.Count);
             Assert.Equal(expectedCount, stdioTools.Count);
 

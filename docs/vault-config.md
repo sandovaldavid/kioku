@@ -31,11 +31,17 @@ The `vault` section provides an informational name. The `folders` section assign
 
 ## Engineering workspaces
 
-`engineering.subfolders` customizes the project directories used for decisions, bugs, plans, knowledge, sessions, daily notes, tickets, and backlog items. Project identifiers may contain `/`; use the full identifier returned by `list_projects`.
+`engineering.subfolders` customizes the project directories used for decisions, bugs, specs, plans, knowledge, sessions, daily notes, tickets, and backlog items. Project identifiers may contain `/`; use the full identifier returned by `list_projects`.
 
-New project scaffolds create only the core workspace folders: decisions, bugs, plans, knowledge, sessions, and backlog. Daily notes and local tickets are optional workflows: their configured folders remain recognized by project discovery and `get_project_context`, but are not created until an explicit note write targets them. A missing optional folder therefore represents an empty category, not a damaged project.
+New project scaffolds create these core workspace folders: decisions, bugs, specs, plans, knowledge, sessions, and backlog. Daily notes and local tickets remain optional workflows: their configured folders are recognized by project discovery and `get_project_context`, but are not created until an explicit note write targets them. A missing optional folder therefore represents an empty category, not a damaged project.
+
+A first-class `type: spec` captures what is being built and how it must behave; an implementation `plan` captures how the approved/current design will be implemented in the actual codebase. Spec lifecycle values are limited to `draft`, `approved`, `superseded`, and `discarded`. `get_project_context(types="spec")` and `types="specs"` list approved specs as current requirements, drafts as in progress, and superseded/discarded specs as historical rather than silently presenting them as current requirements.
+
+`create_engineering_spec` is the focused creation tool for specs. `create_implementation_plan` accepts an optional additive `spec` reference to a same-project spec. Approved specs are the normal source for execution; draft specs may be linked with an explicit warning, while superseded/discarded specs are rejected for new plans. Existing plan calls without `spec` keep their historical contract.
 
 Existing `daily` and `tickets` folders remain valid and require no migration. Their engineering templates remain available even before the optional folders exist, and configured custom subfolder names keep the same lazy behavior. Kioku does not silently create a missing local ticket while executing the `work_on_ticket` prompt; that workflow starts by reading an existing ticket and stops when the ticket is missing.
+
+Engineering templates are installed idempotently. The canonical `spec` template is available through the same template-management and Templater integration used by other project document types; Kioku does not overwrite an existing user template or an existing user Templater folder mapping.
 
 ## Capability profiles
 

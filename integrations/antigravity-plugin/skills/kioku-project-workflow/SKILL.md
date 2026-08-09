@@ -27,9 +27,11 @@ For project work:
 3. Call `get_project_context(project=...)` before editing code or project notes.
 4. Read only relevant context, normally in this order:
    - project MOC and latest session handoff;
-   - active plans and open bugs;
+   - approved/current specs, active plans, and open bugs;
    - relevant ADRs, tickets, backlog items, and knowledge notes.
 5. Inspect the source repository's current code, tests, contracts, configuration, documentation, issues, and pull requests. Vault context is not a substitute for source evidence.
+
+Treat approved specs as current durable requirements. Draft specs are in progress; superseded and discarded specs are historical and must not be silently treated as current instructions.
 
 Respect `.kioku/config.yml` folder roles, exclusions, templates, and capability policy. Do not invent local paths, credentials, or unavailable capability groups.
 
@@ -40,12 +42,15 @@ Choose the smallest workflow that preserves useful context:
 | Request | Default action |
 |---|---|
 | Explanation, lookup, or status | Read/search only; no session or vault write |
-| Multi-step implementation | Start a session; create/update a plan when it helps execution |
+| Feature/design needing durable behavior requirements | Create or update a first-class spec; create an implementation plan from that spec when execution begins |
+| Multi-step implementation with no durable design gap | Start a session; create/update a plan when it helps execution |
 | Bug investigation or fix | Start a session; record a bug only when root cause and evidence are reusable |
 | Architecture choice | Read existing ADRs; record a proposed ADR before treating the decision as accepted |
 | Reusable verified lesson | Save project knowledge after validation |
 | Deferred improvement | Add a backlog item rather than expanding scope |
 | Documentation synchronization | Separate current public repository truth from private reasoning and handoff context |
+
+A spec answers what is being built and how it must behave. A plan answers how to implement that spec in the current codebase. Do not collapse those artifacts into one document when both meanings are durable and relevant.
 
 Do not create every artifact type. Create only what another agent or maintainer will need.
 
@@ -64,7 +69,8 @@ Skip the session lifecycle for read-only answers and trivial isolated edits.
 
 Prefer the narrow current contracts:
 
-- `create_implementation_plan` for executable multi-step plans.
+- `create_engineering_spec` for durable design/behavior requirements. Valid lifecycle values are `draft`, `approved`, `superseded`, and `discarded`.
+- `create_implementation_plan` for executable multi-step plans. Supply `spec` when the plan implements a first-class same-project spec; existing calls without `spec` remain valid.
 - `record_bug` for verified symptoms, root cause, fix, and affected files.
 - `record_adr` for architecture decisions, alternatives, and consequences.
 - `add_backlog_item` for intentionally deferred work.
@@ -72,6 +78,8 @@ Prefer the narrow current contracts:
 - `edit_note` for incremental body updates.
 - `update_frontmatter` for supported status, type, and tag changes.
 - `list_tasks` before `set_task_state`; never rely on a stale line number.
+
+Approved specs are the normal source for implementation. A draft spec may be linked to a plan with an explicit provisional warning; superseded or discarded specs are historical and must be reconciled before new execution work.
 
 `create_project_doc` is a compatibility wrapper. Do not use it for new workflows when the focused tool exists.
 

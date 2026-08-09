@@ -19,6 +19,7 @@ public sealed class KiokuToolAnnotationsTests
         ["audit_vault"] = (true, false, true, false),
         ["create_coordination_work_item"] = (false, false, false, false),
         ["create_folder_readme"] = (false, true, true, false),
+        ["create_engineering_spec"] = (false, false, false, false),
         ["create_implementation_plan"] = (false, false, false, false),
         ["create_literature_note"] = (false, false, false, false),
         ["create_moc"] = (false, true, true, false),
@@ -182,9 +183,9 @@ public sealed class KiokuToolAnnotationsTests
     }
 
     [Fact]
-    public void All_77_tools_match_reviewed_annotation_matrix()
+    public void All_78_tools_match_reviewed_annotation_matrix()
     {
-        Assert.Equal(77, ReviewedToolMatrix.Count);
+        Assert.Equal(78, ReviewedToolMatrix.Count);
 
         foreach (var (toolName, (expectedReadOnly, expectedDestructive, expectedIdempotent, expectedOpenWorld)) in ReviewedToolMatrix)
         {

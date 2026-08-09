@@ -84,10 +84,13 @@ generated_indexes:
   refresh: manual
 
 # --- Workspaces de ingeniería por proyecto ---
+# Core/eager: decisions, bugs, specs, plans, knowledge, sessions, backlog.
+# Optional/lazy: daily, tickets.
 engineering:
   subfolders:
     decisions: "decisions"
     bugs: "bugs"
+    specs: "specs"
     plans: "plans"
     knowledge: "knowledge"
     sessions: "sessions"
