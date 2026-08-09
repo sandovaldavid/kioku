@@ -104,7 +104,10 @@ public sealed class EngineeringSpecReliabilityTests : IAsyncLifetime
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _createBarrier?.SignalAndWait(cancellationToken);
+            if (Path.GetFileName(path).StartsWith("SPEC-", StringComparison.Ordinal))
+            {
+                _createBarrier?.SignalAndWait(cancellationToken);
+            }
 
             lock (_gate)
             {
