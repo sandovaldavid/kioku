@@ -1,7 +1,7 @@
 # {{title}}
 
 > [!abstract] Implementation plan
-> Project: {{project_link}} · Created: {{date}} · Ticket: {{ticket}} · Status lives in the frontmatter (`status`).
+> Project: {{project_link}} · Created: {{date}} · Spec: {{spec}} · Ticket: {{ticket}} · Status lives in the frontmatter (`status`).
 
 ## Objective
 
