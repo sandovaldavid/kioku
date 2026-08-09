@@ -21,7 +21,12 @@ public static class WikilinkRewritePolicy
             return DecideResolved(resolution, plan);
         }
 
-        if (resolution.Status is VaultLinkResolutionStatus.Ambiguous or VaultLinkResolutionStatus.Malformed)
+        if (resolution.Status == VaultLinkResolutionStatus.Malformed)
+        {
+            return WikilinkRewriter.TargetRewriteDecision.Leave;
+        }
+
+        if (resolution.Status == VaultLinkResolutionStatus.Ambiguous)
         {
             return IsPotentialHistoricalShortName(rawTarget, plan)
                 ? WikilinkRewriter.TargetRewriteDecision.Ambiguous
