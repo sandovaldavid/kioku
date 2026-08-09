@@ -6,10 +6,13 @@ the right notes, and how to compare configurations
 
 ## Scope
 
-Kioku is a retrieval-only MCP server: it returns notes, the client LLM generates answers.
-Therefore only retrieval metrics apply here. Generation-side metrics (RAGAS faithfulness,
-answer relevancy, groundedness) are out of scope by design — there is no generation step
-to evaluate inside this server.
+This evaluation harness measures **retrieval quality only**. Kioku can expose optional local
+generation workflows when the `generation` capability is enabled and a generation model is
+configured, but those workflows are outside this harness.
+
+The metrics here score whether retrieval returns the right notes. Generation-side metrics such as
+RAGAS faithfulness, answer relevancy, or groundedness require a separate evaluation design and are
+not inferred from retrieval scores.
 
 Metrics implemented in `src/Kioku.Mcp.Server/Domain/RetrievalMetrics.cs`:
 

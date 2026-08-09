@@ -24,7 +24,7 @@ The repository currently keeps these boundaries inside the single `Kioku.Mcp.Ser
 |---|---|---|
 | MCP adapters | MCP attributes, descriptions, protocol arguments, client metadata, cancellation capture, delegation | `SessionContextTools`, `EngineeringWorkflowTools`, `NoteQueryTools`, `FocusedCreationTools`, `CoordinationTools`, `CoordinationResources` |
 | Application contracts | Stable operations exposed to adapters | `IWorkSessionService`, `IProjectDocumentService`, `INoteQueryService`, `ICoordinationService` |
-| Workflow services | Session, project-document, note-query, and coordination orchestration | `WorkSessionService`, `ProjectDocumentService`, `NoteQueryService`, `ProjectWorkspaceService`, `CoordinationService` |
+| Workflow services | Session, project-document, engineering-spec, note-query, and coordination orchestration | `WorkSessionService`, `ProjectDocumentService`, `EngineeringSpecService`, `ProjectWorkspaceService`, `NoteQueryService`, `CoordinationService` |
 | Domain | Note metadata, frontmatter values, invariants, and error models | `Note`, `NoteFrontmatter`, `KiokuError` |
 | Presentation | Render application results as MCP text and structured content | `NoteResultPresenter` |
 | Infrastructure ports | Contracts for external effects | `IWorkSessionFileSystem`, `IProjectDocumentFileSystem`, `ICoordinationFileSystem` |
@@ -75,11 +75,22 @@ Architecture and integration tests enforce adapter shape, dependency injection, 
 
 See [work-sessions.md](work-sessions.md).
 
-### Project documents
+### Project documents and engineering specs
 
-`EngineeringWorkflowTools` and focused engineering creation tools delegate to `IProjectDocumentService`. `ProjectDocumentService` owns ADR, bug, plan, knowledge, backlog, project-context, and engineering-template workflows. Filesystem operations are delegated to `IProjectDocumentFileSystem` / `ProjectDocumentFileSystem`.
+`EngineeringWorkflowTools` and the focused engineering creation tools depend on the single application boundary `IProjectDocumentService`; MCP adapters do not construct engineering workflow services directly.
 
-The generic `create_project_doc` surface remains a **Deprecated** compatibility wrapper. New integrations should use the focused tools listed in [focused-tool-migration.md](focused-tool-migration.md).
+`ProjectDocumentService` owns the project-document facade: ADRs, bug logs, ordinary implementation plans, knowledge, backlog, project discovery/context, and engineering-template management. First-class specs and spec-linked plans are delegated through the same facade to `EngineeringSpecService`, which owns:
+
+- the `draft` / `approved` / `superseded` / `discarded` spec lifecycle;
+- canonical spec filename creation and exact-basename resolution;
+- same-project SPEC → PLAN validation;
+- rejection of malformed, traversal, wrong-project, superseded, or discarded references;
+- final durable revision calculation after optional Templater evaluation;
+- idempotent retry behavior that does not replay an already-applied Templater side effect.
+
+Both paths use the existing project workspace and vault mutation boundaries. `specs/` is a core/eager project folder; `daily/` and `tickets/` remain recognized optional/lazy workflow folders.
+
+The generic `create_project_doc` surface remains a **Deprecated** compatibility wrapper and does not model first-class specs. New integrations should use the focused tools listed in [focused-tool-migration.md](focused-tool-migration.md) and the workflow semantics in [engineering-workflows.md](engineering-workflows.md).
 
 ### Note queries
 
@@ -97,7 +108,9 @@ Vault-level capability configuration controls registration at startup. Exact pro
 
 `stdio` is the default transport for a client-spawned local process. Streamable HTTP is selected with `KIOKU_TRANSPORT=http` and adds listener validation, origin checks, bearer authentication, request limits, readiness, and trusted-proxy handling.
 
-The host validates configuration before starting runtime services. HTTP deployment guidance lives in [deploy/auth-options.md](deploy/auth-options.md).
+Streamable HTTP is configured explicitly as stateless at the MCP transport layer. Durable work sessions, coordination state, vault files, indexes, and the optional Obsidian bridge are application/runtime concerns rather than MCP HTTP-session storage.
+
+The host validates configuration before starting runtime services. Cold vault reconciliation runs in the background; warm-up-safe status/project-context operations can respond while index-dependent operations wait on the explicit cold-index readiness gate. HTTP deployment guidance lives in [deploy/auth-options.md](deploy/auth-options.md).
 
 ## Contract enforcement
 
@@ -106,10 +119,13 @@ The test suite covers:
 - MCP tool names, schemas, annotations, prompts, and resources;
 - typed result and protocol-error behavior;
 - application/infrastructure dependency boundaries;
+- first-class spec lifecycle, canonical basename resolution, SPEC → PLAN linking, revision, and idempotency behavior;
+- project core/eager versus optional/lazy folder semantics;
 - filesystem sandbox and permanent-delete policy;
 - concurrent work-session ownership;
 - frontmatter preservation;
-- indexing synchronization and recovery;
+- indexing synchronization, readiness, and recovery;
+- canonical wikilink resolution and resolver-aware rewrite safety;
 - bridge protocol fixtures;
 - coordination event, claim, conflict, MCP-surface, and capability-gating tests;
 - HTTP authentication, origins, limits, and readiness.

@@ -111,4 +111,4 @@ profile](durable-coordination.md).
 - A second close of an already completed session returns `SESSION_ALREADY_CLOSED` instead of appending duplicate end blocks.
 - Different session IDs can be closed concurrently.
 
-For exact MCP input schemas, use `tools/list` or regenerate `docs/commands-reference.md` with `scripts/GenerateCommandsRef`.
+For exact MCP input schemas, use live `tools/list` or the generated [MCP contract reference](commands-reference.md). Regenerate/verify public contracts with `node scripts/generate-public-docs.mjs --write` and `node scripts/generate-public-docs.mjs --check`.
