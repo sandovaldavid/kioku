@@ -4,6 +4,7 @@ using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModelContextProtocol.Protocol;
 using Xunit;
 
 namespace Kioku.Mcp.Server.Tests;
@@ -250,15 +251,16 @@ public sealed class WikilinkResolutionConsistencyTests : IAsyncLifetime
             _embedding,
             _vaultConfig);
         var audit = await auditTools.audit_vault();
-        Assert.Contains("Broken wikilinks (1)", audit);
-        Assert.Contains("Ambiguous wikilinks (2)", audit);
-        Assert.Contains("Malformed wikilinks (1)", audit);
-        Assert.Contains("Missing Target", audit);
-        Assert.DoesNotContain("[[linktree]]", audit);
-        Assert.DoesNotContain("[[identidad-marca-personal]]", audit);
-        Assert.DoesNotContain("[[../yukidoke-api]]", audit);
-        Assert.DoesNotContain("[[../yukidoke-web]]", audit);
-        Assert.DoesNotContain("[[filename-with-#-character#Heading]]", audit);
+        var auditText = audit.Content.OfType<TextContentBlock>().Single().Text;
+        Assert.Contains("Broken wikilinks (1)", auditText);
+        Assert.Contains("Ambiguous wikilinks (2)", auditText);
+        Assert.Contains("Malformed wikilinks (1)", auditText);
+        Assert.Contains("Missing Target", auditText);
+        Assert.DoesNotContain("[[linktree]]", auditText);
+        Assert.DoesNotContain("[[identidad-marca-personal]]", auditText);
+        Assert.DoesNotContain("[[../yukidoke-api]]", auditText);
+        Assert.DoesNotContain("[[../yukidoke-web]]", auditText);
+        Assert.DoesNotContain("[[filename-with-#-character#Heading]]", auditText);
 
         var graph = new KnowledgeGraphTools(_index).get_concept_map(
             "projects/current/source",
