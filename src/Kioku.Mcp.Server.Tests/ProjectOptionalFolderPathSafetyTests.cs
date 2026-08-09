@@ -20,14 +20,15 @@ public sealed class ProjectOptionalFolderPathSafetyTests : IAsyncLifetime
     [Fact]
     public async Task OptionalFolderConfiguredOutsideVault_IsRejectedBeforeCreation()
     {
+        var escapedFolderName = $"outside-daily-{Guid.NewGuid():N}";
         var configPath = Path.Combine(_fixture.VaultPath, ".kioku", "config.yml");
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
         await File.WriteAllTextAsync(
             configPath,
-            """
+            $$"""
             engineering:
               subfolders:
-                daily: ../../../../outside-daily
+                daily: ../../../../{{escapedFolderName}}
             """,
             Encoding.UTF8);
 
@@ -36,7 +37,7 @@ public sealed class ProjectOptionalFolderPathSafetyTests : IAsyncLifetime
         var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);
         var workspace = new ProjectWorkspaceService(config, vaultConfig, bridge);
         var escapedPath = Path.GetFullPath(
-            Path.Combine(workspace.GetProjectFolder("demo"), "../../../../outside-daily"));
+            Path.Combine(workspace.GetProjectFolder("demo"), $"../../../../{escapedFolderName}"));
 
         var exception = Assert.Throws<InvalidOperationException>(() => workspace.GetSubfolder("demo", "daily"));
 
