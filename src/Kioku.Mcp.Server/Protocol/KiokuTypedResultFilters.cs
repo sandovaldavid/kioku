@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Kioku.Mcp.Server.Services;
+using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
@@ -6,6 +8,14 @@ namespace Kioku.Mcp.Server.Protocol;
 
 internal static class KiokuTypedResultFilters
 {
+    private static readonly HashSet<string> WarmupSafeTools = new(StringComparer.Ordinal)
+    {
+        "get_server_capabilities",
+        "get_server_status",
+        "list_projects",
+        "get_project_context",
+    };
+
     private static readonly JsonElement OutputSchema = JsonSerializer.SerializeToElement(new
     {
         type = "object",
@@ -64,6 +74,16 @@ internal static class KiokuTypedResultFilters
 
             filters.AddCallToolFilter(next => async (context, cancellationToken) =>
             {
+                if (RequiresReadyIndex(context.Params.Name))
+                {
+                    var services = context.Services
+                        ?? throw new InvalidOperationException(
+                            "MCP request services are unavailable while enforcing vault index readiness.");
+                    await services
+                        .GetRequiredService<VaultIndexReadinessGate>()
+                        .WaitAsync(cancellationToken);
+                }
+
                 var result = await next(context, cancellationToken);
                 if (result.StructuredContent is JsonElement { ValueKind: JsonValueKind.Object })
                 {
@@ -90,6 +110,9 @@ internal static class KiokuTypedResultFilters
                 return result;
             });
         });
+
+    internal static bool RequiresReadyIndex(string toolName) =>
+        !WarmupSafeTools.Contains(toolName);
 
     private static JsonElement ParseData(string text, bool isError)
     {
