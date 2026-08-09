@@ -7,7 +7,7 @@ on:
     branches: [main, develop]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -34,3 +34,85 @@ jobs:
 
       - name: Validate release-facing documentation
         run: node scripts/validate-release-documentation.mjs
+
+  patch-mcp-protocol-assertion:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'tmp/mcp-sdk-2-protocol-assertion'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Add explicit protocol negotiation assertions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/Kioku.Ci/Program.cs')
+          text = path.read_text()
+          marker = 'private static void VerifyNegotiatedProtocolVersion('
+          if marker in text:
+              print('Protocol assertion already present.')
+              raise SystemExit(0)
+
+          first = '''        RequireTool(toolNames, "get_server_capabilities");
+
+        await VerifyLivenessAsync(client, "primary client", cancellationToken);'''
+          first_replacement = '''        RequireTool(toolNames, "get_server_capabilities");
+
+        VerifyNegotiatedProtocolVersion(client, "primary client");
+        await VerifyLivenessAsync(client, "primary client", cancellationToken);'''
+
+          second = '''        await using var secondClient = await createSecondClientAsync(cancellationToken);
+        await VerifyLivenessAsync(secondClient, "handoff client", cancellationToken);'''
+          second_replacement = '''        await using var secondClient = await createSecondClientAsync(cancellationToken);
+        VerifyNegotiatedProtocolVersion(secondClient, "handoff client");
+        await VerifyLivenessAsync(secondClient, "handoff client", cancellationToken);'''
+
+          third = '''    private static async Task VerifyLivenessAsync(
+        McpClient client,
+        string label,
+        CancellationToken cancellationToken)
+    {'''
+          protocol_assertion = '''    private static void VerifyNegotiatedProtocolVersion(McpClient client, string label)
+    {
+        const string expectedProtocolVersion = "2026-07-28";
+        if (!string.Equals(client.NegotiatedProtocolVersion, expectedProtocolVersion, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"{label} negotiated MCP protocol '{client.NegotiatedProtocolVersion ?? "<null>"}', expected '{expectedProtocolVersion}'.");
+        }
+    }
+
+    private static async Task VerifyLivenessAsync(
+        McpClient client,
+        string label,
+        CancellationToken cancellationToken)
+    {'''
+
+          for needle in (first, second, third):
+              if text.count(needle) != 1:
+                  raise SystemExit(f'Expected exactly one patch location, found {text.count(needle)}')
+
+          text = text.replace(first, first_replacement)
+          text = text.replace(second, second_replacement)
+          text = text.replace(third, protocol_assertion)
+          path.write_text(text)
+          PY
+
+      - name: Commit protocol assertion when changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- scripts/Kioku.Ci/Program.cs; then
+            echo 'No protocol assertion change required.'
+            exit 0
+          fi
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/Kioku.Ci/Program.cs
+          git commit -m 'test(ci): assert negotiated MCP protocol version'
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
