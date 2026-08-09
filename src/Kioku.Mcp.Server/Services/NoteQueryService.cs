@@ -250,6 +250,7 @@ internal sealed class NoteQueryService(
 
         List<Note>? backlinks = null;
         List<string>? outgoing = null;
+        List<OutgoingLinkResolutionRow>? outgoingResolutions = null;
         if (dir is "in" or "both")
         {
             var backlinkCandidates = vault.GetBacklinks(name)
@@ -262,9 +263,26 @@ internal sealed class NoteQueryService(
         if (dir is "out" or "both")
         {
             outgoing = found.OutgoingLinks.OrderBy(l => l).ToList();
+            outgoingResolutions = outgoing
+                .Select(link =>
+                {
+                    var resolution = vault.ResolveLinkResult(found, link);
+                    return new OutgoingLinkResolutionRow(
+                        link,
+                        resolution.Status.ToString().ToLowerInvariant(),
+                        resolution.CanonicalTargetPath,
+                        resolution.Fragment);
+                })
+                .ToList();
         }
 
-        return NoteResultPresenter.RenderLinks(name, found.VaultRelativePath, backlinks, outgoing, format);
+        return NoteResultPresenter.RenderLinks(
+            name,
+            found.VaultRelativePath,
+            backlinks,
+            outgoing,
+            outgoingResolutions,
+            format);
     }
 
     public string FindSimilarNotes(string note, int maxResults, float minScore)
