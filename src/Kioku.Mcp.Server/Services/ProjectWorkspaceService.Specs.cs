@@ -24,7 +24,7 @@ public sealed partial class ProjectWorkspaceService
                 "compatibility", "testing_strategy", "decisions", "open_questions", "related",
                 "source_issue",
             ],
-            ["plan"] = ["project", "project_link", "objective", "steps", "ticket", "spec"],
+            ["plan"] = ["project", "project_link", "objective", "steps", "ticket"],
             ["knowledge"] = ["project", "project_link", "content"],
             ["idea"] = ["project", "project_link", "description"],
             ["session"] = ["project", "project_link", "goal", "agent"],
