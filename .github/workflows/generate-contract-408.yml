@@ -1,0 +1,25 @@
+name: generate-contract-408
+
+on:
+  pull_request:
+    branches: [develop]
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.x"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
+      - run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore
+      - run: node scripts/generate-public-docs.mjs --write
+      - uses: actions/upload-artifact@v7
+        with:
+          name: generated-contract-408
+          path: docs/commands-reference.md
+          if-no-files-found: error
