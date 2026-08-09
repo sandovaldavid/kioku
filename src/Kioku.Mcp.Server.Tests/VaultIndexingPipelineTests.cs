@@ -72,11 +72,16 @@ public sealed class VaultIndexingPipelineTests
     }
 
     [Fact]
-    public async Task Cancellation_stops_scheduling_new_cold_start_work()
+    public async Task Cancellation_stops_scheduling_new_cold_start_work_without_marking_failure()
     {
         using var vault = new TemporaryVault();
         vault.CreateNotes(1000);
-        var (pipeline, index, _) = CreatePipeline(vault.Path, concurrency: 3, operationDelay: TimeSpan.FromMilliseconds(25));
+        var readiness = new HttpReadinessState();
+        var (pipeline, index, _) = CreatePipeline(
+            vault.Path,
+            concurrency: 3,
+            operationDelay: TimeSpan.FromMilliseconds(25),
+            readiness);
         await using var lifetime = new PipelineLifetime(pipeline);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(75));
 
@@ -85,6 +90,8 @@ public sealed class VaultIndexingPipelineTests
 
         Assert.True(index.GetNotesSnapshot().Count < 1000);
         Assert.False(index.IsReady);
+        Assert.False(pipeline.IsReady);
+        Assert.Equal("rebuilding", readiness.GetSnapshot().Index);
         Assert.InRange(index.MaximumObservedConcurrency, 0, 3);
     }
 
@@ -109,7 +116,11 @@ public sealed class VaultIndexingPipelineTests
     }
 
     private static (VaultIndexingPipeline Pipeline, FakeVaultIndexOperations Index, VaultIndexingMetrics Metrics)
-        CreatePipeline(string vaultPath, int concurrency, TimeSpan operationDelay)
+        CreatePipeline(
+            string vaultPath,
+            int concurrency,
+            TimeSpan operationDelay,
+            HttpReadinessState? readiness = null)
     {
         var configuration = new KiokuConfiguration { VaultPath = vaultPath };
         var options = Options.Create(new KiokuOptions
@@ -128,7 +139,7 @@ public sealed class VaultIndexingPipelineTests
             paths,
             vaultConfig,
             options,
-            new HttpReadinessState(),
+            readiness ?? new HttpReadinessState(),
             TimeProvider.System,
             metrics,
             NullLogger<VaultIndexingPipeline>.Instance);

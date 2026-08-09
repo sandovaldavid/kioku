@@ -108,6 +108,36 @@ public class VaultOrganizationToolsInboxTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ProcessInbox_Apply_PreservesDistinctLiteralHashWikilink()
+    {
+        await _fixture.CreateNoteAsync("Inbox/Capture A", "About python programming and scripting.");
+        await _fixture.CreateNoteAsync("Python/Existing Note", "Python programming language reference.");
+        await _fixture.CreateNoteAsync(
+            "Linker",
+            "Target: [[Inbox/Capture A]]. Distinct: [[Inbox/Capture A#suffix]].");
+        await _fixture.Index.RebuildIndexAsync();
+
+        // Keep the distinct literal-hash target outside the indexed inbox plan while still
+        // present on disk. The write-side resolver must re-check the filesystem at mutation time
+        // rather than trusting the stale backlink interpretation from before this file existed.
+        await File.WriteAllTextAsync(
+            _fixture.GetNotePath("Inbox/Capture A#suffix"),
+            "A distinct literal-hash note.");
+
+        var tools = CreateTools();
+        var result = await tools.process_inbox(inbox_folder: "Inbox", max_notes: 1, apply: true);
+
+        Assert.Contains("1 wikilink(s) updated", result);
+        Assert.True(_fixture.NoteExists("Python/Capture A"));
+        Assert.True(_fixture.NoteExists("Inbox/Capture A#suffix"));
+
+        var linkerBody = await _fixture.ReadNoteBodyAsync("Linker");
+        Assert.Contains("[[Python/Capture A]]", linkerBody);
+        Assert.Contains("[[Inbox/Capture A#suffix]]", linkerBody);
+        Assert.DoesNotContain("[[Python/Capture A#suffix]]", linkerBody);
+    }
+
+    [Fact]
     public async Task ProcessInbox_NoOverlappingFolderContent_KeepsNoteInInbox()
     {
         // No word overlap with any existing folder's notes, so FolderRanker finds no

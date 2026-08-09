@@ -238,7 +238,7 @@ public sealed class VaultOrganizationTools(
 
     [McpServerTool, Description(
         "Generates a health report of the vault: notes without tags, without dates, " +
-        "without content, broken wikilinks, and notes not updated in a long time.")]
+        "without content, missing/ambiguous/malformed wikilinks, and stale notes.")]
     public Task<string> audit_vault(
         [Description("Flag notes not updated in this many days (default: 90).")] int stale_days = 90)
     {
@@ -250,7 +250,10 @@ public sealed class VaultOrganizationTools(
         var emptyNotes = notes.Where(n => string.IsNullOrWhiteSpace(n.PlainText)).ToList();
         var stale = notes.Where(n => n.LastModified < cutoff).ToList();
 
-        var brokenLinks = ScanBrokenLinks(notes);
+        var linkIssues = ScanLinkIssues(notes);
+        var missingLinks = linkIssues.Where(issue => issue.Status == VaultLinkResolutionStatus.Missing).ToList();
+        var ambiguousLinks = linkIssues.Where(issue => issue.Status == VaultLinkResolutionStatus.Ambiguous).ToList();
+        var malformedLinks = linkIssues.Where(issue => issue.Status == VaultLinkResolutionStatus.Malformed).ToList();
 
         var sb = new StringBuilder("# Kioku — Vault Audit Report\n\n");
         sb.AppendLine(CultureInfo.InvariantCulture, $"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
@@ -259,15 +262,20 @@ public sealed class VaultOrganizationTools(
         AppendSection(sb, $"Notes without tags ({noTags.Count})", noTags.Select(n => n.VaultRelativePath));
         AppendSection(sb, $"Notes without date in frontmatter ({noDates.Count})", noDates.Select(n => n.VaultRelativePath));
         AppendSection(sb, $"Empty notes ({emptyNotes.Count})", emptyNotes.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Broken wikilinks ({brokenLinks.Count})",
-            brokenLinks.Select(x => $"{x.Note}: [[{x.Link}]]"));
+        AppendSection(sb, $"Broken wikilinks ({missingLinks.Count})",
+            missingLinks.Select(issue => $"{issue.Note}: [[{issue.Link}]]"));
+        AppendSection(sb, $"Ambiguous wikilinks ({ambiguousLinks.Count})",
+            ambiguousLinks.Select(issue => $"{issue.Note}: [[{issue.Link}]]"));
+        AppendSection(sb, $"Malformed wikilinks ({malformedLinks.Count})",
+            malformedLinks.Select(issue => $"{issue.Note}: {issue.Link}"));
         AppendSection(sb, $"Stale notes (not updated in {stale_days}+ days) ({stale.Count})",
             stale.OrderBy(n => n.LastModified)
                  .Select(n => $"{n.VaultRelativePath} (last modified: {n.LastModified:yyyy-MM-dd})"));
 
         sb.AppendLine("\n---");
         sb.AppendLine(CultureInfo.InvariantCulture, $"**Summary:** {noTags.Count} untagged · {emptyNotes.Count} empty · " +
-                      $"{brokenLinks.Count} broken links · {stale.Count} stale");
+                      $"{missingLinks.Count} broken links · {ambiguousLinks.Count} ambiguous links · " +
+                      $"{malformedLinks.Count} malformed links · {stale.Count} stale");
 
         return Task.FromResult(sb.ToString());
     }
@@ -509,7 +517,11 @@ public sealed class VaultOrganizationTools(
         {
             var raw = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
             var bodyStart = FrontmatterParser.GetBodyStart(raw);
-            var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
+            var result = WikilinkRewriter.Rewrite(
+                raw,
+                plan,
+                target => WikilinkRewritePolicy.Decide(vault, source, target, plan),
+                bodyStart);
 
             if (result.ReplacedCount == 0)
             {
@@ -730,50 +742,38 @@ public sealed class VaultOrganizationTools(
         return values.Count == 0 ? "(none)" : string.Join(", ", values);
     }
 
-    /// <summary>
-    /// Finds links that don't resolve against the in-memory index. A link might still point at
-    /// a real file sitting in a folder excluded from indexing (.kioku/config.yml's exclude:
-    /// list) — that's not actually broken. A full path (containing '/') is checked directly; a
-    /// bare note name is searched for by filename anywhere in the vault, since Obsidian resolves
-    /// bare wikilinks across folders.
-    /// </summary>
-    private List<(string Note, string Link)> ScanBrokenLinks(IReadOnlyCollection<Note> notes)
+    private sealed record LinkIssue(
+        string Note,
+        string Link,
+        VaultLinkResolutionStatus Status);
+
+    private List<LinkIssue> ScanLinkIssues(IReadOnlyCollection<Note> notes)
     {
-        var allNoteNames = notes
-            .Select(n => n.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var allNotePaths = notes
-            .Select(n => StripMdExtension(n.VaultRelativePath))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return notes
-            .SelectMany(note => note.OutgoingLinks
-                .Select(link => (Note: note.VaultRelativePath, Link: link, Target: link.Split('#')[0].Trim()))
-                .Where(link => !string.IsNullOrWhiteSpace(link.Target)
-                    && !allNoteNames.Contains(link.Target)
-                    && !allNotePaths.Contains(link.Target)
-                    && !ExistsOnDisk(config.VaultPath, link.Target))
-                .Select(link => (Note: link.Note, Link: link.Link)))
-            .ToList();
-    }
-
-    /// <summary>
-    /// Checks whether a link target exists on disk when its note is excluded from indexing. A
-    /// full path (containing '/') is checked directly; a bare note name is searched for by
-    /// filename anywhere in the vault, since Obsidian resolves bare wikilinks across folders.
-    /// </summary>
-    private static bool ExistsOnDisk(string vaultPath, string linkTarget)
-    {
-        var fileName = linkTarget.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-            ? linkTarget
-            : linkTarget + ".md";
-
-        if (linkTarget.Contains('/'))
+        var issues = new List<LinkIssue>();
+        foreach (var note in notes)
         {
-            return File.Exists(Path.Combine(vaultPath, fileName.Replace('/', Path.DirectorySeparatorChar)));
+            foreach (var reference in MarkdownTextExtractor.ExtractWikilinkReferences(note.RawContent))
+            {
+                if (reference.IsMalformed)
+                {
+                    issues.Add(new LinkIssue(
+                        note.VaultRelativePath,
+                        reference.Raw,
+                        VaultLinkResolutionStatus.Malformed));
+                    continue;
+                }
+
+                var resolution = vault.ResolveLinkResult(note, reference.Target);
+                if (resolution.Status == VaultLinkResolutionStatus.Resolved)
+                {
+                    continue;
+                }
+
+                issues.Add(new LinkIssue(note.VaultRelativePath, reference.Target, resolution.Status));
+            }
         }
 
-        return Directory.EnumerateFiles(vaultPath, fileName, SearchOption.AllDirectories).Any();
+        return issues;
     }
 
     private static string NormalizeTag(string tag)

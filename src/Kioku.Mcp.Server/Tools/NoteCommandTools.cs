@@ -1015,7 +1015,11 @@ public sealed partial class NoteCommandTools(
         {
             var raw = await NoteHelpers.ReadAllTextAsync(source.FilePath);
             var bodyStart = FrontmatterParser.GetBodyStart(raw);
-            var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
+            var result = WikilinkRewriter.Rewrite(
+                raw,
+                plan,
+                target => WikilinkRewritePolicy.Decide(vault, source, target, plan),
+                bodyStart);
 
             foreach (var link in result.AmbiguousMatches)
             {
