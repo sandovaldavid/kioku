@@ -294,8 +294,14 @@ internal static class Program
         _ = counts.GetProperty("broken_occurrences").GetInt32();
         _ = counts.GetProperty("unique_broken_edges").GetInt32();
         _ = counts.GetProperty("unique_broken_targets").GetInt32();
+        var templatePlaceholderOccurrences = counts.GetProperty("template_placeholder_occurrences").GetInt32();
+        if (templatePlaceholderOccurrences < 1)
+        {
+            throw new InvalidOperationException(
+                "audit_vault did not classify the package-smoke empty template placeholder.");
+        }
 
-        foreach (var category in new[] { "broken", "ambiguous", "malformed" })
+        foreach (var category in new[] { "broken", "ambiguous", "malformed", "template_placeholders" })
         {
             var page = data.GetProperty("links").GetProperty(category);
             if (page.GetProperty("offset").GetInt32() != 0 ||
@@ -310,6 +316,17 @@ internal static class Program
             _ = page.GetProperty("unique_edges").GetInt32();
             _ = page.GetProperty("unique_targets").GetInt32();
             _ = page.GetProperty("has_more").GetBoolean();
+        }
+
+        var placeholderPage = data.GetProperty("links").GetProperty("template_placeholders");
+        if (placeholderPage.GetProperty("returned").GetInt32() != 1 ||
+            !string.Equals(
+                placeholderPage.GetProperty("findings")[0].GetProperty("status").GetString(),
+                "template_placeholder",
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "audit_vault did not expose the expected template-placeholder finding.");
         }
     }
 
@@ -363,7 +380,7 @@ internal static class Program
             secondClient,
             child.Path,
             cancellationToken);
-        EnsureSessionMetadata(childBeforeClose.RootElement, child.Id, "active", parent.Id, "child before parent close");
+        EnsureSessionMetadata(childBeforeClose.RootElement, child.Id, "active", parent.Id, "child before close");
 
         var closeParentResult = await secondClient.CallToolAsync(
             "end_work_session",

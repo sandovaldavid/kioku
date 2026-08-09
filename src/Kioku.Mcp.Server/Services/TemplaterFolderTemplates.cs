@@ -63,6 +63,39 @@ public static class TemplaterFolderTemplates
     }
 
     /// <summary>
+    /// Reads Templater's configured templates root (<c>templates_folder</c>). This setting is
+    /// independent from Folder Templates, so it remains available even when
+    /// <c>enable_folder_templates</c> is false. Returns null when missing, blank, or malformed.
+    /// </summary>
+    public static async Task<string?> ReadTemplatesFolderAsync(string vaultPath)
+    {
+        var path = SettingsPath(vaultPath);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var doc = await JsonDocument.ParseAsync(stream);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("templates_folder", out var folderEl) ||
+                folderEl.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            var folder = folderEl.GetString()?.Trim();
+            return string.IsNullOrWhiteSpace(folder) ? null : folder;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Adds folder→template entries to Templater's own settings, never overwriting a folder the
     /// user already mapped (even to a different template) and never creating the settings file
     /// from scratch (only merges into an existing one — Templater must already be installed and
