@@ -37,6 +37,7 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<IVaultMutationService, VaultMutationService>();
         services.AddSingleton<VaultIndexingMetrics>();
         services.AddSingleton<VaultIndexingPipeline>();
+        services.AddSingleton<VaultIndexReadinessGate>();
         services.AddSingleton<ObsidianBridgeService>();
         services.AddSingleton<HybridSearchService>();
         services.AddSingleton<TaskService>();
@@ -99,6 +100,7 @@ internal sealed record KiokuRuntimeStatus(
 
 internal sealed class KiokuRuntime(
     VaultIndexingPipeline indexing,
+    VaultIndexReadinessGate indexReadiness,
     VaultIndexingMetrics indexingMetrics,
     EmbeddingService embedding,
     GenerationService generation,
@@ -106,7 +108,21 @@ internal sealed class KiokuRuntime(
 {
     public async Task<KiokuRuntimeStatus> InitializeAsync(CancellationToken cancellationToken)
     {
-        await indexing.InitializeAsync(cancellationToken);
+        try
+        {
+            await indexing.InitializeAsync(cancellationToken);
+            indexReadiness.MarkReady();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            indexReadiness.MarkCanceled(cancellationToken);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            indexReadiness.MarkFailed(exception);
+            throw;
+        }
 
         var embeddingStartedAt = timeProvider.GetTimestamp();
         await embedding.InitializeAsync(indexing.GetNotesSnapshot(), cancellationToken);
