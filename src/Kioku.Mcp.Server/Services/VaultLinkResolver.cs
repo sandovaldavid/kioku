@@ -134,7 +134,7 @@ public sealed class VaultLinkResolver(
         }
         else
         {
-            var basename = Path.GetFileNameWithoutExtension(normalized);
+            var basename = GetMarkdownBasename(normalized);
             var byName = notes
                 .Where(note => note.Name.Equals(basename, StringComparison.OrdinalIgnoreCase))
                 .ToList();
@@ -216,11 +216,11 @@ public sealed class VaultLinkResolver(
         string target,
         IReadOnlyCollection<Note> notes)
     {
-        var basename = Path.GetFileNameWithoutExtension(target);
+        var basename = GetMarkdownBasename(target);
         var indexedPaths = notes.Select(note => note.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var matches = paths.EnumerateVaultFiles("*.md", recursive: true)
             .Where(path => !indexedPaths.Contains(path))
-            .Where(path => Path.GetFileNameWithoutExtension(path)
+            .Where(path => GetMarkdownBasename(path)
                 .Equals(basename, StringComparison.OrdinalIgnoreCase))
             .Take(2)
             .ToList();
@@ -236,6 +236,14 @@ public sealed class VaultLinkResolver(
                 CanonicalPath(Path.GetRelativePath(paths.VaultRoot, matches[0]))),
             _ => Ambiguous(rawTarget, target),
         };
+    }
+
+    private static string GetMarkdownBasename(string path)
+    {
+        var fileName = Path.GetFileName(path);
+        return fileName.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+            ? fileName[..^3]
+            : fileName;
     }
 
     private static bool TryNormalizeRawTarget(string rawTarget, out string normalized)
