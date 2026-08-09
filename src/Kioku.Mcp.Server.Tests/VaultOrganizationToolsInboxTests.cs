@@ -111,14 +111,20 @@ public class VaultOrganizationToolsInboxTests : IAsyncLifetime
     public async Task ProcessInbox_Apply_PreservesDistinctLiteralHashWikilink()
     {
         await _fixture.CreateNoteAsync("Inbox/Capture A", "About python programming and scripting.");
-        await _fixture.CreateNoteAsync("Inbox/Capture A#suffix", "A distinct literal-hash note.");
         await _fixture.CreateNoteAsync("Python/Existing Note", "Python programming language reference.");
         await _fixture.CreateNoteAsync(
             "Linker",
             "Target: [[Inbox/Capture A]]. Distinct: [[Inbox/Capture A#suffix]].");
         await _fixture.Index.RebuildIndexAsync();
-        var tools = CreateTools();
 
+        // Keep the distinct literal-hash target outside the indexed inbox plan while still
+        // present on disk. The write-side resolver must re-check the filesystem at mutation time
+        // rather than trusting the stale backlink interpretation from before this file existed.
+        await File.WriteAllTextAsync(
+            _fixture.GetNotePath("Inbox/Capture A#suffix"),
+            "A distinct literal-hash note.");
+
+        var tools = CreateTools();
         var result = await tools.process_inbox(inbox_folder: "Inbox", max_notes: 1, apply: true);
 
         Assert.Contains("1 wikilink(s) updated", result);
