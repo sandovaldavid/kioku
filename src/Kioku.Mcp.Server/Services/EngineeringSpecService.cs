@@ -470,7 +470,7 @@ public sealed class EngineeringSpecService(
         return ResolvedSpec.Fail($"[error] Spec '{candidate}' was not found in project '{project}'.");
     }
 
-    private async Task<ResolvedSpec> ValidateResolvedSpecAsync(
+    private static async Task<ResolvedSpec> ValidateResolvedSpecAsync(
         string project,
         FileInfo file,
         CancellationToken cancellationToken)
