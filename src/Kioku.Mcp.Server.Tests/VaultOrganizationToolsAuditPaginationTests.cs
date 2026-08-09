@@ -20,10 +20,13 @@ public sealed class VaultOrganizationToolsAuditPaginationTests
             ("Folder B/Duplicate.md", "# B"));
 
         var result = await harness.Tools.audit_vault();
-        var data = Data(result);
+        var root = result.StructuredContent!.Value;
+        var data = root.GetProperty("data");
         var counts = data.GetProperty("counts");
 
         Assert.False(result.IsError);
+        Assert.True(root.GetProperty("success").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("error").ValueKind);
         Assert.Equal(4, counts.GetProperty("broken_occurrences").GetInt32());
         Assert.Equal(3, counts.GetProperty("unique_broken_edges").GetInt32());
         Assert.Equal(2, counts.GetProperty("unique_broken_targets").GetInt32());
