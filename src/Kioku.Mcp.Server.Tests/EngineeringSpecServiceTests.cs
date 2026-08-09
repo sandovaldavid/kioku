@@ -242,7 +242,7 @@ public sealed class EngineeringSpecServiceTests : IAsyncLifetime
             workspace,
             bridge,
             new ProjectDocumentFileSystem());
-        var tools = new EngineeringWorkflowTools(documents, workspace, vaultConfig, _fixture.Index, bridge, mutations);
+        var tools = new EngineeringWorkflowTools(documents);
 
         var singular = await tools.get_project_context("demo", types: "spec", include_content: true);
         var plural = await tools.get_project_context("demo", types: "specs");

@@ -406,17 +406,17 @@ internal sealed class ProjectDocumentService : IProjectDocumentService
         }
 
 
-    if (typeFilter.Contains("specs"))
-    {
-        var specsSection = await _specs.BuildSpecsSectionAsync(project, includeContent, limit, cancellationToken);
-        if (specsSection.StartsWith("[error]", StringComparison.OrdinalIgnoreCase))
+        if (typeFilter.Contains("specs"))
         {
-            return specsSection;
-        }
+            var specsSection = await _specs.BuildSpecsSectionAsync(project, includeContent, limit, cancellationToken);
+            if (specsSection.StartsWith("[error]", StringComparison.OrdinalIgnoreCase))
+            {
+                return specsSection;
+            }
 
-        sb.AppendLine(specsSection);
-        sb.AppendLine();
-    }
+            sb.AppendLine(specsSection);
+            sb.AppendLine();
+        }
 
         var sections = new (string Key, string Heading)[]
         {
