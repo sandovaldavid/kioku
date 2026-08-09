@@ -326,11 +326,41 @@ public sealed class VaultIndexService : IDisposable
         });
     }
 
-    /// <summary>Returns notes linking to the uniquely resolved note with the given name or path.</summary>
+    /// <summary>
+    /// Returns notes linking to the uniquely resolved note with the given name or path. If the
+    /// target spelling was just invalidated by a move/rename, a compatibility scan finds only
+    /// unresolved raw links that still refer to that historical spelling so link rewriting can
+    /// complete without changing canonical backlink indexing semantics.
+    /// </summary>
     public IReadOnlyList<Note> GetBacklinks(string noteNameOrPath)
     {
         var target = ResolveNote(noteNameOrPath);
-        return target is null ? [] : GetBacklinks(target);
+        if (target is not null)
+        {
+            return GetBacklinks(target);
+        }
+
+        var query = NormalizeVaultPath(noteNameOrPath);
+        if (query.Length == 0)
+        {
+            return [];
+        }
+
+        return _notesByPath.Values
+            .Where(source => source.OutgoingLinks.Any(link =>
+            {
+                // Never reinterpret a spelling that currently resolves to a valid target. This
+                // protects literal '#' filenames from being mistaken for historical fragments.
+                if (ResolveLinkResult(source, link).Status == VaultLinkResolutionStatus.Resolved)
+                {
+                    return false;
+                }
+
+                var raw = NormalizeVaultPath(link);
+                return raw.Equals(query, StringComparison.OrdinalIgnoreCase) ||
+                       raw.StartsWith(query + "#", StringComparison.OrdinalIgnoreCase);
+            }))
+            .ToList();
     }
 
     /// <summary>Returns notes linking to a specific canonical note identity.</summary>
@@ -421,7 +451,7 @@ public sealed class VaultIndexService : IDisposable
     {
         var mdFiles = _paths.EnumerateVaultFiles("*.md", recursive: true)
             .Where(path => !IsExcludedPath(path));
-        var tasks = mdFiles.Select(path => IndexFileAsync(path, cancellationToken, rebuildBacklinks: false));
+        var tasks = mdFiles.Select(path => IndexFileAsync(path, rebuildBacklinks: false, cancellationToken));
         await Task.WhenAll(tasks);
         RebuildBacklinkIndex();
         _lastIndexed = DateTimeOffset.UtcNow;
@@ -429,8 +459,8 @@ public sealed class VaultIndexService : IDisposable
 
     private async Task IndexFileAsync(
         string filePath,
-        CancellationToken cancellationToken = default,
-        bool rebuildBacklinks = true)
+        bool rebuildBacklinks = true,
+        CancellationToken cancellationToken = default)
     {
         try
         {
