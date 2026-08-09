@@ -211,6 +211,38 @@ public sealed class WikilinkResolutionConsistencyTests : IAsyncLifetime
         var inbound = noteTools.get_links("linktree", direction: "in");
         Assert.Contains("source", inbound, StringComparison.OrdinalIgnoreCase);
 
+        var outgoingJson = noteTools.get_links(
+            "projects/current/source",
+            direction: "out",
+            format: "json");
+        using (var linksDocument = JsonDocument.Parse(outgoingJson))
+        {
+            var resolutions = linksDocument.RootElement
+                .GetProperty("outgoing_link_resolutions")
+                .EnumerateArray()
+                .ToList();
+
+            var aliasResolution = resolutions.Single(item =>
+                item.GetProperty("raw_target").GetString() == "linktree");
+            Assert.Equal("resolved", aliasResolution.GetProperty("status").GetString());
+            Assert.Equal("Hub", aliasResolution.GetProperty("canonical_target_path").GetString());
+
+            var relativeResolution = resolutions.Single(item =>
+                item.GetProperty("raw_target").GetString() == "../yukidoke-api");
+            Assert.Equal("resolved", relativeResolution.GetProperty("status").GetString());
+            Assert.Equal(
+                "projects/yukidoke-api",
+                relativeResolution.GetProperty("canonical_target_path").GetString());
+
+            var ambiguousResolution = resolutions.Single(item =>
+                item.GetProperty("raw_target").GetString() == "Duplicate");
+            Assert.Equal("ambiguous", ambiguousResolution.GetProperty("status").GetString());
+
+            var missingResolution = resolutions.Single(item =>
+                item.GetProperty("raw_target").GetString() == "Missing Target");
+            Assert.Equal("missing", missingResolution.GetProperty("status").GetString());
+        }
+
         var auditTools = new VaultOrganizationTools(
             _index,
             _config,
