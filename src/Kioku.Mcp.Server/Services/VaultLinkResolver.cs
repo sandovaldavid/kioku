@@ -90,7 +90,7 @@ public sealed class VaultLinkResolver(
             return ResolveFilesystemPath(rawTarget, normalized, target, notes);
         }
 
-        if (source is not null && normalized.StartsWith('/', StringComparison.Ordinal))
+        if (source is not null && normalized.StartsWith("/", StringComparison.Ordinal))
         {
             return ResolveFilesystemPath(rawTarget, normalized, normalized.TrimStart('/'), notes);
         }
@@ -229,18 +229,18 @@ public sealed class VaultLinkResolver(
     private static bool TryNormalizeRawTarget(string rawTarget, out string normalized)
     {
         normalized = rawTarget?.Trim() ?? string.Empty;
+        if (normalized.StartsWith("[[", StringComparison.Ordinal) &&
+            normalized.EndsWith("]]", StringComparison.Ordinal))
+        {
+            normalized = normalized[2..^2].Trim();
+        }
+
         if (normalized.Length == 0 ||
             normalized.IndexOfAny(['\0', '\r', '\n']) >= 0 ||
             normalized.Contains("[[", StringComparison.Ordinal) ||
             normalized.Contains("]]", StringComparison.Ordinal))
         {
             return false;
-        }
-
-        if (normalized.StartsWith("[[", StringComparison.Ordinal) &&
-            normalized.EndsWith("]]", StringComparison.Ordinal))
-        {
-            normalized = normalized[2..^2].Trim();
         }
 
         var pipeIndex = normalized.IndexOf('|');
