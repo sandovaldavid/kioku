@@ -517,7 +517,11 @@ public sealed class VaultOrganizationTools(
         {
             var raw = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
             var bodyStart = FrontmatterParser.GetBodyStart(raw);
-            var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
+            var result = WikilinkRewriter.Rewrite(
+                raw,
+                plan,
+                target => WikilinkRewritePolicy.Decide(vault, source, target, plan),
+                bodyStart);
 
             if (result.ReplacedCount == 0)
             {
