@@ -56,40 +56,8 @@ public static class NoteHelpers
         }
     }
 
-    public static Note? ResolveNote(string nameOrPath, VaultIndexService vault)
-    {
-        var all = vault.GetAllNotes();
-
-        var byPath = vault.GetNote(nameOrPath);
-        if (byPath is not null)
-        {
-            return byPath;
-        }
-
-        var normalized = nameOrPath.TrimStart('/').Replace('\\', '/');
-        var byRelPath = all.SingleOrDefault(n =>
-            n.VaultRelativePath.Equals(normalized, StringComparison.OrdinalIgnoreCase) ||
-            n.VaultRelativePath.Equals(normalized + ".md", StringComparison.OrdinalIgnoreCase));
-        if (byRelPath is not null)
-        {
-            return byRelPath;
-        }
-
-        var nameOnly = Path.GetFileNameWithoutExtension(nameOrPath);
-        if (!normalized.Contains('/'))
-        {
-            var byName = all.Where(n => n.Name.Equals(nameOnly, StringComparison.OrdinalIgnoreCase)).ToList();
-            if (byName.Count == 1)
-            {
-                return byName[0];
-            }
-        }
-
-        var byAlias = all
-            .Where(n => n.Metadata.Aliases.Any(alias => alias.Equals(nameOrPath, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-        return byAlias.Count == 1 ? byAlias[0] : null;
-    }
+    public static Note? ResolveNote(string nameOrPath, VaultIndexService vault) =>
+        vault.ResolveNote(nameOrPath);
 
     public static string BuildFilePath(string name, string vaultPath)
     {
