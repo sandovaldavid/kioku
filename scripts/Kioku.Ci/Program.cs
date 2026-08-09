@@ -150,7 +150,6 @@ internal static class Program
         Func<CancellationToken, Task<McpClient>> createSecondClientAsync,
         CancellationToken cancellationToken)
     {
-        await client.PingAsync(cancellationToken: cancellationToken);
         var tools = await client.ListToolsAsync(cancellationToken: cancellationToken);
         var toolNames = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
         RequireTool(toolNames, "list_work_sessions");
@@ -169,6 +168,7 @@ internal static class Program
         RequireTool(toolNames, "delete_note");
         RequireTool(toolNames, "get_server_capabilities");
 
+        await VerifyLivenessAsync(client, "primary client", cancellationToken);
         await VerifyCapabilitiesAsync(client, options, cancellationToken);
         await VerifyAuditVaultAsync(client, cancellationToken);
         await VerifyWorkSessionHandoffAsync(client, createSecondClientAsync, cancellationToken);
@@ -240,6 +240,20 @@ internal static class Program
             },
             cancellationToken: cancellationToken);
         EnsureSuccess("delete_note", deleteResult);
+        await VerifyLivenessAsync(client, "primary client after smoke", cancellationToken);
+    }
+
+    private static async Task VerifyLivenessAsync(
+        McpClient client,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        var result = await client.CallToolAsync(
+            "get_server_capabilities",
+            new Dictionary<string, object?>(),
+            cancellationToken: cancellationToken);
+        EnsureSuccess($"{label} get_server_capabilities", result);
+        EnsureStructuredEnvelope($"{label} get_server_capabilities", result);
     }
 
     private static async Task VerifyCapabilitiesAsync(
@@ -352,7 +366,7 @@ internal static class Program
         var parent = ParseSessionIdentity(parentJson.RootElement, "parent");
 
         await using var secondClient = await createSecondClientAsync(cancellationToken);
-        await secondClient.PingAsync(cancellationToken: cancellationToken);
+        await VerifyLivenessAsync(secondClient, "handoff client", cancellationToken);
 
         using var parentBeforeClose = await ReadSessionMetadataAsync(
             secondClient,
