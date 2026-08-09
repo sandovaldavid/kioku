@@ -150,7 +150,6 @@ public sealed class VaultOrganizationTools(
         IEnumerable<string>? inheritedTags = null,
         IEnumerable<string>? excludedTags = null)
     {
-        // Get all unique tags across the vault
         var allTags = vault.GetAllNotes()
             .SelectMany(n => n.Metadata.Tags)
             .GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
@@ -161,7 +160,6 @@ public sealed class VaultOrganizationTools(
             .Concat(excludedTags ?? [])
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Score tags by word overlap with note content + title
         var noteWords = TokenizeText(found.PlainText + " " + found.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -201,7 +199,6 @@ public sealed class VaultOrganizationTools(
                 var a = notes[i];
                 var b = notes[j];
 
-                // Check title similarity (Jaro-Winkler approximation via word overlap)
                 var titleSim = TitleSimilarity(a.Name, b.Name);
                 if (titleSim >= threshold)
                 {
@@ -209,7 +206,6 @@ public sealed class VaultOrganizationTools(
                     continue;
                 }
 
-                // Check content similarity (word overlap / Jaccard)
                 var contentSim = ContentJaccard(a.PlainText, b.PlainText);
                 if (contentSim >= threshold)
                 {
@@ -233,7 +229,7 @@ public sealed class VaultOrganizationTools(
             sb.AppendLine();
         }
 
-        return sb.ToString() is { } text ? Task.FromResult(text) : Task.FromResult(string.Empty);
+        return Task.FromResult(sb.ToString());
     }
 
     // audit_vault
@@ -456,11 +452,6 @@ public sealed class VaultOrganizationTools(
         return $"- {note.Name}: {string.Join("; ", actions)}";
     }
 
-    /// <summary>
-    /// Rewrites inbound full-path wikilinks after moving a note — same semantics as
-    /// NoteCommandTools.move_note (bare-name links are untouched, since the note's short name
-    /// doesn't change on a folder move).
-    /// </summary>
     private async Task<int> UpdateInboundWikilinksForMoveAsync(Note found, string newVaultRelativePath)
     {
         var plan = new WikilinkRewriter.RewritePlan(
@@ -507,8 +498,6 @@ public sealed class VaultOrganizationTools(
 
     private static string StripMdExtension(string path) =>
         path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? path[..^3] : path;
-
-    // Private helpers
 
     private static bool TagWouldChange(
         string tag,
@@ -598,10 +587,6 @@ public sealed class VaultOrganizationTools(
         };
     }
 
-    /// <summary>
-    /// Rewrites only the frontmatter tags/tag field. This deliberately avoids replacing list
-    /// items in the Markdown body and supports YAML list, inline-list, and scalar forms.
-    /// </summary>
     private static string RewriteTagFrontmatter(string content, Func<string, string?> transform)
     {
         var bodyStart = FrontmatterParser.GetBodyStart(content);
@@ -754,7 +739,6 @@ public sealed class VaultOrganizationTools(
             return 0;
         }
 
-        // Use 3-character shingles on first 2000 chars for performance
         const int limit = 2000;
         var a = textA.Length > limit ? textA[..limit] : textA;
         var b = textB.Length > limit ? textB[..limit] : textB;
