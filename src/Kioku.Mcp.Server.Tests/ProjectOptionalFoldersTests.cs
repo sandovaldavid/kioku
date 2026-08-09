@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Kioku.Mcp.Server.Infrastructure;
 using Kioku.Mcp.Server.Prompts;
 using Kioku.Mcp.Server.Services;
 using Kioku.Mcp.Server.Tools;
