@@ -3,13 +3,16 @@
 Kioku processes cold scans and `FileSystemWatcher` events through one bounded indexing pipeline.
 
 ```text
-FileSystemWatcher / reconciliation scan
+Generic Host / MCP transport starts
+        -> background cold reconciliation
         -> bounded Channel<VaultFileChange> (capacity 2048)
         -> per-path coalescing and 500 ms debounce
         -> configurable worker pool
         -> VaultIndexService + bounded EmbeddingService
-        -> readiness and operational metrics
+        -> cold-index readiness gate + operational metrics
 ```
+
+The MCP transport is not blocked on a complete vault cold scan. Index-dependent operations still cannot observe a partial index: they wait on the explicit cold-index readiness gate until deterministic reconciliation completes.
 
 ## Configuration
 
@@ -20,6 +23,34 @@ FileSystemWatcher / reconciliation scan
 
 The queue is intentionally bounded. When it cannot accept another watcher event, Kioku does not silently assume that the index is correct: it requests a full reconciliation.
 
+## Startup and readiness
+
+Runtime initialization runs in the background rather than blocking Generic Host startup.
+
+The startup sequence is:
+
+```text
+process starts
+  -> MCP transport can finish starting
+  -> background runtime initialization begins
+       -> deterministic cold reconciliation
+       -> cold-index gate becomes ready
+       -> embeddings initialize
+       -> optional generation probe initializes
+  -> full runtime readiness becomes ready after initialization succeeds
+```
+
+While cold reconciliation is still running, these operations are intentionally warm-up-safe because they do not depend on the shared note index:
+
+- `get_server_capabilities`;
+- `get_server_status`;
+- `list_projects`;
+- `get_project_context`.
+
+Index-dependent tools, dynamic resource enumeration, mutations, sessions, search, note resolution, coordination/CAS/fencing, and graph operations wait on the cold-index gate rather than executing against a partial corpus.
+
+A caller cancellation while waiting is propagated to that call. A requested host shutdown cancels in-progress initialization without reclassifying an orderly shutdown as an indexing failure. Genuine initialization/reconciliation failures remain observable and fail readiness.
+
 ## Correctness behavior
 
 - Repeated writes to the same path are coalesced and applied once after the debounce window.
@@ -27,16 +58,17 @@ The queue is intentionally bounded. When it cannot accept another watcher event,
 - Delete/recreate sequences are resolved from the final filesystem state.
 - Watcher overflow or error schedules a reconciliation scan.
 - Reconciliation removes indexed paths that no longer exist and reindexes every current Markdown file.
-- Readiness reports `rebuilding` while a full scan is active, avoiding a false ready signal while readers may observe incremental replacement.
-- A successful recovery scan returns readiness to `ready`; an unrecoverable scan failure reports `failed`.
+- Index readiness reports `rebuilding` while deterministic reconciliation is active; the cold-index gate does not become ready until that scan completes.
+- A successful recovery scan returns index readiness to `ready`; an unrecoverable scan failure reports `failed`.
 - Transient `IOException` and `UnauthorizedAccessException` failures use three bounded retries with cancellation-aware backoff.
 - Embedding backlog enumeration uses `Parallel.ForEachAsync`; it no longer creates one task for every stale note.
-- Server startup remains non-blocking while embeddings are generated. Semantic workflows that require a complete initial corpus, such as link suggestions, wait for the tracked backlog with a bounded timeout.
+- MCP startup remains non-blocking while both the cold scan and later embedding/generation initialization run in the background; correctness is preserved by the explicit cold-index gate.
+- Semantic workflows that require a complete initial embedding corpus, such as link suggestions, wait for the tracked embedding backlog with a bounded timeout.
 - Shutdown disables the watcher, completes the channel, drains pending work, and only then allows the host lifecycle to persist the embedding cache.
 
 ## Observability
 
-`get_server_status` reports:
+`get_server_status` is warm-up-safe and reports runtime/index state while startup work is still in progress. Its indexing diagnostics include:
 
 - current queue depth;
 - processed, failed, and coalesced changes;
@@ -47,10 +79,15 @@ The queue is intentionally bounded. When it cannot accept another watcher event,
 
 No note names or contents are captured by these metrics.
 
+For HTTP deployments, liveness and readiness are intentionally different signals: the process/transport may be live while background runtime initialization is still preventing full readiness. See [Troubleshooting](troubleshooting.md) and [Streamable HTTP authentication](deploy/auth-options.md).
+
 ## Reproducible load and concurrency checks
 
-The `VaultIndexingPipelineTests` suite creates synthetic vaults and verifies:
+The `VaultIndexingPipelineTests` and startup-readiness regressions verify, among other cases:
 
+- Generic Host startup can return while runtime initialization is deliberately blocked;
+- the cold-index readiness gate completes on success and propagates failure/cancellation correctly;
+- warm-up-safe and index-dependent MCP operations remain explicitly classified;
 - a 500-note cold start never exceeds configured concurrency;
 - 100 rapid edits produce one effective reindex;
 - simulated watcher failure discovers a missed file through reconciliation;
@@ -59,11 +96,11 @@ The `VaultIndexingPipelineTests` suite creates synthetic vaults and verifies:
 
 `EmbeddingConcurrencyTests` additionally verifies that the background embedding backlog never exceeds the configured Ollama concurrency.
 
-Run the suites with:
+Run the focused indexing suites with:
 
 ```bash
 dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj \
-  --filter "FullyQualifiedName~VaultIndexingPipelineTests|FullyQualifiedName~EmbeddingConcurrencyTests"
+  --filter "FullyQualifiedName~VaultIndexingPipelineTests|FullyQualifiedName~EmbeddingConcurrencyTests|FullyQualifiedName~KiokuStartupReadinessGateTests"
 ```
 
 For machine-specific throughput and memory evidence, run the suite under the platform profiler (`dotnet-trace`, `dotnet-counters`, Windows Performance Recorder, or `/usr/bin/time -v`) and record:
