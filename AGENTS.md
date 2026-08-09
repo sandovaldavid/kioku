@@ -38,6 +38,8 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 - Streamable HTTP runs explicitly with `Stateless = true`; local `stdio` remains supported.
 - Default MCP profile: 45 tools.
 - All-capabilities profile: 78 tools.
+- Engineering projects support first-class `spec` documents through `create_engineering_spec`; `create_implementation_plan` can link a same-project spec, and `get_project_context` accepts `spec` / `specs` aliases.
+- New project scaffolds create `decisions`, `bugs`, `specs`, `plans`, `knowledge`, `sessions`, and `backlog` eagerly; `daily` and `tickets` remain supported optional/lazy workflows.
 - Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
 - Supported client integrations: Claude Code, Codex, OpenCode, GitHub Copilot, and Antigravity via native client MCP registration.
 - The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative for tool names, schemas, annotations, prompts, resources, and profile counts.
@@ -70,6 +72,7 @@ Do not copy the complete tool or environment-variable inventory into this file.
 ├── docker-compose.yml
 ├── docs/
 │   ├── README.md
+│   ├── engineering-workflows.md
 │   ├── commands-reference.md        generated
 │   ├── configuration-reference.md   generated
 │   ├── versioning.md                generated
@@ -129,6 +132,7 @@ Validate maintained repository-relative Markdown links and release-facing versio
 node scripts/validate-markdown-links.mjs
 node scripts/validate-docs-navigation.mjs
 node scripts/validate-release-documentation.mjs
+node scripts/validate-portable-configs.mjs
 ```
 
 ## Implementation rules
@@ -137,7 +141,8 @@ node scripts/validate-release-documentation.mjs
 - Preserve the vault filesystem boundary. External reads and permanent deletion require explicit configuration.
 - Preserve unknown YAML frontmatter fields during mutations.
 - Preserve headless server operation. Core tools, indexing, sessions, and coordination must not depend on a running Obsidian process; UI and supported-plugin operations belong behind `bridge` or `plugin` capability gates.
-- Use focused creation tools in prompts and integrations. `create_note` and `create_project_doc` remain **Deprecated** compatibility wrappers during the documented compatibility window.
+- Use focused creation tools in prompts and integrations. `create_note` and `create_project_doc` remain **Deprecated** compatibility wrappers during the documented compatibility window; first-class specs use `create_engineering_spec` directly.
+- Preserve the distinction between durable engineering specs and implementation plans. Do not make an external workflow engine a Kioku runtime dependency or bypass Kioku with direct vault writes for integrated durable handoff.
 - Keep optional higher-risk capabilities gated.
 - Use structured logging. MCP `stdio` reserves stdout for protocol traffic; diagnostics belong on stderr.
 - Do not add a cloud fallback for embeddings or generation without an explicit security and privacy review.
@@ -179,6 +184,7 @@ Record exact commands and results in the pull request. A skipped, disabled, or u
 
 - [Documentation index](docs/README.md)
 - [Installation](docs/install.md)
+- [Engineering workflows](docs/engineering-workflows.md)
 - [Architecture](docs/architecture.md)
 - [MCP contracts](docs/commands-reference.md)
 - [Configuration](docs/configuration-reference.md)
