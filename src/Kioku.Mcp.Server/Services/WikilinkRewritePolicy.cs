@@ -44,13 +44,20 @@ public static class WikilinkRewritePolicy
         VaultLinkResolution resolution,
         WikilinkRewriter.RewritePlan plan)
     {
-        if (!CanonicalEquals(resolution.CanonicalTargetPath, plan.OldFullPath))
-        {
-            return WikilinkRewriter.TargetRewriteDecision.Leave;
-        }
-
         var target = Normalize(resolution.Target);
         var fragment = resolution.Fragment ?? string.Empty;
+
+        if (!CanonicalEquals(resolution.CanonicalTargetPath, plan.OldFullPath))
+        {
+            // Keep the historical safety signal for duplicate basenames. Exact root-path
+            // resolution can otherwise make [[Duplicate]] look unambiguous even while another
+            // same-basename note is the one being renamed. The link remains untouched.
+            return plan.ShortNameAmbiguous &&
+                   !target.Contains('/') &&
+                   TargetEquals(target, plan.OldShortName)
+                ? WikilinkRewriter.TargetRewriteDecision.Ambiguous
+                : WikilinkRewriter.TargetRewriteDecision.Leave;
+        }
 
         // Preserve the historical distinction between an explicit path and a bare name. Do not
         // canonicalize aliases or relative links merely because they resolve to the same note.
