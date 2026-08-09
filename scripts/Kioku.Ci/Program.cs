@@ -170,6 +170,7 @@ internal static class Program
         RequireTool(toolNames, "get_server_capabilities");
 
         await VerifyCapabilitiesAsync(client, options, cancellationToken);
+        await VerifyAuditVaultAsync(client, cancellationToken);
         await VerifyWorkSessionHandoffAsync(client, createSecondClientAsync, cancellationToken);
 
         var sessionsResult = await client.CallToolAsync(
@@ -268,6 +269,47 @@ internal static class Program
         {
             throw new InvalidOperationException(
                 $"The coordination capability state was {enabled}, expected {options.Coordination}.");
+        }
+    }
+
+    private static async Task VerifyAuditVaultAsync(
+        McpClient client,
+        CancellationToken cancellationToken)
+    {
+        var result = await client.CallToolAsync(
+            "audit_vault",
+            new Dictionary<string, object?>
+            {
+                ["offset"] = 0,
+                ["limit"] = 1,
+            },
+            cancellationToken: cancellationToken);
+        EnsureSuccess("audit_vault", result);
+        EnsureStructuredEnvelope("audit_vault", result);
+
+        using var document = ParseJsonResult(result);
+        var root = document.RootElement;
+        var data = root.GetProperty("data");
+        var counts = data.GetProperty("counts");
+        _ = counts.GetProperty("broken_occurrences").GetInt32();
+        _ = counts.GetProperty("unique_broken_edges").GetInt32();
+        _ = counts.GetProperty("unique_broken_targets").GetInt32();
+
+        foreach (var category in new[] { "broken", "ambiguous", "malformed" })
+        {
+            var page = data.GetProperty("links").GetProperty(category);
+            if (page.GetProperty("offset").GetInt32() != 0 ||
+                page.GetProperty("limit").GetInt32() != 1 ||
+                page.GetProperty("returned").GetInt32() is < 0 or > 1)
+            {
+                throw new InvalidOperationException(
+                    $"audit_vault returned invalid pagination metadata for '{category}'.");
+            }
+
+            _ = page.GetProperty("total_occurrences").GetInt32();
+            _ = page.GetProperty("unique_edges").GetInt32();
+            _ = page.GetProperty("unique_targets").GetInt32();
+            _ = page.GetProperty("has_more").GetBoolean();
         }
     }
 
