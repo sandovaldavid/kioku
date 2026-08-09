@@ -1,0 +1,75 @@
+name: finalize-source-408
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.x"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Apply compatibility repairs
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+
+          replace_once(
+              'src/Kioku.Mcp.Server.Tests/EngineeringSpecServiceTests.cs',
+              '        var tools = new EngineeringWorkflowTools(documents, workspace, vaultConfig, _fixture.Index, bridge, mutations);',
+              '        var tools = new EngineeringWorkflowTools(documents);')
+
+          replace_once(
+              'src/Kioku.Mcp.Server/Tools/FocusedCreationTools.cs',
+              '''        [Description("Optional linked ticket note.")] string ticket = "",
+                  [Description("Optional linked spec basename or wikilink from the same project.")] string spec = "",
+                  [Description("Extra tags, comma-separated.")] string tags = "",'''.replace('                  ', '        '),
+              '''        [Description("Optional linked ticket note.")] string ticket = "",
+                  [Description("Extra tags, comma-separated.")] string tags = "",
+                  [Description("Optional linked spec basename or wikilink from the same project.")] string spec = "",'''.replace('                  ', '        '))
+      - name: Restore
+        run: dotnet restore Kioku.slnx
+      - name: Format changed C# sources
+        run: |
+          dotnet format Kioku.slnx whitespace --no-restore
+          dotnet format Kioku.slnx style --no-restore
+      - name: Build
+        run: dotnet build Kioku.slnx --configuration Release --no-restore
+      - name: Run focused spec tests
+        run: >-
+          dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj
+          --configuration Release --no-build
+          --filter 'FullyQualifiedName~EngineeringSpecServiceTests|FullyQualifiedName~EngineeringSpecReliabilityTests|FullyQualifiedName~ProjectDocumentArchitectureTests|FullyQualifiedName~McpSurfaceMetadataContractTests|FullyQualifiedName~KiokuToolAnnotationsTests'
+      - name: Regenerate public contract
+        run: node scripts/generate-public-docs.mjs --write
+      - name: Commit final source repairs
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Kioku.Mcp.Server src/Kioku.Mcp.Server.Tests docs/commands-reference.md
+          if git diff --cached --quiet; then
+            echo "No source repairs needed."
+            exit 0
+          fi
+          git commit -m "fix(engineering): finalize spec compatibility"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
