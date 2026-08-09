@@ -136,11 +136,9 @@ internal sealed class KiokuLifecycleService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // BackgroundService.StartAsync invokes ExecuteAsync synchronously until the first
-        // incomplete await. Yield explicitly so vault reconciliation, embedding cache loading,
-        // and optional generation probing never remain on the Generic Host startup path.
-        await Task.Yield();
-
+        // Kioku targets .NET 10, where the complete BackgroundService.ExecuteAsync body runs as
+        // background work. Keeping the expensive runtime initialization here therefore allows the
+        // Generic Host to continue starting the indexing worker and MCP transport immediately.
         var startedAt = timeProvider.GetTimestamp();
         try
         {
