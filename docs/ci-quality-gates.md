@@ -2,6 +2,16 @@
 
 Kioku treats CI as release evidence rather than only a compilation check. Protected branches must prove that the server works through the same installation and transport paths used by MCP clients.
 
+## Change classification
+
+Pull requests always enter the `ci` workflow. A lightweight `classify-changes` job determines whether the change is documentation-only.
+
+A PR is documentation-only only when every changed path is within the maintained documentation set (`README.md`, `AGENTS.md`, `CONTRIBUTING.md`, or `docs/**`). In that case the expensive runtime jobs are skipped while Conventional Commit and dedicated documentation checks still run. Any unknown/non-documentation path fails safe to the full CI matrix.
+
+Pushes to `main` and manually dispatched CI runs always use the full runtime matrix. A normal `develop` → `main` release-promotion PR also selects the full matrix because it contains runtime/integration paths in addition to documentation; after that PR merges, the resulting push to `main` is unconditionally full CI.
+
+A job that is intentionally skipped by this classifier is **Not run** for execution-evidence purposes; it is not evidence that the underlying runtime control passed on that PR.
+
 ## Native test coverage
 
 The complete `Kioku.Mcp.Server.Tests` suite runs on:
@@ -16,10 +26,10 @@ Filesystem-security tests cover the vault sandbox, external-read boundaries, sym
 
 Every supported CI operating system performs two end-to-end flows through the official MCP client SDK:
 
-1. Pack `kioku-mcp-server` into an isolated local NuGet feed, install it into a clean tool path, launch the installed `kioku` command over stdio, complete initialization and `tools/list`, then verify `get_server_capabilities`, then create, read, and delete a note. Kioku itself is resolved from the local feed while its transitive dependencies are resolved through an explicit NuGet.org package-source mapping.
-2. Resolve the runner's native RID, publish a self-contained single-file server, launch it with authenticated Streamable HTTP, wait for readiness, verify `get_server_capabilities`, and repeat the same MCP read/write flow.
+1. Pack `kioku-mcp-server` into an isolated local NuGet feed, install it into a clean tool path, launch the installed `kioku` command over stdio, complete negotiation/discovery and `tools/list`, verify `get_server_capabilities`, exercise the audit/session/coordination scenarios enabled by the fixture, then run the real create/read/delete mutation path and a final liveness invocation.
+2. Resolve the runner's native RID, publish a self-contained single-file server, launch it with authenticated Streamable HTTP, wait for readiness, and execute the same MCP smoke client against the HTTP endpoint.
 
-The smoke client lives in `scripts/Kioku.Ci`. It deliberately starts real processes and does not replace the transport with in-memory test doubles.
+The smoke client lives in `scripts/Kioku.Ci`. It deliberately starts real processes and does not replace the transport with in-memory test doubles. The liveness probe is a real read-only Kioku MCP tool invocation rather than the legacy MCP `ping` method removed from the `2026-07-28` protocol baseline.
 
 ## Documentation and integration checks
 
@@ -27,9 +37,17 @@ The `validate-integrations` job builds the server and runs `node scripts/generat
 
 - generated MCP commands, configuration, versioning, and manifest outputs;
 - public environment-variable metadata against runtime mappings;
-- current Streamable HTTP terminology.
+- current Streamable HTTP terminology and generated discovery metadata.
 
-The same job validates JSON manifests, skill frontmatter, generated skill copies, ShellCheck, and dry-run client installation for `claude-code`, `codex`, `opencode`, and `antigravity`.
+The same job validates:
+
+- JSON manifests;
+- SKILL frontmatter;
+- generated `kioku-vault` skill copies through `scripts/sync-skill.sh --check`;
+- ShellCheck for maintained shell scripts;
+- portable client configuration through `node scripts/validate-portable-configs.mjs`.
+
+Portable-config validation checks committed integration/configuration assets for machine-specific paths and contract drift; Kioku no longer relies on the retired cross-client `scripts/add-to-client.sh` wrapper.
 
 The separate `docs-links` workflow runs three documentation contracts on pushes and pull requests targeting `main` or `develop`:
 
@@ -55,6 +73,14 @@ Codecov remains informational because pull requests from forks cannot reliably a
 - C# is analyzed through the repository-wide Roslyn and .NET analyzer baseline with code style and warnings-as-errors enforced by the main build.
 - CI uploads complete .NET package inventories for 30 days. These inventories are the current reproducible dependency evidence; a signed SPDX or CycloneDX SBOM can replace them when release signing and provenance are introduced.
 
+## Release-facing version metadata
+
+Release Please owns the tagged server-version bump. Before the release PR is merged, `develop` may legitimately continue to display the latest published version in release-managed markers.
+
+`node scripts/validate-release-documentation.mjs` keeps the current package/manifest/version markers synchronized and verifies that Release Please covers the release-facing files. Do not manually pre-bump those markers merely to prepare a promotion PR.
+
+The release PR generated after promotion is the point where the package version, MCP manifest, README badges, NuGet README, AGENTS snapshot, generated versioning page, and site badge advance together.
+
 ## Local verification
 
 Run the repository checks before opening a pull request:
@@ -69,6 +95,20 @@ node scripts/generate-public-docs.mjs --check
 node scripts/validate-markdown-links.mjs
 node scripts/validate-docs-navigation.mjs
 node scripts/validate-release-documentation.mjs
+node scripts/validate-portable-configs.mjs
+```
+
+Change-specific checks:
+
+```bash
+# Skill source/generated copies
+./scripts/sync-skill.sh --check
+
+# Dev Container changes
+bash .devcontainer/scripts/validate-devcontainer.sh
+
+# Compose changes
+docker compose config
 ```
 
 The installed-tool and native-binary smoke tests are defined in `.github/workflows/ci.yml` because they require clean per-OS tool paths and native RIDs.
