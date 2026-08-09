@@ -6,7 +6,7 @@
 
 Kioku is a local-first Model Context Protocol server that lets Claude Code, Codex, OpenCode, and other MCP clients continue work across fresh sessions by reading and updating structured knowledge in an Obsidian vault.
 
-It combines typed MCP contracts, a strict vault filesystem boundary, concurrent work-session ownership, full-text and semantic retrieval, and an optional Obsidian bridge. The server supports local `stdio` and authenticated **Streamable HTTP** deployments.
+It combines typed MCP contracts, a strict vault filesystem boundary, first-class engineering specs and plans, concurrent work-session ownership, full-text and semantic retrieval, and an optional Obsidian bridge. The server supports local `stdio` and authenticated **Streamable HTTP** deployments.
 
 Kioku reads and writes the vault directory directly. The Obsidian application does not need to be open for core note, search, project, session, indexing, or coordination operations. Obsidian and the companion plugin are required only for optional UI and supported-plugin bridge operations.
 
@@ -14,7 +14,7 @@ The `develop` branch can contain verified but unreleased changes beyond the late
 
 ## Why Kioku
 
-- **Deterministic handoff** — agents can record project context, decisions, plans, bugs, daily notes, and session handoffs.
+- **Deterministic handoff** — agents can recover project context, approved engineering specs, implementation plans, decisions, bugs, knowledge, and session handoffs.
 - **Obsidian-native storage** — Markdown and YAML frontmatter remain readable and editable without Kioku.
 - **Headless server operation** — core MCP workflows continue when Obsidian is closed.
 - **Safe vault access** — writes stay inside the configured vault; external reads and permanent deletion require explicit opt-in.
@@ -100,6 +100,26 @@ export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
 
 See the [Installation Guide](docs/install.md) for detailed configuration, scope options, manual TOML/JSON files, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
 
+## Durable engineering workflow
+
+Kioku separates durable design requirements from implementation steps:
+
+```text
+request / issue
+    ↓
+engineering SPEC
+    ↓
+implementation PLAN
+    ↓
+SESSION / execution / handoff
+```
+
+Use `create_engineering_spec` to persist what must be built and how it must behave. `create_implementation_plan` can then link the implementation plan to that same-project spec through additive frontmatter metadata. Approved specs are recoverable through `get_project_context(types="spec")` or `get_project_context(types="specs")` without making Kioku depend on a particular external coding methodology.
+
+New projects scaffold `decisions`, `bugs`, `specs`, `plans`, `knowledge`, `sessions`, and `backlog` as durable core folders. `daily` and `tickets` remain supported optional workflows and materialize only when explicitly written.
+
+See [Engineering Workflows](docs/engineering-workflows.md) for spec lifecycle, SPEC → PLAN linking, durable revision behavior, and the generic external-workflow boundary.
+
 ## Architecture
 
 ```text
@@ -126,6 +146,7 @@ See the [current architecture](docs/architecture.md) for operational component b
 Start with the [documentation index](docs/README.md). The main maintained references are:
 
 - [MCP contract reference](docs/commands-reference.md) — live `tools/list`, schemas, annotations, prompts, resources, and profile counts.
+- [Engineering workflows](docs/engineering-workflows.md) — first-class specs, SPEC → PLAN relationships, project scaffold semantics, and durable workflow boundaries.
 - [Server configuration reference](docs/configuration-reference.md) — every public `KIOKU_*` variable and canonical `Kioku:*` path.
 - [Vault configuration](docs/vault-config.md) — folders, defaults, exclusions, capabilities, frontmatter, and generated indexes.
 - [Focused-tool migration](docs/focused-tool-migration.md) — current replacements for deprecated generic creation wrappers.
