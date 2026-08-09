@@ -216,7 +216,9 @@ public sealed class KiokuPrompts
         [Description("Ticket note name or path (under the project's tickets folder).")] string ticket) => $"""
         Work on ticket "{ticket}" of project "{project}":
 
-        1. `read_note` the ticket to preserve the human's requirements.
+        1. `read_note` the ticket to preserve the human's requirements. If the ticket is missing,
+           stop and report the missing resource; do not create the ticket, tickets folder, or a
+           linked plan as a side effect of the failed read.
         2. Call `get_project_context` with project='{project}' for decisions and prior work.
         3. Structure the ticket with `edit_note`, preserving its original requirements, and set
            status='in-progress' with `update_frontmatter`.
