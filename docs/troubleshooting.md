@@ -23,16 +23,15 @@ Node.js is required for repository documentation tooling, not for running the in
 
 - Use an absolute vault path.
 - Verify the client configuration passes `KIOKU_VAULT_PATH`.
-- Verify the command is available in the environment the client actually launches.
+- Verify the command is available in the environment the client actually launches (`command -v kioku` on POSIX shells or `Get-Command kioku` in PowerShell).
 - Restart the MCP client after changing its configuration.
 - Inspect client logs for process-launch, permission, or JSON-RPC initialization errors.
 
 The Obsidian plugin is **not required** for stdio or Streamable HTTP. It is required only for tools in the optional `bridge` and `plugin` capability groups.
 
-After connection, call `get_server_status` through the MCP client to inspect
-vault, index, Ollama, bridge, and capability state. Call
-`get_server_capabilities` to inspect the stable profile, schema versions,
-transport, observability state, and rollout gate.
+Cold vault reconciliation no longer blocks the MCP transport startup path. A freshly started process can therefore accept warm-up-safe calls while the note index is still reconciling. `get_server_capabilities`, `get_server_status`, `list_projects`, and `get_project_context` are intentionally safe during that period; index-dependent operations wait for the cold-index readiness gate instead of reading a partial index.
+
+After connection, call `get_server_status` through the MCP client to inspect vault, index, Ollama, bridge, and capability state. Call `get_server_capabilities` to inspect the stable profile, schema versions, transport, observability state, and rollout gate.
 
 ## Streamable HTTP does not start
 
@@ -70,17 +69,36 @@ See [deploy/auth-options.md](deploy/auth-options.md).
 - **413** — the request exceeds `KIOKU_HTTP_MAX_REQUEST_BODY_BYTES`.
 - **Timeout** — the MCP POST exceeded `KIOKU_HTTP_REQUEST_TIMEOUT_SECONDS`.
 
-`/health/live` is public and minimal. `/health/ready` follows the protected deployment configuration.
+`/health/live` is public and minimal. `/health/ready` follows the protected deployment configuration. Because runtime initialization is background work, the process can be live while `/health/ready` still reports not-ready during cold reconciliation or later initialization. Do not use liveness as proof that every index-dependent workflow is ready.
 
 ## Index is loading or appears stale
 
-Call `get_server_status` first. During startup, tools can report that the index is still loading.
+Call `get_server_status` first. During cold startup it can report index/runtime work still in progress even though the MCP transport is already connected.
+
+Expected behavior during cold reconciliation:
+
+- warm-up-safe status/project-context calls can return;
+- index-dependent calls wait on the cold-index readiness gate rather than returning partial search/graph/note-resolution state;
+- genuine reconciliation failure is observable as failed readiness rather than silently falling back to an incomplete index.
 
 Use the MCP `rebuild_index` tool when a full rebuild is required. Do not delete `.kioku/embeddings.bin` unless you intentionally want embeddings regenerated.
 
-If external tools modify many files at once, wait for the file watcher and indexing queue to settle, then inspect status again.
+If external tools modify many files at once, allow the file watcher and indexing queue to settle, then inspect status again. See [indexing-pipeline.md](indexing-pipeline.md).
 
-See [indexing-pipeline.md](indexing-pipeline.md).
+## `audit_vault` reports broken, ambiguous, malformed, or template-placeholder links
+
+`audit_vault` deliberately keeps these categories separate:
+
+- **broken / missing** — the target cannot be resolved;
+- **ambiguous** — more than one canonical candidate matches;
+- **malformed** — the reference syntax or path is invalid, including traversal outside the vault boundary;
+- **template placeholder** — a closed empty wikilink/embed in a recognized template source.
+
+Counts distinguish occurrences, unique source-target edges, and unique targets. Use the returned pagination metadata (`offset`, `limit`, `has_more`) to retrieve the complete finding set rather than treating the first text preview as the entire audit.
+
+Kioku's canonical resolver supports exact/vault-relative paths, source-relative links, unique basenames and aliases, dotted basenames, and literal `#` filenames. Do not rewrite a vault merely to reduce an audit counter until the structured finding status and canonical resolution are understood.
+
+Template placeholders are audit evidence, not malformed live links. Non-empty malformed references inside templates remain malformed, and traversal outside the configured vault remains rejected.
 
 ## Semantic or hybrid search is unavailable
 
@@ -104,32 +122,20 @@ Restart Kioku after changing capability configuration.
 
 ## Coordination tools are unavailable
 
-The coordination capability group is disabled by default. Confirm the
-capability state before changing a vault configuration:
+The coordination capability group is disabled by default. Confirm the capability state before changing a vault configuration:
 
 1. Call `get_server_capabilities` and check `capability_group.enabled`.
-2. Check the vault's `.kioku/config.yml` and confirm `coordination` is in the
-   enabled capability list only for an explicitly reviewed deployment.
+2. Check the vault's `.kioku/config.yml` and confirm `coordination` is in the enabled capability list only for an explicitly reviewed deployment.
 3. Restart Kioku after changing capability configuration.
-4. Confirm that the profile reports `kioku.durable-coordination`, profile
-   version `1`, schema version `1`, and rollout status `gated`.
+4. Confirm that the profile reports `kioku.durable-coordination`, profile version `1`, schema version `1`, and rollout status `gated`.
 
-If the profile is enabled but a claim or mutation fails, inspect the stable
-coordination error code and use the read-only history or conflict tools. Do not
-retry with a different claim or fence value until the current projection and
-history have been reloaded.
+If the profile is enabled but a claim or mutation fails, inspect the stable coordination error code and use the read-only history or conflict tools. Do not retry with a different claim or fence value until the current projection and history have been reloaded.
 
-Coordination supports shared processes only on the documented local filesystem
-boundary. Cloud-sync folders, network replicas, and independent Git checkouts
-are not supported shared-coordination deployments.
+Coordination supports shared processes only on the documented local filesystem boundary. Cloud-sync folders, network replicas, and independent Git checkouts are not supported shared-coordination deployments.
 
 ## Coordination observability is missing
 
-Metrics are in-memory and disabled unless `KIOKU_ENABLE_METRICS=true`. W3C
-activities require both `KIOKU_ENABLE_TRACING=true` and a host-configured
-activity listener; Kioku does not configure an exporter. `KIOKU_SENTRY_DSN`
-enables a separate, opt-in crash sink. Review [coordination observability](coordination-observability.md)
-before forwarding logs or adding an exporter.
+Metrics are in-memory and disabled unless `KIOKU_ENABLE_METRICS=true`. W3C activities require both `KIOKU_ENABLE_TRACING=true` and a host-configured activity listener; Kioku does not configure an exporter. `KIOKU_SENTRY_DSN` enables a separate, opt-in crash sink. Review [coordination observability](coordination-observability.md) before forwarding logs or adding an exporter.
 
 ## Obsidian bridge tools are unavailable
 
