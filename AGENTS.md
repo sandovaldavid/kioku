@@ -33,11 +33,15 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 - Target framework: `net10.0`, configured in `Directory.Build.props`.
 - Solution: `Kioku.slnx`.
 - Latest published server package: `3.0.1`. <!-- x-release-please-version --> The integration branch can contain unreleased changes beyond that release.
-- MCP C# SDK packages: `ModelContextProtocol` and `ModelContextProtocol.AspNetCore` `1.4.1`. The 2.0 migration remains planned and blocked by tracked compatibility work.
-- Default MCP profile: 44 tools.
-- All-capabilities profile: 77 tools.
+- MCP C# SDK packages: `ModelContextProtocol` and `ModelContextProtocol.AspNetCore` `2.1.0`.
+- MCP protocol baseline: `2026-07-28`.
+- Streamable HTTP runs explicitly with `Stateless = true`; local `stdio` remains supported.
+- Default MCP profile: 45 tools.
+- All-capabilities profile: 78 tools.
+- Engineering projects support first-class `spec` documents through `create_engineering_spec`; `create_implementation_plan` can link a same-project spec, and `get_project_context` accepts `spec` / `specs` aliases.
+- New project scaffolds create `decisions`, `bugs`, `specs`, `plans`, `knowledge`, `sessions`, and `backlog` eagerly; `daily` and `tickets` remain supported optional/lazy workflows.
 - Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
-- Supported `scripts/add-to-client.sh` targets: `claude-code`, `codex`, `opencode`, and `antigravity`; CI dry-runs all four.
+- Supported client integrations: Claude Code, Codex, OpenCode, GitHub Copilot, and Antigravity via native client MCP registration.
 - The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative for tool names, schemas, annotations, prompts, resources, and profile counts.
 - The generated [`docs/configuration-reference.md`](docs/configuration-reference.md) is authoritative for public process configuration.
 - Markdown files in the vault are the durable source of truth. Runtime indexes and the embeddings cache are derived data; there are no database migrations to maintain.
@@ -68,6 +72,7 @@ Do not copy the complete tool or environment-variable inventory into this file.
 ├── docker-compose.yml
 ├── docs/
 │   ├── README.md
+│   ├── engineering-workflows.md
 │   ├── commands-reference.md        generated
 │   ├── configuration-reference.md   generated
 │   ├── versioning.md                generated
@@ -127,6 +132,7 @@ Validate maintained repository-relative Markdown links and release-facing versio
 node scripts/validate-markdown-links.mjs
 node scripts/validate-docs-navigation.mjs
 node scripts/validate-release-documentation.mjs
+node scripts/validate-portable-configs.mjs
 ```
 
 ## Implementation rules
@@ -135,7 +141,8 @@ node scripts/validate-release-documentation.mjs
 - Preserve the vault filesystem boundary. External reads and permanent deletion require explicit configuration.
 - Preserve unknown YAML frontmatter fields during mutations.
 - Preserve headless server operation. Core tools, indexing, sessions, and coordination must not depend on a running Obsidian process; UI and supported-plugin operations belong behind `bridge` or `plugin` capability gates.
-- Use focused creation tools in prompts and integrations. `create_note` and `create_project_doc` remain **Deprecated** compatibility wrappers during the documented compatibility window.
+- Use focused creation tools in prompts and integrations. `create_note` and `create_project_doc` remain **Deprecated** compatibility wrappers during the documented compatibility window; first-class specs use `create_engineering_spec` directly.
+- Preserve the distinction between durable engineering specs and implementation plans. Do not make an external workflow engine a Kioku runtime dependency or bypass Kioku with direct vault writes for integrated durable handoff.
 - Keep optional higher-risk capabilities gated.
 - Use structured logging. MCP `stdio` reserves stdout for protocol traffic; diagnostics belong on stderr.
 - Do not add a cloud fallback for embeddings or generation without an explicit security and privacy review.
@@ -155,15 +162,14 @@ node scripts/generate-public-docs.mjs --check
 node scripts/validate-markdown-links.mjs
 node scripts/validate-docs-navigation.mjs
 node scripts/validate-release-documentation.mjs
+node scripts/validate-portable-configs.mjs
 ```
 
 Change-specific checks:
 
 ```bash
-# Client installer changes
-for client in claude-code codex opencode antigravity; do
-  ./scripts/add-to-client.sh "$client" --vault /absolute/path/to/test-vault --dry-run --yes
-done
+# Integration asset / configuration changes
+node scripts/validate-portable-configs.mjs
 
 # Dev Container changes
 bash .devcontainer/scripts/validate-devcontainer.sh
@@ -178,6 +184,7 @@ Record exact commands and results in the pull request. A skipped, disabled, or u
 
 - [Documentation index](docs/README.md)
 - [Installation](docs/install.md)
+- [Engineering workflows](docs/engineering-workflows.md)
 - [Architecture](docs/architecture.md)
 - [MCP contracts](docs/commands-reference.md)
 - [Configuration](docs/configuration-reference.md)

@@ -48,11 +48,20 @@ compatibility wrappers, but new integrations must use focused tools. Use
 `record_adr`, `record_bug`, `create_implementation_plan`,
 `save_project_knowledge`, and the focused note-creation tools for new code.
 
+Later compatible Kioku 3 minor releases can add new focused tools. Treat live
+`tools/list` and the generated contract for the version you are running as
+authoritative rather than freezing an integration to the original 3.0.0 tool
+inventory.
+
 ### Capability profiles
 
-Kioku 3 does not expose every capability in the default discovery profile. The
-default profile contains 44 tools, and the all-capabilities profile contains 77
-tools. The following groups are disabled by default:
+The original Kioku **3.0.0** contract does not expose every capability in the
+default discovery profile. Its baseline contains 44 tools in the default
+profile and 77 tools in the all-capabilities profile. Later compatible Kioku 3
+minor releases may add tools without changing the migration requirements from
+2.3.0.
+
+The following groups are disabled by default:
 
 - `research`
 - `generation`
@@ -110,8 +119,8 @@ Complete these steps before switching a production client to Kioku 3.
 1. Inventory every tool name used by your prompts, skills, tests, and client
    code.
 2. Replace removed and renamed tools using the migration table above.
-3. Update discovery logic so it handles optional capability groups and the
-   44-tool default profile.
+3. Update discovery logic so it handles optional capability groups and does not
+   hard-code the original 3.0.0 profile count.
 4. Update result handling to read structured envelopes and stable error codes.
 5. Add expected revisions or hashes to read-modify-write workflows, and use a
    mutation ID when retrying the same logical mutation.
@@ -124,14 +133,25 @@ No bulk rewrite of existing Markdown notes is required by the Kioku 3 tool
 contract. Back up the vault before changing capability configuration or
 running write-heavy migration scripts.
 
-## SDK 2.0 compatibility
+## Kioku 3 compatible evolution
 
-The MCP C# SDK 2.0 migration is separate from this public contract release.
-An SDK update can be released as a compatible minor version only if it
-preserves the Kioku 3 tool names, schemas, 44/77 profiles, structured results,
-stdio and Streamable HTTP behavior, bridge protocol, and mutation error
-semantics. A deliberate change to any of those public contracts requires a
-new major release.
+The MCP C# SDK migration and later feature work can ship in Kioku 3 without a
+major bump when the public change is backward compatible.
+
+Examples of compatible minor/patch evolution include:
+
+- upgrading an implementation dependency while preserving the public contract;
+- adding an optional tool or optional input field;
+- adding an optional response field or capability;
+- fixing behavior while preserving documented caller expectations.
+
+A **breaking** tool removal/rename, required-field change, incompatible schema
+change, or deliberate semantic change to an existing public contract requires
+a major release (or an explicitly versioned compatibility mechanism where the
+contract defines one).
+
+Therefore the 44/77 counts above are historical 3.0.0 baseline evidence, not a
+promise that every Kioku 3 minor release has exactly those counts.
 
 ## Related references
 
@@ -140,5 +160,6 @@ details.
 
 - [MCP contract reference](commands-reference.md)
 - [Focused-tool migration](focused-tool-migration.md)
+- [Engineering workflows](engineering-workflows.md)
 - [Vault configuration](vault-config.md)
 - [Versioning policy](versioning.md)

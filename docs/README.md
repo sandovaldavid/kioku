@@ -32,6 +32,7 @@ Kioku's core MCP server works directly against the configured vault directory. O
 | Document | Status | Purpose |
 |---|---|---|
 | [Installation](install.md) | Implemented | Install the headless-capable server, register clients, build from source, and verify optional Obsidian integration separately. |
+| [Engineering workflows](engineering-workflows.md) | Implemented | First-class specs, SPEC → PLAN relationships, project scaffold semantics, durable revisions, and external workflow boundaries. |
 | [Architecture](architecture.md) | Implemented | Current component responsibilities and dependency direction. |
 | [Durable coordination profile](durable-coordination.md) | Implemented with gated rollout | Coordination domain, state machine, storage boundary, event persistence, claims, leases, fencing, guarded vault mutations, and the gated MCP surface. |
 | [Troubleshooting](troubleshooting.md) | Implemented | Diagnose server, HTTP, indexing, Ollama, bridge, and Docker problems. |
@@ -60,6 +61,7 @@ Kioku's core MCP server works directly against the configured vault directory. O
 |---|---|---|
 | [Threat and privacy model](threat-and-privacy-model.md) | Implemented with named gaps | Trust boundaries, data flows, controls, and residual risks. |
 | [Streamable HTTP authentication](deploy/auth-options.md) | Implemented | API keys, origins, proxies, and deployment guidance. |
+| [ChatGPT Secure MCP Tunnel](deploy/chatgpt-secure-mcp-tunnel.md) | Unconfirmed end to end / integration guide | Connect ChatGPT developer mode privately to local Kioku `stdio` through OpenAI Secure MCP Tunnel without exposing a public Kioku endpoint. |
 | [Docker](docker.md) | Implemented | Build and run the supplied Dockerfile and Compose stack. |
 | [systemd unit](deploy/kioku.service) | Implemented example | Service unit template that requires operator-specific paths and secrets. |
 | [Nginx configuration](deploy/nginx.conf) | Implemented example | Reverse-proxy template that requires operator-specific values. |
@@ -89,12 +91,13 @@ node scripts/generate-public-docs.mjs --write
 node scripts/generate-public-docs.mjs --check
 ```
 
-Validate maintained repository-relative links, sidebar destinations, and release-facing metadata separately:
+Validate maintained repository-relative links, sidebar destinations, release-facing metadata, and portable client configurations separately:
 
 ```bash
 node scripts/validate-markdown-links.mjs
 node scripts/validate-docs-navigation.mjs
 node scripts/validate-release-documentation.mjs
+node scripts/validate-portable-configs.mjs
 ```
 
 The link check validates local file existence only. It does not make network requests or validate anchors, redirects, hosted documentation, or third-party services.

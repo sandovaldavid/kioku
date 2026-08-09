@@ -66,13 +66,17 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
             // Outgoing links
             foreach (var target in current.OutgoingLinks)
             {
-                var targetNote = vault.ResolveLink(current, target);
-
-                if (targetNote is not null)
+                var resolution = vault.ResolveLinkResult(current, target);
+                if (resolution.Status == VaultLinkResolutionStatus.Resolved)
                 {
-                    edges.Add(new GraphEdge(current.VaultRelativePath, targetNote.VaultRelativePath, "link"));
+                    var targetNote = resolution.Note;
+                    var targetPath = targetNote?.VaultRelativePath ?? resolution.CanonicalTargetPath ?? target;
+                    edges.Add(new GraphEdge(current.VaultRelativePath, targetPath, "link"));
 
-                    if (!visited.ContainsKey(targetNote.FilePath) && currentDepth < depth && visited.Count < max_nodes)
+                    if (targetNote is not null &&
+                        !visited.ContainsKey(targetNote.FilePath) &&
+                        currentDepth < depth &&
+                        visited.Count < max_nodes)
                     {
                         visited[targetNote.FilePath] = targetNote;
                         queue.Enqueue((targetNote, currentDepth + 1));
@@ -80,11 +84,13 @@ public sealed class KnowledgeGraphTools(VaultIndexService vault)
                 }
                 else
                 {
-                    // Broken link — include as a stub node
-                    if (!visited.ContainsKey(target) && visited.Count < max_nodes)
+                    var edgeType = resolution.Status switch
                     {
-                        edges.Add(new GraphEdge(current.VaultRelativePath, target, "broken-link"));
-                    }
+                        VaultLinkResolutionStatus.Ambiguous => "ambiguous-link",
+                        VaultLinkResolutionStatus.Malformed => "malformed-link",
+                        _ => "broken-link",
+                    };
+                    edges.Add(new GraphEdge(current.VaultRelativePath, target, edgeType));
                 }
             }
 

@@ -94,6 +94,16 @@ public sealed class VaultConfigService
 
     public string? ConfiguredInbox => GetFolder("inbox");
 
+    /// <summary>Vault-relative folder explicitly configured as the vault's templates root.</summary>
+    public string? ConfiguredTemplatesFolder => GetFolder("templates");
+
+    /// <summary>Vault-relative template files explicitly configured through <c>template_folders</c>.</summary>
+    public IReadOnlyList<string> ConfiguredTemplateFiles =>
+        _data.TemplateFolders?.Values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
+
     public IReadOnlyList<string> EnabledCapabilityGroups => KnownGroups
         .Where(IsGroupEnabled)
         .ToArray();

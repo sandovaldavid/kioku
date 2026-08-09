@@ -144,9 +144,16 @@ static void ConfigureKiokuPromptsAndResources(
     builder
         .WithPrompts<KiokuPrompts>()
         .WithResources<NoteResources>()
-        .WithListResourcesHandler(async (ctx, _) =>
+        .WithListResourcesHandler(async (ctx, cancellationToken) =>
         {
-            var vault = ctx.Services!.GetRequiredService<VaultIndexService>();
+            var services = ctx.Services
+                ?? throw new InvalidOperationException(
+                    "MCP request services are unavailable while enumerating vault resources.");
+            await services
+                .GetRequiredService<VaultIndexReadinessGate>()
+                .WaitAsync(cancellationToken);
+
+            var vault = services.GetRequiredService<VaultIndexService>();
             var recent = vault.GetAllNotes()
                 .OrderByDescending(n => n.LastModified)
                 .Take(20)
@@ -157,7 +164,7 @@ static void ConfigureKiokuPromptsAndResources(
                     MimeType = "text/markdown",
                 })
                 .ToList();
-            return await Task.FromResult(new ListResourcesResult { Resources = recent });
+            return new ListResourcesResult { Resources = recent };
         });
 
     if (capabilities.IsEnabled("coordination"))
@@ -236,7 +243,10 @@ static async Task<int> RunHttpAsync(
     HttpTransportSecurity.ConfigureBuilder(builder, config);
 
     var capabilities = VaultCapabilityProfile.Load(config.VaultPath);
-    var mcpBuilder = builder.Services.AddMcpServer().WithHttpTransport();
+    var mcpBuilder = builder.Services.AddMcpServer().WithHttpTransport(options =>
+    {
+        options.Stateless = true;
+    });
     ConfigureKiokuTools(mcpBuilder, capabilities);
     ConfigureKiokuPromptsAndResources(mcpBuilder, capabilities);
 

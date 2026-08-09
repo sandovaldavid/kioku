@@ -16,7 +16,17 @@ public sealed partial class ProjectWorkspaceService(
     ObsidianBridgeService bridge,
     IVaultMutationService? mutations = null)
 {
-    /// <summary>Doc type keys, each mapping to a per-project subfolder.</summary>
+    /// <summary>Core per-project subfolders created eagerly by the project scaffold.</summary>
+    public static readonly string[] CoreSubfolderKeys =
+        ["decisions", "bugs", "plans", "knowledge", "sessions", "backlog"];
+
+    /// <summary>Supported workflow subfolders created only when an explicit write needs them.</summary>
+    public static readonly string[] OptionalSubfolderKeys = ["daily", "tickets"];
+
+    /// <summary>
+    /// All recognized project subfolder keys. Keep this full set for discovery, context filters,
+    /// counts, historical projects, and template mappings; scaffold creation uses CoreSubfolderKeys.
+    /// </summary>
     public static readonly string[] SubfolderKeys =
         ["decisions", "bugs", "plans", "knowledge", "sessions", "daily", "tickets", "backlog"];
 
@@ -113,8 +123,10 @@ public sealed partial class ProjectWorkspaceService(
     public static string ProjectLeafName(string project) => project.Split('/')[^1];
 
     /// <summary>
-    /// Ensures the project folder, its standard subfolders, and the project MOC note exist.
-    /// Never overwrites existing files. Returns the vault-relative paths that were created.
+    /// Ensures the project folder, its core subfolders, and the project MOC note exist.
+    /// Optional workflow folders such as daily/ and tickets/ are recognized but materialize only
+    /// when an explicit note write targets them. Never overwrites existing files. Returns the
+    /// vault-relative paths that were created.
     /// </summary>
     public async Task<List<string>> EnsureProjectScaffoldAsync(string project)
     {
@@ -128,7 +140,7 @@ public sealed partial class ProjectWorkspaceService(
             created.Add(ToVaultRelative(projectFolder) + "/");
         }
 
-        foreach (var key in SubfolderKeys)
+        foreach (var key in CoreSubfolderKeys)
         {
             var sub = GetSubfolder(project, key);
             if (!Directory.Exists(sub))
@@ -239,14 +251,14 @@ public sealed partial class ProjectWorkspaceService(
     }
 
     /// <summary>
-    /// Registers this project's standard subfolders (decisions/, bugs/, ...) as folder templates
-    /// in Templater's own settings, so manually creating a note there from Obsidian also gets the
-    /// right Kioku template — not just notes the agent creates via record_adr/log_bug/etc.
-    /// Deliberately excludes the project root itself (would apply the project-MOC template to
-    /// any new note created there, which is almost never what's wanted). Never overwrites a
-    /// folder the user already mapped in Templater, even to a different template. No-op if
-    /// Templater isn't installed or its settings file doesn't exist yet, or if the corresponding
-    /// template file isn't actually on disk (Templater can't point at an embedded resource).
+    /// Registers all supported project subfolders (including future optional daily/ and tickets/
+    /// paths) as folder templates in Templater's own settings. Templater resolves a folder mapping
+    /// when a file is created there, so the mapped folder itself does not need to exist at scaffold
+    /// time. This keeps manual first-use creation in Obsidian templated without materializing the
+    /// optional folders. Deliberately excludes the project root itself (would apply the project-MOC
+    /// template to any new note created there). Never overwrites a folder the user already mapped
+    /// in Templater, even to a different template. No-op if Templater isn't installed or its settings
+    /// file doesn't exist yet, or if the corresponding template file isn't actually on disk.
     /// </summary>
     public async Task<int> RegisterTemplaterFolderTemplatesAsync(string project)
     {
@@ -436,8 +448,9 @@ public sealed partial class ProjectWorkspaceService(
     /// both discovered as "Atena/api.core" and "Atena/api.common" — "Atena" itself is a pure
     /// grouping folder, not a project, and is never listed).
     /// A directory counts as a project if it has its own "{leaf}.md" MOC note with type: moc,
-    /// or already has at least one of the standard engineering subfolders. Anything else is
-    /// treated as a grouping folder and recursed into.
+    /// or already has at least one recognized engineering subfolder, including historical
+    /// optional daily/ and tickets/ folders. Anything else is treated as a grouping folder and
+    /// recursed into.
     /// </summary>
     public IReadOnlyList<string> DiscoverProjects()
     {

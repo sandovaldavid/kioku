@@ -57,6 +57,8 @@ internal sealed class CoordinationProcessServer : IAsyncDisposable
 
     internal int ProcessId => process.Id;
 
+    internal McpClient Client => client ?? throw new InvalidOperationException("The MCP client is not connected.");
+
     internal ProcessExitObservation Observation
     {
         get

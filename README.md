@@ -6,7 +6,7 @@
 
 Kioku is a local-first Model Context Protocol server that lets Claude Code, Codex, OpenCode, and other MCP clients continue work across fresh sessions by reading and updating structured knowledge in an Obsidian vault.
 
-It combines typed MCP contracts, a strict vault filesystem boundary, concurrent work-session ownership, full-text and semantic retrieval, and an optional Obsidian bridge. The server supports local `stdio` and authenticated **Streamable HTTP** deployments.
+It combines typed MCP contracts, a strict vault filesystem boundary, first-class engineering specs and plans, concurrent work-session ownership, full-text and semantic retrieval, and an optional Obsidian bridge. The server supports local `stdio` and authenticated **Streamable HTTP** deployments.
 
 Kioku reads and writes the vault directory directly. The Obsidian application does not need to be open for core note, search, project, session, indexing, or coordination operations. Obsidian and the companion plugin are required only for optional UI and supported-plugin bridge operations.
 
@@ -14,7 +14,7 @@ The `develop` branch can contain verified but unreleased changes beyond the late
 
 ## Why Kioku
 
-- **Deterministic handoff** — agents can record project context, decisions, plans, bugs, daily notes, and session handoffs.
+- **Deterministic handoff** — agents can recover project context, approved engineering specs, implementation plans, decisions, bugs, knowledge, and session handoffs.
 - **Obsidian-native storage** — Markdown and YAML frontmatter remain readable and editable without Kioku.
 - **Headless server operation** — core MCP workflows continue when Obsidian is closed.
 - **Safe vault access** — writes stay inside the configured vault; external reads and permanent deletion require explicit opt-in.
@@ -30,45 +30,95 @@ Open issues, historical plans, and pull-request descriptions are not implementat
 
 ## Quick start
 
-### Install the server
+### Step 1: Install the server
 
 ```bash
 dotnet tool install --global kioku-mcp-server
 ```
 
-Set the vault path and register `kioku` in your MCP client:
+Or install via one-liner script:
 
 ```bash
-export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
-kioku
+curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/install.sh | bash
 ```
 
-The repository installer supports Claude Code, Codex, OpenCode, and Antigravity:
+### Step 2: Register in your MCP client
 
+Set `KIOKU_VAULT_PATH` and register using your client's native registration mechanism:
+
+#### Claude Code
 ```bash
-./scripts/add-to-client.sh claude-code --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh codex --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh opencode --vault /absolute/path/to/your/vault
-./scripts/add-to-client.sh antigravity --vault /absolute/path/to/your/vault
-```
+# Global user scope
+claude mcp add kioku --scope user --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
 
-The default Claude Code target installs the bundled plugin and `kioku-vault` skill. Use direct native MCP registration instead with:
-
-```bash
-./scripts/add-to-client.sh claude-code \
-  --vault /absolute/path/to/your/vault \
-  --simple \
-  --scope project
-```
-
-Claude Code users can also install the bundled plugin manually:
-
-```bash
+# Or via plugin marketplace
 claude plugin marketplace add sandovaldavid/kioku
 claude plugin install kioku@kioku
 ```
 
-See the [installation guide](docs/install.md) for manual client configuration, source builds, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
+#### Codex CLI
+```bash
+codex mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### OpenCode
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+opencode mcp add
+```
+
+When OpenCode prompts you, use:
+
+```text
+MCP server name: kioku
+MCP server type: Local
+Command to run: kioku
+```
+
+If OpenCode asks where to save the configuration, choose **Global** to make Kioku available across projects, or **Current project** only when you intentionally want repository-local configuration. Then verify the connection:
+
+```bash
+opencode mcp list
+```
+
+`KIOKU_VAULT_PATH` must also be present in the environment when future OpenCode sessions start; persist it in your shell profile if you want the setting to survive new terminals.
+
+#### GitHub Copilot CLI
+```bash
+copilot mcp add kioku --env KIOKU_VAULT_PATH="/absolute/path/to/your/vault" -- kioku
+```
+
+#### Antigravity CLI (`agy`)
+```bash
+export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
+# Native MCP configuration (~/.gemini/config/mcp_config.json):
+# { "mcpServers": { "kioku": { "command": "kioku" } } }
+
+# Or install local plugin bundle (from cloned kioku repository):
+# agy plugin install ./integrations/antigravity-plugin
+```
+
+See the [Installation Guide](docs/install.md) for detailed configuration, scope options, manual TOML/JSON files, Docker, and the optional [Obsidian plugin](https://github.com/sandovaldavid/kioku-obsidian).
+
+## Durable engineering workflow
+
+Kioku separates durable design requirements from implementation steps:
+
+```text
+request / issue
+    ↓
+engineering SPEC
+    ↓
+implementation PLAN
+    ↓
+SESSION / execution / handoff
+```
+
+Use `create_engineering_spec` to persist what must be built and how it must behave. `create_implementation_plan` can then link the implementation plan to that same-project spec through additive frontmatter metadata. Approved specs are recoverable through `get_project_context(types="spec")` or `get_project_context(types="specs")` without making Kioku depend on a particular external coding methodology.
+
+New projects scaffold `decisions`, `bugs`, `specs`, `plans`, `knowledge`, `sessions`, and `backlog` as durable core folders. `daily` and `tickets` remain supported optional workflows and materialize only when explicitly written.
+
+See [Engineering Workflows](docs/engineering-workflows.md) for spec lifecycle, SPEC → PLAN linking, durable revision behavior, and the generic external-workflow boundary.
 
 ## Architecture
 
@@ -96,6 +146,7 @@ See the [current architecture](docs/architecture.md) for operational component b
 Start with the [documentation index](docs/README.md). The main maintained references are:
 
 - [MCP contract reference](docs/commands-reference.md) — live `tools/list`, schemas, annotations, prompts, resources, and profile counts.
+- [Engineering workflows](docs/engineering-workflows.md) — first-class specs, SPEC → PLAN relationships, project scaffold semantics, and durable workflow boundaries.
 - [Server configuration reference](docs/configuration-reference.md) — every public `KIOKU_*` variable and canonical `Kioku:*` path.
 - [Vault configuration](docs/vault-config.md) — folders, defaults, exclusions, capabilities, frontmatter, and generated indexes.
 - [Focused-tool migration](docs/focused-tool-migration.md) — current replacements for deprecated generic creation wrappers.

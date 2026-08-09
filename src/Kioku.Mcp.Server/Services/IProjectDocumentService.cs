@@ -4,8 +4,8 @@ namespace Kioku.Mcp.Server.Services;
 
 /// <summary>
 /// Application boundary for per-project engineering document workflows: architecture decision
-/// records (ADRs), bug logs, implementation plans, knowledge notes, backlog ideas, project
-/// context re-reading, project discovery, and engineering template management.
+/// records (ADRs), bug logs, specifications, implementation plans, knowledge notes, backlog ideas,
+/// project context re-reading, project discovery, and engineering template management.
 /// MCP adapters depend on this contract instead of constructing workflow services directly.
 /// </summary>
 public interface IProjectDocumentService
@@ -64,6 +64,41 @@ public interface IProjectDocumentService
         string status,
         string ticket,
         string tags,
+        VaultMutationPreconditions? preconditions = null,
+        CancellationToken cancellationToken = default);
+
+    Task<string> CreateSpecAsync(
+        string project,
+        string title,
+        string objective,
+        string requirements,
+        string status = "draft",
+        string sourceIssue = "",
+        string tags = "",
+        string context = "",
+        string nonGoals = "",
+        string architecture = "",
+        string components = "",
+        string dataFlow = "",
+        string errorHandling = "",
+        string securityPrivacy = "",
+        string compatibility = "",
+        string testingStrategy = "",
+        string decisions = "",
+        string openQuestions = "",
+        string related = "",
+        VaultMutationPreconditions? preconditions = null,
+        CancellationToken cancellationToken = default);
+
+    Task<string> CreatePlanFromSpecAsync(
+        string project,
+        string title,
+        string objective,
+        string steps,
+        string spec,
+        string status = "draft",
+        string ticket = "",
+        string tags = "",
         VaultMutationPreconditions? preconditions = null,
         CancellationToken cancellationToken = default);
 

@@ -20,13 +20,19 @@ Update an existing installation:
 dotnet tool update --global kioku-mcp-server
 ```
 
-Verify the installed command:
+Verify that the installed command is on `PATH` without starting the MCP process:
 
 ```bash
-kioku --help
+command -v kioku
 ```
 
-Kioku requires the path to an Obsidian vault. For a direct local launch:
+On PowerShell:
+
+```powershell
+Get-Command kioku
+```
+
+Kioku requires the path to an Obsidian vault before the server starts. For a direct local launch:
 
 ```bash
 export KIOKU_VAULT_PATH="/absolute/path/to/your/vault"
@@ -52,11 +58,12 @@ A minimal client configuration starts `kioku` and supplies the vault path:
 }
 ```
 
-The repository also provides supported installers for Claude Code, Codex, OpenCode, and Antigravity. See the [installation guide](https://sandovaldavid.github.io/kioku/install.html) for client-specific configuration, Docker, source builds, and troubleshooting.
+The repository documents native MCP registration for Claude Code, Codex, OpenCode, GitHub Copilot, and Antigravity, plus native plugin bundles where the client supports that model. See the [installation guide](https://sandovaldavid.github.io/kioku/install.html) for client-specific commands/configuration, Docker, source builds, and troubleshooting.
 
 ## What Kioku provides
 
-- durable project context, decisions, plans, bugs, knowledge, and session handoffs;
+- durable project context, first-class engineering specs, implementation plans, decisions, bugs, knowledge, and session handoffs;
+- explicit SPEC → PLAN relationships while keeping external coding methodologies outside the Kioku runtime;
 - bounded vault reads and guarded writes with structured error results;
 - full-text retrieval plus optional local Ollama embeddings and generation;
 - focused engineering and organization tools backed by readable Markdown;
@@ -65,6 +72,8 @@ The repository also provides supported installers for Claude Code, Codex, OpenCo
 - an optional Obsidian bridge without coupling server and plugin SemVer.
 
 The default discovery profile contains the safe core surface. Optional capability groups must be enabled explicitly when an integration needs them. Treat `tools/list` as authoritative rather than assuming every possible tool is registered.
+
+For the durable project model, including spec lifecycle, SPEC → PLAN linking, core/eager project folders, optional/lazy `daily` and `tickets`, and revision behavior, see [Engineering workflows](https://sandovaldavid.github.io/kioku/engineering-workflows.html).
 
 ## Kioku 3 migration
 

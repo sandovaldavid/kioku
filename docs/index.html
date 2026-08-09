@@ -18,7 +18,7 @@ description: Kioku gives AI agents persistent, structured, local-first memory in
     <span class="version-badge">{{ site.version_label }}</span>
     <p class="hero-kicker">Local-first MCP memory</p>
     <h1 class="hero-title" id="hero-title">Your agents forget.<br><span>Kioku gives them continuity.</span></h1>
-    <p class="hero-subtitle">Persistent, structured memory in your own Obsidian vault—readable Markdown, typed YAML frontmatter, guarded mutations, and deterministic handoff across fresh sessions.</p>
+    <p class="hero-subtitle">Persistent, structured memory in your own Obsidian vault—readable Markdown, typed YAML frontmatter, guarded mutations, first-class engineering specs, and deterministic handoff across fresh sessions.</p>
     <div class="hero-buttons">
       <a href="{{ site.baseurl }}/install.html" class="btn btn-primary">Install Kioku</a>
       <a href="{{ site.baseurl }}/commands-reference.html" class="btn btn-secondary">Explore the MCP contract</a>
@@ -31,7 +31,7 @@ description: Kioku gives AI agents persistent, structured, local-first memory in
   </section>
 
   <div class="trust-strip" aria-label="Supported MCP clients">
-    <span>Claude Code</span><span>Codex</span><span>OpenCode</span><span>Antigravity</span><span>Any MCP-compatible client</span>
+    <span>Claude Code</span><span>Codex</span><span>OpenCode</span><span>GitHub Copilot</span><span>Antigravity</span><span>Any MCP-compatible client</span>
   </div>
 
   <section class="home-section" aria-labelledby="why-kioku">
@@ -39,7 +39,7 @@ description: Kioku gives AI agents persistent, structured, local-first memory in
     <h2 class="home-section-title" id="why-kioku">Built for reliable agent work</h2>
     <p class="section-lede">Kioku keeps operational context useful to agents while preserving privacy, portability, explicit safety boundaries, and recoverable files.</p>
     <div class="feature-grid">
-      <article class="feature-card"><span class="card-label">Capability</span><h3>Durable handoff</h3><p>Persist project context, decisions, plans, bugs, knowledge, ownership, and session handoffs for the next agent.</p><a href="{{ site.baseurl }}/work-sessions.html" class="card-link">Learn how handoff works →</a></article>
+      <article class="feature-card"><span class="card-label">Capability</span><h3>Durable engineering context</h3><p>Persist approved specs, implementation plans, decisions, bugs, knowledge, ownership, and session handoffs for the next agent.</p><a href="{{ site.baseurl }}/engineering-workflows.html" class="card-link">Explore engineering workflows →</a></article>
       <article class="feature-card"><span class="card-label">Capability</span><h3>Guarded mutations</h3><p>Bounded paths, compare-and-swap writes, idempotency, and structured failures protect vault integrity.</p><a href="{{ site.baseurl }}/threat-and-privacy-model.html" class="card-link">Review safety boundaries →</a></article>
       <article class="feature-card"><span class="card-label">Capability</span><h3>Hybrid retrieval</h3><p>Combine indexed full-text search with optional local embeddings and reciprocal rank fusion.</p><a href="{{ site.baseurl }}/commands-reference.html" class="card-link">Explore retrieval tools →</a></article>
       <article class="feature-card"><span class="card-label">Capability</span><h3>Headless operation</h3><p>Use core notes, search, projects, indexing, sessions, and coordination while Obsidian is closed.</p><a href="{{ site.baseurl }}/architecture.html" class="card-link">Understand the architecture →</a></article>
@@ -61,7 +61,18 @@ description: Kioku gives AI agents persistent, structured, local-first memory in
     <div class="steps-grid">
       <article class="step-card"><span class="step-number">1</span><h3>Install the server</h3><p>Install the .NET tool, build from source, or deploy Kioku with Docker.</p></article>
       <article class="step-card"><span class="step-number">2</span><h3>Choose a vault</h3><p>Point Kioku at an Obsidian vault and optionally configure folders, templates, and capabilities.</p></article>
-      <article class="step-card"><span class="step-number">3</span><h3>Register a client</h3><p>Add Kioku to Claude Code, Codex, OpenCode, Antigravity, or another MCP client.</p></article>
+      <article class="step-card"><span class="step-number">3</span><h3>Register a client</h3><p>Add Kioku to Claude Code, Codex, OpenCode, GitHub Copilot, Antigravity, or another MCP client.</p></article>
+    </div>
+  </section>
+
+  <section class="home-section" aria-labelledby="engineering-flow">
+    <p class="section-kicker">Engineering memory</p>
+    <h2 class="home-section-title" id="engineering-flow">Keep requirements and implementation plans distinct.</h2>
+    <p class="section-lede">A first-class SPEC records what must be built and how it must behave. A linked PLAN records how the approved/current design will be implemented. Kioku keeps both durable without becoming your coding methodology.</p>
+    <div class="steps-grid">
+      <article class="step-card"><span class="step-number">1</span><h3>Capture the spec</h3><p>Create a structured engineering spec with explicit requirements, architecture, compatibility, testing strategy, and lifecycle.</p></article>
+      <article class="step-card"><span class="step-number">2</span><h3>Link the plan</h3><p>Create an implementation plan that references the canonical same-project spec while preserving existing plan callers.</p></article>
+      <article class="step-card"><span class="step-number">3</span><h3>Handoff safely</h3><p>Recover approved specs, active plans, and session outcomes from the vault and stop stale external execution when durable revisions change.</p></article>
     </div>
   </section>
 
@@ -70,7 +81,7 @@ description: Kioku gives AI agents persistent, structured, local-first memory in
     <h2 class="home-section-title" id="server-and-plugin">The MCP server works headlessly. The plugin adds Obsidian UI integration.</h2>
     <p class="section-lede">Core note, search, project, indexing, session, and coordination workflows read and write the vault directly. Obsidian only needs to be open for optional bridge and supported-plugin operations.</p>
     <div class="product-grid">
-      <article class="product-card server"><span class="card-label">Required</span><h3>Kioku MCP server</h3><p>The private memory and workflow layer used by AI agents.</p><ul class="product-list"><li>Vault reading and structured writes</li><li>Search and retrieval</li><li>Projects, engineering workflows, and sessions</li><li>stdio and authenticated Streamable HTTP</li></ul></article>
+      <article class="product-card server"><span class="card-label">Required</span><h3>Kioku MCP server</h3><p>The private memory and workflow layer used by AI agents.</p><ul class="product-list"><li>Vault reading and structured writes</li><li>Search and retrieval</li><li>Projects, specs, plans, and sessions</li><li>stdio and authenticated Streamable HTTP</li></ul></article>
       <article class="product-card plugin"><span class="card-label">Optional</span><h3>Kioku Obsidian plugin</h3><p>A separate companion repository for UI-aware operations inside a running Obsidian application.</p><ul class="product-list"><li>Open notes in Obsidian</li><li>Run approved commands</li><li>Integrate supported plugins</li><li>Authenticated WebSocket bridge</li></ul></article>
       <article class="product-card"><span class="card-label">User controlled</span><h3>Your Obsidian vault</h3><p>The durable source of truth remains ordinary files under your ownership.</p><ul class="product-list"><li>Portable Markdown</li><li>Typed YAML frontmatter</li><li>Explicit folder and exclusion policy</li><li>No database migration dependency</li></ul></article>
     </div>
@@ -81,6 +92,7 @@ description: Kioku gives AI agents persistent, structured, local-first memory in
     <h2 class="home-section-title" id="documentation">Start with the guide for your task</h2>
     <div class="docs-grid">
       <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Installation</h3><p>Install the tool, register an MCP client, build from source, or deploy with Docker.</p></div><a href="{{ site.baseurl }}/install.html" class="doc-card-link">Read the guide →</a></article>
+      <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Engineering workflows</h3><p>Use first-class specs, link implementation plans, understand durable revisions, and compose external workflows safely.</p></div><a href="{{ site.baseurl }}/engineering-workflows.html" class="doc-card-link">Read the workflow guide →</a></article>
       <article class="doc-card"><div><span class="card-label">Documentation</span><h3>MCP contract reference</h3><p>Review generated tool schemas, annotations, prompts, resources, and capability profiles.</p></div><a href="{{ site.baseurl }}/commands-reference.html" class="doc-card-link">Browse contracts →</a></article>
       <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Vault configuration</h3><p>Configure folders, templates, metadata behavior, exclusions, and capability gates.</p></div><a href="{{ site.baseurl }}/vault-config.html" class="doc-card-link">Configure a vault →</a></article>
       <article class="doc-card"><div><span class="card-label">Documentation</span><h3>Security model</h3><p>Understand filesystem boundaries, authentication, origins, proxies, and external data flows.</p></div><a href="{{ site.baseurl }}/threat-and-privacy-model.html" class="doc-card-link">Review security →</a></article>

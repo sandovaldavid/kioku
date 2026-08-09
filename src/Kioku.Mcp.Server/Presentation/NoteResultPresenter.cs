@@ -11,6 +11,16 @@ namespace Kioku.Mcp.Server.Presentation;
 internal sealed record NoteSearchRow(Note Note, float Score, string Label, string? Snippet);
 
 /// <summary>
+/// Canonical classification of one outgoing wikilink. The raw target stays available for
+/// backward-compatible display while JSON clients can inspect the resolver result directly.
+/// </summary>
+internal sealed record OutgoingLinkResolutionRow(
+    string RawTarget,
+    string Status,
+    string? CanonicalTargetPath,
+    string? Fragment);
+
+/// <summary>
 /// Renders NoteQueryService's outcomes as the exact text or JSON strings the note-query MCP
 /// tools (search_notes, read_note, list_notes, get_links, find_similar_notes) return. Holds
 /// every format decision for that slice: NoteQueryService decides what happened, this type
@@ -358,7 +368,12 @@ internal static class NoteResultPresenter
             format);
 
     internal static string RenderLinks(
-        string name, string? path, List<Note>? backlinks, List<string>? outgoing, string format)
+        string name,
+        string? path,
+        List<Note>? backlinks,
+        List<string>? outgoing,
+        List<OutgoingLinkResolutionRow>? outgoingResolutions,
+        string format)
     {
         if (IsJsonFormat(format))
         {
@@ -368,6 +383,13 @@ internal static class NoteResultPresenter
                 path,
                 backlinks = backlinks?.Select(n => new { name = n.Name, path = n.VaultRelativePath }),
                 outgoing_links = outgoing,
+                outgoing_link_resolutions = outgoingResolutions?.Select(r => new
+                {
+                    raw_target = r.RawTarget,
+                    status = r.Status,
+                    canonical_target_path = r.CanonicalTargetPath,
+                    fragment = r.Fragment,
+                }),
             });
         }
 

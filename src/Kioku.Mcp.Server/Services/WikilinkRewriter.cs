@@ -32,19 +32,61 @@ public static class WikilinkRewriter
         bool RewriteShortNameLinks,
         bool ShortNameAmbiguous);
 
+    /// <summary>Action selected by the caller for one raw wikilink target.</summary>
+    public enum TargetRewriteAction
+    {
+        LeaveUnchanged,
+        Rewrite,
+        Ambiguous,
+    }
+
+    /// <summary>
+    /// Resolver-aware decision for one raw target (the part before a display alias).
+    /// ReplacementTarget contains the complete replacement target, including any preserved
+    /// heading/block fragment. The rewriter itself remains filesystem-agnostic.
+    /// </summary>
+    public readonly record struct TargetRewriteDecision(
+        TargetRewriteAction Action,
+        string? ReplacementTarget = null)
+    {
+        public static TargetRewriteDecision Leave => new(TargetRewriteAction.LeaveUnchanged);
+        public static TargetRewriteDecision Ambiguous => new(TargetRewriteAction.Ambiguous);
+        public static TargetRewriteDecision ReplaceWith(string target) =>
+            new(TargetRewriteAction.Rewrite, target);
+    }
+
     /// <param name="NewContent">Content with matching links rewritten.</param>
     /// <param name="ReplacedCount">Number of links rewritten.</param>
     /// <param name="AmbiguousMatches">
-    /// Raw link bodies (the text between [[ and ]]) that matched OldShortName but were left
-    /// untouched because ShortNameAmbiguous was true.
+    /// Raw link bodies (the text between [[ and ]]) that matched an ambiguous target and were
+    /// left untouched.
     /// </param>
     public sealed record RewriteResult(
         string NewContent,
         int ReplacedCount,
         IReadOnlyList<string> AmbiguousMatches);
 
-    public static RewriteResult Rewrite(string content, RewritePlan plan, int bodyStart = 0)
+    /// <summary>
+    /// Historical syntax-only rewrite path kept for isolated string transformation tests.
+    /// Production mutation callers should use the resolver-aware overload so a literal '#'
+    /// filename cannot be confused with a heading or block fragment.
+    /// </summary>
+    public static RewriteResult Rewrite(string content, RewritePlan plan, int bodyStart = 0) =>
+        Rewrite(content, plan, target => DecideLegacyTarget(target, plan), bodyStart);
+
+    /// <summary>
+    /// Rewrites wikilinks using a caller-provided decision for every complete raw target.
+    /// The callback receives the target before a display alias but with every '#' preserved,
+    /// so canonical resolution can distinguish literal hash filenames from real fragments.
+    /// </summary>
+    public static RewriteResult Rewrite(
+        string content,
+        RewritePlan plan,
+        Func<string, TargetRewriteDecision> decideTarget,
+        int bodyStart = 0)
     {
+        ArgumentNullException.ThrowIfNull(decideTarget);
+
         var frontmatter = content[..bodyStart];
         var body = content[bodyStart..];
 
@@ -71,7 +113,7 @@ public static class WikilinkRewriter
                 continue;
             }
 
-            sb.Append(RewriteLineLinks(line, plan, ambiguous, ref replaced)).Append(terminator);
+            sb.Append(RewriteLineLinks(line, decideTarget, ambiguous, ref replaced)).Append(terminator);
         }
 
         return new RewriteResult(sb.ToString(), replaced, ambiguous);
@@ -79,7 +121,11 @@ public static class WikilinkRewriter
 
     // Private helpers
 
-    private static string RewriteLineLinks(string line, RewritePlan plan, List<string> ambiguous, ref int replaced)
+    private static string RewriteLineLinks(
+        string line,
+        Func<string, TargetRewriteDecision> decideTarget,
+        List<string> ambiguous,
+        ref int replaced)
     {
         var sb = new StringBuilder(line.Length);
         var pos = 0;
@@ -102,7 +148,7 @@ public static class WikilinkRewriter
 
             sb.Append(line, pos, open - pos);
             var inner = line.Substring(open + 2, close - open - 2);
-            sb.Append("[[").Append(RewriteInner(inner, plan, ambiguous, ref replaced)).Append("]]");
+            sb.Append("[[").Append(RewriteInner(inner, decideTarget, ambiguous, ref replaced)).Append("]]");
 
             pos = close + 2;
         }
@@ -110,12 +156,48 @@ public static class WikilinkRewriter
         return sb.ToString();
     }
 
-    private static string RewriteInner(string inner, RewritePlan plan, List<string> ambiguous, ref int replaced)
+    private static string RewriteInner(
+        string inner,
+        Func<string, TargetRewriteDecision> decideTarget,
+        List<string> ambiguous,
+        ref int replaced)
     {
         var pipeIdx = inner.IndexOf('|');
-        var beforePipe = pipeIdx >= 0 ? inner[..pipeIdx] : inner;
+        var rawTarget = pipeIdx >= 0 ? inner[..pipeIdx] : inner;
         var alias = pipeIdx >= 0 ? inner[pipeIdx..] : string.Empty;
 
+        if (string.IsNullOrWhiteSpace(rawTarget))
+        {
+            return inner;
+        }
+
+        var decision = decideTarget(rawTarget);
+        switch (decision.Action)
+        {
+            case TargetRewriteAction.LeaveUnchanged:
+                return inner;
+
+            case TargetRewriteAction.Ambiguous:
+                ambiguous.Add(inner);
+                return inner;
+
+            case TargetRewriteAction.Rewrite:
+                if (string.IsNullOrWhiteSpace(decision.ReplacementTarget))
+                {
+                    return inner;
+                }
+
+                replaced++;
+                return decision.ReplacementTarget + alias;
+
+            default:
+                return inner;
+        }
+    }
+
+    private static TargetRewriteDecision DecideLegacyTarget(string rawTarget, RewritePlan plan)
+    {
+        var beforePipe = rawTarget;
         var hashIdx = beforePipe.IndexOf('#');
         var target = hashIdx >= 0 ? beforePipe[..hashIdx] : beforePipe;
         var fragment = hashIdx >= 0 ? beforePipe[hashIdx..] : string.Empty;
@@ -123,40 +205,30 @@ public static class WikilinkRewriter
         var trimmedTarget = target.Trim();
         if (trimmedTarget.Length == 0)
         {
-            return inner;
+            return TargetRewriteDecision.Leave;
         }
 
         var normalizedTarget = trimmedTarget.Replace('\\', '/');
-
         if (normalizedTarget.Contains('/'))
         {
-            if (!string.Equals(normalizedTarget, plan.OldFullPath, StringComparison.OrdinalIgnoreCase))
-            {
-                return inner;
-            }
-
-            replaced++;
-            return plan.NewFullPath + fragment + alias;
+            return string.Equals(normalizedTarget, plan.OldFullPath, StringComparison.OrdinalIgnoreCase)
+                ? TargetRewriteDecision.ReplaceWith(plan.NewFullPath + fragment)
+                : TargetRewriteDecision.Leave;
         }
 
         if (!string.Equals(normalizedTarget, plan.OldShortName, StringComparison.OrdinalIgnoreCase))
         {
-            return inner;
+            return TargetRewriteDecision.Leave;
         }
 
         if (plan.ShortNameAmbiguous)
         {
-            ambiguous.Add(inner);
-            return inner;
+            return TargetRewriteDecision.Ambiguous;
         }
 
-        if (!plan.RewriteShortNameLinks)
-        {
-            return inner;
-        }
-
-        replaced++;
-        return plan.NewShortName + fragment + alias;
+        return plan.RewriteShortNameLinks
+            ? TargetRewriteDecision.ReplaceWith(plan.NewShortName + fragment)
+            : TargetRewriteDecision.Leave;
     }
 
     private static IEnumerable<(string Line, string Terminator)> SplitLinesPreserving(string text)

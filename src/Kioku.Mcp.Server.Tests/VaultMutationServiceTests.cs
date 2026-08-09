@@ -88,6 +88,33 @@ public sealed class VaultMutationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateTextAsync_CreatesMissingParentDirectory()
+    {
+        var path = Path.Combine(_vaultPath, "Projects", "demo", "daily", "2026-08-09.md");
+        Assert.False(Directory.Exists(Path.GetDirectoryName(path)));
+
+        var receipt = await _mutations.CreateTextAsync(path, "daily");
+
+        Assert.Equal("daily", await File.ReadAllTextAsync(path));
+        Assert.Equal("Projects/demo/daily/2026-08-09.md", receipt.Path);
+    }
+
+    [Fact]
+    public async Task CreateTextAsync_WhenParentCannotBeCreated_FailsWithoutTargetWrite()
+    {
+        var blockingPath = Path.Combine(_vaultPath, "Projects");
+        await File.WriteAllTextAsync(blockingPath, "blocking file");
+        var target = Path.Combine(blockingPath, "demo", "daily", "2026-08-09.md");
+
+        var exception = await Assert.ThrowsAsync<VaultMutationException>(() =>
+            _mutations.CreateTextAsync(target, "must not commit"));
+
+        Assert.Equal("INTERNAL", exception.Code);
+        Assert.Equal("blocking file", await File.ReadAllTextAsync(blockingPath));
+        Assert.False(File.Exists(target));
+    }
+
+    [Fact]
     public async Task WriteTextAsync_StillRequiresAnExistingTarget()
     {
         var path = Path.Combine(_vaultPath, "Notes", "Missing.md");

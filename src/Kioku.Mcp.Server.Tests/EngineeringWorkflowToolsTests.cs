@@ -221,7 +221,7 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
 
         await tools.log_bug("demo", "Crash on start", "sym", "cause", "fix");
 
-        foreach (var key in ProjectWorkspaceService.SubfolderKeys)
+        foreach (var key in ProjectWorkspaceService.CoreSubfolderKeys)
         {
             Assert.True(Directory.Exists(workspace.GetSubfolder("demo", key)), $"missing subfolder '{key}'");
         }
@@ -341,7 +341,7 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var result = await tools.setup_agent_workflow(project: "Group/ProjectA");
 
         Assert.StartsWith("[ok]", result);
-        foreach (var key in ProjectWorkspaceService.SubfolderKeys)
+        foreach (var key in ProjectWorkspaceService.CoreSubfolderKeys)
         {
             Assert.True(
                 Directory.Exists(workspace.GetSubfolder("Group/ProjectA", key)),

@@ -21,6 +21,15 @@ FROM "{{decisions_folder}}"
 SORT file.name DESC
 ```
 
+## Specs
+
+```dataview
+TABLE without id file.link AS "Spec", status, date
+FROM "{{project_folder}}"
+WHERE type = "spec"
+SORT choice(status = "approved", 0, choice(status = "draft", 1, 2)) ASC, date DESC
+```
+
 ## Active plans
 
 ```dataview

@@ -37,7 +37,6 @@ devcontainer exec --workspace-folder . bash -lc '
   node scripts/lib/validate-skill-frontmatter.mjs
   ./scripts/sync-skill.sh --check
   shellcheck .devcontainer/scripts/*.sh \
-    scripts/add-to-client.sh \
     scripts/sync-skill.sh \
     scripts/install.sh \
     scripts/sync-develop-to-main.sh

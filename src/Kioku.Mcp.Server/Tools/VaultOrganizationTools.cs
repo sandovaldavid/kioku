@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Kioku.Mcp.Server.Domain;
 using Kioku.Mcp.Server.Services;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace Kioku.Mcp.Server.Tools;
@@ -148,7 +150,6 @@ public sealed class VaultOrganizationTools(
         IEnumerable<string>? inheritedTags = null,
         IEnumerable<string>? excludedTags = null)
     {
-        // Get all unique tags across the vault
         var allTags = vault.GetAllNotes()
             .SelectMany(n => n.Metadata.Tags)
             .GroupBy(t => t, StringComparer.OrdinalIgnoreCase)
@@ -159,7 +160,6 @@ public sealed class VaultOrganizationTools(
             .Concat(excludedTags ?? [])
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Score tags by word overlap with note content + title
         var noteWords = TokenizeText(found.PlainText + " " + found.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -199,7 +199,6 @@ public sealed class VaultOrganizationTools(
                 var a = notes[i];
                 var b = notes[j];
 
-                // Check title similarity (Jaro-Winkler approximation via word overlap)
                 var titleSim = TitleSimilarity(a.Name, b.Name);
                 if (titleSim >= threshold)
                 {
@@ -207,7 +206,6 @@ public sealed class VaultOrganizationTools(
                     continue;
                 }
 
-                // Check content similarity (word overlap / Jaccard)
                 var contentSim = ContentJaccard(a.PlainText, b.PlainText);
                 if (contentSim >= threshold)
                 {
@@ -237,40 +235,16 @@ public sealed class VaultOrganizationTools(
     // audit_vault
 
     [McpServerTool, Description(
-        "Generates a health report of the vault: notes without tags, without dates, " +
-        "without content, broken wikilinks, and notes not updated in a long time.")]
-    public Task<string> audit_vault(
-        [Description("Flag notes not updated in this many days (default: 90).")] int stale_days = 90)
-    {
-        var notes = vault.GetAllNotes().ToList();
-        var cutoff = DateTime.UtcNow.AddDays(-stale_days);
-
-        var noTags = notes.Where(n => n.Metadata.Tags.Count == 0).ToList();
-        var noDates = notes.Where(n => !n.Metadata.Date.HasValue).ToList();
-        var emptyNotes = notes.Where(n => string.IsNullOrWhiteSpace(n.PlainText)).ToList();
-        var stale = notes.Where(n => n.LastModified < cutoff).ToList();
-
-        var brokenLinks = ScanBrokenLinks(notes);
-
-        var sb = new StringBuilder("# Kioku — Vault Audit Report\n\n");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"**Total notes:** {notes.Count}\n");
-
-        AppendSection(sb, $"Notes without tags ({noTags.Count})", noTags.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Notes without date in frontmatter ({noDates.Count})", noDates.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Empty notes ({emptyNotes.Count})", emptyNotes.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Broken wikilinks ({brokenLinks.Count})",
-            brokenLinks.Select(x => $"{x.Note}: [[{x.Link}]]"));
-        AppendSection(sb, $"Stale notes (not updated in {stale_days}+ days) ({stale.Count})",
-            stale.OrderBy(n => n.LastModified)
-                 .Select(n => $"{n.VaultRelativePath} (last modified: {n.LastModified:yyyy-MM-dd})"));
-
-        sb.AppendLine("\n---");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"**Summary:** {noTags.Count} untagged · {emptyNotes.Count} empty · " +
-                      $"{brokenLinks.Count} broken links · {stale.Count} stale");
-
-        return Task.FromResult(sb.ToString());
-    }
+        "Generates a health report of the vault: notes without tags, without dates, without content, " +
+        "missing/ambiguous/malformed wikilinks, recognized empty template placeholders, and stale notes. " +
+        "Wikilink findings preserve every occurrence, expose unique edge/target counts, and support " +
+        "bounded pagination via offset/limit.")]
+    public Task<CallToolResult> audit_vault(
+        [Description("Flag notes not updated in this many days (default: 90).")] int stale_days = 90,
+        [Description("Number of findings to skip in each wikilink category (default: 0).")] int offset = 0,
+        [Description("Maximum findings to return per wikilink category (default: 50). The effective maximum preserves the legacy 50-item preview and honors larger KIOKU_MAX_RESULTS values.")]
+        int limit = 50) =>
+        VaultAuditService.CreateAsync(vault, config, vaultConfig, stale_days, offset, limit);
 
     // process_inbox
 
@@ -478,11 +452,6 @@ public sealed class VaultOrganizationTools(
         return $"- {note.Name}: {string.Join("; ", actions)}";
     }
 
-    /// <summary>
-    /// Rewrites inbound full-path wikilinks after moving a note — same semantics as
-    /// NoteCommandTools.move_note (bare-name links are untouched, since the note's short name
-    /// doesn't change on a folder move).
-    /// </summary>
     private async Task<int> UpdateInboundWikilinksForMoveAsync(Note found, string newVaultRelativePath)
     {
         var plan = new WikilinkRewriter.RewritePlan(
@@ -509,7 +478,11 @@ public sealed class VaultOrganizationTools(
         {
             var raw = await File.ReadAllTextAsync(source.FilePath, Encoding.UTF8);
             var bodyStart = FrontmatterParser.GetBodyStart(raw);
-            var result = WikilinkRewriter.Rewrite(raw, plan, bodyStart);
+            var result = WikilinkRewriter.Rewrite(
+                raw,
+                plan,
+                target => WikilinkRewritePolicy.Decide(vault, source, target, plan),
+                bodyStart);
 
             if (result.ReplacedCount == 0)
             {
@@ -525,8 +498,6 @@ public sealed class VaultOrganizationTools(
 
     private static string StripMdExtension(string path) =>
         path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? path[..^3] : path;
-
-    // Private helpers
 
     private static bool TagWouldChange(
         string tag,
@@ -616,10 +587,6 @@ public sealed class VaultOrganizationTools(
         };
     }
 
-    /// <summary>
-    /// Rewrites only the frontmatter tags/tag field. This deliberately avoids replacing list
-    /// items in the Markdown body and supports YAML list, inline-list, and scalar forms.
-    /// </summary>
     private static string RewriteTagFrontmatter(string content, Func<string, string?> transform)
     {
         var bodyStart = FrontmatterParser.GetBodyStart(content);
@@ -730,52 +697,6 @@ public sealed class VaultOrganizationTools(
         return values.Count == 0 ? "(none)" : string.Join(", ", values);
     }
 
-    /// <summary>
-    /// Finds links that don't resolve against the in-memory index. A link might still point at
-    /// a real file sitting in a folder excluded from indexing (.kioku/config.yml's exclude:
-    /// list) — that's not actually broken. A full path (containing '/') is checked directly; a
-    /// bare note name is searched for by filename anywhere in the vault, since Obsidian resolves
-    /// bare wikilinks across folders.
-    /// </summary>
-    private List<(string Note, string Link)> ScanBrokenLinks(IReadOnlyCollection<Note> notes)
-    {
-        var allNoteNames = notes
-            .Select(n => n.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var allNotePaths = notes
-            .Select(n => StripMdExtension(n.VaultRelativePath))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return notes
-            .SelectMany(note => note.OutgoingLinks
-                .Select(link => (Note: note.VaultRelativePath, Link: link, Target: link.Split('#')[0].Trim()))
-                .Where(link => !string.IsNullOrWhiteSpace(link.Target)
-                    && !allNoteNames.Contains(link.Target)
-                    && !allNotePaths.Contains(link.Target)
-                    && !ExistsOnDisk(config.VaultPath, link.Target))
-                .Select(link => (Note: link.Note, Link: link.Link)))
-            .ToList();
-    }
-
-    /// <summary>
-    /// Checks whether a link target exists on disk when its note is excluded from indexing. A
-    /// full path (containing '/') is checked directly; a bare note name is searched for by
-    /// filename anywhere in the vault, since Obsidian resolves bare wikilinks across folders.
-    /// </summary>
-    private static bool ExistsOnDisk(string vaultPath, string linkTarget)
-    {
-        var fileName = linkTarget.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-            ? linkTarget
-            : linkTarget + ".md";
-
-        if (linkTarget.Contains('/'))
-        {
-            return File.Exists(Path.Combine(vaultPath, fileName.Replace('/', Path.DirectorySeparatorChar)));
-        }
-
-        return Directory.EnumerateFiles(vaultPath, fileName, SearchOption.AllDirectories).Any();
-    }
-
     private static string NormalizeTag(string tag)
     {
         return tag.ToLowerInvariant()
@@ -818,7 +739,6 @@ public sealed class VaultOrganizationTools(
             return 0;
         }
 
-        // Use 3-character shingles on first 2000 chars for performance
         const int limit = 2000;
         var a = textA.Length > limit ? textA[..limit] : textA;
         var b = textB.Length > limit ? textB[..limit] : textB;
@@ -844,6 +764,7 @@ public sealed class VaultOrganizationTools(
         {
             shingles.Add(normalized.Substring(i, k));
         }
+
         return shingles;
     }
 

@@ -11,6 +11,9 @@ public static partial class MarkdownTextExtractor
     private static readonly MarkdownPipeline Pipeline =
         new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
 
+    /// <summary>Parsed wikilink target plus syntax-health information for vault auditing.</summary>
+    public sealed record WikilinkReference(string Target, string Raw, bool IsMalformed);
+
     /// <summary>
     /// Extracts plain text from a Markdown note.
     /// </summary>
@@ -38,13 +41,22 @@ public static partial class MarkdownTextExtractor
     }
 
     /// <summary>
-    /// Extracts all [[target]] wikilinks from the content of a note.
-    /// Skips fenced code blocks (``` or ~~~) and inline code spans (`...`) entirely, since
-    /// wikilinks written there are example syntax, not real outgoing links.
+    /// Extracts all well-formed [[target]] wikilinks from the content of a note. Targets retain
+    /// fragments so the canonical resolver can distinguish literal '#' filenames from headings
+    /// and block references. Fenced code and inline code are ignored.
     /// </summary>
-    public static IReadOnlyList<string> ExtractWikilinks(string content)
+    public static IReadOnlyList<string> ExtractWikilinks(string content) =>
+        ExtractWikilinkReferences(content)
+            .Where(reference => !reference.IsMalformed && !string.IsNullOrWhiteSpace(reference.Target))
+            .Select(reference => reference.Target)
+            .ToList();
+
+    /// <summary>
+    /// Extracts wikilink references while retaining malformed occurrences for audit_vault.
+    /// </summary>
+    public static IReadOnlyList<WikilinkReference> ExtractWikilinkReferences(string content)
     {
-        var links = new List<string>();
+        var links = new List<WikilinkReference>();
         var span = content.AsSpan();
         int pos = 0;
         bool inFence = false;
@@ -74,7 +86,7 @@ public static partial class MarkdownTextExtractor
         return links;
     }
 
-    private static void ExtractWikilinksFromLine(ReadOnlySpan<char> line, List<string> links)
+    private static void ExtractWikilinksFromLine(ReadOnlySpan<char> line, List<WikilinkReference> links)
     {
         int pos = 0;
         while (pos < line.Length)
@@ -93,24 +105,20 @@ public static partial class MarkdownTextExtractor
                 int close = line[absOpen..].IndexOf("]]".AsSpan(), StringComparison.Ordinal);
                 if (close < 0)
                 {
+                    var rawMalformed = line[pos..].Trim().ToString();
+                    links.Add(new WikilinkReference(string.Empty, rawMalformed, IsMalformed: true));
                     break;
                 }
 
                 var link = line.Slice(absOpen, close);
                 int pipeIdx = link.IndexOf('|');
                 var target = pipeIdx >= 0 ? link[..pipeIdx] : link;
-
-                int hashIdx = target.IndexOf('#');
-                if (hashIdx >= 0)
-                {
-                    target = target[..hashIdx];
-                }
-
                 var targetStr = target.Trim().ToString();
-                if (!string.IsNullOrWhiteSpace(targetStr))
-                {
-                    links.Add(targetStr);
-                }
+                var raw = link.ToString();
+                var malformed = string.IsNullOrWhiteSpace(targetStr) ||
+                                targetStr.Contains("[[", StringComparison.Ordinal) ||
+                                targetStr.Contains("]]", StringComparison.Ordinal);
+                links.Add(new WikilinkReference(targetStr, raw, malformed));
 
                 pos = absOpen + close + 2;
                 continue;
