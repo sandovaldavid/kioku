@@ -15,23 +15,10 @@ namespace Kioku.Mcp.Server.Tools;
 public sealed class EngineeringWorkflowTools
 {
     private readonly IProjectDocumentService _documents;
-    private readonly EngineeringSpecService? _specs;
 
     public EngineeringWorkflowTools(IProjectDocumentService documents)
     {
         _documents = documents;
-    }
-
-    public EngineeringWorkflowTools(
-        IProjectDocumentService documents,
-        ProjectWorkspaceService workspace,
-        VaultConfigService vaultConfig,
-        VaultIndexService vault,
-        ObsidianBridgeService bridge,
-        IVaultMutationService mutations)
-    {
-        _documents = documents;
-        _specs = new EngineeringSpecService(workspace, vaultConfig, vault, bridge, mutations);
     }
 
     [McpServerTool, Description(
@@ -158,47 +145,13 @@ public sealed class EngineeringWorkflowTools
         "recent work sessions, and per-type listings (decisions, bugs, specs, plans, tickets, backlog, " +
         "knowledge, daily). Reads fresh from disk. Approved specs are current requirements; draft " +
         "specs are in progress; superseded/discarded specs are explicitly historical.")]
-    public async Task<string> get_project_context(
+    public Task<string> get_project_context(
         [Description("Project name (folder under the projects root). Use list_projects to discover names.")] string project,
         [Description("Include the full content of every listed document (verbose).")] bool include_content = false,
         [Description("Comma-separated type filter (adr, decision(s), bug(s), spec(s), plan(s), ticket(s), idea/backlog, knowledge, session(s), daily). Empty = all.")] string types = "",
         [Description("Maximum documents listed per type.")] int limit = 20,
-        CancellationToken cancellationToken = default)
-    {
-        if (_specs is null)
-        {
-            return await _documents.GetProjectContextAsync(project, include_content, types, limit, cancellationToken);
-        }
-
-        var requested = types.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var explicitFilter = !string.IsNullOrWhiteSpace(types);
-        var includesSpecs = !explicitFilter || requested.Any(IsSpecAlias);
-        if (!includesSpecs)
-        {
-            return await _documents.GetProjectContextAsync(project, include_content, types, limit, cancellationToken);
-        }
-
-        var remaining = requested.Where(value => !IsSpecAlias(value)).ToArray();
-        if (explicitFilter && remaining.Length == 0)
-        {
-            return await _specs.BuildSpecsOnlyContextAsync(project, include_content, limit, cancellationToken);
-        }
-
-        var baseTypes = explicitFilter ? string.Join(',', remaining) : string.Empty;
-        var baseContext = await _documents.GetProjectContextAsync(project, include_content, baseTypes, limit, cancellationToken);
-        if (baseContext.StartsWith("[error]", StringComparison.OrdinalIgnoreCase))
-        {
-            return baseContext;
-        }
-
-        var specsSection = await _specs.BuildSpecsSectionAsync(project, include_content, limit, cancellationToken);
-        if (specsSection.StartsWith("[error]", StringComparison.OrdinalIgnoreCase))
-        {
-            return specsSection;
-        }
-
-        return EngineeringSpecService.InjectSpecsSection(baseContext, specsSection);
-    }
+        CancellationToken cancellationToken = default) =>
+        _documents.GetProjectContextAsync(project, include_content, types, limit, cancellationToken);
 
     [McpServerTool, Description(
         "Lists all project workspaces under the projects root with per-type document counts " +
@@ -260,7 +213,4 @@ public sealed class EngineeringWorkflowTools
     internal static string ExtractSection(string content, string heading) =>
         ProjectDocumentService.ExtractSection(content, heading);
 
-    private static bool IsSpecAlias(string value) =>
-        value.Equals("spec", StringComparison.OrdinalIgnoreCase) ||
-        value.Equals("specs", StringComparison.OrdinalIgnoreCase);
 }

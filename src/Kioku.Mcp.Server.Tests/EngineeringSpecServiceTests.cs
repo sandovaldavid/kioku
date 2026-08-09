@@ -177,7 +177,6 @@ public sealed class EngineeringSpecServiceTests : IAsyncLifetime
         var plan = await File.ReadAllTextAsync(
             Directory.GetFiles(workspace.GetSubfolder("demo", "plans"), "PLAN-*.md").Single());
         Assert.Contains($"spec: \"[[{specName}]]\"", plan);
-        Assert.Contains($"Spec: [[{specName}]]", plan);
 
         var method = typeof(FocusedCreationTools).GetMethod(nameof(FocusedCreationTools.create_implementation_plan))!;
         var specParameter = method.GetParameters().Single(parameter => parameter.Name == "spec");

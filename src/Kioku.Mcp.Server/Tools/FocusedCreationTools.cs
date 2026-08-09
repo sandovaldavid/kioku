@@ -20,20 +20,9 @@ public sealed class FocusedCreationTools(
     MetricsService metrics,
     VaultPathPolicy pathPolicy,
     IProjectDocumentService documents,
-    IVaultMutationService mutations,
-    ProjectWorkspaceService? workspace = null)
+    IVaultMutationService mutations)
 {
-    private readonly ProjectWorkspaceService _workspace =
-        workspace ?? new ProjectWorkspaceService(config, vaultConfig, bridge, mutations);
-
     private readonly EngineeringWorkflowTools _engineering = new(documents);
-
-    private readonly EngineeringSpecService _specs = new(
-        workspace ?? new ProjectWorkspaceService(config, vaultConfig, bridge, mutations),
-        vaultConfig,
-        vault,
-        bridge,
-        mutations);
 
     private readonly NoteCommandTools _notes =
         new(
@@ -130,7 +119,7 @@ public sealed class FocusedCreationTools(
         [Description("Current claim fence generation, when fencing is required.")] long fence_generation = 0,
         [Description("Canonical resource key; normally derived from the target path.")] string resource_key = "",
         [Description("Optional idempotency key for retrying the same mutation.")] string mutation_id = "") =>
-        _specs.CreateSpecAsync(
+        documents.CreateSpecAsync(
             project,
             title,
             objective,
@@ -178,7 +167,7 @@ public sealed class FocusedCreationTools(
 
         return string.IsNullOrWhiteSpace(spec)
             ? _engineering.create_plan(project, title, objective, steps, status, ticket, tags, preconditions)
-            : _specs.CreatePlanFromSpecAsync(project, title, objective, steps, spec, status, ticket, tags, preconditions);
+            : documents.CreatePlanFromSpecAsync(project, title, objective, steps, spec, status, ticket, tags, preconditions);
     }
 
     [McpServerTool, Description("Saves project-specific or general reusable knowledge.")]
