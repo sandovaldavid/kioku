@@ -309,7 +309,7 @@ jobs:
           mkdir -p "$VAULT"
           printf '# Seed\n\nPackage smoke fixture.\n' > "$VAULT/seed.md"
           mkdir -p "$VAULT/.kioku"
-          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n' > "$VAULT/.kioku/config.yml"
+          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n    - organization\n' > "$VAULT/.kioku/config.yml"
           mkdir -p "$VAULT/Sessions"
           cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
           dotnet run \
@@ -363,7 +363,7 @@ jobs:
           mkdir -p "$VAULT"
           printf '# Seed\n\nHTTP smoke fixture.\n' > "$VAULT/seed.md"
           mkdir -p "$VAULT/.kioku"
-          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n' > "$VAULT/.kioku/config.yml"
+          printf 'capabilities:\n  require_explicit: true\n  enabled:\n    - coordination\n    - sessions\n    - organization\n' > "$VAULT/.kioku/config.yml"
           mkdir -p "$VAULT/Sessions"
           cp "$GITHUB_WORKSPACE/scripts/Kioku.Ci/Fixtures/PreProfile/Legacy Session.md" "$VAULT/Sessions/Legacy Session.md"
           dotnet run \
