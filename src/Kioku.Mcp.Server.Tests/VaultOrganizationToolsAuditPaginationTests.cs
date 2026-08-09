@@ -36,6 +36,26 @@ public sealed class VaultOrganizationToolsAuditPaginationTests
     }
 
     [Fact]
+    public async Task AuditVault_Treats_optional_markdown_suffix_as_one_missing_identity()
+    {
+        await using var harness = await AuditHarness.CreateAsync(
+            ("Source.md", "[[Missing Target]] [[Missing Target.md]]"));
+
+        var result = await harness.Tools.audit_vault();
+        var broken = Broken(result);
+
+        Assert.Equal(2, broken.GetProperty("total_occurrences").GetInt32());
+        Assert.Equal(1, broken.GetProperty("unique_edges").GetInt32());
+        Assert.Equal(1, broken.GetProperty("unique_targets").GetInt32());
+
+        var identities = broken.GetProperty("findings")
+            .EnumerateArray()
+            .Select(finding => finding.GetProperty("target_identity").GetString())
+            .ToArray();
+        Assert.All(identities, identity => Assert.Equal("Missing Target", identity));
+    }
+
+    [Fact]
     public async Task AuditVault_Paginates_broken_findings_without_deduplicating_occurrences()
     {
         await using var harness = await AuditHarness.CreateAsync(
