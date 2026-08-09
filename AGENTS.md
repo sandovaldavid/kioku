@@ -33,9 +33,11 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 - Target framework: `net10.0`, configured in `Directory.Build.props`.
 - Solution: `Kioku.slnx`.
 - Latest published server package: `3.0.1`. <!-- x-release-please-version --> The integration branch can contain unreleased changes beyond that release.
-- MCP C# SDK packages: `ModelContextProtocol` and `ModelContextProtocol.AspNetCore` `1.4.1`. The 2.0 migration remains planned and blocked by tracked compatibility work.
-- Default MCP profile: 44 tools.
-- All-capabilities profile: 77 tools.
+- MCP C# SDK packages: `ModelContextProtocol` and `ModelContextProtocol.AspNetCore` `2.1.0`.
+- MCP protocol baseline: `2026-07-28`.
+- Streamable HTTP runs explicitly with `Stateless = true`; local `stdio` remains supported.
+- Default MCP profile: 45 tools.
+- All-capabilities profile: 78 tools.
 - Optional groups disabled by default: `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination`.
 - Supported client integrations: Claude Code, Codex, OpenCode, GitHub Copilot, and Antigravity via native client MCP registration.
 - The generated [`docs/commands-reference.md`](docs/commands-reference.md) is authoritative for tool names, schemas, annotations, prompts, resources, and profile counts.
