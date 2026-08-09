@@ -1,0 +1,262 @@
+name: fix-review-408
+
+on:
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.x"
+      - name: Apply review fixes and regressions
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one match, found {count}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
+
+          service = "src/Kioku.Mcp.Server/Services/EngineeringSpecService.cs"
+
+          replace_once(
+              service,
+              '''        var receipt = await mutations.CreateTextAsync(filePath, content, preconditions, cancellationToken);\n        await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);\n\n        var relativePath = workspace.ToVaultRelative(filePath);\n        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relativePath, cancellationToken);\n        if (evalResult.Applied)\n        {\n            await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);\n        }\n\n        var sb = new StringBuilder($"[ok] Spec created: {relativePath}");\n        if (!string.IsNullOrWhiteSpace(receipt.Revision))\n        {\n            sb.Append(CultureInfo.InvariantCulture, $"\\n   revision: {receipt.Revision}");\n        }''',
+              '''        var receipt = await mutations.CreateTextAsync(filePath, content, preconditions, cancellationToken);\n        await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);\n\n        var relativePath = workspace.ToVaultRelative(filePath);\n        var (finalRevision, evalResult) = await FinalizeCreatedArtifactAsync(\n            filePath, body, receipt, cancellationToken);\n\n        var sb = new StringBuilder($"[ok] Spec created: {relativePath}");\n        if (!string.IsNullOrWhiteSpace(finalRevision))\n        {\n            sb.Append(CultureInfo.InvariantCulture, $"\\n   revision: {finalRevision}");\n        }''')
+
+          replace_once(
+              service,
+              '''                ["objective"] = objective,\n                ["steps"] = steps,\n                ["ticket"] = ticketLink,\n                ["spec"] = specLink,\n            },''',
+              '''                ["objective"] = objective,\n                ["steps"] = steps,\n                ["ticket"] = ticketLink,\n            },''')
+
+          replace_once(
+              service,
+              '''        var receipt = await mutations.CreateTextAsync(filePath, content, preconditions, cancellationToken);\n        await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);\n\n        var relativePath = workspace.ToVaultRelative(filePath);\n        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relativePath, cancellationToken);\n        if (evalResult.Applied)\n        {\n            await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);\n        }\n\n        var sb = new StringBuilder($"[ok] Plan created: {relativePath}\\n   spec: {specLink}");\n        if (!string.IsNullOrWhiteSpace(receipt.Revision))\n        {\n            sb.Append(CultureInfo.InvariantCulture, $"\\n   revision: {receipt.Revision}");\n        }''',
+              '''        var receipt = await mutations.CreateTextAsync(filePath, content, preconditions, cancellationToken);\n        await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);\n\n        var relativePath = workspace.ToVaultRelative(filePath);\n        var (finalRevision, evalResult) = await FinalizeCreatedArtifactAsync(\n            filePath, body, receipt, cancellationToken);\n\n        var sb = new StringBuilder($"[ok] Plan created: {relativePath}\\n   spec: {specLink}");\n        if (!string.IsNullOrWhiteSpace(finalRevision))\n        {\n            sb.Append(CultureInfo.InvariantCulture, $"\\n   revision: {finalRevision}");\n        }''')
+
+          marker = '''    public async Task<string> BuildSpecsSectionAsync(\n'''
+          helper = '''    private async Task<(string Revision, TemplaterEvaluationResult Evaluation)> FinalizeCreatedArtifactAsync(\n        string filePath,\n        string renderedBody,\n        VaultMutationReceipt receipt,\n        CancellationToken cancellationToken)\n    {\n        var evaluation = TemplaterEvaluationResult.NotNeeded;\n        if (!receipt.AlreadyApplied)\n        {\n            evaluation = await bridge.EvaluateTemplaterInPlaceAsync(\n                renderedBody, workspace.ToVaultRelative(filePath), cancellationToken);\n            if (evaluation.Applied)\n            {\n                await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);\n            }\n        }\n\n        // The bridge may have changed the file after the atomic mutation receipt was created.\n        // Always report the revision of the actual durable file. On an idempotent retry this also\n        // avoids replaying Templater while returning a truthful current revision.\n        var finalContent = await NoteHelpers.ReadAllTextAsync(filePath, cancellationToken);\n        return (VaultRevision.Compute(finalContent), evaluation);\n    }\n\n'''
+          replace_once(service, marker, helper + marker)
+
+          old_resolver = '''    private async Task<ResolvedSpec> ResolveSpecAsync(\n        string project,\n        string reference,\n        CancellationToken cancellationToken)\n    {\n        var normalized = NormalizeSpecReference(reference);\n        if (normalized is null)\n        {\n            return ResolvedSpec.Fail("[error] Invalid spec reference. Use a spec basename such as 'SPEC-2026-08-09-first-class-specs' or '[[SPEC-...]]'; paths, aliases, headings, and traversal are not accepted.");\n        }\n\n        foreach (var file in workspace.EnumerateProjectDocs(project, "specs"))\n        {\n            if (!string.Equals(Path.GetFileNameWithoutExtension(file.Name), normalized, StringComparison.OrdinalIgnoreCase))\n            {\n                continue;\n            }\n\n            var raw = await NoteHelpers.ReadAllTextAsync(file.FullName, cancellationToken);\n            var metadata = FrontmatterParser.Parse(raw);\n            if (!string.Equals(metadata.NoteType, "spec", StringComparison.OrdinalIgnoreCase))\n            {\n                return ResolvedSpec.Fail($"[error] '{normalized}' exists in the specs folder but is not type: spec.");\n            }\n\n            if (metadata.ExtraFields.TryGetValue("project", out var declaredProject) &&\n                !string.Equals(declaredProject, project, StringComparison.OrdinalIgnoreCase))\n            {\n                return ResolvedSpec.Fail($"[error] Spec '{normalized}' declares project '{declaredProject}', not '{project}'.");\n            }\n\n            var status = (metadata.Status ?? "draft").ToLowerInvariant();\n            if (!SpecStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))\n            {\n                return ResolvedSpec.Fail($"[error] Spec '{normalized}' has unsupported status '{status}'. Valid options: {string.Join(", ", SpecStatuses)}.");\n            }\n\n            return ResolvedSpec.Ok(normalized, status);\n        }\n\n        foreach (var otherProject in workspace.DiscoverProjects().Where(p => !string.Equals(p, project, StringComparison.OrdinalIgnoreCase)))\n        {\n            if (workspace.EnumerateProjectDocs(otherProject, "specs")\n                .Any(file => string.Equals(Path.GetFileNameWithoutExtension(file.Name), normalized, StringComparison.OrdinalIgnoreCase)))\n            {\n                return ResolvedSpec.Fail($"[error] Spec '{normalized}' belongs to project '{otherProject}', not '{project}'.");\n            }\n        }\n\n        return ResolvedSpec.Fail($"[error] Spec '{normalized}' was not found in project '{project}'.");\n    }\n\n    private static string? NormalizeSpecReference(string reference)\n    {\n        var value = reference.Trim();\n        if (value.StartsWith("[[", StringComparison.Ordinal) && value.EndsWith("]]", StringComparison.Ordinal))\n        {\n            value = value[2..^2].Trim();\n        }\n        else if (value.Contains("[[", StringComparison.Ordinal) || value.Contains("]]", StringComparison.Ordinal))\n        {\n            return null;\n        }\n\n        if (value.EndsWith(".md", StringComparison.OrdinalIgnoreCase))\n        {\n            value = value[..^3];\n        }\n\n        if (string.IsNullOrWhiteSpace(value) || value is "." or ".." || value.Contains("..", StringComparison.Ordinal) ||\n            value.Contains('/') || value.Contains('\\\\') || value.Contains('#') || value.Contains('|'))\n        {\n            return null;\n        }\n\n        return value;\n    }\n'''
+
+          new_resolver = '''    private async Task<ResolvedSpec> ResolveSpecAsync(\n        string project,\n        string reference,\n        CancellationToken cancellationToken)\n    {\n        var candidate = NormalizeSpecReference(reference);\n        if (candidate is null)\n        {\n            return InvalidSpecReference();\n        }\n\n        var localFiles = workspace.EnumerateProjectDocs(project, "specs").ToList();\n        if (FindSpecFile(localFiles, candidate) is { } localFile)\n        {\n            return await ValidateResolvedSpecAsync(project, localFile, cancellationToken);\n        }\n\n        foreach (var otherProject in workspace.DiscoverProjects().Where(p => !string.Equals(p, project, StringComparison.OrdinalIgnoreCase)))\n        {\n            var otherFiles = workspace.EnumerateProjectDocs(otherProject, "specs").ToList();\n            if (FindSpecFile(otherFiles, candidate) is { } otherFile)\n            {\n                var canonicalName = Path.GetFileNameWithoutExtension(otherFile.Name);\n                return ResolvedSpec.Fail($"[error] Spec '{canonicalName}' belongs to project '{otherProject}', not '{project}'.");\n            }\n        }\n\n        // A literal '#' is valid in a generated spec basename and is handled by the exact lookup\n        // above. If no exact basename exists, treat '#' as unsupported heading syntax rather than\n        // truncating or interpreting it.\n        if (candidate.Contains('#'))\n        {\n            return InvalidSpecReference();\n        }\n\n        return ResolvedSpec.Fail($"[error] Spec '{candidate}' was not found in project '{project}'.");\n    }\n\n    private async Task<ResolvedSpec> ValidateResolvedSpecAsync(\n        string project,\n        FileInfo file,\n        CancellationToken cancellationToken)\n    {\n        var canonicalName = Path.GetFileNameWithoutExtension(file.Name);\n        var raw = await NoteHelpers.ReadAllTextAsync(file.FullName, cancellationToken);\n        var metadata = FrontmatterParser.Parse(raw);\n        if (!string.Equals(metadata.NoteType, "spec", StringComparison.OrdinalIgnoreCase))\n        {\n            return ResolvedSpec.Fail($"[error] '{canonicalName}' exists in the specs folder but is not type: spec.");\n        }\n\n        if (metadata.ExtraFields.TryGetValue("project", out var declaredProject) &&\n            !string.Equals(declaredProject, project, StringComparison.OrdinalIgnoreCase))\n        {\n            return ResolvedSpec.Fail($"[error] Spec '{canonicalName}' declares project '{declaredProject}', not '{project}'.");\n        }\n\n        var status = (metadata.Status ?? "draft").ToLowerInvariant();\n        if (!SpecStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))\n        {\n            return ResolvedSpec.Fail($"[error] Spec '{canonicalName}' has unsupported status '{status}'. Valid options: {string.Join(", ", SpecStatuses)}.");\n        }\n\n        return ResolvedSpec.Ok(canonicalName, status);\n    }\n\n    private static FileInfo? FindSpecFile(IReadOnlyList<FileInfo> files, string candidate)\n    {\n        // Canonical lookup is basename-first. This preserves every basename Kioku itself can\n        // generate, including literal '#', dotted names, internal '..', and titles ending in .md.\n        var exact = files.FirstOrDefault(file =>\n            string.Equals(Path.GetFileNameWithoutExtension(file.Name), candidate, StringComparison.OrdinalIgnoreCase));\n        if (exact is not null)\n        {\n            return exact;\n        }\n\n        // Also accept a storage filename for callers that pass the final .md extension. This is\n        // deliberately secondary so a real generated basename that itself ends in .md wins.\n        if (candidate.EndsWith(".md", StringComparison.OrdinalIgnoreCase))\n        {\n            var withoutStorageExtension = candidate[..^3];\n            return files.FirstOrDefault(file =>\n                string.Equals(\n                    Path.GetFileNameWithoutExtension(file.Name),\n                    withoutStorageExtension,\n                    StringComparison.OrdinalIgnoreCase));\n        }\n\n        return null;\n    }\n\n    private static ResolvedSpec InvalidSpecReference() =>\n        ResolvedSpec.Fail("[error] Invalid spec reference. Use an exact spec basename such as 'SPEC-2026-08-09-first-class-specs' or '[[SPEC-...]]'; paths, aliases, headings, and traversal are not accepted.");\n\n    private static string? NormalizeSpecReference(string reference)\n    {\n        var value = reference.Trim();\n        if (value.StartsWith("[[", StringComparison.Ordinal) && value.EndsWith("]]", StringComparison.Ordinal))\n        {\n            value = value[2..^2].Trim();\n        }\n        else if (value.Contains("[[", StringComparison.Ordinal) || value.Contains("]]", StringComparison.Ordinal))\n        {\n            return null;\n        }\n\n        // Reject actual paths/aliases. Internal dots and literal '#' remain valid basename\n        // characters and are resolved only by exact lookup within the project's specs folder.\n        if (string.IsNullOrWhiteSpace(value) || value is "." or ".." ||\n            value.Contains('/') || value.Contains('\\\\') || value.Contains('|'))\n        {\n            return null;\n        }\n\n        return value;\n    }\n'''
+          replace_once(service, old_resolver, new_resolver)
+
+          tests = "src/Kioku.Mcp.Server.Tests/EngineeringSpecServiceTests.cs"
+          replace_once(tests, "using System.Text;\n", "using System.Text;\nusing System.Text.Json;\n")
+
+          insert_before = '''    [Fact]\n    public async Task ProjectContext_AcceptsSpecAliases_AndMarksHistoricalSpecsClearly()\n'''
+          new_tests = r'''    [Theory]
+    [InlineData("C# integration")]
+    [InlineData("api.v2")]
+    [InlineData("design.md")]
+    [InlineData("alpha..beta")]
+    public async Task PlanSpecReference_RoundTripsCreatedBasename(string title)
+    {
+        var (service, workspace, _) = CreateService();
+        var created = await service.CreateSpecAsync(
+            "demo", title, "objective", "requirements", status: "approved");
+        Assert.StartsWith("[ok]", created);
+
+        var specPath = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "specs"), "SPEC-*.md"));
+        var basename = Path.GetFileNameWithoutExtension(specPath);
+        var linked = await service.CreatePlanFromSpecAsync(
+            "demo", "Round trip plan", "objective", "- [ ] step", basename);
+
+        Assert.StartsWith("[ok]", linked);
+        Assert.Contains($"spec: [[{basename}]]", linked);
+    }
+
+    [Fact]
+    public async Task PlanSpecReference_RejectsHeadingSyntax_WhenNoLiteralBasenameMatches()
+    {
+        var (service, workspace, _) = CreateService();
+        await service.CreateSpecAsync("demo", "Heading base", "objective", "requirements", status: "approved");
+        var basename = Path.GetFileNameWithoutExtension(
+            Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "specs"), "SPEC-*.md")));
+
+        var result = await service.CreatePlanFromSpecAsync(
+            "demo", "Heading plan", "objective", "- [ ] step", basename + "#details");
+
+        Assert.Contains("Invalid spec reference", result);
+    }
+
+    [Fact]
+    public async Task PlanSpecRelation_IsFrontmatterOnly_AndDoesNotExpandUndeclaredBodyVariable()
+    {
+        var (service, workspace, _) = CreateService();
+        await service.CreateSpecAsync("demo", "Approved", "objective", "requirements", status: "approved");
+        var basename = Path.GetFileNameWithoutExtension(
+            Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "specs"), "SPEC-*.md")));
+
+        var planTemplate = workspace.GetVaultTemplatePath("plan")!;
+        await File.WriteAllTextAsync(
+            planTemplate,
+            "# {{title}}\n\nSpec body token: {{spec}}\n\n## Objective\n\n{{objective}}\n\n## Steps\n\n{{steps}}",
+            Encoding.UTF8);
+
+        var result = await service.CreatePlanFromSpecAsync(
+            "demo", "Frontmatter relation", "objective", "- [ ] step", basename);
+        Assert.StartsWith("[ok]", result);
+
+        var planPath = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "plans"), "PLAN-*.md"));
+        var content = await File.ReadAllTextAsync(planPath);
+        Assert.Contains($"spec: \"[[{basename}]]\"", content);
+        Assert.Contains("Spec body token: {{spec}}", content);
+        Assert.DoesNotContain(
+            ProjectWorkspaceService.SupportedVariablesFor("plan"),
+            variable => string.Equals(variable, "spec", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Templater_IdempotentRetry_DoesNotReplaySpecOrPlanEvaluation()
+    {
+        var bridge = new ObsidianBridgeService(
+            NullLogger<ObsidianBridgeService>.Instance,
+            new KiokuConfiguration { VaultPath = _fixture.VaultPath, ObsidianBridgePort = 1 });
+        var (service, workspace, _) = CreateService(bridge);
+
+        await workspace.EnsureProjectScaffoldAsync("demo");
+        await File.WriteAllTextAsync(
+            workspace.GetVaultTemplatePath("spec")!,
+            "# {{title}}\n\n<% tp.date.now() %>\n\n## Objective\n{{objective}}\n\n## Requirements\n{{requirements}}",
+            Encoding.UTF8);
+        var specMutation = VaultMutationPreconditions.FromToolArguments(mutationId: "templater-spec-retry");
+
+        var specFirst = await service.CreateSpecAsync(
+            "demo", "Templater retry", "objective", "requirements", status: "approved", preconditions: specMutation);
+        var specRetry = await service.CreateSpecAsync(
+            "demo", "Templater retry", "objective", "requirements", status: "approved", preconditions: specMutation);
+
+        Assert.Contains("[warning] template contains Templater syntax", specFirst);
+        Assert.DoesNotContain("template contains Templater syntax", specRetry);
+
+        var specName = Path.GetFileNameWithoutExtension(
+            Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "specs"), "SPEC-*.md")));
+        await File.WriteAllTextAsync(
+            workspace.GetVaultTemplatePath("plan")!,
+            "# {{title}}\n\n<% tp.date.now() %>\n\n## Objective\n{{objective}}\n\n## Steps\n{{steps}}",
+            Encoding.UTF8);
+        var planMutation = VaultMutationPreconditions.FromToolArguments(mutationId: "templater-plan-retry");
+
+        var planFirst = await service.CreatePlanFromSpecAsync(
+            "demo", "Templater plan retry", "objective", "- [ ] step", specName, preconditions: planMutation);
+        var planRetry = await service.CreatePlanFromSpecAsync(
+            "demo", "Templater plan retry", "objective", "- [ ] step", specName, preconditions: planMutation);
+
+        Assert.Contains("[warning] template contains Templater syntax", planFirst);
+        Assert.DoesNotContain("template contains Templater syntax", planRetry);
+    }
+
+    [Fact]
+    public async Task TemplaterApplied_ReturnsFinalRevision_ForSpecAndLinkedPlan()
+    {
+        await using var server = await FakeObsidianServer.StartAsync();
+        var bridge = new ObsidianBridgeService(
+            NullLogger<ObsidianBridgeService>.Instance,
+            new KiokuConfiguration { VaultPath = _fixture.VaultPath, ObsidianBridgePort = server.Port });
+        var (service, workspace, _) = CreateService(bridge);
+
+        await workspace.EnsureProjectScaffoldAsync("demo");
+        await File.WriteAllTextAsync(
+            workspace.GetVaultTemplatePath("spec")!,
+            "# {{title}}\n\n<% tp.date.now() %>\n\n## Objective\n{{objective}}\n\n## Requirements\n{{requirements}}",
+            Encoding.UTF8);
+        await File.WriteAllTextAsync(
+            workspace.GetVaultTemplatePath("plan")!,
+            "# {{title}}\n\n<% tp.date.now() %>\n\n## Objective\n{{objective}}\n\n## Steps\n{{steps}}",
+            Encoding.UTF8);
+
+        var serverSide = Task.Run(async () =>
+        {
+            var socket = await server.AcceptAuthenticatedConnectionAsync();
+            for (var i = 0; i < 2; i++)
+            {
+                var raw = await server.ReceiveAsync(socket);
+                using var document = JsonDocument.Parse(raw);
+                var message = document.RootElement;
+                Assert.Equal("evaluate-templater-in-file", message.GetProperty("command").GetString());
+                var requestId = message.GetProperty("requestId").GetString();
+                var notePath = message.GetProperty("payload").GetProperty("notePath").GetString()!;
+                var absolutePath = Path.Combine(
+                    _fixture.VaultPath,
+                    notePath.Replace('/', Path.DirectorySeparatorChar));
+                var current = await File.ReadAllTextAsync(absolutePath);
+                await File.WriteAllTextAsync(
+                    absolutePath,
+                    current.Replace("<% tp.date.now() %>", $"evaluated-{i}", StringComparison.Ordinal),
+                    NoteHelpers.Utf8NoBom);
+
+                await server.SendAsync(socket, JsonSerializer.Serialize(new
+                {
+                    requestId,
+                    success = true,
+                    data = new { path = notePath },
+                    error = (string?)null,
+                    protocolVersion = 3,
+                }));
+            }
+        });
+
+        var specResult = await service.CreateSpecAsync(
+            "demo", "Applied spec", "objective", "requirements", status: "approved");
+        var specPath = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "specs"), "SPEC-*.md"));
+        var specName = Path.GetFileNameWithoutExtension(specPath);
+        var planResult = await service.CreatePlanFromSpecAsync(
+            "demo", "Applied plan", "objective", "- [ ] step", specName);
+        await serverSide;
+
+        var finalSpec = await File.ReadAllTextAsync(specPath);
+        var planPath = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "plans"), "PLAN-*.md"));
+        var finalPlan = await File.ReadAllTextAsync(planPath);
+        Assert.Contains($"revision: {VaultRevision.Compute(finalSpec)}", specResult);
+        Assert.Contains($"revision: {VaultRevision.Compute(finalPlan)}", planResult);
+        Assert.Contains("evaluated-0", finalSpec);
+        Assert.Contains("evaluated-1", finalPlan);
+    }
+
+'''
+          replace_once(tests, insert_before, new_tests + insert_before)
+
+          replace_once(
+              tests,
+              '''    private (EngineeringSpecService Service, ProjectWorkspaceService Workspace, TestMutationService Mutations) CreateService()\n    {\n        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };\n        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);\n        var bridge = new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);\n        var mutations = new TestMutationService(_fixture.VaultPath);''',
+              '''    private (EngineeringSpecService Service, ProjectWorkspaceService Workspace, TestMutationService Mutations) CreateService(\n        ObsidianBridgeService? bridge = null)\n    {\n        var config = new KiokuConfiguration { VaultPath = _fixture.VaultPath };\n        var vaultConfig = new VaultConfigService(config, NullLogger<VaultConfigService>.Instance);\n        bridge ??= new ObsidianBridgeService(NullLogger<ObsidianBridgeService>.Instance, config);\n        var mutations = new TestMutationService(_fixture.VaultPath);''')
+
+          Path(".github/workflows/fix-review-408.yml").unlink()
+
+      - name: Restore
+        run: dotnet restore Kioku.sln
+      - name: Format changed C# sources
+        run: dotnet format Kioku.sln --no-restore
+      - name: Build
+        run: dotnet build Kioku.sln -c Release --no-restore
+      - name: Focused regression tests
+        run: dotnet test src/Kioku.Mcp.Server.Tests/Kioku.Mcp.Server.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~EngineeringSpecServiceTests|FullyQualifiedName~EngineeringSpecReliabilityTests|FullyQualifiedName~TemplaterInteropTests"
+      - name: Verify generated contracts remain intentional
+        run: ./scripts/generate-mcp-contracts.sh --check
+      - name: Commit fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(engineering): address spec review blockers"
+          git push origin HEAD:${{ github.head_ref }}
