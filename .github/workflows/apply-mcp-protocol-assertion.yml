@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   patch-smoke:
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'chore/mcp-sdk-2-1-migration'
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'tmp/mcp-sdk-2-protocol-assertion'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout pull request branch
