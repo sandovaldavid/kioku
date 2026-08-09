@@ -233,112 +233,22 @@ public sealed class VaultOrganizationTools(
             sb.AppendLine();
         }
 
-        return Task.FromResult(sb.ToString());
+        return sb.ToString() is { } text ? Task.FromResult(text) : Task.FromResult(string.Empty);
     }
 
     // audit_vault
 
     [McpServerTool, Description(
         "Generates a health report of the vault: notes without tags, without dates, without content, " +
-        "missing/ambiguous/malformed wikilinks, and stale notes. Wikilink findings preserve every " +
-        "occurrence, expose unique edge/target counts, and support bounded pagination via offset/limit.")]
+        "missing/ambiguous/malformed wikilinks, recognized empty template placeholders, and stale notes. " +
+        "Wikilink findings preserve every occurrence, expose unique edge/target counts, and support " +
+        "bounded pagination via offset/limit.")]
     public Task<CallToolResult> audit_vault(
         [Description("Flag notes not updated in this many days (default: 90).")] int stale_days = 90,
         [Description("Number of findings to skip in each wikilink category (default: 0).")] int offset = 0,
         [Description("Maximum findings to return per wikilink category (default: 50). The effective maximum preserves the legacy 50-item preview and honors larger KIOKU_MAX_RESULTS values.")]
-        int limit = 50)
-    {
-        if (offset < 0)
-        {
-            return Task.FromResult(CreateAuditError("'offset' must be 0 or greater."));
-        }
-
-        if (limit <= 0)
-        {
-            return Task.FromResult(CreateAuditError("'limit' must be greater than 0."));
-        }
-
-        var maxAuditResults = Math.Max(50, config.MaxSearchResults);
-        var cappedLimit = Math.Min(limit, maxAuditResults);
-        var generatedAt = DateTime.UtcNow;
-        var notes = vault.GetAllNotes().ToList();
-        var cutoff = generatedAt.AddDays(-stale_days);
-
-        var noTags = notes.Where(n => n.Metadata.Tags.Count == 0).ToList();
-        var noDates = notes.Where(n => !n.Metadata.Date.HasValue).ToList();
-        var emptyNotes = notes.Where(n => string.IsNullOrWhiteSpace(n.PlainText)).ToList();
-        var stale = notes.Where(n => n.LastModified < cutoff).ToList();
-
-        var linkIssues = ScanLinkIssues(notes);
-        var broken = CreateLinkAuditPage(linkIssues, VaultLinkResolutionStatus.Missing, offset, cappedLimit);
-        var ambiguous = CreateLinkAuditPage(linkIssues, VaultLinkResolutionStatus.Ambiguous, offset, cappedLimit);
-        var malformed = CreateLinkAuditPage(linkIssues, VaultLinkResolutionStatus.Malformed, offset, cappedLimit);
-
-        var sb = new StringBuilder("# Kioku — Vault Audit Report\n\n");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"**Generated:** {generatedAt:yyyy-MM-dd HH:mm} UTC");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"**Total notes:** {notes.Count}\n");
-
-        AppendSection(sb, $"Notes without tags ({noTags.Count})", noTags.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Notes without date in frontmatter ({noDates.Count})", noDates.Select(n => n.VaultRelativePath));
-        AppendSection(sb, $"Empty notes ({emptyNotes.Count})", emptyNotes.Select(n => n.VaultRelativePath));
-        AppendLinkSection(sb, "Broken wikilinks", broken, issue => $"{issue.Note}: [[{issue.Link}]]");
-        AppendLinkSection(sb, "Ambiguous wikilinks", ambiguous, issue => $"{issue.Note}: [[{issue.Link}]]");
-        AppendLinkSection(sb, "Malformed wikilinks", malformed, issue => $"{issue.Note}: {issue.Link}");
-        AppendSection(sb, $"Stale notes (not updated in {stale_days}+ days) ({stale.Count})",
-            stale.OrderBy(n => n.LastModified)
-                 .Select(n => $"{n.VaultRelativePath} (last modified: {n.LastModified:yyyy-MM-dd})"));
-
-        sb.AppendLine("\n---");
-        sb.AppendLine(CultureInfo.InvariantCulture,
-            $"**Summary:** {noTags.Count} untagged · {emptyNotes.Count} empty · " +
-            $"{broken.TotalOccurrences} broken occurrences ({broken.UniqueEdges} unique edges, {broken.UniqueTargets} unique targets) · " +
-            $"{ambiguous.TotalOccurrences} ambiguous occurrences ({ambiguous.UniqueEdges} unique edges, {ambiguous.UniqueTargets} unique targets) · " +
-            $"{malformed.TotalOccurrences} malformed occurrences ({malformed.UniqueEdges} unique edges, {malformed.UniqueTargets} unique targets) · " +
-            $"{stale.Count} stale");
-
-        var envelope = new
-        {
-            success = true,
-            data = new
-            {
-                generated_at_utc = generatedAt.ToString("O", CultureInfo.InvariantCulture),
-                total_notes = notes.Count,
-                stale_days,
-                counts = new
-                {
-                    notes_without_tags = noTags.Count,
-                    notes_without_date = noDates.Count,
-                    empty_notes = emptyNotes.Count,
-                    stale_notes = stale.Count,
-                    broken_occurrences = broken.TotalOccurrences,
-                    unique_broken_edges = broken.UniqueEdges,
-                    unique_broken_targets = broken.UniqueTargets,
-                    ambiguous_occurrences = ambiguous.TotalOccurrences,
-                    unique_ambiguous_edges = ambiguous.UniqueEdges,
-                    unique_ambiguous_targets = ambiguous.UniqueTargets,
-                    malformed_occurrences = malformed.TotalOccurrences,
-                    unique_malformed_edges = malformed.UniqueEdges,
-                    unique_malformed_targets = malformed.UniqueTargets,
-                },
-                links = new
-                {
-                    broken = ToStructuredLinkPage(broken),
-                    ambiguous = ToStructuredLinkPage(ambiguous),
-                    malformed = ToStructuredLinkPage(malformed),
-                },
-            },
-            error = (object?)null,
-            pagination = (object?)null,
-            warnings = Array.Empty<string>(),
-        };
-
-        return Task.FromResult(new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = sb.ToString() }],
-            StructuredContent = JsonSerializer.SerializeToElement(envelope),
-            IsError = false,
-        });
-    }
+        int limit = 50) =>
+        VaultAuditService.CreateAsync(vault, config, vaultConfig, stale_days, offset, limit);
 
     // process_inbox
 
@@ -802,173 +712,6 @@ public sealed class VaultOrganizationTools(
         return values.Count == 0 ? "(none)" : string.Join(", ", values);
     }
 
-    private sealed record LinkIssue(
-        string Note,
-        string Link,
-        string Identity,
-        VaultLinkResolutionStatus Status);
-
-    private sealed record LinkAuditPage(
-        int TotalOccurrences,
-        int UniqueEdges,
-        int UniqueTargets,
-        int Returned,
-        int Offset,
-        int Limit,
-        bool HasMore,
-        IReadOnlyList<LinkIssue> Findings);
-
-    private List<LinkIssue> ScanLinkIssues(IReadOnlyCollection<Note> notes)
-    {
-        var issues = new List<LinkIssue>();
-        foreach (var note in notes)
-        {
-            foreach (var reference in MarkdownTextExtractor.ExtractWikilinkReferences(note.RawContent))
-            {
-                if (reference.IsMalformed)
-                {
-                    issues.Add(new LinkIssue(
-                        note.VaultRelativePath,
-                        reference.Raw,
-                        NormalizeLinkIdentity(reference.Raw),
-                        VaultLinkResolutionStatus.Malformed));
-                    continue;
-                }
-
-                var resolution = vault.ResolveLinkResult(note, reference.Target);
-                if (resolution.Status == VaultLinkResolutionStatus.Resolved)
-                {
-                    continue;
-                }
-
-                issues.Add(new LinkIssue(
-                    note.VaultRelativePath,
-                    reference.Target,
-                    NormalizeLinkIdentity(resolution.Target),
-                    resolution.Status));
-            }
-        }
-
-        return issues;
-    }
-
-    private static LinkAuditPage CreateLinkAuditPage(
-        IEnumerable<LinkIssue> allIssues,
-        VaultLinkResolutionStatus status,
-        int offset,
-        int limit)
-    {
-        var issues = allIssues
-            .Where(issue => issue.Status == status)
-            .OrderBy(issue => issue.Note, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(issue => issue.Identity, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(issue => issue.Link, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var uniqueEdges = issues
-            .Select(issue => $"{issue.Note}\0{issue.Identity}")
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-        var uniqueTargets = issues
-            .Select(issue => issue.Identity)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-        var findings = issues.Skip(offset).Take(limit).ToList();
-
-        return new LinkAuditPage(
-            issues.Count,
-            uniqueEdges,
-            uniqueTargets,
-            findings.Count,
-            offset,
-            limit,
-            offset + findings.Count < issues.Count,
-            findings);
-    }
-
-    private static string NormalizeLinkIdentity(string target)
-    {
-        var normalized = target.Replace('\\', '/').Trim();
-        return normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-            ? normalized[..^3]
-            : normalized;
-    }
-
-    private static object ToStructuredLinkPage(LinkAuditPage page) => new
-    {
-        total_occurrences = page.TotalOccurrences,
-        unique_edges = page.UniqueEdges,
-        unique_targets = page.UniqueTargets,
-        returned = page.Returned,
-        offset = page.Offset,
-        limit = page.Limit,
-        has_more = page.HasMore,
-        findings = page.Findings.Select(issue => new
-        {
-            source = issue.Note,
-            target = issue.Link,
-            target_identity = issue.Identity,
-            status = issue.Status.ToString().ToLowerInvariant(),
-        }),
-    };
-
-    private static void AppendLinkSection(
-        StringBuilder sb,
-        string title,
-        LinkAuditPage page,
-        Func<LinkIssue, string> format)
-    {
-        sb.AppendLine(CultureInfo.InvariantCulture, $"## {title} ({page.TotalOccurrences})");
-        sb.AppendLine(CultureInfo.InvariantCulture,
-            $"_unique edges: {page.UniqueEdges} · unique targets: {page.UniqueTargets} · " +
-            $"returned: {page.Returned} · offset: {page.Offset} · limit: {page.Limit} · " +
-            $"has_more: {page.HasMore.ToString().ToLowerInvariant()}_");
-
-        if (page.TotalOccurrences == 0)
-        {
-            sb.AppendLine("_(none)_");
-        }
-        else if (page.Findings.Count == 0)
-        {
-            sb.AppendLine("_(requested page is empty)_");
-        }
-        else
-        {
-            foreach (var issue in page.Findings)
-            {
-                sb.AppendLine(CultureInfo.InvariantCulture, $"- {format(issue)}");
-            }
-
-            if (page.HasMore)
-            {
-                sb.AppendLine(CultureInfo.InvariantCulture,
-                    $"- _(... and {page.TotalOccurrences - page.Offset - page.Returned} more)_");
-            }
-        }
-
-        sb.AppendLine();
-    }
-
-    private static CallToolResult CreateAuditError(string message)
-    {
-        var text = KiokuError.InvalidArgument(message);
-        var envelope = new
-        {
-            success = false,
-            data = (object?)null,
-            error = new { code = "INVALID_ARGUMENT", message },
-            pagination = (object?)null,
-            warnings = Array.Empty<string>(),
-        };
-
-        return new CallToolResult
-        {
-            Content = [new TextContentBlock { Text = text }],
-            StructuredContent = JsonSerializer.SerializeToElement(envelope),
-            IsError = true,
-        };
-    }
-
     private static string NormalizeTag(string tag)
     {
         return tag.ToLowerInvariant()
@@ -1037,6 +780,7 @@ public sealed class VaultOrganizationTools(
         {
             shingles.Add(normalized.Substring(i, k));
         }
+
         return shingles;
     }
 
