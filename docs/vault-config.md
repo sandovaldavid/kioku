@@ -21,6 +21,8 @@ The `vault` section provides an informational name. The `folders` section assign
 - `auto_tags.exclude_from_tags` prevents selected frontmatter fields from becoming tags.
 - `template_folders` maps destination folders to vault-relative Markdown templates.
 
+`audit_vault` treats a closed empty wikilink or embed (`[[]]` or `![[]]`) as a template placeholder only when the source is a known template. Kioku recognizes sources under `folders.templates`, explicit `template_folders` values, Templater folder-template mappings, and Templater's configured `templates_folder`. These occurrences are reported separately from malformed live links. Non-empty malformed links inside templates, empty links outside known templates, and links that traverse outside the vault boundary remain malformed. This classification is read-only and does not change indexing, search, graph resolution, or note mutation behavior.
+
 ## Frontmatter and generated indexes
 
 `frontmatter.maintain_updated` defaults to `false`. When enabled, Kioku maintains `updated` or `modified` timestamps while preserving custom typed frontmatter.
