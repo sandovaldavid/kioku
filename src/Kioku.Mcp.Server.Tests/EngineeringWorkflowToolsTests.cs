@@ -221,7 +221,7 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
 
         await tools.log_bug("demo", "Crash on start", "sym", "cause", "fix");
 
-        foreach (var key in ProjectWorkspaceService.SubfolderKeys)
+        foreach (var key in ProjectWorkspaceService.CoreSubfolderKeys)
         {
             Assert.True(Directory.Exists(workspace.GetSubfolder("demo", key)), $"missing subfolder '{key}'");
         }
@@ -341,7 +341,7 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var result = await tools.setup_agent_workflow(project: "Group/ProjectA");
 
         Assert.StartsWith("[ok]", result);
-        foreach (var key in ProjectWorkspaceService.SubfolderKeys)
+        foreach (var key in ProjectWorkspaceService.CoreSubfolderKeys)
         {
             Assert.True(
                 Directory.Exists(workspace.GetSubfolder("Group/ProjectA", key)),
@@ -801,7 +801,7 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
 
         Assert.Contains("Knowledge/Local-setup.md", result);
         var content = await File.ReadAllTextAsync(Path.Combine(workspace.KnowledgeRoot, "Local-setup.md"));
-        Assert.Contains("type: knowledge", content);
+        Assert.Contains("project:", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("project:", content);
         Assert.Contains("Run docker compose up.", content);
     }
