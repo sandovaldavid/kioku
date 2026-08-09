@@ -140,16 +140,13 @@ public sealed class EngineeringSpecService(
         await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
 
         var relativePath = workspace.ToVaultRelative(filePath);
-        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relativePath, cancellationToken);
-        if (evalResult.Applied)
-        {
-            await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
-        }
+        var (finalRevision, evalResult) = await FinalizeCreatedArtifactAsync(
+            filePath, body, receipt, cancellationToken);
 
         var sb = new StringBuilder($"[ok] Spec created: {relativePath}");
-        if (!string.IsNullOrWhiteSpace(receipt.Revision))
+        if (!string.IsNullOrWhiteSpace(finalRevision))
         {
-            sb.Append(CultureInfo.InvariantCulture, $"\n   revision: {receipt.Revision}");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   revision: {finalRevision}");
         }
         if (scaffolded.Count > 0)
         {
@@ -237,7 +234,6 @@ public sealed class EngineeringSpecService(
                 ["objective"] = objective,
                 ["steps"] = steps,
                 ["ticket"] = ticketLink,
-                ["spec"] = specLink,
             },
             noteTitle: title);
 
@@ -271,16 +267,13 @@ public sealed class EngineeringSpecService(
         await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
 
         var relativePath = workspace.ToVaultRelative(filePath);
-        var evalResult = await bridge.EvaluateTemplaterInPlaceAsync(body, relativePath, cancellationToken);
-        if (evalResult.Applied)
-        {
-            await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
-        }
+        var (finalRevision, evalResult) = await FinalizeCreatedArtifactAsync(
+            filePath, body, receipt, cancellationToken);
 
         var sb = new StringBuilder($"[ok] Plan created: {relativePath}\n   spec: {specLink}");
-        if (!string.IsNullOrWhiteSpace(receipt.Revision))
+        if (!string.IsNullOrWhiteSpace(finalRevision))
         {
-            sb.Append(CultureInfo.InvariantCulture, $"\n   revision: {receipt.Revision}");
+            sb.Append(CultureInfo.InvariantCulture, $"\n   revision: {finalRevision}");
         }
         if (specStatus == "draft")
         {
@@ -296,6 +289,30 @@ public sealed class EngineeringSpecService(
         }
 
         return sb.ToString();
+    }
+
+    private async Task<(string Revision, TemplaterEvaluationResult Evaluation)> FinalizeCreatedArtifactAsync(
+        string filePath,
+        string renderedBody,
+        VaultMutationReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        var evaluation = TemplaterEvaluationResult.NotNeeded;
+        if (!receipt.AlreadyApplied)
+        {
+            evaluation = await bridge.EvaluateTemplaterInPlaceAsync(
+                renderedBody, workspace.ToVaultRelative(filePath), cancellationToken);
+            if (evaluation.Applied)
+            {
+                await vault.SynchronizeFileReindexAsync(filePath).WaitAsync(cancellationToken);
+            }
+        }
+
+        // Templater can change the file after the atomic mutation receipt is produced. Re-read the
+        // durable file so the public revision is truthful. An idempotent retry skips Templater and
+        // simply reports the current durable revision instead of replaying an external side effect.
+        var finalContent = await NoteHelpers.ReadAllTextAsync(filePath, cancellationToken);
+        return (VaultRevision.Compute(finalContent), evaluation);
     }
 
     public async Task<string> BuildSpecsSectionAsync(
@@ -420,52 +437,95 @@ public sealed class EngineeringSpecService(
         string reference,
         CancellationToken cancellationToken)
     {
-        var normalized = NormalizeSpecReference(reference);
-        if (normalized is null)
+        var candidate = NormalizeSpecReference(reference);
+        if (candidate is null)
         {
-            return ResolvedSpec.Fail("[error] Invalid spec reference. Use a spec basename such as 'SPEC-2026-08-09-first-class-specs' or '[[SPEC-...]]'; paths, aliases, headings, and traversal are not accepted.");
+            return InvalidSpecReference();
         }
 
-        foreach (var file in workspace.EnumerateProjectDocs(project, "specs"))
+        var localFiles = workspace.EnumerateProjectDocs(project, "specs").ToList();
+        if (FindSpecFile(localFiles, candidate) is { } localFile)
         {
-            if (!string.Equals(Path.GetFileNameWithoutExtension(file.Name), normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var raw = await NoteHelpers.ReadAllTextAsync(file.FullName, cancellationToken);
-            var metadata = FrontmatterParser.Parse(raw);
-            if (!string.Equals(metadata.NoteType, "spec", StringComparison.OrdinalIgnoreCase))
-            {
-                return ResolvedSpec.Fail($"[error] '{normalized}' exists in the specs folder but is not type: spec.");
-            }
-
-            if (metadata.ExtraFields.TryGetValue("project", out var declaredProject) &&
-                !string.Equals(declaredProject, project, StringComparison.OrdinalIgnoreCase))
-            {
-                return ResolvedSpec.Fail($"[error] Spec '{normalized}' declares project '{declaredProject}', not '{project}'.");
-            }
-
-            var status = (metadata.Status ?? "draft").ToLowerInvariant();
-            if (!SpecStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
-            {
-                return ResolvedSpec.Fail($"[error] Spec '{normalized}' has unsupported status '{status}'. Valid options: {string.Join(", ", SpecStatuses)}.");
-            }
-
-            return ResolvedSpec.Ok(normalized, status);
+            return await ValidateResolvedSpecAsync(project, localFile, cancellationToken);
         }
 
         foreach (var otherProject in workspace.DiscoverProjects().Where(p => !string.Equals(p, project, StringComparison.OrdinalIgnoreCase)))
         {
-            if (workspace.EnumerateProjectDocs(otherProject, "specs")
-                .Any(file => string.Equals(Path.GetFileNameWithoutExtension(file.Name), normalized, StringComparison.OrdinalIgnoreCase)))
+            var otherFiles = workspace.EnumerateProjectDocs(otherProject, "specs").ToList();
+            if (FindSpecFile(otherFiles, candidate) is { } otherFile)
             {
-                return ResolvedSpec.Fail($"[error] Spec '{normalized}' belongs to project '{otherProject}', not '{project}'.");
+                var canonicalName = Path.GetFileNameWithoutExtension(otherFile.Name);
+                return ResolvedSpec.Fail($"[error] Spec '{canonicalName}' belongs to project '{otherProject}', not '{project}'.");
             }
         }
 
-        return ResolvedSpec.Fail($"[error] Spec '{normalized}' was not found in project '{project}'.");
+        // A literal '#' is valid in a generated spec basename and is handled by the exact lookup
+        // above. If no exact basename exists, treat '#' as unsupported heading syntax rather than
+        // truncating or interpreting it.
+        if (candidate.Contains('#'))
+        {
+            return InvalidSpecReference();
+        }
+
+        return ResolvedSpec.Fail($"[error] Spec '{candidate}' was not found in project '{project}'.");
     }
+
+    private async Task<ResolvedSpec> ValidateResolvedSpecAsync(
+        string project,
+        FileInfo file,
+        CancellationToken cancellationToken)
+    {
+        var canonicalName = Path.GetFileNameWithoutExtension(file.Name);
+        var raw = await NoteHelpers.ReadAllTextAsync(file.FullName, cancellationToken);
+        var metadata = FrontmatterParser.Parse(raw);
+        if (!string.Equals(metadata.NoteType, "spec", StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolvedSpec.Fail($"[error] '{canonicalName}' exists in the specs folder but is not type: spec.");
+        }
+
+        if (metadata.ExtraFields.TryGetValue("project", out var declaredProject) &&
+            !string.Equals(declaredProject, project, StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolvedSpec.Fail($"[error] Spec '{canonicalName}' declares project '{declaredProject}', not '{project}'.");
+        }
+
+        var status = (metadata.Status ?? "draft").ToLowerInvariant();
+        if (!SpecStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
+        {
+            return ResolvedSpec.Fail($"[error] Spec '{canonicalName}' has unsupported status '{status}'. Valid options: {string.Join(", ", SpecStatuses)}.");
+        }
+
+        return ResolvedSpec.Ok(canonicalName, status);
+    }
+
+    private static FileInfo? FindSpecFile(IReadOnlyList<FileInfo> files, string candidate)
+    {
+        // Canonical lookup is basename-first. This preserves every basename Kioku itself can
+        // generate, including literal '#', dotted names, internal '..', and titles ending in .md.
+        var exact = files.FirstOrDefault(file =>
+            string.Equals(Path.GetFileNameWithoutExtension(file.Name), candidate, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        // Also accept a storage filename for callers that pass the final .md extension. This is
+        // deliberately secondary so a real generated basename that itself ends in .md wins.
+        if (candidate.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            var withoutStorageExtension = candidate[..^3];
+            return files.FirstOrDefault(file =>
+                string.Equals(
+                    Path.GetFileNameWithoutExtension(file.Name),
+                    withoutStorageExtension,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        return null;
+    }
+
+    private static ResolvedSpec InvalidSpecReference() =>
+        ResolvedSpec.Fail("[error] Invalid spec reference. Use an exact spec basename such as 'SPEC-2026-08-09-first-class-specs' or '[[SPEC-...]]'; paths, aliases, headings, and traversal are not accepted.");
 
     private static string? NormalizeSpecReference(string reference)
     {
@@ -479,13 +539,10 @@ public sealed class EngineeringSpecService(
             return null;
         }
 
-        if (value.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
-        {
-            value = value[..^3];
-        }
-
-        if (string.IsNullOrWhiteSpace(value) || value is "." or ".." || value.Contains("..", StringComparison.Ordinal) ||
-            value.Contains('/') || value.Contains('\\') || value.Contains('#') || value.Contains('|'))
+        // Reject actual paths/aliases. Internal dots and literal '#' remain valid basename
+        // characters and are resolved only by exact lookup within the project's specs folder.
+        if (string.IsNullOrWhiteSpace(value) || value is "." or ".." ||
+            value.Contains('/') || value.Contains('\\') || value.Contains('|'))
         {
             return null;
         }
