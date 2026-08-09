@@ -128,17 +128,32 @@ public sealed class VaultOrganizationToolsAuditPaginationTests
     }
 
     [Fact]
-    public async Task AuditVault_Caps_page_size_by_max_search_results()
+    public async Task AuditVault_Default_page_preserves_legacy_fifty_item_preview()
     {
-        await using var harness = await AuditHarness.CreateAsync(
-            2,
-            ("Source.md", "[[One]] [[Two]] [[Three]]"));
+        var links = string.Join(" ", Enumerable.Range(1, 55).Select(i => $"[[Missing {i:00}]]"));
+        await using var harness = await AuditHarness.CreateAsync(2, ("Source.md", links));
+
+        var result = await harness.Tools.audit_vault();
+        var broken = Broken(result);
+
+        Assert.Equal(55, broken.GetProperty("total_occurrences").GetInt32());
+        Assert.Equal(50, broken.GetProperty("limit").GetInt32());
+        Assert.Equal(50, broken.GetProperty("returned").GetInt32());
+        Assert.True(broken.GetProperty("has_more").GetBoolean());
+        Assert.Contains("... and 5 more", Text(result));
+    }
+
+    [Fact]
+    public async Task AuditVault_Uses_larger_configured_result_bound_for_explicit_pages()
+    {
+        var links = string.Join(" ", Enumerable.Range(1, 80).Select(i => $"[[Missing {i:00}]]"));
+        await using var harness = await AuditHarness.CreateAsync(75, ("Source.md", links));
 
         var result = await harness.Tools.audit_vault(limit: 100);
         var broken = Broken(result);
 
-        Assert.Equal(2, broken.GetProperty("limit").GetInt32());
-        Assert.Equal(2, broken.GetProperty("returned").GetInt32());
+        Assert.Equal(75, broken.GetProperty("limit").GetInt32());
+        Assert.Equal(75, broken.GetProperty("returned").GetInt32());
         Assert.True(broken.GetProperty("has_more").GetBoolean());
     }
 

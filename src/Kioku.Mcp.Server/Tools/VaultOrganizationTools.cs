@@ -245,7 +245,7 @@ public sealed class VaultOrganizationTools(
     public Task<CallToolResult> audit_vault(
         [Description("Flag notes not updated in this many days (default: 90).")] int stale_days = 90,
         [Description("Number of findings to skip in each wikilink category (default: 0).")] int offset = 0,
-        [Description("Maximum findings to return per wikilink category (default: 50, capped by KIOKU_MAX_RESULTS).")]
+        [Description("Maximum findings to return per wikilink category (default: 50). The effective maximum preserves the legacy 50-item preview and honors larger KIOKU_MAX_RESULTS values.")]
         int limit = 50)
     {
         if (offset < 0)
@@ -258,7 +258,8 @@ public sealed class VaultOrganizationTools(
             return Task.FromResult(CreateAuditError("'limit' must be greater than 0."));
         }
 
-        var cappedLimit = Math.Min(limit, config.MaxSearchResults);
+        var maxAuditResults = Math.Max(50, config.MaxSearchResults);
+        var cappedLimit = Math.Min(limit, maxAuditResults);
         var generatedAt = DateTime.UtcNow;
         var notes = vault.GetAllNotes().ToList();
         var cutoff = generatedAt.AddDays(-stale_days);
@@ -936,6 +937,12 @@ public sealed class VaultOrganizationTools(
             foreach (var issue in page.Findings)
             {
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- {format(issue)}");
+            }
+
+            if (page.HasMore)
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture,
+                    $"- _(... and {page.TotalOccurrences - page.Offset - page.Returned} more)_");
             }
         }
 
