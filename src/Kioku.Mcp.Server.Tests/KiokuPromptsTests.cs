@@ -147,6 +147,8 @@ public class KiokuPromptsTests
 
         Assert.Contains("add-export", result);
         Assert.Contains("read_note", result);
+        Assert.Contains("missing resource", result);
+        Assert.Contains("do not create the ticket, tickets folder", result);
         Assert.Contains("create_project_doc", result);
         Assert.Contains("ticket='add-export'", result);
         Assert.Contains("update_frontmatter", result);

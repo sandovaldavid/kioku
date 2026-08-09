@@ -33,6 +33,10 @@ The `vault` section provides an informational name. The `folders` section assign
 
 `engineering.subfolders` customizes the project directories used for decisions, bugs, plans, knowledge, sessions, daily notes, tickets, and backlog items. Project identifiers may contain `/`; use the full identifier returned by `list_projects`.
 
+New project scaffolds create only the core workspace folders: decisions, bugs, plans, knowledge, sessions, and backlog. Daily notes and local tickets are optional workflows: their configured folders remain recognized by project discovery and `get_project_context`, but are not created until an explicit note write targets them. A missing optional folder therefore represents an empty category, not a damaged project.
+
+Existing `daily` and `tickets` folders remain valid and require no migration. Their engineering templates remain available even before the optional folders exist, and configured custom subfolder names keep the same lazy behavior. Kioku does not silently create a missing local ticket while executing the `work_on_ticket` prompt; that workflow starts by reading an existing ticket and stops when the ticket is missing.
+
 ## Capability profiles
 
 Core tools are always registered. Optional groups enabled by default are:
