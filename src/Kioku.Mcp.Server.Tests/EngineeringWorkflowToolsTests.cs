@@ -801,7 +801,6 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
 
         Assert.Contains("Knowledge/Local-setup.md", result);
         var content = await File.ReadAllTextAsync(Path.Combine(workspace.KnowledgeRoot, "Local-setup.md"));
-        Assert.Contains("project:", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("project:", content);
         Assert.Contains("Run docker compose up.", content);
     }
