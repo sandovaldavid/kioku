@@ -54,8 +54,8 @@ internal static class KiokuHostingExtensions
         services.AddSingleton<KiokuLifecycleService>();
 
         // Hosted services start in registration order and stop in reverse order. The lifecycle
-        // performs the cold scan first; the pipeline is therefore stopped and drained before the
-        // lifecycle persists the embedding cache during shutdown.
+        // schedules the cold runtime initialization without blocking host startup; the pipeline
+        // is still stopped and drained before the lifecycle persists the embedding cache.
         services.AddSingleton<IHostedService>(provider =>
             provider.GetRequiredService<KiokuLifecycleService>());
         services.AddSingleton<IHostedService>(provider =>
@@ -132,14 +132,20 @@ internal sealed class KiokuLifecycleService(
     HttpReadinessState readiness,
     TimeProvider timeProvider,
     ILogger<KiokuLifecycleService> logger,
-    ICoordinationFaultInjector? faultInjector = null) : IHostedService
+    ICoordinationFaultInjector? faultInjector = null) : BackgroundService
 {
-    public async Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // BackgroundService.StartAsync invokes ExecuteAsync synchronously until the first
+        // incomplete await. Yield explicitly so vault reconciliation, embedding cache loading,
+        // and optional generation probing never remain on the Generic Host startup path.
+        await Task.Yield();
+
         var startedAt = timeProvider.GetTimestamp();
         try
         {
-            var status = await runtime.InitializeAsync(cancellationToken);
+            var status = await runtime.InitializeAsync(stoppingToken);
+            stoppingToken.ThrowIfCancellationRequested();
             readiness.MarkIndexReady();
             readiness.SetOptionalDependencies(
                 status.EmbeddingsAvailable,
@@ -149,24 +155,30 @@ internal sealed class KiokuLifecycleService(
                 "Kioku runtime initialized in {ElapsedMs:F0} ms.",
                 timeProvider.GetElapsedTime(startedAt).TotalMilliseconds);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             await InjectAsync(CoordinationFaultPoint.ProcessCancellation, CancellationToken.None)
                 .ConfigureAwait(false);
-            readiness.MarkIndexFailed();
-            throw;
+            logger.Info("Kioku runtime initialization canceled during shutdown.");
         }
-        catch
+        catch (Exception exception)
         {
             readiness.MarkIndexFailed();
+            logger.Error(exception, "Kioku runtime initialization failed.");
             throw;
         }
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await InjectAsync(CoordinationFaultPoint.ProcessShutdown, cancellationToken)
             .ConfigureAwait(false);
+
+        // Cancels and waits for background initialization before persisting the embedding cache.
+        // The indexing pipeline is registered after this lifecycle and therefore has already been
+        // stopped/drained by the host's reverse-order shutdown sequence.
+        await base.StopAsync(cancellationToken);
+
         logger.Info("Shutting down: flushing embedding cache asynchronously...");
         await runtime.ShutdownAsync(cancellationToken);
         logger.Info("Embedding cache flushed.");
