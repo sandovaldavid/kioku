@@ -4,11 +4,16 @@ on:
   pull_request:
     branches: [develop]
 
+permissions:
+  contents: write
+
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.x"
@@ -18,8 +23,15 @@ jobs:
       - run: dotnet restore src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj
       - run: dotnet build src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj --configuration Release --no-restore
       - run: node scripts/generate-public-docs.mjs --write
-      - uses: actions/upload-artifact@v7
-        with:
-          name: generated-contract-408
-          path: docs/commands-reference.md
-          if-no-files-found: error
+      - name: Commit generated contract when stale
+        shell: bash
+        run: |
+          if git diff --quiet -- docs/commands-reference.md; then
+            echo "Generated contract already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/commands-reference.md
+          git commit -m "docs(mcp): regenerate public contract"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
