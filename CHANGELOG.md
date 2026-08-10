@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Features
-
-* **server:** add privacy-preserving coordination observability, capability negotiation, interoperability mappings, and gated rollout controls ([#311](https://github.com/sandovaldavid/kioku/issues/311))
-
 ## [3.1.0](https://github.com/sandovaldavid/kioku/compare/v3.0.1...v3.1.0) (2026-08-09)
 
 
@@ -65,11 +59,11 @@
 * **release:** repair v3 release gates ([c102810](https://github.com/sandovaldavid/kioku/commit/c1028109be93cbd2d78f0aec907892deb461c1e2))
 * **server:** align index and MCP results ([#301](https://github.com/sandovaldavid/kioku/issues/301)) ([e8e6bba](https://github.com/sandovaldavid/kioku/commit/e8e6bba0d5bbe76089628ec4d0804579c7efdeb5))
 * **server:** close review gaps ([#354](https://github.com/sandovaldavid/kioku/issues/354)) ([9b6733d](https://github.com/sandovaldavid/kioku/commit/9b6733ddbcd34535e08951d66a06dded64209dc4))
-* **server:** harden Streamable HTTP transport ([#271](https://github.com/sandovaldavid/kioku/issues/271)) ([8781937](https://github.com/sandovaldavid/kioku/commit/87819374bf8b026875ca318059643eb5932e9b2b))
+* **server:** harden Streamable HTTP transport ([#271](https://github.com/sandovaldavid/kioku/issues/271)) ([8781937](https://github.com/sandovaldavid/kioku/commit/87819374bf07625602d47b4fff45880386c640568))
 * **server:** make indexing queue depth race-free ([#289](https://github.com/sandovaldavid/kioku/issues/289)) ([4d77f02](https://github.com/sandovaldavid/kioku/commit/4d77f02655fbd43f298118010ca26582294e76ff))
 * **server:** make trash name allocation atomic under concurrent delete_note ([#241](https://github.com/sandovaldavid/kioku/issues/241)) ([fdbf93c](https://github.com/sandovaldavid/kioku/commit/fdbf93c8cf87d10f58fe37683e1448301cfb277e))
 * **server:** make work sessions concurrency-safe ([#267](https://github.com/sandovaldavid/kioku/issues/267)) ([a715e05](https://github.com/sandovaldavid/kioku/commit/a715e058ee9ea34b29b13f947d5f94bd226e6c90))
-* **server:** normalize typographic dashes in sanitized filenames ([#242](https://github.com/sandovaldavid/kioku/issues/242)) ([e124438](https://github.com/sandovaldavid/kioku/commit/e1244381d01f49209a9076905c39460450a628ad))
+* **server:** normalize typographic dashes in sanitized filenames ([#242](https://github.com/sandovaldavid/kioku/issues/242)) ([e124438](https://github.com/sandovaldavid/kioku/commit/e1244381d01f492f298118010ca26582294e76ff))
 * **server:** preserve typed YAML frontmatter ([#266](https://github.com/sandovaldavid/kioku/issues/266)) ([6d91200](https://github.com/sandovaldavid/kioku/commit/6d91200966ffcebee6940a53bd9aff95893f7303))
 * **server:** prevent unhandled exceptions from reindex crashing tools ([#243](https://github.com/sandovaldavid/kioku/issues/243)) ([1c7faaf](https://github.com/sandovaldavid/kioku/commit/1c7faafbac698202617d48bf8ce7d1f86fd6759a))
 * **server:** repair generated note mutations ([#359](https://github.com/sandovaldavid/kioku/issues/359)) ([2dc1d0d](https://github.com/sandovaldavid/kioku/commit/2dc1d0da254697fd9e1186851e3ef7cbc050da26))
@@ -158,7 +152,6 @@
 
 ## [2.0.2](https://github.com/sandovaldavid/kioku/compare/v2.0.1...v2.0.2) (2026-07-04)
 
-
 ### Bug Fixes
 
 * **server:** pack real LICENSE file and enable deterministic builds ([#184](https://github.com/sandovaldavid/kioku/issues/184)) ([f047a65](https://github.com/sandovaldavid/kioku/commit/f047a65e450bf22fa48414e50c718c5d2b0612b8))
@@ -205,7 +198,7 @@
 * **plugin:** add bridge status bar item and control commands ([#126](https://github.com/sandovaldavid/kioku/issues/126)) ([c03127f](https://github.com/sandovaldavid/kioku/commit/c03127f26aef557c1588dd9be1b8b5f8c62a9d25))
 * **server:** add bibtex import and export for literature notes ([#145](https://github.com/sandovaldavid/kioku/issues/145)) ([8a98632](https://github.com/sandovaldavid/kioku/commit/8a986326a61e64d0cb0774eefa9b2954348f2bfa))
 * **server:** add citation graph analysis for literature notes ([#147](https://github.com/sandovaldavid/kioku/issues/147)) ([8abbbd6](https://github.com/sandovaldavid/kioku/commit/8abbbd677fd737f9042d1eedef6db6db4a6dc9aa))
-* **server:** add generate_digest tool for daily and weekly reviews ([#137](https://github.com/sandovaldavid/kioku/issues/137)) ([623c50e](https://github.com/sandovaldavid/kioku/commit/623c50ea09b7de8d8c004ed15fa331fe4c728d55))
+* **server:** add generate_digest tool for daily and weekly reviews ([#137](https://github.com/sandovaldavid/kioku/issues/137)) ([623c50e](https://github.com/sandovaldavid/kioku/commit/623c50e0267d6bd27a9baf56eafc00810d3f0a1))
 * **server:** add generate_flashcards tool with spaced-repetition and anki output ([#149](https://github.com/sandovaldavid/kioku/issues/149)) ([7c602bb](https://github.com/sandovaldavid/kioku/commit/7c602bb54121b9c4ae2e0d16d4322b363a7bda5a))
 * **server:** add local text generation service with KIOKU_GEN_MODEL ([#135](https://github.com/sandovaldavid/kioku/issues/135)) ([94c6d37](https://github.com/sandovaldavid/kioku/commit/94c6d37ace7ca050de6033c09d2d302ee2aa0813))
 * **server:** add optional shared-token auth to the obsidian bridge ([#132](https://github.com/sandovaldavid/kioku/issues/132)) ([86b3a39](https://github.com/sandovaldavid/kioku/commit/86b3a3945f51cd0ed691fccc878f95edc79a3788))
@@ -219,7 +212,7 @@
 
 ### Bug Fixes
 
-* **ci:** extract main.js from ZIP artifact for BRAT upload ([50dbf55](https://github.com/sandovaldavid/kioku/commit/50dbf552179005a90037d175b49d4531eae38040))
+* **ci:** extract main.js from ZIP artifact for BRAT upload ([50dbf55](https://github.com/sandovaldavid/kioku/commit/50dbf55c47af2a1202f36f0075db600629b54240))
 * **server:** make ObsidianBridgeService's connection teardown reentrant-safe ([#134](https://github.com/sandovaldavid/kioku/issues/134)) ([f949c26](https://github.com/sandovaldavid/kioku/commit/f949c2668b3a5864d196c37e5b004b2cf89f8e07))
 * **server:** move merge-conflict tools out of the plugin capability group ([#121](https://github.com/sandovaldavid/kioku/issues/121)) ([7fcbec9](https://github.com/sandovaldavid/kioku/commit/7fcbec9fed87588cbbde67d92edb3ecf20e95e23))
 * **server:** rename duplicate suggest_tags query tool to inspect_note_tags ([#120](https://github.com/sandovaldavid/kioku/issues/120)) ([e62d7fd](https://github.com/sandovaldavid/kioku/commit/e62d7fd92252b8a8e7d5f897e1a06ba0de655f34))
@@ -261,7 +254,7 @@
 * **server:** config-v2 polish — built-in template variables and malformed config warning ([#95](https://github.com/sandovaldavid/kioku/issues/95)) ([993050f](https://github.com/sandovaldavid/kioku/commit/993050f8acbe5da5e5a989c327e3ed292fdf78c1))
 * **server:** expose operational counters in ping and get_index_status ([#89](https://github.com/sandovaldavid/kioku/issues/89)) ([c85e632](https://github.com/sandovaldavid/kioku/commit/c85e632062ed37f93fef57c4dd9f5dc9c9a1205b))
 * **server:** flush embedding cache on graceful shutdown ([#99](https://github.com/sandovaldavid/kioku/issues/99)) ([a06d47a](https://github.com/sandovaldavid/kioku/commit/a06d47aaf01121505b6cc68eb637531294b61610))
-* **server:** introduce standardized KiokuError taxonomy ([#91](https://github.com/sandovaldavid/kioku/issues/91)) ([0b29768](https://github.com/sandovaldavid/kioku/commit/0b29768580a2854156f1a4815ddaba893f2f8971))
+* **server:** introduce standardized KiokuError taxonomy ([#91](https://github.com/sandovaldavid/kioku/issues/91)) ([0b29768580a2854156f1a4815ddaba893f2f8971](https://github.com/sandovaldavid/kioku/commit/0b29768580a2854156f1a4815ddaba893f2f8971))
 
 
 ### Bug Fixes
@@ -317,7 +310,6 @@
 * **server:** add delete_note and revert_note tools ([#48](https://github.com/sandovaldavid/kioku/issues/48)) ([c6b9194](https://github.com/sandovaldavid/kioku/commit/c6b919467d0a05d964b5b7610ceb92746408f93b))
 * **server:** add FolderRanker service, zettel filename format, auto-folder ([#52](https://github.com/sandovaldavid/kioku/issues/52)) ([cb9bcef](https://github.com/sandovaldavid/kioku/commit/cb9bcef6fe3aeb88b78aadf2f2b15f29dcee0ffd))
 * **server:** add staging tools — stage_note, stage_all, unstage_note, commit_staged ([#50](https://github.com/sandovaldavid/kioku/issues/50)) ([0df3660](https://github.com/sandovaldavid/kioku/commit/0df36607c5f264000ffacea37d43a26f402f1d4c))
-
 
 ### Bug Fixes
 
@@ -418,7 +410,7 @@
 * **server:** add research, export, and gist sharing tools ([#14](https://github.com/sandovaldavid/kioku/issues/14)) ([9e56c5a](https://github.com/sandovaldavid/kioku/commit/9e56c5a1ab5f5cb565ccc7c511ce4f82b338d10e))
 * **server:** add session context and work activity tracking tools ([af47f41](https://github.com/sandovaldavid/kioku/commit/af47f4125767ec41c5471ab3ef73fc92cc7b1b5d))
 * **server:** add task management MCP tools ([4445439](https://github.com/sandovaldavid/kioku/commit/444543951084b458b1e5d0bc2c063312aa5786e1))
-* **server:** add vault organization and taxonomy management tools ([96fd7eb](https://github.com/sandovaldavid/kioku/commit/96fd7eb4cb8478ec9843d11b84ab9fc19395dae3))
+* **server:** add vault organization and taxonomy management tools ([96fd7eb](https://github.com/sandovaldavid/kioku/commit/96fd7eb4b8478ec9843d11b84ab9fc19395dae3))
 * **server:** add workflow chain tools for templates and action items ([268d27b](https://github.com/sandovaldavid/kioku/commit/268d27bc41911b08e7c34e66b6c9e9dfbf8617f8))
 * **server:** add Zettelkasten knowledge management tools ([9e365a4](https://github.com/sandovaldavid/kioku/commit/9e365a4441bb1a90269e2507307716862a898777))
 * **server:** HTTP-SSE transport with dual-mode startup and API key auth ([84ac108](https://github.com/sandovaldavid/kioku/commit/84ac108bf07625602d47b4fff45880386c640568))
