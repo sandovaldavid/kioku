@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Features
-
-* **server:** add privacy-preserving coordination observability, capability negotiation, interoperability mappings, and gated rollout controls ([#311](https://github.com/sandovaldavid/kioku/issues/311))
-
 ## [3.1.0](https://github.com/sandovaldavid/kioku/compare/v3.0.1...v3.1.0) (2026-08-09)
 
 
@@ -296,7 +290,6 @@
 * **server:** correct table cell extraction and use cross-platform invalid filename chars ([#57](https://github.com/sandovaldavid/kioku/issues/57)) ([3e743df](https://github.com/sandovaldavid/kioku/commit/3e743dfdb09419eb702114b6a7363d9731f5c440))
 
 ## [1.8.0-beta.3](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.2...v1.8.0-beta.3) (2026-06-27)
-
 
 ### Features
 
