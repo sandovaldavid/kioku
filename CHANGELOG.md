@@ -254,7 +254,7 @@
 * **server:** add soft-delete with trash for delete_note ([#79](https://github.com/sandovaldavid/kioku/issues/79)) ([661c396](https://github.com/sandovaldavid/kioku/commit/661c39677caf761dcc831d1807874bd32100d4c3))
 * **server:** config-v2 polish — built-in template variables and malformed config warning ([#95](https://github.com/sandovaldavid/kioku/issues/95)) ([993050f](https://github.com/sandovaldavid/kioku/commit/993050f8acbe5da5e5a989c327e3ed292fdf78c1))
 * **server:** expose operational counters in ping and get_index_status ([#89](https://github.com/sandovaldavid/kioku/issues/89)) ([c85e632](https://github.com/sandovaldavid/kioku/commit/c85e632062ed37f93fef57c4dd9f5dc9c9a1205b))
-* **server:** flush embedding cache on graceful shutdown ([#99](https://github.com/sandovaldavid/kioku/issues/99)) ([a06d47a](https://github.com/sandovaldavid/kioku/commit/a06d47aaf01121505b6cc68eb637531294b61610))
+* **server:** flush embedding cache on graceful shutdown ([#99](https://github.com/sandovaldavid/kioku/commit/a06d47aaf01121505b6cc68eb637531294b61610))
 * **server:** introduce standardized KiokuError taxonomy ([#91](https://github.com/sandovaldavid/kioku/issues/91)) ([0b29768](https://github.com/sandovaldavid/kioku/commit/0b29768580a2854156f1a4815ddaba893f2f8971))
 
 
@@ -392,7 +392,7 @@
 ### Features
 
 * **plugin,server:** add 5 editor command tools across server and plugin ([f586290](https://github.com/sandovaldavid/kioku/commit/f5862903d739d8770bdd5feb0f4c7f29b5d51b6c))
-* **server:** add asset tools for vault file management ([2530079](https://github.com/sandovaldavid/kioku/commit/2530079fdb11254254ebd3920))
+* **server:** add asset tools for vault file management ([2530079](https://github.com/sandovaldavid/kioku/commit/25300793f4e92ca03d82491fb11254254ebd3920))
 * **server:** add vault routing tools for intelligent note organization ([dade9c7](https://github.com/sandovaldavid/kioku/commit/dade9c786be302351aeaca23d4c9012bab48e1d4))
 
 ## [1.3.0](https://github.com/sandovaldavid/kioku/compare/v1.2.0...v1.3.0) (2026-06-25)
@@ -410,7 +410,7 @@
 * **plugin:** add UI plugin commands and CSS theming MCP tools ([6e1dbfd](https://github.com/sandovaldavid/kioku/commit/6e1dbfd422c4acb5d8539917ab9b4766127b9b89))
 * **server:** add knowledge graph tools ([#13](https://github.com/sandovaldavid/kioku/issues/13)) ([0e881f6](https://github.com/sandovaldavid/kioku/commit/0e881f6161b84804e86aac9715a0d6c982a27fbd))
 * **server:** add research, export, and gist sharing tools ([#14](https://github.com/sandovaldavid/kioku/issues/14)) ([9e56c5a](https://github.com/sandovaldavid/kioku/commit/9e56c5a1ab5f5cb565ccc7c511ce4f82b338d10e))
-* **server:** add session context and work activity tracking tools ([af47f41](https://github.com/sandovaldavid/kioku/commit/af47f4125767ec41a8a2f0d4562c173662c5a7a9c))
+* **server:** add session context and work activity tracking tools ([af47f41](https://github.com/sandovaldavid/kioku/commit/af47f4125767ec41c5471ab3ef73fc92cc7b1b5d))
 * **server:** add task management MCP tools ([4445439](https://github.com/sandovaldavid/kioku/commit/444543951084b458b1e5d0bc2c063312aa5786e1))
 * **server:** add vault organization and taxonomy management tools ([96fd7eb](https://github.com/sandovaldavid/kioku/commit/96fd7eb4cb8478ec9843d11b84ab9fc19395dae3))
 * **server:** add workflow chain tools for templates and action items ([268d27b](https://github.com/sandovaldavid/kioku/commit/268d27bc41911b08e7c34e66b6c9e9dfbf8617f8))
