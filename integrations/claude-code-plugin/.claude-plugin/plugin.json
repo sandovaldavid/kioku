@@ -11,12 +11,6 @@
   "license": "MIT",
   "keywords": ["obsidian", "notes", "mcp", "knowledge-management", "zettelkasten"],
   "userConfig": {
-    "vault_path": {
-      "type": "directory",
-      "title": "Obsidian vault path",
-      "description": "Absolute path to your Obsidian vault (e.g. /home/you/Documents/MyVault)",
-      "required": true
-    },
     "ollama_url": {
       "type": "string",
       "title": "Ollama URL",

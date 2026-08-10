@@ -63,6 +63,9 @@ async function validateIntegrationMetadata() {
         "utf8",
       ),
     );
+    const claudeMcp = JSON.parse(
+      await readFile(path.join(rootDir, "integrations/claude-code-plugin/.mcp.json"), "utf8"),
+    );
     const marketplace = JSON.parse(
       await readFile(path.join(rootDir, ".claude-plugin/marketplace.json"), "utf8"),
     );
@@ -89,6 +92,19 @@ async function validateIntegrationMetadata() {
     if (claudePlugin.version !== packageVersion) {
       failures.push(
         `integrations/claude-code-plugin/.claude-plugin/plugin.json: version '${claudePlugin.version}' must match server PackageVersion '${packageVersion}'`,
+      );
+    }
+
+    const claudeVaultPath = claudeMcp.mcpServers?.kioku?.env?.KIOKU_VAULT_PATH;
+    if (claudeVaultPath !== "${KIOKU_VAULT_PATH}") {
+      failures.push(
+        `integrations/claude-code-plugin/.mcp.json: KIOKU_VAULT_PATH must be '\${KIOKU_VAULT_PATH}', found '${claudeVaultPath}'`,
+      );
+    }
+
+    if (Object.hasOwn(claudePlugin.userConfig ?? {}, "vault_path")) {
+      failures.push(
+        "integrations/claude-code-plugin/.claude-plugin/plugin.json: userConfig.vault_path must remain machine-local",
       );
     }
 
