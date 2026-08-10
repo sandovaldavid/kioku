@@ -50,6 +50,79 @@ async function scanDirectory(dirPath) {
   }
 }
 
+async function validateIntegrationMetadata() {
+  try {
+    const serverProject = await readFile(
+      path.join(rootDir, "src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj"),
+      "utf8",
+    );
+    const commandsReference = await readFile(path.join(rootDir, "docs/commands-reference.md"), "utf8");
+    const claudePlugin = JSON.parse(
+      await readFile(
+        path.join(rootDir, "integrations/claude-code-plugin/.claude-plugin/plugin.json"),
+        "utf8",
+      ),
+    );
+    const marketplace = JSON.parse(
+      await readFile(path.join(rootDir, ".claude-plugin/marketplace.json"), "utf8"),
+    );
+    const antigravityRules = await readFile(
+      path.join(rootDir, "integrations/antigravity-plugin/rules/kioku.md"),
+      "utf8",
+    );
+
+    const packageVersionMatch = serverProject.match(/<PackageVersion>([^<]+)<\/PackageVersion>/);
+    const defaultToolsMatch = commandsReference.match(/Default profile: \*\*(\d+) tools\*\*\./);
+    const allToolsMatch = commandsReference.match(/All-capabilities profile: \*\*(\d+) tools\*\*\./);
+    const disabledDefaultsMatch = commandsReference.match(/Disabled by default:\s*([^\n]+)/);
+
+    if (!packageVersionMatch || !defaultToolsMatch || !allToolsMatch || !disabledDefaultsMatch) {
+      failures.push("integration metadata: unable to derive canonical version/capability metadata");
+      return;
+    }
+
+    const packageVersion = packageVersionMatch[1];
+    const defaultTools = defaultToolsMatch[1];
+    const allTools = allToolsMatch[1];
+    const disabledGroups = [...disabledDefaultsMatch[1].matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+
+    if (claudePlugin.version !== packageVersion) {
+      failures.push(
+        `integrations/claude-code-plugin/.claude-plugin/plugin.json: version '${claudePlugin.version}' must match server PackageVersion '${packageVersion}'`,
+      );
+    }
+
+    const pluginDescription = claudePlugin.description ?? "";
+    if (!pluginDescription.includes(`${defaultTools} default tools`)) {
+      failures.push(
+        `integrations/claude-code-plugin/.claude-plugin/plugin.json: description must advertise ${defaultTools} default tools`,
+      );
+    }
+    if (!pluginDescription.includes(`${allTools} all-capabilities tools`)) {
+      failures.push(
+        `integrations/claude-code-plugin/.claude-plugin/plugin.json: description must advertise ${allTools} all-capabilities tools`,
+      );
+    }
+
+    for (const group of disabledGroups) {
+      if (!antigravityRules.includes(`\`${group}\``)) {
+        failures.push(
+          `integrations/antigravity-plugin/rules/kioku.md: missing disabled-by-default capability '${group}'`,
+        );
+      }
+    }
+
+    const marketplaceDescription = marketplace.plugins?.find((plugin) => plugin.name === "kioku")?.description ?? "";
+    for (const skill of ["kioku-vault", "kioku-project-workflow"]) {
+      if (!marketplaceDescription.includes(skill)) {
+        failures.push(`.claude-plugin/marketplace.json: Kioku description must mention '${skill}'`);
+      }
+    }
+  } catch (error) {
+    failures.push(`integration metadata: validation failed (${error.message})`);
+  }
+}
+
 async function validateConfigs() {
   for (const relativeFile of targetFiles) {
     const fullPath = path.join(rootDir, relativeFile);
@@ -97,6 +170,8 @@ async function validateConfigs() {
     failures.push(`integrations/antigravity-plugin/mcp_config.json: invalid or missing configuration (${error.message})`);
   }
 
+  await validateIntegrationMetadata();
+
   if (failures.length > 0) {
     console.error("[error] Portable configuration validation failed:");
     for (const failure of failures) {
@@ -105,7 +180,7 @@ async function validateConfigs() {
     process.exit(1);
   }
 
-  console.log("[ok] Portable configurations and integration assets contain no maintainer paths.");
+  console.log("[ok] Portable configurations and integration metadata are consistent.");
 }
 
 validateConfigs();

@@ -7,7 +7,7 @@
     {
       "name": "kioku",
       "source": "./integrations/claude-code-plugin",
-      "description": "Kioku MCP server + kioku-vault skill for reading, searching, and organizing an Obsidian vault."
+      "description": "Kioku MCP server with kioku-vault and kioku-project-workflow skills for reading, searching, organizing, and managing project workflows in an Obsidian vault."
     }
   ]
 }
