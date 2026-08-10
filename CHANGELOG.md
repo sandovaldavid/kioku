@@ -291,6 +291,7 @@
 
 ## [1.8.0-beta.3](https://github.com/sandovaldavid/kioku/compare/v1.8.0-beta.2...v1.8.0-beta.3) (2026-06-27)
 
+
 ### Features
 
 * **server:** config v2 templates, macOS support, plugin refactor, and tests ([#55](https://github.com/sandovaldavid/kioku/issues/55)) ([0c2597b](https://github.com/sandovaldavid/kioku/commit/0c2597b3fefc0118a57c5446a190703ed00e098f))
