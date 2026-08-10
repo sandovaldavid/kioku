@@ -21,7 +21,7 @@
     <PackageType>McpServer</PackageType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>kioku-mcp-server</PackageId>
-    <PackageVersion>3.0.1</PackageVersion>
+    <PackageVersion>3.1.0</PackageVersion>
     <Version>$(PackageVersion)</Version>
     <InformationalVersion>$(PackageVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
