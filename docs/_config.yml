@@ -7,7 +7,7 @@ github_username: sandovaldavid
 github_repo: sandovaldavid/kioku
 github_edit_branch: develop
 plugin_repo: sandovaldavid/kioku-obsidian
-version_label: "v3.0.1" # x-release-please-version
+version_label: "v3.1.0" # x-release-please-version
 social_image: "/assets/images/og-image.png"
 
 defaults:

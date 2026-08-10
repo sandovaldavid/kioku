@@ -32,7 +32,7 @@ Never describe an issue, roadmap item, proposed architecture, benchmark expectat
 
 - Target framework: `net10.0`, configured in `Directory.Build.props`.
 - Solution: `Kioku.slnx`.
-- Latest published server package: `3.0.1`. <!-- x-release-please-version --> The integration branch can contain unreleased changes beyond that release.
+- Latest published server package: `3.1.0`. <!-- x-release-please-version --> The integration branch can contain unreleased changes beyond that release.
 - MCP C# SDK packages: `ModelContextProtocol` and `ModelContextProtocol.AspNetCore` `2.1.0`.
 - MCP protocol baseline: `2026-07-28`.
 - Streamable HTTP runs explicitly with `Stateless = true`; local `stdio` remains supported.
