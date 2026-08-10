@@ -87,7 +87,10 @@ claude plugin marketplace add sandovaldavid/kioku
 claude plugin install kioku@kioku
 ```
 
-During installation, Claude Code prompts for `userConfig.vault_path` (and optional Ollama settings).
+Export `KIOKU_VAULT_PATH` before installing and keep it available whenever Claude Code launches.
+The plugin passes the variable to the `kioku` process; no vault path is stored in this repository.
+Missing or invalid values fail through Kioku's required configuration validation. Claude Code still
+supports optional Ollama and embedding-model settings through the plugin's `userConfig`.
 
 #### Manual JSON Configuration (`.mcp.json`)
 
