@@ -13,6 +13,7 @@ specialists:
   - architecture-reviewer
   - quality-gate-runner
   - security-privacy-reviewer
+  - cross-repo-contract-reviewer
   - docs-memory-synchronizer
   - skill-distribution-auditor
 
