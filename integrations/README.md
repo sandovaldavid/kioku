@@ -33,8 +33,10 @@ claude plugin install kioku@kioku
 ```
 
 The marketplace entry lives in `.claude-plugin/marketplace.json` at the repository root and
-points here. Installation prompts for the vault path and optional local generation settings through
-the plugin's `userConfig`; no manual `.mcp.json` editing is required.
+points here. Before installing or launching the plugin, export `KIOKU_VAULT_PATH` in the
+environment used to start Claude Code. The plugin passes this variable to the `kioku` process;
+no vault path is stored in this repository. Optional local generation settings remain available
+through the plugin's `userConfig`; no manual `.mcp.json` editing is required.
 
 ## `antigravity-plugin/`
 

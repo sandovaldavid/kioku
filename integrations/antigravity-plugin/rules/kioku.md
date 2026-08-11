@@ -13,5 +13,5 @@
   `get_server_status` or the vault config if the layout is unclear.
 - Before a bulk edit, preview it when supported and check native `git status` in the vault. Suggest
   a commit before applying changes so the user can review or restore them.
-- The `research`, `generation`, `css`, `assets`, `bridge`, and `plugin` groups are disabled by
-  default. `git`, `restore`, and `zettelkasten` are removed groups, not callable tools.
+- The `research`, `generation`, `css`, `assets`, `bridge`, `plugin`, and `coordination` groups are
+  disabled by default. `git`, `restore`, and `zettelkasten` are removed groups, not callable tools.

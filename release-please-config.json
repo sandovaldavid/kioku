@@ -40,6 +40,11 @@
           "type": "json",
           "path": "src/Kioku.Mcp.Server/.mcp/server.json",
           "jsonpath": "$.packages[0].version"
+        },
+        {
+          "type": "json",
+          "path": "integrations/claude-code-plugin/.claude-plugin/plugin.json",
+          "jsonpath": "$.version"
         }
       ]
     }
