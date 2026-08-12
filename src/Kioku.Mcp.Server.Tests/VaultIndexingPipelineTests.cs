@@ -26,6 +26,7 @@ public sealed class VaultIndexingPipelineTests
         Assert.Equal(500, index.GetNotesSnapshot().Count);
         Assert.InRange(index.MaximumObservedConcurrency, 1, 4);
         Assert.InRange(pipeline.Metrics.MaximumObservedConcurrency, 1, 4);
+        Assert.Equal(1, index.FinalizeReconciliationCalls);
         Assert.True(index.IsReady);
         Assert.True(pipeline.IsReady);
     }
@@ -49,6 +50,7 @@ public sealed class VaultIndexingPipelineTests
         await pipeline.WaitForIdleAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(callsAfterColdStart + 1, index.GetReindexCalls(notePath));
+        Assert.Equal(1, index.FinalizeReconciliationCalls);
         Assert.True(pipeline.Metrics.CoalescedChanges >= 99);
     }
 
@@ -69,6 +71,7 @@ public sealed class VaultIndexingPipelineTests
         Assert.Contains(index.GetNotesSnapshot(), note =>
             note.FilePath.Equals(missedPath, StringComparison.OrdinalIgnoreCase));
         Assert.True(pipeline.Metrics.ReconciliationCount >= 2);
+        Assert.True(index.FinalizeReconciliationCalls >= 2);
     }
 
     [Fact]
@@ -92,6 +95,7 @@ public sealed class VaultIndexingPipelineTests
         Assert.False(index.IsReady);
         Assert.False(pipeline.IsReady);
         Assert.Equal("rebuilding", readiness.GetSnapshot().Index);
+        Assert.Equal(0, index.FinalizeReconciliationCalls);
         Assert.InRange(index.MaximumObservedConcurrency, 0, 3);
     }
 
@@ -113,6 +117,7 @@ public sealed class VaultIndexingPipelineTests
         await pipeline.ReconcileAsync("recreate_test");
         Assert.Contains(index.GetNotesSnapshot(), note =>
             note.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase) && note.RawContent == "v2");
+        Assert.Equal(3, index.FinalizeReconciliationCalls);
     }
 
     private static (VaultIndexingPipeline Pipeline, FakeVaultIndexOperations Index, VaultIndexingMetrics Metrics)
@@ -155,10 +160,13 @@ public sealed class VaultIndexingPipelineTests
             new(StringComparer.OrdinalIgnoreCase);
         private int _active;
         private int _maximumObservedConcurrency;
+        private int _finalizeReconciliationCalls;
 
         public bool IsReady { get; private set; }
 
         public int MaximumObservedConcurrency => Volatile.Read(ref _maximumObservedConcurrency);
+
+        public int FinalizeReconciliationCalls => Volatile.Read(ref _finalizeReconciliationCalls);
 
         public int GetReindexCalls(string path) => _reindexCalls.GetValueOrDefault(Path.GetFullPath(path));
 
@@ -176,6 +184,9 @@ public sealed class VaultIndexingPipelineTests
             _notes[filePath] = CreateNote(filePath, content);
         }
 
+        public Task ReconcileFileAsync(string filePath, CancellationToken cancellationToken) =>
+            ReindexAsync(filePath, cancellationToken);
+
         public async Task MoveAsync(
             string oldPath,
             string newPath,
@@ -192,6 +203,10 @@ public sealed class VaultIndexingPipelineTests
         }
 
         public void Delete(string filePath) => _notes.TryRemove(Path.GetFullPath(filePath), out _);
+
+        public void DeleteStale(string filePath) => Delete(filePath);
+
+        public void FinalizeReconciliation() => Interlocked.Increment(ref _finalizeReconciliationCalls);
 
         private DelegateDisposable BeginOperation()
         {
