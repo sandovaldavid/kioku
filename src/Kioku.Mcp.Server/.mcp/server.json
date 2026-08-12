@@ -2,12 +2,12 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "description": "Kioku — MCP server for Obsidian vault access. Enables AI agents to search, read, write, and organize notes through the Model Context Protocol.",
   "name": "io.github.sandovaldavid/kioku",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "packages": [
     {
       "registryType": "nuget",
       "identifier": "kioku-mcp-server",
-      "version": "3.1.0",
+      "version": "3.1.1",
       "transport": {
         "type": "stdio"
       },

@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.1.1](https://github.com/sandovaldavid/kioku/compare/v3.1.0...v3.1.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **integrations:** keep Claude and Antigravity bundles aligned ([#422](https://github.com/sandovaldavid/kioku/issues/422)) ([dc5947b](https://github.com/sandovaldavid/kioku/commit/dc5947be71087d84a249446ec4f8401c216cff14))
+* **integrations:** use vault env for Claude ([#423](https://github.com/sandovaldavid/kioku/issues/423)) ([b9fff72](https://github.com/sandovaldavid/kioku/commit/b9fff724ce5a4ed42bbad81c9046c669d8f99911))
+* **server:** eliminate pathological reconciliation work ([#428](https://github.com/sandovaldavid/kioku/issues/428)) ([50c70b5](https://github.com/sandovaldavid/kioku/commit/50c70b5d88403e3e8fd186acbd881df7433266a4))
+
 ## [3.1.0](https://github.com/sandovaldavid/kioku/compare/v3.0.1...v3.1.0) (2026-08-09)
 
 
