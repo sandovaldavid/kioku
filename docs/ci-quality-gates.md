@@ -53,7 +53,7 @@ The separate `docs-links` workflow runs three documentation contracts on pushes 
 
 - `node scripts/validate-markdown-links.mjs` verifies repository-relative file links in maintained Markdown entry points;
 - `node scripts/validate-docs-navigation.mjs` verifies that every sidebar destination exists and has effective Jekyll layout, title, and sidebar metadata;
-- `node scripts/validate-release-documentation.mjs` verifies that the package, MCP manifest, Release Please manifest, root README, NuGet README, AGENTS snapshot, installation guide, integrations guide, versioning page, site badge, and versioned Claude plugin manifest use the same server version and remain covered by release automation.
+- `node scripts/validate-release-documentation.mjs` verifies that the package, MCP manifest, Release Please manifest, root README, NuGet README, AGENTS snapshot, installation guide, integrations guide, versioning page, site badge, and versioned Claude plugin manifest use the same server version and remain covered by release automation. It also verifies the release supply-chain controls described below.
 
 These checks intentionally do not make network requests or claim that external URLs, hosted documentation, anchors, redirects, or third-party services are available.
 
@@ -71,7 +71,17 @@ Codecov remains informational because pull requests from forks cannot reliably a
 - Dependency Review rejects new high-severity dependency regressions on release PRs targeting the default `main` branch. Feature PRs targeting `develop` remain blocked by the .NET vulnerability audit because GitHub's dependency-review API is default-branch oriented.
 - JavaScript and TypeScript repository tooling (`scripts/`, `.devcontainer/`) is analyzed by CodeQL on pushes, pull requests, and a weekly schedule. The Obsidian plugin has its own CodeQL and dependency-audit coverage in its own repository.
 - C# is analyzed through the repository-wide Roslyn and .NET analyzer baseline with code style and warnings-as-errors enforced by the main build.
-- CI uploads complete .NET package inventories for 30 days. These inventories are the current reproducible dependency evidence; a signed SPDX or CycloneDX SBOM can replace them when release signing and provenance are introduced.
+- CI uploads complete .NET package inventories for 30 days. Tagged releases additionally publish signed per-RID SPDX JSON SBOMs as described below.
+
+## Release supply-chain gates
+
+Tagged releases build `win-x64`, `linux-x64`, `osx-x64`, and `osx-arm64` independently. Matrix `fail-fast` is disabled so a failure in one RID does not hide evidence from the other targets, but `attach-artifacts` and NuGet publication still require the complete build matrix to succeed.
+
+Release SBOM generation is fail-closed. The workflow downloads the reviewed Linux x64 Syft `1.42.3` archive with bounded retries, verifies the archive against the SHA-256 digest committed in the workflow, and only then extracts and executes Syft. Each runtime gets one explicit `${artifact}.spdx.json`; Kioku does not rely on `anchore/sbom-action` auto-download or auto-upload behavior in the release path.
+
+`sigstore/cosign-installer@v4.1.0` installs Cosign using its verified bootstrap flow and retrying downloads. Each runtime binary and its SPDX JSON SBOM are signed independently. The release artifact set therefore requires the binary, certificate, signature, SBOM, SBOM certificate, and SBOM signature for every RID. These controls must not use `continue-on-error`.
+
+`node scripts/validate-release-documentation.mjs` statically protects this contract: it verifies the reviewed Syft version/digest, retry flags, digest verification, explicit per-RID SBOM output, current Cosign installer, non-fail-fast matrix behavior, and absence of the retired implicit `anchore/sbom-action` release path.
 
 ## Release-facing version metadata
 
