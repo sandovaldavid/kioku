@@ -1,3 +1,4 @@
+using System.Reflection;
 using Kioku.Mcp.Server;
 using Kioku.Mcp.Server.Hosting;
 using Kioku.Mcp.Server.Http;
@@ -12,6 +13,19 @@ using Microsoft.Extensions.Options;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Sentry;
+
+if (args.Any(argument =>
+        argument.Equals("--version", StringComparison.OrdinalIgnoreCase) ||
+        argument.Equals("-v", StringComparison.OrdinalIgnoreCase)))
+{
+    var version = typeof(Program).Assembly
+                      .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                      .InformationalVersion
+                  ?? typeof(Program).Assembly.GetName().Version?.ToString()
+                  ?? "unknown";
+    Console.Out.WriteLine(version);
+    return 0;
+}
 
 var configuration = KiokuOptionsConfiguration.Build(args);
 KiokuOptions options;
