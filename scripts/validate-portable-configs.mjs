@@ -166,7 +166,7 @@ async function validateIntegrationMetadata() {
       "start_work_session",
       "end_work_session",
     ]) {
-      if (!projectWorkflowSkill.includes(`\`${tool}\``)) {
+      if (!projectWorkflowSkill.includes(tool)) {
         failures.push(
           `integrations/claude-code-plugin/skills/kioku-project-workflow/SKILL.md: missing current workflow tool '${tool}'`,
         );
