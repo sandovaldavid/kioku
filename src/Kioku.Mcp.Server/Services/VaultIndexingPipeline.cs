@@ -364,7 +364,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
                          .Where(path => !livePaths.Contains(path)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                _index.Delete(stale);
+                _index.DeleteStale(stale);
             }
 
             await Parallel.ForEachAsync(
@@ -380,7 +380,7 @@ public sealed class VaultIndexingPipeline : BackgroundService
                     try
                     {
                         await ExecuteWithRetryAsync(
-                            innerToken => _index.ReindexAsync(filePath, innerToken),
+                            innerToken => _index.ReconcileFileAsync(filePath, innerToken),
                             filePath,
                             token);
                     }
@@ -394,6 +394,9 @@ public sealed class VaultIndexingPipeline : BackgroundService
                         _logger.Error(exception, "Could not reconcile {File}.", filePath);
                     }
                 });
+
+            cancellationToken.ThrowIfCancellationRequested();
+            _index.FinalizeReconciliation();
 
             var duration = _timeProvider.GetElapsedTime(startedAt);
             Volatile.Write(
