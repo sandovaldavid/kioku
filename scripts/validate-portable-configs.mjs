@@ -73,6 +73,14 @@ async function validateIntegrationMetadata() {
       path.join(rootDir, "integrations/antigravity-plugin/rules/kioku.md"),
       "utf8",
     );
+    const vaultSkill = await readFile(
+      path.join(rootDir, "integrations/claude-code-plugin/skills/kioku-vault/SKILL.md"),
+      "utf8",
+    );
+    const projectWorkflowSkill = await readFile(
+      path.join(rootDir, "integrations/claude-code-plugin/skills/kioku-project-workflow/SKILL.md"),
+      "utf8",
+    );
 
     const packageVersionMatch = serverProject.match(/<PackageVersion>([^<]+)<\/PackageVersion>/);
     const defaultToolsMatch = commandsReference.match(/Default profile: \*\*(\d+) tools\*\*\./);
@@ -95,7 +103,14 @@ async function validateIntegrationMetadata() {
       );
     }
 
-    const claudeVaultPath = claudeMcp.mcpServers?.kioku?.env?.KIOKU_VAULT_PATH;
+    const claudeServer = claudeMcp.mcpServers?.kioku;
+    if (!claudeServer || claudeServer.type !== "stdio" || claudeServer.command !== "kioku") {
+      failures.push(
+        "integrations/claude-code-plugin/.mcp.json: kioku must remain a stdio server launched with command 'kioku'",
+      );
+    }
+
+    const claudeVaultPath = claudeServer?.env?.KIOKU_VAULT_PATH;
     if (claudeVaultPath !== "${KIOKU_VAULT_PATH}") {
       failures.push(
         `integrations/claude-code-plugin/.mcp.json: KIOKU_VAULT_PATH must be '\${KIOKU_VAULT_PATH}', found '${claudeVaultPath}'`,
@@ -126,13 +141,56 @@ async function validateIntegrationMetadata() {
           `integrations/antigravity-plugin/rules/kioku.md: missing disabled-by-default capability '${group}'`,
         );
       }
+      if (!vaultSkill.includes(`\`${group}\``)) {
+        failures.push(
+          `integrations/claude-code-plugin/skills/kioku-vault/SKILL.md: missing disabled-by-default capability '${group}'`,
+        );
+      }
     }
 
-    const marketplaceDescription = marketplace.plugins?.find((plugin) => plugin.name === "kioku")?.description ?? "";
+    if (!vaultSkill.includes(`${defaultTools}-tool default profile`)) {
+      failures.push(
+        `integrations/claude-code-plugin/skills/kioku-vault/SKILL.md: description must advertise the ${defaultTools}-tool default profile`,
+      );
+    }
+    if (!vaultSkill.includes(`${allTools}-tool all-capabilities profile`)) {
+      failures.push(
+        `integrations/claude-code-plugin/skills/kioku-vault/SKILL.md: description must advertise the ${allTools}-tool all-capabilities profile`,
+      );
+    }
+
+    for (const tool of [
+      "create_engineering_spec",
+      "create_implementation_plan",
+      "get_project_context",
+      "start_work_session",
+      "end_work_session",
+    ]) {
+      if (!projectWorkflowSkill.includes(`\`${tool}\``)) {
+        failures.push(
+          `integrations/claude-code-plugin/skills/kioku-project-workflow/SKILL.md: missing current workflow tool '${tool}'`,
+        );
+      }
+    }
+
+    const marketplaceEntry = marketplace.plugins?.find((plugin) => plugin.name === "kioku");
+    const marketplaceDescription = marketplaceEntry?.description ?? "";
     for (const skill of ["kioku-vault", "kioku-project-workflow"]) {
       if (!marketplaceDescription.includes(skill)) {
         failures.push(`.claude-plugin/marketplace.json: Kioku description must mention '${skill}'`);
       }
+    }
+
+    if (marketplaceEntry?.source !== "./integrations/claude-code-plugin") {
+      failures.push(
+        ".claude-plugin/marketplace.json: Kioku source must point to './integrations/claude-code-plugin'",
+      );
+    }
+
+    if (Object.hasOwn(marketplaceEntry ?? {}, "version")) {
+      failures.push(
+        ".claude-plugin/marketplace.json: do not duplicate the plugin version; plugin.json is the single version authority",
+      );
     }
   } catch (error) {
     failures.push(`integration metadata: validation failed (${error.message})`);
