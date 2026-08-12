@@ -10,7 +10,8 @@ public sealed class CommandLineTests
     [Theory]
     [InlineData("--version")]
     [InlineData("-v")]
-    public async Task Version_switch_exits_without_starting_server(string versionArgument)
+    [InlineData("--transport", "stdio", "--version")]
+    public async Task Version_switch_exits_without_starting_server(params string[] versionArguments)
     {
         var serverAssembly = typeof(UtilityTools).Assembly;
         var expectedVersion = serverAssembly
@@ -33,7 +34,11 @@ public sealed class CommandLineTests
                 UseShellExecute = false,
             };
             startInfo.ArgumentList.Add(serverAssembly.Location);
-            startInfo.ArgumentList.Add(versionArgument);
+            foreach (var argument in versionArguments)
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
             startInfo.Environment.Remove("KIOKU_VAULT_PATH");
             startInfo.Environment.Remove("Kioku__VaultPath");
 

@@ -457,7 +457,12 @@ public sealed class VaultIndexService : IDisposable
         _lastIndexed = DateTimeOffset.UtcNow;
     }
 
-    private async Task IndexFileAsync(
+    /// <summary>
+    /// Indexes one file. Returns <c>true</c> only when the note was read and stored, so callers
+    /// that retry (full reconciliation) can detect a transient read failure even when a previous
+    /// version of the note is still present in the index.
+    /// </summary>
+    private async Task<bool> IndexFileAsync(
         string filePath,
         bool rebuildBacklinks = true,
         CancellationToken cancellationToken = default)
@@ -467,7 +472,7 @@ public sealed class VaultIndexService : IDisposable
             filePath = _paths.ResolveVaultReadPath(filePath);
             if (!File.Exists(filePath))
             {
-                return;
+                return false;
             }
 
             var content = await NoteHelpers.ReadAllTextAsync(filePath, cancellationToken);
@@ -500,10 +505,13 @@ public sealed class VaultIndexService : IDisposable
             {
                 RebuildBacklinkIndex();
             }
+
+            return true;
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Could not index {File}", filePath);
+            return false;
         }
     }
 
@@ -766,17 +774,20 @@ public sealed class VaultIndexService : IDisposable
     /// Re-indexes one file as part of a full reconciliation without rebuilding backlinks or
     /// discarding a valid embedding first. The embedding service can therefore use the content
     /// hash to skip unchanged vectors while the pipeline rebuilds global derived state once.
+    /// Returns <c>false</c> when the file could not be read, so the pipeline can retry instead of
+    /// silently keeping the previously indexed content.
     /// </summary>
-    internal async Task SynchronizeFileReconciliationAsync(string filePath)
+    internal async Task<bool> SynchronizeFileReconciliationAsync(string filePath)
     {
         try
         {
             CancelPendingWatcherDelete(filePath);
-            await IndexFileAsync(filePath, rebuildBacklinks: false);
+            return await IndexFileAsync(filePath, rebuildBacklinks: false);
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "SynchronizeFileReconciliationAsync failed for {File}. Index may be stale.", filePath);
+            return false;
         }
     }
 
@@ -790,7 +801,12 @@ public sealed class VaultIndexService : IDisposable
         }
     }
 
-    /// <summary>Rebuilds global derived state once after a full reconciliation file pass.</summary>
+    /// <summary>
+    /// Rebuilds global derived state once after a full reconciliation file pass. Deferring this
+    /// is safe because the pipeline holds the index unready for the whole scan, so tools never
+    /// observe the partially rebuilt backlink graph, and an aborted scan leaves the index unready
+    /// until a later successful reconciliation or incremental change repairs it.
+    /// </summary>
     internal void SynchronizeReconciliationDerivedState()
     {
         RebuildBacklinkIndex();

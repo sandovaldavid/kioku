@@ -14,9 +14,9 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Sentry;
 
-if (args.Length == 1 &&
-    (args[0].Equals("--version", StringComparison.OrdinalIgnoreCase) ||
-     args[0].Equals("-v", StringComparison.OrdinalIgnoreCase)))
+if (args.Any(argument =>
+        argument.Equals("--version", StringComparison.OrdinalIgnoreCase) ||
+        argument.Equals("-v", StringComparison.OrdinalIgnoreCase)))
 {
     var version = typeof(Program).Assembly
                       .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?

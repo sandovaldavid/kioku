@@ -268,6 +268,14 @@ agy plugin install ./integrations/antigravity-plugin
 
 ## Verifying Server Startup & Tools
 
+Confirm that the executable itself is installed and resolvable:
+
+```bash
+kioku --version
+```
+
+`--version` (or `-v`) prints the server version and exits without starting a transport, reading the vault, or requiring `KIOKU_VAULT_PATH`. Any other invocation starts the MCP server.
+
 After completing registration, start your client and verify that `kioku` connects.
 
 1. Call `tools/list` to confirm tools are registered.

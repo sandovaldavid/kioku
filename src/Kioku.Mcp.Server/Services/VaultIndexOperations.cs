@@ -44,10 +44,13 @@ internal sealed class VaultIndexOperations(VaultIndexService vault) : IVaultInde
 
     public async Task ReconcileFileAsync(string filePath, CancellationToken cancellationToken)
     {
-        await vault.SynchronizeFileReconciliationAsync(filePath).WaitAsync(cancellationToken);
+        var indexed = await vault.SynchronizeFileReconciliationAsync(filePath)
+            .WaitAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (File.Exists(filePath) && vault.GetNote(filePath) is null)
+        // Reconciliation does not pre-remove the note, so a stale entry can survive a failed read.
+        // Retry on the indexing result instead of on index membership.
+        if (!indexed && File.Exists(filePath))
         {
             throw new IOException($"The note could not be reconciled after reading '{filePath}'.");
         }
