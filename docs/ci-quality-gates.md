@@ -12,6 +12,16 @@ Pushes to `main` and manually dispatched CI runs always use the full runtime mat
 
 A job that is intentionally skipped by this classifier is **Not run** for execution-evidence purposes; it is not evidence that the underlying runtime control passed on that PR.
 
+## Conventional Commit validation
+
+`.githooks/commit-msg` remains the single Conventional Commit policy used locally and by CI. Ordinary pull requests validate the real commits introduced by the PR using `pull_request.base.sha..pull_request.head.sha`; CI does not use GitHub's synthetic pull-request merge-ref `HEAD` as the head of that range.
+
+The only branch-flow exception is the repository-owned post-release `main` → `develop` back-sync. That PR necessarily carries commits that were already published on `main`, so re-linting the inherited release history is not evidence about the synchronization itself. For this exact same-repository branch pair, CI validates the pull-request title through the same `.githooks/commit-msg` hook instead. A normal title is therefore `chore(develop): sync main after <version> release`.
+
+The exception also requires the PR head repository to equal the current Kioku repository. A fork branch named `main` does not qualify and remains subject to ordinary commit-range validation. Merge commits and Release Please automation retain the compatibility rules already defined by `.githooks/commit-msg`; the hook itself is not weakened for back-syncs.
+
+`scripts/test-conventional-commit-validation.sh` exercises this contract in a temporary Git repository: explicit PR-head selection, rejection of an introduced non-conventional commit, valid and invalid back-sync titles, fork protection, and the existing merge/release compatibility cases. The `conventional-commits` job runs that test before validating the current event. Push/manual behavior continues to validate the current checked-out commit as before.
+
 ## Native test coverage
 
 The complete `Kioku.Mcp.Server.Tests` suite runs on:
@@ -113,6 +123,9 @@ Change-specific checks:
 ```bash
 # Skill source/generated copies
 ./scripts/sync-skill.sh --check
+
+# Conventional Commit range/back-sync contract
+bash scripts/test-conventional-commit-validation.sh
 
 # Dev Container changes
 bash .devcontainer/scripts/validate-devcontainer.sh
