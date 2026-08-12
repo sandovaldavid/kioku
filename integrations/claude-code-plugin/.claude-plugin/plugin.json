@@ -2,14 +2,20 @@
   "name": "kioku",
   "displayName": "Kioku",
   "description": "MCP server + skills for reading, searching, organizing, and managing project workflows in an Obsidian vault (45 default tools and 78 all-capabilities tools, plus prompts and resources).",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "author": {
     "name": "sandovaldavid"
   },
   "homepage": "https://github.com/sandovaldavid/kioku",
   "repository": "https://github.com/sandovaldavid/kioku",
   "license": "MIT",
-  "keywords": ["obsidian", "notes", "mcp", "knowledge-management", "zettelkasten"],
+  "keywords": [
+    "obsidian",
+    "notes",
+    "mcp",
+    "knowledge-management",
+    "zettelkasten"
+  ],
   "userConfig": {
     "ollama_url": {
       "type": "string",

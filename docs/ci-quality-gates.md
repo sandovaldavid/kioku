@@ -43,17 +43,17 @@ The same job validates:
 
 - JSON manifests;
 - SKILL frontmatter;
-- generated `kioku-vault` skill copies through `scripts/sync-skill.sh --check`;
+- generated Kioku skill copies through `scripts/sync-skill.sh --check`;
 - ShellCheck for maintained shell scripts;
 - portable client configuration through `node scripts/validate-portable-configs.mjs`.
 
-Portable-config validation checks committed integration/configuration assets for machine-specific paths and contract drift; Kioku no longer relies on the retired cross-client `scripts/add-to-client.sh` wrapper.
+Portable-config validation checks committed integration/configuration assets for machine-specific paths and contract drift. It also verifies that the Claude plugin version matches the server package, the marketplace points at the canonical plugin without duplicating its version, the canonical skills advertise the generated default/all-capability profile counts and current engineering workflow tools, and Antigravity rules cover every disabled-by-default capability group. Kioku no longer relies on the retired cross-client `scripts/add-to-client.sh` wrapper.
 
 The separate `docs-links` workflow runs three documentation contracts on pushes and pull requests targeting `main` or `develop`:
 
 - `node scripts/validate-markdown-links.mjs` verifies repository-relative file links in maintained Markdown entry points;
 - `node scripts/validate-docs-navigation.mjs` verifies that every sidebar destination exists and has effective Jekyll layout, title, and sidebar metadata;
-- `node scripts/validate-release-documentation.mjs` verifies that the package, MCP manifest, Release Please manifest, root README, NuGet README, AGENTS snapshot, versioning page, and site badge use the same server version and remain covered by release automation.
+- `node scripts/validate-release-documentation.mjs` verifies that the package, MCP manifest, Release Please manifest, root README, NuGet README, AGENTS snapshot, installation guide, integrations guide, versioning page, site badge, and versioned Claude plugin manifest use the same server version and remain covered by release automation.
 
 These checks intentionally do not make network requests or claim that external URLs, hosted documentation, anchors, redirects, or third-party services are available.
 
@@ -77,9 +77,9 @@ Codecov remains informational because pull requests from forks cannot reliably a
 
 Release Please owns the tagged server-version bump. Before the release PR is merged, `develop` may legitimately continue to display the latest published version in release-managed markers.
 
-`node scripts/validate-release-documentation.mjs` keeps the current package/manifest/version markers synchronized and verifies that Release Please covers the release-facing files. Do not manually pre-bump those markers merely to prepare a promotion PR.
+`node scripts/validate-release-documentation.mjs` keeps the current package/manifest/version markers synchronized and verifies that Release Please covers every release-facing file, including the installation and integrations guides and the versioned Claude plugin manifest. Do not manually pre-bump those markers merely to prepare a promotion PR.
 
-The release PR generated after promotion is the point where the package version, MCP manifest, README badges, NuGet README, AGENTS snapshot, generated versioning page, and site badge advance together.
+The release PR generated after promotion is the point where the package version, MCP manifest, README badges, NuGet README, AGENTS snapshot, installation guide, integrations guide, generated versioning page, site badge, and Claude plugin version advance together.
 
 ## Local verification
 

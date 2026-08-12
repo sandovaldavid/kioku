@@ -21,6 +21,14 @@
         },
         {
           "type": "generic",
+          "path": "docs/install.md"
+        },
+        {
+          "type": "generic",
+          "path": "integrations/README.md"
+        },
+        {
+          "type": "generic",
           "path": "src/Kioku.Mcp.Server/README.md"
         },
         {
