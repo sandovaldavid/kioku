@@ -763,6 +763,41 @@ public sealed class VaultIndexService : IDisposable
     }
 
     /// <summary>
+    /// Re-indexes one file as part of a full reconciliation without rebuilding backlinks or
+    /// discarding a valid embedding first. The embedding service can therefore use the content
+    /// hash to skip unchanged vectors while the pipeline rebuilds global derived state once.
+    /// </summary>
+    internal async Task SynchronizeFileReconciliationAsync(string filePath)
+    {
+        try
+        {
+            CancelPendingWatcherDelete(filePath);
+            await IndexFileAsync(filePath, rebuildBacklinks: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "SynchronizeFileReconciliationAsync failed for {File}. Index may be stale.", filePath);
+        }
+    }
+
+    /// <summary>Removes one stale note during a full reconciliation without rebuilding backlinks.</summary>
+    internal void SynchronizeReconciliationDelete(string filePath)
+    {
+        if (_paths.IsInsideVault(filePath))
+        {
+            CancelPendingWatcherDelete(filePath);
+            RemoveFromIndex(filePath, rebuildBacklinks: false);
+        }
+    }
+
+    /// <summary>Rebuilds global derived state once after a full reconciliation file pass.</summary>
+    internal void SynchronizeReconciliationDerivedState()
+    {
+        RebuildBacklinkIndex();
+        _lastIndexed = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
     /// Synchronously re-indexes a file (removes old entry, re-reads from disk).
     /// Use after reverting a file via git to refresh the in-memory index.
     /// Never throws — callers (MCP tools that already wrote the file) must not crash
