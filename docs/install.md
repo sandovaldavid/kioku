@@ -6,6 +6,8 @@ sidebar: true
 
 # Installation Guide
 
+> Current tagged server release: **3.1.0** <!-- x-release-please-version -->
+
 Kioku installation and client integration is organized into two independent steps:
 
 ```text
@@ -33,6 +35,8 @@ To update later:
 ```bash
 dotnet tool update --global kioku-mcp-server
 ```
+
+The unpinned commands install or update to the latest stable NuGet release. For reproducible setup, pin the exact version shown at the top of this page with `--version <version>`.
 
 ### Option B: Install via One-Line Install Script
 
@@ -85,6 +89,13 @@ Claude Code users can install the Kioku plugin from the marketplace:
 ```bash
 claude plugin marketplace add sandovaldavid/kioku
 claude plugin install kioku@kioku
+```
+
+To refresh an existing installation after a Kioku release:
+
+```bash
+claude plugin marketplace update kioku
+claude plugin update kioku@kioku
 ```
 
 Export `KIOKU_VAULT_PATH` before installing and keep it available whenever Claude Code launches.
@@ -274,7 +285,7 @@ Confirm that the executable itself is installed and resolvable:
 kioku --version
 ```
 
-`--version` (or `-v`) prints the server version and exits without starting a transport, reading the vault, or requiring `KIOKU_VAULT_PATH`. Any other invocation starts the MCP server.
+`--version` (or `-v`) prints the server version and exits without starting a transport, reading the vault, or requiring `KIOKU_VAULT_PATH`. The output should match the current tagged release shown at the top of this page when you installed from NuGet or the tagged binary release. Any other invocation starts the MCP server.
 
 After completing registration, start your client and verify that `kioku` connects.
 

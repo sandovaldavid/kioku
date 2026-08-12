@@ -14,15 +14,19 @@ const projectPath = "src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj";
 const manifestPath = "src/Kioku.Mcp.Server/.mcp/server.json";
 const releaseManifestPath = ".release-please-manifest.json";
 const releaseConfigPath = "release-please-config.json";
+const claudePluginPath = "integrations/claude-code-plugin/.claude-plugin/plugin.json";
 
 const [
   project,
   manifestText,
   releaseManifestText,
   releaseConfigText,
+  claudePluginText,
   rootReadme,
   packageReadme,
   agents,
+  installGuide,
+  integrationsReadme,
   docsConfig,
   versioning,
 ] = await Promise.all([
@@ -30,9 +34,12 @@ const [
   read(manifestPath),
   read(releaseManifestPath),
   read(releaseConfigPath),
+  read(claudePluginPath),
   read("README.md"),
   read("src/Kioku.Mcp.Server/README.md"),
   read("AGENTS.md"),
+  read("docs/install.md"),
+  read("integrations/README.md"),
   read("docs/_config.yml"),
   read("docs/versioning.md"),
 ]);
@@ -55,6 +62,11 @@ if (packageVersion !== version) {
   failures.push(`${manifestPath}: packages[0].version ${packageVersion ?? "missing"} does not match ${version}`);
 }
 
+const claudePlugin = parseJson(claudePluginText, claudePluginPath);
+if (claudePlugin.version !== version) {
+  failures.push(`${claudePluginPath}: version ${claudePlugin.version ?? "missing"} does not match ${version}`);
+}
+
 const releaseManifest = parseJson(releaseManifestText, releaseManifestPath);
 if (releaseManifest["."] !== version) {
   failures.push(`${releaseManifestPath}: package version ${releaseManifest["."] ?? "missing"} does not match ${version}`);
@@ -64,6 +76,8 @@ for (const [relativePath, source] of [
   ["README.md", rootReadme],
   ["src/Kioku.Mcp.Server/README.md", packageReadme],
   ["AGENTS.md", agents],
+  ["docs/install.md", installGuide],
+  ["integrations/README.md", integrationsReadme],
   ["docs/_config.yml", docsConfig],
   ["docs/versioning.md", versioning],
 ]) {
@@ -78,6 +92,8 @@ if (!Array.isArray(extraFiles)) {
   const requiredGenericPaths = [
     "README.md",
     "AGENTS.md",
+    "docs/install.md",
+    "integrations/README.md",
     "src/Kioku.Mcp.Server/README.md",
     "docs/_config.yml",
     "docs/versioning.md",
@@ -102,6 +118,13 @@ if (!Array.isArray(extraFiles)) {
       entry.jsonpath === jsonpath)) {
       failures.push(`${releaseConfigPath}: missing ${jsonpath} update for ${manifestPath}`);
     }
+  }
+
+  if (!extraFiles.some((entry) =>
+    entry.type === "json" &&
+    entry.path === claudePluginPath &&
+    entry.jsonpath === "$.version")) {
+    failures.push(`${releaseConfigPath}: missing $.version update for ${claudePluginPath}`);
   }
 }
 
