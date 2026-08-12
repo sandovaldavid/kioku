@@ -50,10 +50,10 @@ validate_range() {
     local sha
     for sha in "${commits[@]}"; do
         git log -1 --format=%B "$sha" > "$message_file"
-        if ! validate_message_file "$message_file"; then
+        validate_message_file "$message_file" || {
             status=$?
             break
-        fi
+        }
     done
 
     rm -f "$message_file"
