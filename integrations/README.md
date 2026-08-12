@@ -1,6 +1,6 @@
 # Client integrations
 
-> Current tagged server release: **3.1.0** <!-- x-release-please-version -->
+> Current tagged server release: **3.1.1** <!-- x-release-please-version -->
 
 This directory packages native plugin bundles and MCP configurations for AI coding clients (such as Claude Code and Antigravity) that support native plugins or bundled skills alongside MCP configuration.
 
