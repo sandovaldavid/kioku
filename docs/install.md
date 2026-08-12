@@ -6,7 +6,7 @@ sidebar: true
 
 # Installation Guide
 
-> Current tagged server release: **3.1.0** <!-- x-release-please-version -->
+> Current tagged server release: **3.1.1** <!-- x-release-please-version -->
 
 Kioku installation and client integration is organized into two independent steps:
 
