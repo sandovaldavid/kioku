@@ -228,10 +228,21 @@ public sealed class VaultMutationServiceTests : IDisposable
         public Task ReindexAsync(string filePath, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
+        public Task ReconcileFileAsync(string filePath, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
         public Task MoveAsync(string oldPath, string newPath, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
         public void Delete(string filePath)
+        {
+        }
+
+        public void DeleteStale(string filePath)
+        {
+        }
+
+        public void FinalizeReconciliation()
         {
         }
     }
