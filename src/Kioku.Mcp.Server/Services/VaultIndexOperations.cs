@@ -15,9 +15,15 @@ public interface IVaultIndexOperations
 
     Task ReindexAsync(string filePath, CancellationToken cancellationToken);
 
+    Task ReconcileFileAsync(string filePath, CancellationToken cancellationToken);
+
     Task MoveAsync(string oldPath, string newPath, CancellationToken cancellationToken);
 
     void Delete(string filePath);
+
+    void DeleteStale(string filePath);
+
+    void FinalizeReconciliation();
 }
 
 internal sealed class VaultIndexOperations(VaultIndexService vault) : IVaultIndexOperations
@@ -36,6 +42,20 @@ internal sealed class VaultIndexOperations(VaultIndexService vault) : IVaultInde
         }
     }
 
+    public async Task ReconcileFileAsync(string filePath, CancellationToken cancellationToken)
+    {
+        var indexed = await vault.SynchronizeFileReconciliationAsync(filePath)
+            .WaitAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Reconciliation does not pre-remove the note, so a stale entry can survive a failed read.
+        // Retry on the indexing result instead of on index membership.
+        if (!indexed && File.Exists(filePath))
+        {
+            throw new IOException($"The note could not be reconciled after reading '{filePath}'.");
+        }
+    }
+
     public async Task MoveAsync(
         string oldPath,
         string newPath,
@@ -50,4 +70,8 @@ internal sealed class VaultIndexOperations(VaultIndexService vault) : IVaultInde
     }
 
     public void Delete(string filePath) => vault.SynchronizeFileDelete(filePath);
+
+    public void DeleteStale(string filePath) => vault.SynchronizeReconciliationDelete(filePath);
+
+    public void FinalizeReconciliation() => vault.SynchronizeReconciliationDerivedState();
 }
