@@ -24,15 +24,19 @@ validate_message_file() {
 validate_title() {
     local title="$1"
     local message_file
+    local status=0
+
     message_file="$(mktemp)"
-    trap 'rm -f "$message_file"' RETURN
     printf '%s\n' "$title" > "$message_file"
-    validate_message_file "$message_file"
+    validate_message_file "$message_file" || status=$?
+    rm -f "$message_file"
+    return "$status"
 }
 
 validate_range() {
     local range="$1"
     local message_file
+    local status=0
     local -a commits=()
 
     mapfile -t commits < <(git rev-list --reverse "$range")
@@ -42,13 +46,18 @@ validate_range() {
     fi
 
     message_file="$(mktemp)"
-    trap 'rm -f "$message_file"' RETURN
 
     local sha
     for sha in "${commits[@]}"; do
         git log -1 --format=%B "$sha" > "$message_file"
-        validate_message_file "$message_file"
+        if ! validate_message_file "$message_file"; then
+            status=$?
+            break
+        fi
     done
+
+    rm -f "$message_file"
+    return "$status"
 }
 
 [[ -n "$EVENT_NAME" ]] || fail "event name is required"
