@@ -567,8 +567,13 @@ public sealed partial class NoteCommandTools(
             return exception.ToToolError();
         }
 
-        if (update_links && linkSummary.LinksUpdated > 0)
+        if (update_links)
         {
+            // Always re-scan post-move rather than trusting the pre-move dry-run count: moving
+            // the note flips its inbound relative (../, ./) links from Resolved to Missing, so a
+            // pre-move pass that intentionally leaves a still-working relative link alone (see
+            // WikilinkRewritePolicy) can report zero updates even though the post-move fallback
+            // now has real work to do rewriting that same link.
             linkSummary = await UpdateInboundWikilinksAsync(plan, dryRun: false);
         }
 

@@ -58,6 +58,32 @@ public class WikilinkRewritePolicyTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Decide_RewritesRelativeTraversalOnceTargetHasMoved()
+    {
+        // Simulates the moment right after move_note relocates B/Target to B/Renamed: the old
+        // B/Target.md no longer exists, so resolving "../B/Target" from A/Source now comes back
+        // Missing rather than Resolved — the counterpart to
+        // Decide_LeavesAliasAndRelativeSpellingsUncanonicalized, which covers the still-resolves
+        // case for the same relative spelling.
+        await _fixture.CreateNoteAsync("A/Source", "Links.");
+        await _fixture.Index.RebuildIndexAsync();
+
+        var source = _fixture.Index.ResolveNote("A/Source")!;
+        var plan = new WikilinkRewriter.RewritePlan(
+            OldShortName: "Target",
+            NewShortName: "Renamed",
+            OldFullPath: "B/Target",
+            NewFullPath: "B/Renamed",
+            RewriteShortNameLinks: true,
+            ShortNameAmbiguous: false);
+
+        var decision = WikilinkRewritePolicy.Decide(_fixture.Index, source, "../B/Target", plan);
+
+        Assert.Equal(WikilinkRewriter.TargetRewriteAction.Rewrite, decision.Action);
+        Assert.Equal("B/Renamed", decision.ReplacementTarget);
+    }
+
+    [Fact]
     public async Task Decide_LeavesMalformedTraversalUntouched()
     {
         await _fixture.CreateNoteAsync("Old", "Target.");

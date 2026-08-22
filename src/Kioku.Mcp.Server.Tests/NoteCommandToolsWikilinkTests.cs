@@ -169,6 +169,24 @@ public class NoteCommandToolsWikilinkTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MoveNote_RewritesInboundRelativeParentTraversalLinks()
+    {
+        await _fixture.CreateNoteAsync("A/Source", "See [[../B/Target]].");
+        await _fixture.CreateNoteAsync("B/Target", "Target note.");
+        await _fixture.Index.RebuildIndexAsync();
+        var tools = CreateTools();
+
+        var result = await tools.move_note("B/Target", new_name: "B/Renamed");
+
+        Assert.Contains("[ok] Note renamed", result);
+        Assert.Contains("Updated 1 wikilink(s) in 1 note(s).", result);
+
+        var body = await _fixture.ReadNoteBodyAsync("A/Source");
+        Assert.Contains("[[B/Renamed]]", body);
+        Assert.DoesNotContain("[[../B/Target]]", body);
+    }
+
+    [Fact]
     public async Task MoveNote_DryRun_DoesNotModifyAnyFile()
     {
         await _fixture.CreateNoteAsync("Linker", "Full: [[Projects/Project Alpha]].");
