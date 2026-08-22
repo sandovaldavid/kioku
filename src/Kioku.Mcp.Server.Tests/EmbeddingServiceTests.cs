@@ -81,6 +81,29 @@ public class EmbeddingServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task InitializeAsync_CorruptedCacheFile_DoesNotThrowAndRebuildsInBackground()
+    {
+        // Simulates an unclean shutdown: valid magic header present, but the file is
+        // truncated before the rest of the header can be read (see GitHub #441).
+        var cachePath = Path.Combine(_vaultPath, ".kioku", "embeddings.bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+        await File.WriteAllBytesAsync(cachePath, "KIOKU_EMB\n"u8.ToArray());
+
+        var service = CreateService((req, _) => req.Method == HttpMethod.Get
+            ? Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))
+            : Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { embedding = new[] { 0.1f, 0.2f } }) }));
+
+        var notes = new[] { MakeNote("A.md", "hash-a") };
+
+        // Must not throw EndOfStreamException/IOException — the corrupted cache should be
+        // discarded, not crash server startup.
+        await service.InitializeAsync(notes);
+        await WaitForBacklogToClearAsync(service);
+
+        Assert.Equal(1, service.CachedEmbeddingCount); // re-embedded fresh after cache discard
+    }
+
+    [Fact]
     public async Task InitializeAsync_UnchangedNotesAcrossRestart_AreNotReEmbedded()
     {
         var embedCalls = 0;

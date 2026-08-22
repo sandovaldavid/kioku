@@ -129,7 +129,24 @@ public sealed class EmbeddingService : IDisposable
 
         logger.Info("Ollama reachable. Model: {Model}", config.EmbeddingModel);
         cancellationToken.ThrowIfCancellationRequested();
-        var (loaded, cachedModel, cachedDim) = await EmbeddingPersistence.LoadAsync(CachePath);
+
+        Dictionary<string, EmbeddingEntry> loaded;
+        string? cachedModel;
+        int cachedDim;
+        try
+        {
+            (loaded, cachedModel, cachedDim) = await EmbeddingPersistence.LoadAsync(CachePath);
+        }
+        catch (IOException ex)
+        {
+            // Truncated/corrupted cache (e.g. an unclean shutdown mid-write) throws
+            // EndOfStreamException/IOException from the binary reader. Discard the cache
+            // and start empty instead of crashing server startup — embeddings rebuild below.
+            logger.Warn(ex, "Embedding cache at {Path} is corrupted or truncated. Discarding and rebuilding.", CachePath);
+            loaded = new Dictionary<string, EmbeddingEntry>(StringComparer.OrdinalIgnoreCase);
+            cachedModel = null;
+            cachedDim = 0;
+        }
 
         if (loaded.Count > 0 &&
             (cachedModel != config.EmbeddingModel || cachedDim != ExpectedDimension))
