@@ -154,7 +154,7 @@ function validateReleaseSupplyChain(source) {
     ["syft scan \"dir:publish/${{ matrix.rid }}\"", "must generate each RID SBOM explicitly"],
     ["--output \"spdx-json=${{ matrix.artifact-name }}.spdx.json\"", "must name each RID SBOM explicitly"],
     ["test -s \"${{ matrix.artifact-name }}.spdx.json\"", "must fail when an RID SBOM is missing or empty"],
-    ["sigstore/cosign-installer@v4.1.0", "must use the reviewed Cosign installer with download retries"],
+    ["sigstore/cosign-installer@v4.1.2", "must use the reviewed Cosign installer with download retries"],
     ["fail-fast: false", "must collect build evidence from every release RID even when one matrix leg fails"],
   ];
 
