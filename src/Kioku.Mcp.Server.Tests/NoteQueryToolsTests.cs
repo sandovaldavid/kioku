@@ -108,6 +108,28 @@ public class NoteQueryToolsTests : IClassFixture<VaultFixture>
     }
 
     [Fact]
+    public async Task read_note_succeeds_despite_a_transient_exclusive_lock()
+    {
+        var tools = CreateTools();
+        var path = _fixture.GetNotePath("Note One");
+
+        // Simulate another process (Obsidian, Git, a concurrent agent) holding the note open for
+        // writing at the exact moment read_note re-reads from disk (GitHub #442). The lock is
+        // held from before the read starts until well after its first attempt, then released
+        // while the resilient retry loop still has plenty of budget (up to 7 * 25ms) left.
+        await using var writerHandle = new FileStream(
+            path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        var readTask = tools.read_note("Note One", format: "json");
+
+        await Task.Delay(60);
+        await writerHandle.DisposeAsync();
+
+        var json = await readTask;
+        using var doc = JsonDocument.Parse(json);
+        Assert.Equal("Note One", doc.RootElement.GetProperty("name").GetString());
+    }
+
+    [Fact]
     public void list_notes_json_returns_pagination_shape()
     {
         var tools = CreateTools();
