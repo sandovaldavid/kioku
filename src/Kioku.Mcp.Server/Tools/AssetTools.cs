@@ -37,30 +37,25 @@ public sealed class AssetTools(
             return "[ok] No asset files found.";
         }
 
-        // Build reference set: all filenames mentioned in notes
+        // Build reference set: all filenames mentioned in notes. Reuse the same wikilink/Markdown
+        // link patterns tidy_attachments already relies on, instead of a second ad hoc regex that
+        // doesn't strip wikilink aliases/dimensions/fragments or Markdown link titles/fragments —
+        // that mismatch was the root cause of in-use assets being misclassified as orphans.
         var referencedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var allNotes = vault.GetAllNotes().ToList();
 
         foreach (var note in allNotes)
         {
-            // Pattern: ![[filename]] or [text](filename) or [[filename.ext]]
-            var matches = Regex.Matches(note.RawContent, @"!\[\[([^\]]+)\]\]|\[.*?\]\(([^)]+)\)|\[\[([^\]]+)\]\]");
-            foreach (Match match in matches)
+            foreach (Match match in WikilinkPattern.Matches(note.RawContent))
             {
-                var filename = match.Groups[1].Value;
-                if (string.IsNullOrEmpty(filename))
-                {
-                    filename = match.Groups[2].Value;
-                }
-                if (string.IsNullOrEmpty(filename))
-                {
-                    filename = match.Groups[3].Value;
-                }
+                AddReferencedFile(referencedFiles, match.Groups["target"].Value);
+            }
 
-                if (!string.IsNullOrEmpty(filename))
-                {
-                    referencedFiles.Add(Path.GetFileName(filename));
-                }
+            foreach (Match match in MarkdownLinkPattern.Matches(note.RawContent))
+            {
+                var destination = match.Groups["destination"].Value.TrimStart();
+                var end = destination.IndexOfAny([' ', '\t', '#']);
+                AddReferencedFile(referencedFiles, end < 0 ? destination : destination[..end]);
             }
         }
 
@@ -294,6 +289,15 @@ public sealed class AssetTools(
     private sealed record AssetRename(string OldPath, string NewPath);
 
     private sealed record AssetReferenceChange(string OldPath, string NewPath);
+
+    private static void AddReferencedFile(HashSet<string> referencedFiles, string target)
+    {
+        target = target.Trim();
+        if (!string.IsNullOrEmpty(target))
+        {
+            referencedFiles.Add(Path.GetFileName(target));
+        }
+    }
 
     private static bool IsHiddenPath(string path, string vaultRoot)
     {
