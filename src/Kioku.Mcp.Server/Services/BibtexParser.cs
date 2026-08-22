@@ -55,26 +55,32 @@ public static partial class BibtexParser
                 continue;
             }
 
+            // Standard BibTeX allows either @type{...} or @type(...); the two forms are never
+            // mixed within one entry, so whichever opening delimiter is used here also fixes the
+            // required closing delimiter for the rest of this entry (or non-entry block).
             SkipWhitespace(cleaned, ref scanPos);
-            if (scanPos >= cleaned.Length || cleaned[scanPos] != '{')
+            if (scanPos >= cleaned.Length || (cleaned[scanPos] != '{' && cleaned[scanPos] != '('))
             {
-                errors.Add($"Expected '{{' after @{type} (position {at}).");
+                errors.Add($"Expected '{{' or '(' after @{type} (position {at}).");
                 pos = at + 1;
                 continue;
             }
 
+            var opening = cleaned[scanPos];
+            var closing = opening == '{' ? '}' : ')';
+
             if (NonEntryTypes.Contains(type))
             {
-                if (!TrySkipBalancedBraces(cleaned, ref scanPos))
+                if (!TrySkipBalancedDelimiters(cleaned, ref scanPos, opening, closing))
                 {
-                    errors.Add($"Unbalanced braces in @{type} block (position {at}).");
+                    errors.Add($"Unbalanced {(closing == '}' ? "braces" : "parentheses")} in @{type} block (position {at}).");
                 }
 
                 pos = scanPos;
                 continue;
             }
 
-            if (TryParseEntryBody(cleaned, type.ToLowerInvariant(), ref scanPos, out var entry, out var error))
+            if (TryParseEntryBody(cleaned, type.ToLowerInvariant(), closing, ref scanPos, out var entry, out var error))
             {
                 entries.Add(entry!);
             }
@@ -92,16 +98,16 @@ public static partial class BibtexParser
     // Private helpers
 
     private static bool TryParseEntryBody(
-        string content, string type, ref int pos, out BibtexEntry? entry, out string? error)
+        string content, string type, char closingDelimiter, ref int pos, out BibtexEntry? entry, out string? error)
     {
         entry = null;
         error = null;
 
-        // pos is at the entry's opening '{'.
+        // pos is at the entry's opening delimiter ('{' or '(').
         pos++;
 
         var keyStart = pos;
-        while (pos < content.Length && content[pos] != ',' && content[pos] != '}')
+        while (pos < content.Length && content[pos] != ',' && content[pos] != closingDelimiter)
         {
             pos++;
         }
@@ -130,14 +136,14 @@ public static partial class BibtexParser
                 return false;
             }
 
-            if (content[pos] == '}')
+            if (content[pos] == closingDelimiter)
             {
                 pos++;
                 break;
             }
 
             var nameStart = pos;
-            while (pos < content.Length && content[pos] != '=' && !char.IsWhiteSpace(content[pos]) && content[pos] != '}')
+            while (pos < content.Length && content[pos] != '=' && !char.IsWhiteSpace(content[pos]) && content[pos] != closingDelimiter)
             {
                 pos++;
             }
@@ -159,7 +165,7 @@ public static partial class BibtexParser
             pos++;
             SkipWhitespace(content, ref pos);
 
-            if (!TryExtractFieldValue(content, ref pos, out var rawValue, out var valueError))
+            if (!TryExtractFieldValue(content, closingDelimiter, ref pos, out var rawValue, out var valueError))
             {
                 error = $"{valueError} (field '{fieldName}' in entry '{citeKey}')";
                 return false;
@@ -173,7 +179,8 @@ public static partial class BibtexParser
         return true;
     }
 
-    private static bool TryExtractFieldValue(string content, ref int pos, out string? value, out string? error)
+    private static bool TryExtractFieldValue(
+        string content, char closingDelimiter, ref int pos, out string? value, out string? error)
     {
         value = null;
         error = null;
@@ -218,7 +225,7 @@ public static partial class BibtexParser
 
         // Bare token (e.g. year = 2023, or a @string macro reference).
         var bareStart = pos;
-        while (pos < content.Length && content[pos] != ',' && content[pos] != '}' && !char.IsWhiteSpace(content[pos]))
+        while (pos < content.Length && content[pos] != ',' && content[pos] != closingDelimiter && !char.IsWhiteSpace(content[pos]))
         {
             pos++;
         }
@@ -227,9 +234,12 @@ public static partial class BibtexParser
         return true;
     }
 
-    private static bool TrySkipBalancedBraces(string content, ref int pos)
+    private static bool TrySkipBalancedBraces(string content, ref int pos) =>
+        TrySkipBalancedDelimiters(content, ref pos, '{', '}');
+
+    private static bool TrySkipBalancedDelimiters(string content, ref int pos, char open, char close)
     {
-        // pos is at the opening '{'.
+        // pos is at the opening delimiter.
         var depth = 0;
         do
         {
@@ -238,11 +248,11 @@ public static partial class BibtexParser
                 return false;
             }
 
-            if (content[pos] == '{')
+            if (content[pos] == open)
             {
                 depth++;
             }
-            else if (content[pos] == '}')
+            else if (content[pos] == close)
             {
                 depth--;
             }

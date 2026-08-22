@@ -96,6 +96,52 @@ public class BibtexParserTests
         Assert.Empty(result.Errors);
     }
 
+    [Fact]
+    public void Parse_ParenthesisDelimitedEntry_ParsesLikeBraceDelimited()
+    {
+        var result = BibtexParser.Parse("@article(smith2023, title = {A Study})");
+
+        Assert.Empty(result.Errors);
+        var entry = Assert.Single(result.Entries);
+        Assert.Equal("smith2023", entry.CiteKey);
+        Assert.Equal("A Study", entry.Fields["title"]);
+    }
+
+    [Fact]
+    public void Parse_MixedBraceAndParenthesisEntries_BothParseInTheSameDocument()
+    {
+        var result = BibtexParser.Parse(
+            "@article{brace2023, title = {Brace}}\n@book(paren2023, title = {Paren})");
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(["brace2023", "paren2023"], result.Entries.Select(e => e.CiteKey));
+    }
+
+    [Fact]
+    public void Parse_ParenthesisDelimitedEntry_FieldValuesStillUseBraces()
+    {
+        // The entry's own delimiter (parentheses here) is independent of how each field value
+        // is delimited — fields still use {...} or "..." regardless.
+        var result = BibtexParser.Parse(
+            "@inproceedings(doe2024, author = {Doe, Jane}, year = 2024)");
+
+        Assert.Empty(result.Errors);
+        var entry = Assert.Single(result.Entries);
+        Assert.Equal("Doe, Jane", entry.Fields["author"]);
+        Assert.Equal("2024", entry.Fields["year"]);
+    }
+
+    [Fact]
+    public void Parse_ParenthesisDelimitedCommentBlock_DoesNotDesyncSubsequentParsing()
+    {
+        var result = BibtexParser.Parse(
+            "@comment(this is a comment block)\n@article{real2023, title = {Real}}");
+
+        Assert.Empty(result.Errors);
+        var entry = Assert.Single(result.Entries);
+        Assert.Equal("real2023", entry.CiteKey);
+    }
+
     [Theory]
     [InlineData("{\\'e}", "é")]
     [InlineData("\\'e", "é")]
