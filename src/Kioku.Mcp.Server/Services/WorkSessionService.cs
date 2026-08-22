@@ -671,7 +671,7 @@ internal sealed partial class WorkSessionService
                 now = startedAt;
             }
 
-            var modified = _vault.GetAllNotes()
+            var modified = GetProjectScopedNotes(selected.Project)
                 .Where(note =>
                     note.LastModified.ToUniversalTime() > startedAt &&
                     note.LastModified.ToUniversalTime() <= now &&
@@ -816,7 +816,7 @@ internal sealed partial class WorkSessionService
         SessionDescriptor session,
         DateTimeOffset end)
     {
-        var notes = _vault.GetAllNotes()
+        var notes = GetProjectScopedNotes(session.Project)
             .Where(note =>
                 note.LastModified.ToUniversalTime() >= session.StartedAt &&
                 note.LastModified.ToUniversalTime() <= end &&
