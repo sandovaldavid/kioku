@@ -356,11 +356,42 @@ public sealed class VaultIndexService : IDisposable
                     return false;
                 }
 
-                var raw = NormalizeVaultPath(link);
+                // A raw ../ or ./ traversal is relative to the linking note's own directory, not
+                // to the vault root, so resolve it against `source` before comparing against the
+                // vault-relative query. Otherwise a moved-away target's inbound relative links
+                // never match here and move_note silently leaves them broken.
+                var raw = NormalizeVaultPath(ResolveRelativeLinkTarget(source, link));
                 return raw.Equals(query, StringComparison.OrdinalIgnoreCase) ||
                        raw.StartsWith(query + "#", StringComparison.OrdinalIgnoreCase);
             }))
             .ToList();
+    }
+
+    /// <summary>
+    /// Rewrites a raw wikilink target that starts with a ./ or ../ traversal into a vault-root
+    /// relative path, using <paramref name="source"/>'s own directory as the base. Other targets
+    /// (bare names, vault-root-relative paths) pass through unchanged. Mirrors the directory-
+    /// relative resolution <see cref="VaultLinkResolver"/> performs for a link whose target still
+    /// exists, without requiring the target to exist on disk — used by both the backlink
+    /// compatibility scan above and <see cref="WikilinkRewritePolicy"/> so a moved-away target's
+    /// relative inbound links are found and rewritten consistently.
+    /// </summary>
+    internal string ResolveRelativeLinkTarget(Note source, string link)
+    {
+        if (!link.StartsWith("../", StringComparison.Ordinal) &&
+            !link.StartsWith("./", StringComparison.Ordinal))
+        {
+            return link;
+        }
+
+        var hashIndex = link.IndexOf('#');
+        var path = hashIndex < 0 ? link : link[..hashIndex];
+        var fragment = hashIndex < 0 ? string.Empty : link[hashIndex..];
+
+        var sourceDirectory = Path.GetDirectoryName(source.FilePath) ?? _vaultPath;
+        var combined = Path.GetFullPath(Path.Combine(sourceDirectory, path.Replace('/', Path.DirectorySeparatorChar)));
+        var vaultRelative = Path.GetRelativePath(_vaultPath, combined).Replace(Path.DirectorySeparatorChar, '/');
+        return vaultRelative + fragment;
     }
 
     /// <summary>Returns notes linking to a specific canonical note identity.</summary>
