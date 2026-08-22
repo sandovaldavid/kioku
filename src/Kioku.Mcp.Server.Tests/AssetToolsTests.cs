@@ -102,6 +102,42 @@ public sealed class AssetToolsTests : IAsyncLifetime
         Assert.Contains("Other/diagram.png", result);
     }
 
+    [Fact]
+    public async Task FindOrphanAssets_DryRun_DoesNotFlagAssetsReferencedWithAliasFragmentOrTitle()
+    {
+        await WriteFileAsync("diagram.png", "asset");
+        await WriteFileAsync("doc.pdf", "asset");
+        await WriteFileAsync("photo.jpg", "asset");
+        await WriteFileAsync("truly-orphan.png", "asset");
+        await WriteFileAsync(
+            "Note.md",
+            "![[diagram.png|300x200]] and ![[doc.pdf#page=2]] and [img](photo.jpg \"title\")");
+        await _index.RebuildIndexAsync();
+
+        var result = await CreateTools().find_orphan_assets(dry_run: true);
+
+        Assert.Contains("truly-orphan.png", result);
+        Assert.DoesNotContain("diagram.png", result);
+        Assert.DoesNotContain("doc.pdf", result);
+        Assert.DoesNotContain("photo.jpg", result);
+    }
+
+    [Fact]
+    public async Task FindOrphanAssets_NotDryRun_MovesOnlyTrueOrphansAndKeepsReferencedAssets()
+    {
+        await WriteFileAsync("diagram.png", "asset");
+        await WriteFileAsync("truly-orphan.png", "asset");
+        await WriteFileAsync("Note.md", "![[diagram.png|300x200]]");
+        await _index.RebuildIndexAsync();
+
+        var result = await CreateTools().find_orphan_assets(dry_run: false);
+
+        Assert.StartsWith("[ok] Moved 1 orphan", result);
+        Assert.True(File.Exists(PathFor("diagram.png")));
+        Assert.False(File.Exists(PathFor("truly-orphan.png")));
+        Assert.True(File.Exists(PathFor(".trash/.kioku-orphans/truly-orphan.png")));
+    }
+
     private AssetTools CreateTools() => new(
         _index,
         new KiokuConfiguration { VaultPath = _vaultPath });
