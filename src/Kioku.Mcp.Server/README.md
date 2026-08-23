@@ -1,6 +1,6 @@
 # Kioku MCP Server
 
-> Current package version: **3.1.2** <!-- x-release-please-version --> · [Documentation](https://sandovaldavid.github.io/kioku/) · [Release notes](https://github.com/sandovaldavid/kioku/releases) · [Source](https://github.com/sandovaldavid/kioku)
+> Current package version: **3.1.3** <!-- x-release-please-version --> · [Documentation](https://sandovaldavid.github.io/kioku/) · [Release notes](https://github.com/sandovaldavid/kioku/releases) · [Source](https://github.com/sandovaldavid/kioku)
 
 Kioku is a local-first Model Context Protocol server that gives AI agents persistent, structured memory in an Obsidian vault. It lets MCP clients read, search, write, and organize ordinary Markdown and YAML-frontmatter files while keeping the vault under the user's control.
 
