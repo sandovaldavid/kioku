@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.1.2](https://github.com/sandovaldavid/kioku/compare/v3.1.1...v3.1.2) (2026-08-23)
+
+
+### Bug Fixes
+
+* **ci:** make conventional commit validation back-sync aware ([#434](https://github.com/sandovaldavid/kioku/issues/434)) ([25a1d63](https://github.com/sandovaldavid/kioku/commit/25a1d63e283151807d8155127f96b7ded86def21))
+* **server:** make read_note resilient to concurrent file access ([#451](https://github.com/sandovaldavid/kioku/issues/451)) ([0e89a67](https://github.com/sandovaldavid/kioku/commit/0e89a676dbba9d0a74d109131a2e4c16990d90f8))
+* **server:** recover from corrupted embeddings cache on startup ([#447](https://github.com/sandovaldavid/kioku/issues/447)) ([f838809](https://github.com/sandovaldavid/kioku/commit/f8388099e0d107ac15a0268079c69e9015bb16cf))
+* **server:** rewrite relative wikilinks after move_note ([#450](https://github.com/sandovaldavid/kioku/issues/450)) ([a54dd31](https://github.com/sandovaldavid/kioku/commit/a54dd316e23b16dfa30af6d8217acc013a59a57a))
+* **server:** scope session activity to the session's own project ([#452](https://github.com/sandovaldavid/kioku/issues/452)) ([96e873b](https://github.com/sandovaldavid/kioku/commit/96e873b11280c5bc8b4db4ee16a8b8ae2c73293e))
+* **server:** stop find_orphan_assets from trashing in-use assets ([#449](https://github.com/sandovaldavid/kioku/issues/449)) ([87377f1](https://github.com/sandovaldavid/kioku/commit/87377f1005ddb924d1bb4dd0ef6870e51fd60f37))
+* **server:** support parenthesis-delimited BibTeX entries ([#453](https://github.com/sandovaldavid/kioku/issues/453)) ([46101f0](https://github.com/sandovaldavid/kioku/commit/46101f0b47c3a9aad92e3c11734f8a4e1f3c3f4a))
+
+
+### Performance Improvements
+
+* **server:** avoid full-vault scans on every search and suggest_folder call ([#454](https://github.com/sandovaldavid/kioku/issues/454)) ([2964717](https://github.com/sandovaldavid/kioku/commit/296471792017771dc5a35f20c55f79ce4f3cb4ea)), closes [#444](https://github.com/sandovaldavid/kioku/issues/444)
+
 ## [3.1.1](https://github.com/sandovaldavid/kioku/compare/v3.1.0...v3.1.1) (2026-08-12)
 
 
