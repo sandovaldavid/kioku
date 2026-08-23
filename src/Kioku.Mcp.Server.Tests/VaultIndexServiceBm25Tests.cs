@@ -138,6 +138,55 @@ public class VaultIndexServiceBm25Tests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Search_ManySequentialEditsAndDeletes_IncrementalAverageMatchesFreshRebuild()
+    {
+        // GitHub #444: avgDocLength moved from a full _docLengths.Values.Average() scan on every
+        // query to a running total maintained incrementally at the same add/remove sites as
+        // _docLengths itself. Repeated add/edit/delete cycles are the case most likely to reveal
+        // drift between the running total and a true recount.
+        for (int i = 0; i < 6; i++)
+        {
+            await WriteNoteAsync($"Nota{i}", $"contenido inicial numero {i} con palabras variadas");
+        }
+
+        using var index = CreateIndex();
+        await index.RebuildIndexAsync();
+
+        for (int i = 0; i < 6; i += 2)
+        {
+            await WriteNoteAsync($"Nota{i}", $"contenido editado numero {i} con mas palabras nuevas y distintas");
+            await index.SynchronizeFileReindexAsync(Path.Combine(_vaultPath, $"Nota{i}.md"));
+        }
+
+        File.Delete(Path.Combine(_vaultPath, "Nota1.md"));
+        index.SynchronizeFileDelete(Path.Combine(_vaultPath, "Nota1.md"));
+
+        await WriteNoteAsync("NotaExtra", "nota agregada despues de las ediciones y el borrado");
+        await index.SynchronizeFileReindexAsync(Path.Combine(_vaultPath, "NotaExtra.md"));
+
+        using var fresh = CreateIndex();
+        await fresh.RebuildIndexAsync();
+
+        foreach (var query in new[] { "contenido", "palabras", "agregada" })
+        {
+            // Compared by name rather than by result order: several notes here legitimately tie
+            // on score (same term frequency, near-identical document length), and tie order isn't
+            // guaranteed to match between two independently built indexes — that's an unrelated,
+            // pre-existing property of ordering ties, not what this test is checking. What matters
+            // for #444 is that the incremental average produces the same score per note as a
+            // from-scratch recount.
+            var incremental = index.Search(query, 20).ToDictionary(r => r.Note.Name, r => r.Score);
+            var rebuilt = fresh.Search(query, 20).ToDictionary(r => r.Note.Name, r => r.Score);
+
+            Assert.Equal(rebuilt.Keys.OrderBy(k => k), incremental.Keys.OrderBy(k => k));
+            foreach (var name in rebuilt.Keys)
+            {
+                Assert.Equal(rebuilt[name], incremental[name], precision: 5);
+            }
+        }
+    }
+
+    [Fact]
     public async Task Search_TitleTagAndContentMatches_AllSurfaceWithTitleFirst()
     {
         await WriteNoteAsync("Contenido", "apunte que menciona jardineria en el cuerpo del texto");
