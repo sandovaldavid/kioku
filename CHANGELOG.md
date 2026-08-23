@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.1.3](https://github.com/sandovaldavid/kioku/compare/v3.1.2...v3.1.3) (2026-08-23)
+
+
+### Bug Fixes
+
+* **docs:** align Pages config with kioku.sandovaldavid.com ([#462](https://github.com/sandovaldavid/kioku/issues/462)) ([cbc1104](https://github.com/sandovaldavid/kioku/commit/cbc11040337cee02d5398d7b8824be573330d007))
+* **release:** add manual recovery dispatch for build/sign/publish ([#459](https://github.com/sandovaldavid/kioku/issues/459)) ([662200d](https://github.com/sandovaldavid/kioku/commit/662200d460daeefc2daa40145b745b9429b43e8d))
+* **release:** pin cosign CLI to v2.5.2 to fix broken signing ([#457](https://github.com/sandovaldavid/kioku/issues/457)) ([01b8306](https://github.com/sandovaldavid/kioku/commit/01b83069bfb04a6af022b3eba71e31fbe0d744c6))
+
 ## [3.1.2](https://github.com/sandovaldavid/kioku/compare/v3.1.1...v3.1.2) (2026-08-23)
 
 
