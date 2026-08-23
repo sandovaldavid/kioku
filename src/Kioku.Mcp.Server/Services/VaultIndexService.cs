@@ -27,6 +27,12 @@ public sealed class VaultIndexService : IDisposable
     // Indexed token count per note path, for BM25 document-length normalization
     private readonly ConcurrentDictionary<string, int> _docLengths = new(StringComparer.OrdinalIgnoreCase);
 
+    // Running sum of _docLengths' values, maintained incrementally at the same two call sites
+    // that add/remove a _docLengths entry (an edit is always a remove-then-add of the same key,
+    // never an in-place overwrite — see IndexFileAsync). Lets Search compute the BM25 average
+    // document length in O(1) instead of _docLengths.Values.Average()'s full scan on every query.
+    private long _totalDocLength;
+
     // Tag index: tag -> set of note paths
     private readonly ConcurrentDictionary<string, HashSet<string>> _tagIndex = new(StringComparer.OrdinalIgnoreCase);
 
@@ -192,7 +198,9 @@ public sealed class VaultIndexService : IDisposable
 
         var queryWords = TokenizeQuery(query);
         var totalDocs = Math.Max(1, _notesByPath.Count);
-        var avgDocLength = _docLengths.IsEmpty ? 1f : (float)_docLengths.Values.Average();
+        var avgDocLength = _docLengths.IsEmpty
+            ? 1f
+            : (float)Interlocked.Read(ref _totalDocLength) / _docLengths.Count;
 
         var bm25 = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
         var tagMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -458,6 +466,7 @@ public sealed class VaultIndexService : IDisposable
         _notesByPath.Clear();
         _wordIndex.Clear();
         _docLengths.Clear();
+        Interlocked.Exchange(ref _totalDocLength, 0);
         _tagIndex.Clear();
         lock (_backlinkIndexGate)
         {
@@ -520,6 +529,7 @@ public sealed class VaultIndexService : IDisposable
             var tokenCount = AddToWordIndex(filePath, note.PlainText);
             tokenCount += AddToWordIndex(filePath, note.Name);
             _docLengths[filePath] = tokenCount;
+            Interlocked.Add(ref _totalDocLength, tokenCount);
 
             foreach (var tag in note.Metadata.Tags)
             {
@@ -742,7 +752,10 @@ public sealed class VaultIndexService : IDisposable
             }
         }
 
-        _docLengths.TryRemove(filePath, out _);
+        if (_docLengths.TryRemove(filePath, out var removedLength))
+        {
+            Interlocked.Add(ref _totalDocLength, -removedLength);
+        }
 
         // Remove from tag index
         foreach (var (_, paths) in _tagIndex)

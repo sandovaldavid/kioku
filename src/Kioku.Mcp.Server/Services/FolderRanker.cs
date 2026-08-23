@@ -60,8 +60,16 @@ public static class FolderRanker
                 continue;
             }
 
-            var folderText = string.Join(" ", notesInFolder.Select(n => n.PlainText + " " + n.Name));
-            var folderTokens = Tokenize(folderText);
+            // Tokenize each note individually and union the resulting sets, instead of
+            // string.Join-ing every note's full plain text into one folder-sized string and
+            // tokenizing that from scratch on every call — avoids the large intermediate string
+            // allocation without changing the result (same distinct token set either way).
+            var folderTokens = new HashSet<string>();
+            foreach (var note in notesInFolder)
+            {
+                folderTokens.UnionWith(Tokenize(note.PlainText + " " + note.Name));
+            }
+
             var overlap = sourceTokens.Count(t => folderTokens.Contains(t));
             var keywordScore = notesInFolder.Count > 0 ? (double)overlap / notesInFolder.Count : 0;
 
