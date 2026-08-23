@@ -5,7 +5,7 @@
 
 ## Server
 
-Current server package version: **3.1.1**. <!-- x-release-please-version --> The NuGet PackageVersion is authoritative for the server and must match both version fields in the MCP server manifest.
+Current server package version: **3.1.2**. <!-- x-release-please-version --> The NuGet PackageVersion is authoritative for the server and must match both version fields in the MCP server manifest.
 
 ## Obsidian plugin
 
