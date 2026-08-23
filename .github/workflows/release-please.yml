@@ -3,6 +3,16 @@ name: release-please
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: >-
+          Existing release tag to rebuild, sign, and publish (e.g. v3.1.2).
+          Recovery path for when build-server/attach-artifacts/publish-nuget
+          failed after release-please already created the tag - run this
+          dispatch against main (once main has the fix) rather than against
+          the tag itself, so the fix is actually picked up; the app source at
+          main's tip must be identical to the tag being recovered.
 
 permissions:
   contents: write
@@ -25,7 +35,7 @@ jobs:
 
   build-server:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -151,7 +161,7 @@ jobs:
 
   attach-artifacts:
     needs: [release-please, build-server]
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -164,13 +174,14 @@ jobs:
       - name: Upload artifacts to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name || github.event.inputs.tag_name }}
         run: |
-          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+          gh release upload "$TAG_NAME" \
             artifacts/*/*
 
   publish-nuget:
     needs: [release-please, attach-artifacts]
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
