@@ -17,6 +17,18 @@ internal sealed partial class WorkSessionService
     private static readonly string[] RequiredCoordinationLinkPreconditions =
         ["expected_revision"];
 
+    /// <summary>
+    /// Notes eligible to be reported as "touched during this session". Scoped to the session's
+    /// own project folder when the session has one, so a concurrent agent's or user's edits to an
+    /// unrelated project never leak into this session's activity summary (GitHub #438). A session
+    /// with no project (legacy/global sessions) falls back to the prior vault-wide behavior, since
+    /// there is no narrower folder to scope to.
+    /// </summary>
+    private IEnumerable<Note> GetProjectScopedNotes(string? project) =>
+        string.IsNullOrWhiteSpace(project)
+            ? _vault.GetAllNotes()
+            : _vault.GetNotesInFolder(_workspace.GetProjectFolder(project));
+
     private List<SessionDescriptor> FindActiveSessions() =>
         _vault.GetAllNotes()
             .Where(note =>

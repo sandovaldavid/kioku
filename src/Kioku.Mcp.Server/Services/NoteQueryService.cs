@@ -36,8 +36,10 @@ internal sealed class NoteQueryService(
             return NoteResultPresenter.RenderMetadata(found, format);
         }
 
-        // Re-read from disk to have the most up-to-date content
-        var content = await File.ReadAllTextAsync(found.FilePath, cancellationToken);
+        // Re-read from disk to have the most up-to-date content. Use the shared-read, retrying
+        // helper (not File.ReadAllTextAsync) so a concurrent writer (Obsidian, Git, another
+        // agent) holding the file briefly doesn't surface as an IOException sharing violation.
+        var content = await NoteHelpers.ReadAllTextAsync(found.FilePath, cancellationToken);
         return NoteResultPresenter.RenderReadNoteContent(found, content, format);
     }
 

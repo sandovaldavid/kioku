@@ -32,6 +32,7 @@ jobs:
       contents: read
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - rid: win-x64
@@ -68,15 +69,51 @@ jobs:
       - name: Rename artifact
         run: mv publish/${{ matrix.rid }}/${{ matrix.binary }} ${{ matrix.artifact-name }}
 
+      # Keep release SBOM generation fail-closed without depending on an action that
+      # downloads Syft dynamically on every matrix leg. The immutable upstream archive
+      # is pinned to the digest published by the Syft v1.42.3 GitHub release.
+      - name: Install pinned Syft
+        shell: bash
+        env:
+          SYFT_VERSION: "1.42.3"
+          SYFT_SHA256: "0d6be741479eddd2c8644a288990c04f3df0d609bbc1599a005532a9dff63509"
+        run: |
+          set -euo pipefail
+
+          archive="$RUNNER_TEMP/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          tool_dir="$RUNNER_TEMP/kioku-release-tools"
+          url="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+
+          mkdir -p "$tool_dir"
+          curl \
+            --fail \
+            --location \
+            --silent \
+            --show-error \
+            --retry 5 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            --connect-timeout 15 \
+            --max-time 180 \
+            --output "$archive" \
+            "$url"
+
+          printf '%s  %s\n' "$SYFT_SHA256" "$archive" | sha256sum --check -
+          tar -xzf "$archive" -C "$tool_dir" syft
+          chmod +x "$tool_dir/syft"
+          "$tool_dir/syft" version
+          echo "$tool_dir" >> "$GITHUB_PATH"
+
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          path: publish/${{ matrix.rid }}
-          format: spdx-json
-          output-file: ${{ matrix.artifact-name }}.spdx.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          syft scan "dir:publish/${{ matrix.rid }}" \
+            --output "spdx-json=${{ matrix.artifact-name }}.spdx.json"
+          test -s "${{ matrix.artifact-name }}.spdx.json"
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4.1.2
 
       - name: Sign binary and SBOM
         env:

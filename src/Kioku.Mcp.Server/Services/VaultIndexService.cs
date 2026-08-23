@@ -27,6 +27,12 @@ public sealed class VaultIndexService : IDisposable
     // Indexed token count per note path, for BM25 document-length normalization
     private readonly ConcurrentDictionary<string, int> _docLengths = new(StringComparer.OrdinalIgnoreCase);
 
+    // Running sum of _docLengths' values, maintained incrementally at the same two call sites
+    // that add/remove a _docLengths entry (an edit is always a remove-then-add of the same key,
+    // never an in-place overwrite — see IndexFileAsync). Lets Search compute the BM25 average
+    // document length in O(1) instead of _docLengths.Values.Average()'s full scan on every query.
+    private long _totalDocLength;
+
     // Tag index: tag -> set of note paths
     private readonly ConcurrentDictionary<string, HashSet<string>> _tagIndex = new(StringComparer.OrdinalIgnoreCase);
 
@@ -192,7 +198,9 @@ public sealed class VaultIndexService : IDisposable
 
         var queryWords = TokenizeQuery(query);
         var totalDocs = Math.Max(1, _notesByPath.Count);
-        var avgDocLength = _docLengths.IsEmpty ? 1f : (float)_docLengths.Values.Average();
+        var avgDocLength = _docLengths.IsEmpty
+            ? 1f
+            : (float)Interlocked.Read(ref _totalDocLength) / _docLengths.Count;
 
         var bm25 = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
         var tagMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -356,11 +364,42 @@ public sealed class VaultIndexService : IDisposable
                     return false;
                 }
 
-                var raw = NormalizeVaultPath(link);
+                // A raw ../ or ./ traversal is relative to the linking note's own directory, not
+                // to the vault root, so resolve it against `source` before comparing against the
+                // vault-relative query. Otherwise a moved-away target's inbound relative links
+                // never match here and move_note silently leaves them broken.
+                var raw = NormalizeVaultPath(ResolveRelativeLinkTarget(source, link));
                 return raw.Equals(query, StringComparison.OrdinalIgnoreCase) ||
                        raw.StartsWith(query + "#", StringComparison.OrdinalIgnoreCase);
             }))
             .ToList();
+    }
+
+    /// <summary>
+    /// Rewrites a raw wikilink target that starts with a ./ or ../ traversal into a vault-root
+    /// relative path, using <paramref name="source"/>'s own directory as the base. Other targets
+    /// (bare names, vault-root-relative paths) pass through unchanged. Mirrors the directory-
+    /// relative resolution <see cref="VaultLinkResolver"/> performs for a link whose target still
+    /// exists, without requiring the target to exist on disk — used by both the backlink
+    /// compatibility scan above and <see cref="WikilinkRewritePolicy"/> so a moved-away target's
+    /// relative inbound links are found and rewritten consistently.
+    /// </summary>
+    internal string ResolveRelativeLinkTarget(Note source, string link)
+    {
+        if (!link.StartsWith("../", StringComparison.Ordinal) &&
+            !link.StartsWith("./", StringComparison.Ordinal))
+        {
+            return link;
+        }
+
+        var hashIndex = link.IndexOf('#');
+        var path = hashIndex < 0 ? link : link[..hashIndex];
+        var fragment = hashIndex < 0 ? string.Empty : link[hashIndex..];
+
+        var sourceDirectory = Path.GetDirectoryName(source.FilePath) ?? _vaultPath;
+        var combined = Path.GetFullPath(Path.Combine(sourceDirectory, path.Replace('/', Path.DirectorySeparatorChar)));
+        var vaultRelative = Path.GetRelativePath(_vaultPath, combined).Replace(Path.DirectorySeparatorChar, '/');
+        return vaultRelative + fragment;
     }
 
     /// <summary>Returns notes linking to a specific canonical note identity.</summary>
@@ -427,6 +466,7 @@ public sealed class VaultIndexService : IDisposable
         _notesByPath.Clear();
         _wordIndex.Clear();
         _docLengths.Clear();
+        Interlocked.Exchange(ref _totalDocLength, 0);
         _tagIndex.Clear();
         lock (_backlinkIndexGate)
         {
@@ -489,6 +529,7 @@ public sealed class VaultIndexService : IDisposable
             var tokenCount = AddToWordIndex(filePath, note.PlainText);
             tokenCount += AddToWordIndex(filePath, note.Name);
             _docLengths[filePath] = tokenCount;
+            Interlocked.Add(ref _totalDocLength, tokenCount);
 
             foreach (var tag in note.Metadata.Tags)
             {
@@ -711,7 +752,10 @@ public sealed class VaultIndexService : IDisposable
             }
         }
 
-        _docLengths.TryRemove(filePath, out _);
+        if (_docLengths.TryRemove(filePath, out var removedLength))
+        {
+            Interlocked.Add(ref _totalDocLength, -removedLength);
+        }
 
         // Remove from tag index
         foreach (var (_, paths) in _tagIndex)

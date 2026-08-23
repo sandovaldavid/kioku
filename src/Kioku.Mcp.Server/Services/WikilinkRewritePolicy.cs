@@ -18,6 +18,11 @@ public static class WikilinkRewritePolicy
         var resolution = vault.ResolveLinkResult(source, rawTarget);
         if (resolution.Status == VaultLinkResolutionStatus.Resolved)
         {
+            // Preserve the historical distinction between an explicit path and a bare name, and
+            // never canonicalize aliases or relative (../, ./) spellings into a full path merely
+            // because the target still resolves — the note hasn't moved yet from this vantage
+            // point, so there's nothing broken to fix. Once the target actually moves, resolution
+            // reliably becomes Missing and the fallback below takes over.
             return DecideResolved(resolution, plan);
         }
 
@@ -36,8 +41,11 @@ public static class WikilinkRewritePolicy
         // After the target has moved, its old spelling is intentionally Missing. Preserve the
         // historical rewrite behavior only for the exact old spelling/path (optionally followed
         // by a real fragment). A literal-hash filename that still exists resolves above and never
-        // reaches this fallback.
-        return DecideMissingHistoricalTarget(rawTarget, plan);
+        // reaches this fallback. A ../ or ./ traversal is relative to `source`, not the vault
+        // root, so resolve it the same way the backlink compatibility scan does before comparing
+        // against the plan's vault-relative paths — otherwise a relative link to a moved-away
+        // target can never be recognized as needing (or matching) a rewrite.
+        return DecideMissingHistoricalTarget(vault.ResolveRelativeLinkTarget(source, rawTarget), plan);
     }
 
     private static WikilinkRewriter.TargetRewriteDecision DecideResolved(

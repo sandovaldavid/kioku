@@ -962,8 +962,11 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var workspace = new ProjectWorkspaceService(config, vaultConfig, CreateBridge(config));
         var sessionFile = Assert.Single(Directory.GetFiles(workspace.GetSubfolder("demo", "sessions")));
         var sessionTimestamp = File.GetLastWriteTimeUtc(sessionFile);
-        await _fixture.CreateNoteAsync("Activity/Changed", "Changed during the session.");
-        var activityFile = _fixture.GetNotePath("Activity/Changed");
+
+        // Activity is scoped to the session's own project (GitHub #438), so the note used to
+        // prove "activity" here must live inside that project's folder, not the vault root.
+        var activityFile = Path.Combine(workspace.GetProjectFolder("demo"), "Activity Changed.md");
+        await File.WriteAllTextAsync(activityFile, "---\ntype: note\n---\nChanged during the session.");
         File.SetLastWriteTimeUtc(activityFile, sessionTimestamp.AddMinutes(1));
         await _fixture.Index.SynchronizeFileReindexAsync(activityFile);
 
@@ -971,7 +974,7 @@ public class EngineeringWorkflowToolsTests : IAsyncLifetime
         var withActivity = await sessions.list_work_sessions(project: "demo", include_activity: true);
 
         Assert.DoesNotContain("Activity:", withoutActivity);
-        Assert.Contains("Activity/Changed", withActivity);
+        Assert.Contains("Activity Changed", withActivity);
         Assert.Contains("after session start", withActivity);
         Assert.DoesNotContain("modified -", withActivity);
     }

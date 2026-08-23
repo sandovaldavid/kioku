@@ -67,19 +67,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Test conventional commit validation contract
+        shell: bash
+        run: bash scripts/test-conventional-commit-validation.sh
+
       - name: Validate commit messages
         shell: bash
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            base="${{ github.event.pull_request.base.sha }}"
-            range="$base..HEAD"
-          else
-            range="HEAD~1..HEAD"
-          fi
-          for sha in $(git rev-list "$range"); do
-            git log -1 --format=%B "$sha" > /tmp/commit-msg.txt
-            .githooks/commit-msg /tmp/commit-msg.txt
-          done
+        env:
+          KIOKU_EVENT_NAME: ${{ github.event_name }}
+          KIOKU_REPOSITORY: ${{ github.repository }}
+          KIOKU_PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          KIOKU_PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          KIOKU_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          KIOKU_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          KIOKU_PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          KIOKU_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: bash scripts/validate-conventional-commits.sh
 
   build-server:
     name: build-server (ubuntu-latest)
@@ -444,7 +447,12 @@ jobs:
 
       - name: Shellcheck
         run: |
-          shellcheck scripts/sync-skill.sh scripts/install.sh scripts/sync-develop-to-main.sh
+          shellcheck \
+            scripts/sync-skill.sh \
+            scripts/install.sh \
+            scripts/sync-develop-to-main.sh \
+            scripts/validate-conventional-commits.sh \
+            scripts/test-conventional-commit-validation.sh
 
       - name: Validate portable client configurations
         run: node scripts/validate-portable-configs.mjs
