@@ -1,6 +1,6 @@
 # Kioku MCP Server
 
-> Current package version: **3.1.2** <!-- x-release-please-version --> · [Documentation](https://sandovaldavid.github.io/kioku/) · [Release notes](https://github.com/sandovaldavid/kioku/releases) · [Source](https://github.com/sandovaldavid/kioku)
+> Current package version: **3.1.2** <!-- x-release-please-version --> · [Documentation](https://kioku.sandovaldavid.com/) · [Release notes](https://github.com/sandovaldavid/kioku/releases) · [Source](https://github.com/sandovaldavid/kioku)
 
 Kioku is a local-first Model Context Protocol server that gives AI agents persistent, structured memory in an Obsidian vault. It lets MCP clients read, search, write, and organize ordinary Markdown and YAML-frontmatter files while keeping the vault under the user's control.
 
@@ -58,7 +58,7 @@ A minimal client configuration starts `kioku` and supplies the vault path:
 }
 ```
 
-The repository documents native MCP registration for Claude Code, Codex, OpenCode, GitHub Copilot, and Antigravity, plus native plugin bundles where the client supports that model. See the [installation guide](https://sandovaldavid.github.io/kioku/install.html) for client-specific commands/configuration, Docker, source builds, and troubleshooting.
+The repository documents native MCP registration for Claude Code, Codex, OpenCode, GitHub Copilot, and Antigravity, plus native plugin bundles where the client supports that model. See the [installation guide](https://kioku.sandovaldavid.com/install.html) for client-specific commands/configuration, Docker, source builds, and troubleshooting.
 
 ## What Kioku provides
 
@@ -73,18 +73,18 @@ The repository documents native MCP registration for Claude Code, Codex, OpenCod
 
 The default discovery profile contains the safe core surface. Optional capability groups must be enabled explicitly when an integration needs them. Treat `tools/list` as authoritative rather than assuming every possible tool is registered.
 
-For the durable project model, including spec lifecycle, SPEC → PLAN linking, core/eager project folders, optional/lazy `daily` and `tickets`, and revision behavior, see [Engineering workflows](https://sandovaldavid.github.io/kioku/engineering-workflows.html).
+For the durable project model, including spec lifecycle, SPEC → PLAN linking, core/eager project folders, optional/lazy `daily` and `tickets`, and revision behavior, see [Engineering workflows](https://kioku.sandovaldavid.com/engineering-workflows.html).
 
 ## Kioku 3 migration
 
-Kioku 3 changed public tool names, discovery profiles, structured results, and guarded mutation behavior. Integrations upgrading from `2.3.0` should follow the [2.3.0 to 3.0.0 migration guide](https://sandovaldavid.github.io/kioku/migration-2.3.0-to-3.0.0.html) before switching production clients.
+Kioku 3 changed public tool names, discovery profiles, structured results, and guarded mutation behavior. Integrations upgrading from `2.3.0` should follow the [2.3.0 to 3.0.0 migration guide](https://kioku.sandovaldavid.com/migration-2.3.0-to-3.0.0.html) before switching production clients.
 
 The authoritative generated references are:
 
-- [MCP contract reference](https://sandovaldavid.github.io/kioku/commands-reference.html)
-- [Server configuration reference](https://sandovaldavid.github.io/kioku/configuration-reference.html)
-- [Vault configuration](https://sandovaldavid.github.io/kioku/vault-config.html)
-- [Versioning and bridge compatibility](https://sandovaldavid.github.io/kioku/versioning.html)
+- [MCP contract reference](https://kioku.sandovaldavid.com/commands-reference.html)
+- [Server configuration reference](https://kioku.sandovaldavid.com/configuration-reference.html)
+- [Vault configuration](https://kioku.sandovaldavid.com/vault-config.html)
+- [Versioning and bridge compatibility](https://kioku.sandovaldavid.com/versioning.html)
 
 ## Security defaults
 
@@ -96,7 +96,7 @@ The authoritative generated references are:
 - bridge authentication uses a separate shared token;
 - optional local AI calls use the configured Ollama service.
 
-Review the [threat and privacy model](https://sandovaldavid.github.io/kioku/threat-and-privacy-model.html) and [Streamable HTTP security guide](https://sandovaldavid.github.io/kioku/deploy/auth-options.html) before exposing Kioku outside a trusted local environment.
+Review the [threat and privacy model](https://kioku.sandovaldavid.com/threat-and-privacy-model.html) and [Streamable HTTP security guide](https://kioku.sandovaldavid.com/deploy/auth-options.html) before exposing Kioku outside a trusted local environment.
 
 ## License
 

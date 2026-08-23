@@ -26,7 +26,7 @@
     <InformationalVersion>$(PackageVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageProjectUrl>https://sandovaldavid.github.io/kioku/</PackageProjectUrl>
+    <PackageProjectUrl>https://kioku.sandovaldavid.com/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/sandovaldavid/kioku</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>AI;MCP;Obsidian;memory;notes;local-first;server;stdio;streamable-http</PackageTags>
