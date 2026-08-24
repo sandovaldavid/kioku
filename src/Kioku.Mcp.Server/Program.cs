@@ -218,6 +218,9 @@ static void ConfigureSentryOptions(SentryOptions options, KiokuConfiguration con
     options.MaxBreadcrumbs = 50;
     options.SetBeforeSend((sentryEvent, _) =>
     {
+        // The Sentry integration is opt-in, but an opt-in exporter still must not receive raw
+        // exception payloads from the coordination boundary. SendDefaultPii remains disabled so
+        // request, user, and breadcrumb data are not added by the SDK.
         sentryEvent.ServerName = null;
         if (sentryEvent.SentryExceptions is { } exceptions)
         {
