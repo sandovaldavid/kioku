@@ -48,12 +48,84 @@ This installs the standalone `kioku` binary for your platform to `~/.local/bin/k
 
 ### Option C: Build from Source
 
+Use this when you only need to compile or develop Kioku from a checkout. `dotnet build` does **not** install the `kioku` command as a global tool.
+
 ```bash
 git clone https://github.com/sandovaldavid/kioku.git
 cd kioku
 dotnet restore Kioku.slnx
 dotnet build Kioku.slnx --configuration Release --no-restore
 ```
+
+### Option D: Install a Local Source Build
+
+Use this path when you need the globally resolvable `kioku` command to run the exact source currently checked out—for example, to validate `develop`, an unreleased fix, or a pull-request branch before it is published to NuGet.
+
+Start from the branch you intend to test:
+
+```bash
+git fetch origin
+git switch develop
+# Or: git switch <branch-name>
+git pull --ff-only
+```
+
+Restore and pack the .NET tool with a **local-only prerelease version**. Do not reuse a published Kioku version and do not pre-claim the next real release number.
+
+```bash
+rm -rf ./artifacts/packages
+
+dotnet restore Kioku.slnx
+
+dotnet pack \
+  src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+  --configuration Release \
+  --no-restore \
+  -p:PackageVersion=0.0.0-local.1 \
+  --output ./artifacts/packages
+```
+
+The package is written under `./artifacts/packages`. When repacking another local build, increment the prerelease suffix (`0.0.0-local.2`, `0.0.0-local.3`, ...) so the artifact you install is unambiguous and cannot be confused with a tagged release.
+
+If Kioku is already installed globally, remove that installation first:
+
+```bash
+dotnet tool uninstall --global kioku-mcp-server
+```
+
+Install the package from the local artifacts directory using the same version passed to `dotnet pack`:
+
+```bash
+dotnet tool install --global \
+  --add-source ./artifacts/packages \
+  --version 0.0.0-local.1 \
+  kioku-mcp-server
+```
+
+`--add-source` adds the local package directory to the NuGet sources used by the tool installer. The unique `0.0.0-local.*` version keeps this developer workflow distinct from published Kioku packages. Kioku's CI uses a stricter isolated NuGet configuration and package-source mapping for release/package smoke validation; that extra isolation is not required for ordinary local branch testing.
+
+Verify the installed artifact:
+
+```bash
+dotnet tool list --global
+kioku --version
+```
+
+For the example above, `kioku --version` should report:
+
+```text
+0.0.0-local.1
+```
+
+After validating the local build, restore the latest stable installation with:
+
+```bash
+dotnet tool uninstall --global kioku-mcp-server
+dotnet tool install --global kioku-mcp-server
+kioku --version
+```
+
+The commands above avoid shell-specific variable assignment and can be run from Bash, Zsh, or Fish. On Windows, run the equivalent commands from PowerShell or another shell that supports the shown line-continuation syntax, or place each `dotnet` invocation on one line.
 
 ---
 
@@ -285,7 +357,7 @@ Confirm that the executable itself is installed and resolvable:
 kioku --version
 ```
 
-`--version` (or `-v`) prints the server version and exits without starting a transport, reading the vault, or requiring `KIOKU_VAULT_PATH`. The output should match the current tagged release shown at the top of this page when you installed from NuGet or the tagged binary release. Any other invocation starts the MCP server.
+`--version` (or `-v`) prints the server version and exits without starting a transport, reading the vault, or requiring `KIOKU_VAULT_PATH`. The output should match the current tagged release shown at the top of this page when you installed from NuGet or the tagged binary release. A local source build instead reports the local prerelease version supplied during `dotnet pack`. Any other invocation starts the MCP server.
 
 After completing registration, start your client and verify that `kioku` connects.
 
