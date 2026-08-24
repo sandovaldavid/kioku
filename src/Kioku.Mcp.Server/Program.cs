@@ -240,7 +240,7 @@ static async Task<int> RunHttpAsync(
     KiokuConfiguration config,
     string[] args)
 {
-    var builder = WebApplication.CreateBuilder(args);
+    var builder = WebApplication.CreateBuilder(KiokuHostConfigurationPolicy.Apply(args));
     builder.Configuration.AddConfiguration(configuration);
     builder.WebHost.UseUrls(config.HttpListenUrl);
 
@@ -291,7 +291,7 @@ static async Task<int> RunStdioAsync(
     string[] args)
 {
     ConfigureSentry(config);
-    var builder = Host.CreateApplicationBuilder(args);
+    var builder = Host.CreateApplicationBuilder(KiokuHostConfigurationPolicy.Apply(args));
     builder.Configuration.AddConfiguration(configuration);
     ConfigureLogging(builder.Logging);
     builder.Services.AddKiokuRuntime(builder.Configuration);
