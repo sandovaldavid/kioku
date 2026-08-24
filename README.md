@@ -42,6 +42,31 @@ Or install via one-liner script:
 curl -fsSL https://raw.githubusercontent.com/sandovaldavid/kioku/main/scripts/install.sh | bash
 ```
 
+To test an unreleased checkout such as `develop` or a pull-request branch, package and install it as a local-only prerelease instead of reusing a published Kioku version:
+
+```bash
+dotnet restore Kioku.slnx
+rm -rf ./artifacts/packages
+dotnet pack \
+  src/Kioku.Mcp.Server/Kioku.Mcp.Server.csproj \
+  --configuration Release \
+  --no-restore \
+  -p:PackageVersion=0.0.0-local.1 \
+  --output ./artifacts/packages
+
+# Run this only when Kioku is already installed globally.
+dotnet tool uninstall --global kioku-mcp-server
+
+dotnet tool install --global \
+  --add-source ./artifacts/packages \
+  --version 0.0.0-local.1 \
+  kioku-mcp-server
+
+kioku --version
+```
+
+Increment the local prerelease suffix (`local.1`, `local.2`, ...) when repacking another build so the installed artifact is unambiguous. See [Build and install from source](docs/install.md#option-d-install-a-local-source-build) for branch/PR checkout steps, verification, and restoring the stable release.
+
 ### Step 2: Register in your MCP client
 
 Set `KIOKU_VAULT_PATH` and register using your client's native registration mechanism:
