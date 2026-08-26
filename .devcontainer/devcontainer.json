@@ -84,6 +84,7 @@
     }
   },
   "postCreateCommand": "bash .devcontainer/scripts/post-create.sh",
+  "postStartCommand": "bash .devcontainer/scripts/post-start.sh",
   "hostRequirements": {
     "cpus": 2,
     "memory": "4gb",
