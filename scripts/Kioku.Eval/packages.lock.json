@@ -4,9 +4,9 @@
     "net10.0": {
       "Microsoft.CodeAnalysis.NetAnalyzers": {
         "type": "Direct",
-        "requested": "[10.0.400, )",
-        "resolved": "10.0.400",
-        "contentHash": "Uogs/xCuSxYuEYAU7oUPddK3MFcT3A+FkrBcx/wVse6P4joptMAfh/H9jtIhl9IkHARCvJHFjL3jhKFs9YMktA=="
+        "requested": "[10.0.402, )",
+        "resolved": "10.0.402",
+        "contentHash": "nlskNkKtDwOLg5U982TCn3rqsH+87ccYpfGvuNg/EKPrDsghpuMOkd4ZiZDCVSAHwE2bYgB2YfGbte/K2fU1MA=="
       },
       "Microsoft.Extensions.AI.Abstractions": {
         "type": "Transitive",
@@ -214,7 +214,7 @@
       "kioku-mcp-server": {
         "type": "Project",
         "dependencies": {
-          "Markdig": "[1.3.2, )",
+          "Markdig": "[1.4.1, )",
           "ModelContextProtocol": "[2.2.0, )",
           "ModelContextProtocol.AspNetCore": "[2.2.0, )",
           "NJsonSchema": "[11.6.1, )",
@@ -224,9 +224,9 @@
       },
       "Markdig": {
         "type": "CentralTransitive",
-        "requested": "[1.3.2, )",
-        "resolved": "1.3.2",
-        "contentHash": "fZgOC/3CswUrndjDTac70aQpYdtxbW5+5bRumR7vzvI2HJbkmgKisB1c9oT+GA6v0jB/JDR9BLa9FiPzQmaK6A=="
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "laiWlBRnwVqQlY9eWR56+uteUVtR+LpGw0doMSpirFuxdplSi3V59UOGRTepJaE8hJvfKGcCoguIZ8jmUHcEnA=="
       },
       "ModelContextProtocol": {
         "type": "CentralTransitive",
