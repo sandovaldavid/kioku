@@ -2,6 +2,10 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <!-- No PackageReference of its own, so this project's closure is fully pinned by
+         Kioku.Mcp.Server's lock file. A second lock file only recorded CentralTransitive
+         entries that Dependabot does not re-evaluate, which broke locked restore (NU1004). -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>
