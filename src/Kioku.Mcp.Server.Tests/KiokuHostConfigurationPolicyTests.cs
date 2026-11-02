@@ -1,4 +1,5 @@
 using Kioku.Mcp.Server.Hosting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Xunit;
@@ -30,5 +31,32 @@ public sealed class KiokuHostConfigurationPolicyTests
 
         Assert.False(builder.Configuration.GetValue<bool>("hostBuilder:reloadConfigOnChange"));
         Assert.Equal("--hostBuilder:reloadConfigOnChange=false", hostArgs[^1]);
+    }
+
+    [Fact]
+    public void Stdio_host_registers_no_file_configuration_reload_watchers()
+    {
+        var builder = Host.CreateApplicationBuilder(KiokuHostConfigurationPolicy.Apply([]));
+
+        AssertNoReloadWatchers(builder.Configuration);
+    }
+
+    [Fact]
+    public void Http_host_registers_no_file_configuration_reload_watchers()
+    {
+        var builder = WebApplication.CreateBuilder(KiokuHostConfigurationPolicy.Apply([]));
+
+        AssertNoReloadWatchers(builder.Configuration);
+    }
+
+    // The reload switch only matters if it reaches the providers that create FileSystemWatcher
+    // instances; the "hostBuilder:reloadConfigOnChange" key alone would still be false if a
+    // watching provider were registered.
+    private static void AssertNoReloadWatchers(ConfigurationManager configuration)
+    {
+        var fileSources = configuration.Sources.OfType<FileConfigurationSource>().ToArray();
+
+        Assert.NotEmpty(fileSources);
+        Assert.All(fileSources, source => Assert.False(source.ReloadOnChange));
     }
 }
